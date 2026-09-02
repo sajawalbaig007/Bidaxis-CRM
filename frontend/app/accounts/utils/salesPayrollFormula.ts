@@ -2,6 +2,16 @@
 
 export type ProjectCurrency = "USD" | "CAD";
 
+export type ProjectSlabKey = "0-1000" | "1001-3000" | "3001-5000" | "5001-10000" | "10001+";
+
+export const PROJECT_SLABS: { key: ProjectSlabKey; label: string; rate: number }[] = [
+  { key: "0-1000", label: "$0 – $1,000", rate: 0.03 },
+  { key: "1001-3000", label: "$1,001 – $3,000", rate: 0.035 },
+  { key: "3001-5000", label: "$3,001 – $5,000", rate: 0.04 },
+  { key: "5001-10000", label: "$5,001 – $10,000", rate: 0.045 },
+  { key: "10001+", label: "$10,001+", rate: 0.05 },
+];
+
 export type FixClientProject = {
   id: string;
   clientName: string;
@@ -9,6 +19,10 @@ export type FixClientProject = {
   currency?: ProjectCurrency;
   /** PKR per 1 unit of project currency, captured when the project was entered. */
   fxRate?: number;
+  /** Selected commission range — formula uses this %, not auto from amount. */
+  slabKey?: ProjectSlabKey;
+  /** Number of projects in this range row. */
+  projectCount?: number;
 };
 
 export type SalesPayrollCalcOpts = {
@@ -99,6 +113,28 @@ export function projectSlabRate(amount: number): number {
   return 0.05;
 }
 
+export function inferSlabKey(amount: number): ProjectSlabKey {
+  const a = Math.max(0, Number(amount) || 0);
+  if (a <= 1000) return "0-1000";
+  if (a <= 3000) return "1001-3000";
+  if (a <= 5000) return "3001-5000";
+  if (a <= 10000) return "5001-10000";
+  return "10001+";
+}
+
+export function projectSlabRateFromKey(key?: string | null, fallbackAmount = 0): number {
+  const found = PROJECT_SLABS.find(s => s.key === key);
+  if (found) return found.rate;
+  return projectSlabRate(fallbackAmount);
+}
+
+export function fixRowProjectCount(p: Pick<FixClientProject, "projectCount">): number {
+  if (p.projectCount != null && Number.isFinite(Number(p.projectCount))) {
+    return Math.max(0, Number(p.projectCount));
+  }
+  return 1;
+}
+
 function projectFxRate(p: FixClientProject, opts?: SalesPayrollCalcOpts): number {
   const stored = Number(p.fxRate);
   if (Number.isFinite(stored) && stored > 0) return stored;
@@ -107,10 +143,11 @@ function projectFxRate(p: FixClientProject, opts?: SalesPayrollCalcOpts): number
   return Number.isFinite(live) && live > 0 ? live : 0;
 }
 
-/** amount × slab% × 0.89 × FX  (e.g. 300 × 0.03 × 0.89 × 277) */
+/** amount × selected-range% × 0.89 × FX — range is chosen in UI, not inferred from amount. */
 export function projectCommissionPkr(p: FixClientProject, opts?: SalesPayrollCalcOpts): number {
   const amount = Number(p.projectPay) || 0;
-  return amount * projectSlabRate(amount) * PROJECT_TAX_FACTOR * projectFxRate(p, opts);
+  const rate = projectSlabRateFromKey(p.slabKey, amount);
+  return amount * rate * PROJECT_TAX_FACTOR * projectFxRate(p, opts);
 }
 
 /** Team-lead share of a team project: amount × 0.5% × 0.89 × FX */
@@ -165,7 +202,9 @@ export function calcSalesCommission(
     0,
   );
   const totalProjects =
-    oldCount + (Number(commission.newClientProjects) || 0) + (commission.fixClientProjects?.length ?? 0);
+    oldCount +
+    (Number(commission.newClientProjects) || 0) +
+    (commission.fixClientProjects ?? []).reduce((s, p) => s + fixRowProjectCount(p), 0);
   const totalCommission = oldComm + newComm + fixComm;
   return { oldComm, newComm, fixComm, totalProjects, totalCommission, slab };
 }
@@ -236,6 +275,8 @@ export function newFixClientProject(init?: Partial<FixClientProject>): FixClient
     projectPay: Number(init?.projectPay) || 0,
     currency: init?.currency === "CAD" ? "CAD" : "USD",
     fxRate: Number(init?.fxRate) || 0,
+    slabKey: init?.slabKey ?? "0-1000",
+    projectCount: init?.projectCount ?? 1,
   };
 }
 

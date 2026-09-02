@@ -11,6 +11,7 @@ import {
 } from "./payrollFormula";
 import {
   computeSalesEmployeePayroll,
+  fixRowProjectCount,
   type SalesCommissionFields,
   type SalesPayrollEmployee,
 } from "./salesPayrollFormula";
@@ -85,7 +86,7 @@ function commissionQtyLabels(c: SalesCommissionFields) {
   const partial = Math.min(Number(c.oldClientPartialCount) || 0, oldCount);
   const oldFull = oldCount - partial;
   const newCount = Number(c.newClientProjects) || 0;
-  const fixCount = (c.fixClientProjects ?? []).length;
+  const fixCount = (c.fixClientProjects ?? []).reduce((s, p) => s + fixRowProjectCount(p), 0);
   return {
     old:
       oldCount > 0

@@ -150,7 +150,7 @@ export const BUILTIN_FORMULAS: FormulaDef[] = [
     section: "Payroll — Sales Team",
     title: "Project Commission",
     expression:
-      "Through Jul 2026: Old = 1,000/project (partial 500) · New = 3,000/project · Fix = 2.5% of pay. From Aug 2026: Fix = amount × slab% × 0.89 × live FX (≤$1k 3% · $1,001–3k 3.5% · $3,001–5k 4% · $5,001–10k 4.5% · $10,001+ 5%)",
+      "Through Jul 2026: Old = 1,000/project (partial 500) · New = 3,000/project · Fix = 2.5% of pay. From Aug 2026: pick commission range ($0–1k 3% · $1,001–3k 3.5% · $3,001–5k 4% · $5,001–10k 4.5% · $10,001+ 5%), enter project count + total amount → selected range % × 0.89 × live FX (range is chosen, not inferred from amount)",
     appliesTo: "Sales team member commissions",
   },
   {

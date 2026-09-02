@@ -2,12 +2,24 @@
 
 export type ProjectCurrency = "USD" | "CAD";
 
+export type ProjectSlabKey = "0-1000" | "1001-3000" | "3001-5000" | "5001-10000" | "10001+";
+
+export const PROJECT_SLABS: { key: ProjectSlabKey; label: string; rate: number }[] = [
+  { key: "0-1000", label: "$0 – $1,000", rate: 0.03 },
+  { key: "1001-3000", label: "$1,001 – $3,000", rate: 0.035 },
+  { key: "3001-5000", label: "$3,001 – $5,000", rate: 0.04 },
+  { key: "5001-10000", label: "$5,001 – $10,000", rate: 0.045 },
+  { key: "10001+", label: "$10,001+", rate: 0.05 },
+];
+
 export type FixClientProject = {
   id: string;
   clientName: string;
   projectPay: number;
   currency?: ProjectCurrency;
   fxRate?: number;
+  slabKey?: ProjectSlabKey;
+  projectCount?: number;
 };
 
 export type SalesCommissionFields = {

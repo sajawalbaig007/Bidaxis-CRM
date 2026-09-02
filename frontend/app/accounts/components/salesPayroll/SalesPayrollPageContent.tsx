@@ -76,7 +76,7 @@ export default function SalesPayrollPageContent({ variant }: Props) {
   const title = variant === "sales" ? "Sales Team Payroll" : "Sales Team Lead Payroll";
   const subtitle =
     variant === "sales"
-      ? "Project commission — old/new plus slab × 0.89 × live FX from Aug 2026 · Assign to Hammad"
+      ? "Project commission — pick range, then projects + total amount (selected % × 0.89 × FX from Aug 2026) · Assign to Hammad"
       : "Hammad & team leads — own commission + 0.5% × 0.89 × FX on team projects (from Aug 2026)";
 
   return (

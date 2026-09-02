@@ -1,12 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Bar, BarChart, CartesianGrid, Cell, Legend, Pie, PieChart, Tooltip, XAxis, YAxis } from "recharts";
-import { ArrowDownRight, ArrowUpRight, CalendarDays, Cloud, ExternalLink, FileText, Loader2, Sparkles, TrendingUp } from "lucide-react";
+import { Fragment, useEffect, useState } from "react";
+import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Legend, Pie, PieChart, Tooltip, XAxis, YAxis } from "recharts";
+import {
+  ArrowDownRight, ArrowUpRight, CalendarDays, Cloud, ExternalLink, Loader2,
+  Sparkles, TrendingUp, Wallet, Building2, Activity, PieChart as PieIcon,
+} from "lucide-react";
 import toast from "react-hot-toast";
 import API, { apiErrorMessage } from "@/lib/api";
 import AccountsSidebar from "../components/layout/Sidebar";
 import { ACCOUNTS_MAIN_OFFSET } from "../components/layout/headerOffset";
+import AccountsChartCard, { CHART_COLORS } from "../components/AccountsChartCard";
+import { bankColor } from "../components/accountsTheme";
 import RechartsBox from "@/app/components/charts/RechartsBox";
 import { currency } from "../types";
 import { useScrollToHash } from "../hooks/useScrollToHash";
@@ -32,6 +37,32 @@ type MonthlyReport = {
     totalCost: number;
     netProfit: number;
   };
+  revenueChannels?: {
+    key: string;
+    label: string;
+    usd: number;
+    cad: number;
+    pkr: number;
+    netPkr: number;
+  }[];
+  collections?: {
+    client: string;
+    projectCode: string;
+    channel: string;
+    channelLabel: string;
+    currency: string;
+    amount: number;
+    paidAt: string;
+    type: string;
+  }[];
+  days?: {
+    date: string;
+    payroll: number;
+    opex: number;
+    loans: number;
+    pf: number;
+    cost: number;
+  }[];
   history: { month: string; revenue: number; cost: number; net: number; days?: number; lastDate?: string }[];
   salaryTeams: CategoryGroup[];
   opexHeads: CategoryGroup[];
@@ -48,10 +79,21 @@ type MonthlyReport = {
     remarks: string;
   }[];
   cash: {
-    banks: { bank: string; balance: number }[];
+    banks: { bank: string; balance: number; debit?: number; credit?: number }[];
+    sections?: { name: string; net: number }[];
     monthNet: number;
     closingNet: number;
+    monthEntries?: number;
     asOf: string | null;
+    ledger?: {
+      section: string;
+      date: string;
+      description: string;
+      banks: { bank: string; debit: number; credit: number }[];
+      debit: number;
+      credit: number;
+      net: number;
+    }[];
   };
   csr: {
     totalProjects: number;
@@ -83,6 +125,7 @@ type MonthlyReport = {
       fixComm: number;
       totalCommission: number;
       share: number;
+      fixClients?: { clientName: string; projectPay: number; currency: string }[];
     }[];
   };
   daysRecorded: number;
@@ -161,8 +204,8 @@ function buildInsights(report: MonthlyReport) {
 }
 
 /**
- * Word-compatible HTML document — KPI cards, shaded status cells, trend arrows,
- * and table-based bar charts (these render reliably in Word).
+ * Word-compatible HTML — same light template as Technical Team monthly report:
+ * red h1, grey meta, pastel KPI cards, navy table headers, nested-table bars.
  */
 function buildWordHtml(report: MonthlyReport): string {
   const label = monthLabel(report.month);
@@ -171,38 +214,33 @@ function buildWordHtml(report: MonthlyReport): string {
 
   const RED = "#B8112D";
   const NAVY = "#0B1220";
-  const GREEN = "#12B76A";
+  const GREEN = "#059669";
   const GREEN_D = "#027A48";
   const RED_TXT = "#DC2626";
   const BLUE = "#0B84F3";
+  const AMBER = "#D97706";
+  const VIOLET = "#7C3AED";
   const TEAL = "#0D9488";
-  const PURPLE = "#6D28D9";
   const SLATE = "#334155";
 
-  const th = `style="background:${NAVY};color:#fff;padding:6px 9px;text-align:left;font-size:10px;letter-spacing:0.5px;"`;
-  const thR = `style="background:${NAVY};color:#fff;padding:6px 9px;text-align:right;font-size:10px;letter-spacing:0.5px;"`;
-  const thC = `style="background:${NAVY};color:#fff;padding:6px 9px;text-align:center;font-size:10px;letter-spacing:0.5px;"`;
-  const td = `style="padding:5px 9px;border:1px solid #E2E8F0;font-size:10.5px;"`;
-  const tdR = `style="padding:5px 9px;border:1px solid #E2E8F0;font-size:10.5px;text-align:right;"`;
-  const tdC = `style="padding:5px 9px;border:1px solid #E2E8F0;font-size:10.5px;text-align:center;"`;
-  const sub = `style="padding:3px 9px 3px 26px;border:1px solid #F1F5F9;font-size:9.5px;color:#64748B;background:#FCFCFD;"`;
-  const subR = `style="padding:3px 9px;border:1px solid #F1F5F9;font-size:9.5px;color:#64748B;text-align:right;background:#FCFCFD;"`;
+  const th = `style="background:${NAVY};color:#fff;padding:6px 8px;font-size:10px;"`;
+  const thR = `style="background:${NAVY};color:#fff;padding:6px 8px;font-size:10px;text-align:right;"`;
+  const thC = `style="background:${NAVY};color:#fff;padding:6px 8px;font-size:10px;text-align:center;"`;
+  const td = `style="padding:5px 8px;border:1px solid #E2E8F0;font-size:10px;"`;
+  const tdR = `style="padding:5px 8px;border:1px solid #E2E8F0;font-size:10px;text-align:right;"`;
+  const tdC = `style="padding:5px 8px;border:1px solid #E2E8F0;font-size:10px;text-align:center;"`;
+  const sub = `style="padding:3px 8px 3px 22px;border:1px solid #F1F5F9;font-size:9.5px;color:#64748B;background:#FCFCFD;"`;
+  const subR = `style="padding:3px 8px;border:1px solid #F1F5F9;font-size:9.5px;color:#64748B;text-align:right;background:#FCFCFD;"`;
 
   const tdEmpty = (cols: number, text: string) =>
-    `<tr><td colspan="${cols}" style="padding:9px;border:1px solid #E2E8F0;font-size:10px;color:#94A3B8;text-align:center;">${text}</td></tr>`;
+    `<tr><td colspan="${cols}" style="padding:10px;border:1px solid #E2E8F0;font-size:10px;color:#94A3B8;text-align:center;">${text}</td></tr>`;
 
-  /** Highlighted status cell — shades the whole cell (span backgrounds are unreliable in Word). */
   const statusCell = (text: string, bg: string, color: string) =>
-    `<td style="padding:4px 9px;border:1px solid #E2E8F0;text-align:center;background:${bg};"><b style="color:${color};font-size:8.5px;letter-spacing:0.5px;">${text.toUpperCase()}</b></td>`;
+    `<td style="padding:4px 8px;border:1px solid #E2E8F0;text-align:center;background:${bg};"><b style="color:${color};font-size:8.5px;letter-spacing:0.5px;">${text.toUpperCase()}</b></td>`;
 
   const profitCell = (v: number) =>
     v >= 0 ? statusCell("Profit", "#D1FADF", GREEN_D) : statusCell("Loss", "#FEE4E2", RED_TXT);
 
-  /** Inline badge via single-cell shaded table (for header banners). */
-  const badge = (text: string, bg: string, color: string) =>
-    `<table cellspacing="0" cellpadding="0" align="right"><tr><td style="background:${bg};color:${color};font-size:8px;font-weight:bold;padding:3px 9px;letter-spacing:0.6px;">${text.toUpperCase()}</td></tr></table>`;
-
-  /** MoM trend arrow — direction + color (goodWhenUp: revenue up = green, cost up = red). */
   const trendArrow = (v: number | null, goodWhenUp: boolean) => {
     if (v == null) return `<span style="color:#94A3B8;font-size:9px;">—</span>`;
     const up = v >= 0;
@@ -211,48 +249,40 @@ function buildWordHtml(report: MonthlyReport): string {
     return `<span style="color:${color};font-size:9px;font-weight:bold;">${up ? "▲" : "▼"} ${signed(v)}</span>`;
   };
 
-  /** KPI card cell — solid brand color, big number, note. */
-  const kpiCard = (title: string, value: string, note: string, bg: string) => `
-    <td width="33%" valign="top" style="background:${bg};padding:11px 13px;">
-      <p style="margin:0;font-size:7.5px;color:#E2E8F0;font-weight:bold;letter-spacing:1.2px;">${title.toUpperCase()}</p>
-      <p style="margin:5px 0 0;font-size:16px;color:#FFFFFF;font-weight:bold;">${value}</p>
-      <p style="margin:4px 0 0;font-size:8.5px;color:#CBD5E1;">${note}</p>
+  const card = (title: string, value: string, subTxt: string, bg: string) =>
+    `<td width="25%" style="padding:6px;">
+      <table width="100%" cellpadding="0" cellspacing="0" style="background:${bg};border-radius:8px;">
+        <tr><td style="padding:12px 14px;">
+          <p style="margin:0;font-size:9px;color:#64748B;text-transform:uppercase;letter-spacing:0.5px;font-weight:bold;">${title}</p>
+          <p style="margin:4px 0 2px;font-size:22px;font-weight:bold;color:#0F172A;">${value}</p>
+          <p style="margin:0;font-size:9px;color:#64748B;">${subTxt}</p>
+        </td></tr>
+      </table>
     </td>`;
 
-  /** Section heading strip with red accent bar. */
-  const section = (num: number, title: string) => `
-    <table cellspacing="0" cellpadding="0" width="100%" style="margin:20px 0 8px;">
-      <tr>
-        <td width="5" style="background:${RED};font-size:1px;">&nbsp;</td>
-        <td style="background:#F8FAFC;border:1px solid #E2E8F0;border-left:none;padding:6px 11px;font-size:12.5px;font-weight:bold;color:#0F172A;">${num}. ${title}</td>
-      </tr>
-    </table>`;
-
-  /** Horizontal bar row — Word-safe chart (nested table, % widths). */
-  const barRow = (rowLabel: string, pct: number, color: string, valueTxt: string, valueColor: string) => {
-    const width = Math.max(Math.min(Math.round(pct), 100), pct > 0 ? 2 : 0);
+  const barRow = (rowLabel: string, value: number, max: number, color: string, valueTxt?: string) => {
+    const pct = Math.max(0, Math.min(100, max > 0 ? Math.round((Math.abs(value) / max) * 100) : 0));
     return `<tr>
-      <td width="76" style="padding:2px 8px 2px 0;font-size:9px;font-weight:bold;color:${SLATE};">${rowLabel}</td>
-      <td style="padding:3px 0;">
-        <table cellspacing="0" cellpadding="0" width="100%"><tr>
-          ${width > 0 ? `<td width="${width}%" height="10" style="background:${color};font-size:1px;line-height:10px;">&nbsp;</td>` : ""}
-          <td height="10" style="background:#F1F5F9;font-size:1px;line-height:10px;">&nbsp;</td>
+      <td style="padding:4px 8px;border:1px solid #E2E8F0;font-size:10px;width:140px;">${rowLabel}</td>
+      <td style="padding:4px 8px;border:1px solid #E2E8F0;font-size:10px;width:90px;text-align:right;font-weight:bold;color:${value < 0 ? RED_TXT : SLATE};">${valueTxt ?? currency(value)}</td>
+      <td style="padding:4px 8px;border:1px solid #E2E8F0;">
+        <table cellpadding="0" cellspacing="0" width="100%"><tr>
+          <td width="${pct}%" bgcolor="${color}" style="height:14px;font-size:1px;">&nbsp;</td>
+          <td width="${100 - pct}%" bgcolor="#F1F5F9" style="height:14px;font-size:1px;">&nbsp;</td>
         </tr></table>
       </td>
-      <td width="120" align="right" style="padding:2px 0 2px 9px;font-size:9px;font-weight:bold;color:${valueColor};">${valueTxt}</td>
     </tr>`;
   };
 
-  // ---------- Charts data ----------
   const maxNet = Math.max(...report.history.map(h => Math.abs(h.net)), 1);
   const netTrendBars = report.history
     .map(h =>
       barRow(
         monthShort(h.month) + (h.month === report.month ? " ●" : ""),
-        (Math.abs(h.net) / maxNet) * 100,
+        h.net,
+        maxNet,
         h.net >= 0 ? GREEN : "#EF4444",
         signed(h.net),
-        h.net >= 0 ? GREEN_D : RED_TXT,
       ),
     )
     .join("");
@@ -261,30 +291,43 @@ function buildWordHtml(report: MonthlyReport): string {
   const revCostBars = report.history
     .map(
       h =>
-        barRow(monthShort(h.month), (h.revenue / maxRevCost) * 100, BLUE, currency(h.revenue), "#0369A1") +
-        barRow("", (h.cost / maxRevCost) * 100, "#F97066", currency(h.cost), RED_TXT) +
-        `<tr><td colspan="3" style="font-size:1px;height:5px;">&nbsp;</td></tr>`,
+        barRow(`${monthShort(h.month)} rev`, h.revenue, maxRevCost, BLUE) +
+        barRow(`${monthShort(h.month)} cost`, h.cost, maxRevCost, "#F97066"),
     )
     .join("");
 
   const costMix: { name: string; total: number; color: string }[] = [
     { name: "Team Salaries", total: report.totals.payroll, color: RED },
     { name: "OPEX", total: report.totals.opex, color: BLUE },
-    { name: "Loans", total: report.totals.loans, color: "#F59E0B" },
-    { name: "Provident Fund", total: report.totals.pf, color: PURPLE },
+    { name: "Loans", total: report.totals.loans, color: AMBER },
+    { name: "Provident Fund", total: report.totals.pf, color: VIOLET },
   ];
   const maxCostMix = Math.max(...costMix.map(c => c.total), 1);
-  const costMixBars = costMix
-    .map(c => barRow(c.name, (c.total / maxCostMix) * 100, c.color, pkr(c.total), SLATE))
+  const costMixBars = costMix.map(c => barRow(c.name, c.total, maxCostMix, c.color, pkr(c.total))).join("");
+
+  const cashBanks = report.cash.banks;
+  const cashDcMax = Math.max(...cashBanks.flatMap(b => [b.debit ?? 0, b.credit ?? 0]), 1);
+  const cashNetMax = Math.max(...cashBanks.map(b => Math.abs(b.balance)), 1);
+  const cashDrCrBars = cashBanks
+    .flatMap(b => [
+      barRow(`${b.bank} Dr`, b.debit ?? 0, cashDcMax, BLUE),
+      barRow(`${b.bank} Cr`, b.credit ?? 0, cashDcMax, RED),
+    ])
+    .join("");
+  const cashNetBars = cashBanks
+    .map(b => barRow(b.bank, b.balance, cashNetMax, b.balance >= 0 ? GREEN : RED, signed(b.balance)))
+    .join("");
+  const sectionMax = Math.max(...(report.cash.sections ?? []).map(s => Math.abs(s.net)), 1);
+  const sectionBars = (report.cash.sections ?? [])
+    .map(s => barRow(s.name, s.net, sectionMax, s.net >= 0 ? GREEN : RED, signed(s.net)))
     .join("");
 
-  // ---------- History table ----------
   const historyRows = report.history
     .map((h, i) => {
       const prev = i > 0 ? report.history[i - 1] : null;
       const isThis = h.month === report.month;
-      return `<tr style="background:${isThis ? "#FFF6F8" : "#FFFFFF"};">
-        <td ${td}><b>${monthShort(h.month)}</b>${isThis ? ` <b style="color:${RED};font-size:8px;letter-spacing:0.5px;">&nbsp;● THIS REPORT</b>` : ""}</td>
+      return `<tr style="background:${isThis ? "#FFF1F3" : "#FFFFFF"};">
+        <td ${td}><b>${monthShort(h.month)}</b>${isThis ? ` <span style="color:${RED};font-size:8px;">● THIS</span>` : ""}</td>
         <td ${tdR}>${currency(h.revenue)}<br/>${trendArrow(prev ? h.revenue - prev.revenue : null, true)}</td>
         <td ${tdR}>${currency(h.cost)}<br/>${trendArrow(prev ? h.cost - prev.cost : null, false)}</td>
         <td ${tdR}><b style="color:${h.net >= 0 ? GREEN_D : RED_TXT};">${signed(h.net)}</b></td>
@@ -297,7 +340,6 @@ function buildWordHtml(report: MonthlyReport): string {
     { revenue: 0, cost: 0, net: 0 },
   );
 
-  // ---------- Key movements ----------
   const movement = (name: string, v: number | null, goodWhenUp: boolean) => {
     if (v == null) return "";
     const good = goodWhenUp ? v >= 0 : v < 0;
@@ -307,21 +349,11 @@ function buildWordHtml(report: MonthlyReport): string {
       ${good ? statusCell("Favorable", "#D1FADF", GREEN_D) : statusCell("Unfavorable", "#FEE4E2", RED_TXT)}
     </tr>`;
   };
-  const movementsTable = ins.prev
-    ? `${section(3, `Key Movements — vs ${monthShort(ins.prev.month)}`)}
-      <table cellspacing="0" cellpadding="0" width="100%" style="border-collapse:collapse;">
-        <tr><th ${th}>Metric</th><th ${thR}>Change (PKR)</th><th ${thC}>Direction</th></tr>
-        ${movement("Revenue", ins.revenueVsPrev, true)}
-        ${movement("Total Cost", ins.costVsPrev, false)}
-        ${movement("Net Profit Swing", ins.netVsPrev, true)}
-      </table>`
-    : "";
 
-  // ---------- Category sections ----------
   const categoryRows = (groups: CategoryGroup[]) =>
     groups
       .map(g => {
-        const head = `<tr style="background:#FDF5F6;">
+        const head = `<tr style="background:#FFF1F3;">
           <td ${td}><b>${g.name}</b></td>
           <td ${tdR}><b>${currency(g.total)}</b></td>
         </tr>`;
@@ -332,15 +364,14 @@ function buildWordHtml(report: MonthlyReport): string {
       })
       .join("");
 
-  const catSection = (num: number, title: string, groups: CategoryGroup[], total: number) => `
-    ${section(num, title)}
-    <table cellspacing="0" cellpadding="0" width="100%" style="border-collapse:collapse;">
-      <tr><th ${th}>Head</th><th ${thR}>Amount (PKR)</th></tr>
+  const catSection = (title: string, groups: CategoryGroup[], total: number) => `
+    <h2>${title}</h2>
+    <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
+      <tr><td ${th}>Head</td><td ${thR}>Amount (PKR)</td></tr>
       ${categoryRows(groups) || tdEmpty(2, "No entries this month.")}
-      <tr style="background:#FDECEF;"><td ${td}><b>TOTAL</b></td><td ${tdR}><b style="color:${RED};">${currency(total)}</b></td></tr>
+      <tr style="background:#FFF1F3;"><td ${td}><b>TOTAL</b></td><td ${tdR}><b style="color:${RED};">${currency(total)}</b></td></tr>
     </table>`;
 
-  // ---------- CSR ----------
   const csrColSpan = 15;
   const csrRows = report.csr.rows
     .map(r => {
@@ -381,13 +412,12 @@ function buildWordHtml(report: MonthlyReport): string {
     totalCommission: 0,
   };
 
-  // ---------- Executives ----------
   const execRows = report.executives
     .map(
       e => `<tr>
         <td ${td}><b>${e.name}</b></td>
         <td ${tdR}>${currency(e.basic)}</td>
-        <td ${tdR}><b style="color:${PURPLE};">${e.commissionPct}%</b></td>
+        <td ${tdR}><b style="color:${VIOLET};">${e.commissionPct}%</b></td>
         <td ${tdR}><span style="color:${GREEN_D};">${currency(e.commission)}</span></td>
         <td ${tdR}><b style="color:${RED};">${currency(e.total)}</b></td>
         <td ${tdR}>${currency(e.loanPositive)}</td>
@@ -398,75 +428,161 @@ function buildWordHtml(report: MonthlyReport): string {
     .join("");
   const execTotal = report.executives.reduce((s, e) => s + e.total, 0);
 
-  const cashRows = report.cash.banks
-    .map(b => `<tr><td ${td}><b>${b.bank}</b></td><td ${tdR}>${currency(b.balance)}</td></tr>`)
+  const cashRows = cashBanks
+    .map(
+      b => `<tr>
+        <td ${td}><b>${b.bank}</b></td>
+        <td ${tdR}>${currency(b.debit ?? 0)}</td>
+        <td ${tdR}>${currency(b.credit ?? 0)}</td>
+        <td ${tdR}><b style="color:${b.balance >= 0 ? GREEN_D : RED_TXT};">${signed(b.balance)}</b></td>
+      </tr>`,
+    )
     .join("");
 
-  // ---------- Executive summary paragraph ----------
-  const summaryText = `${label} posted a net ${net >= 0 ? "profit" : "loss"} of ${signed(net)} (${ins.profitNote.toLowerCase()}).${
-    ins.revenueVsPrev != null ? ` Revenue moved ${signed(ins.revenueVsPrev)} versus the previous month` : ""
-  }${ins.costVsPrev != null ? ` while total cost moved ${signed(ins.costVsPrev)}` : ""}. Net cash position stands at ${pkr(report.cash.closingNet)}${
-    report.cash.asOf ? ` as of ${report.cash.asOf}` : ""
-  }, with a ${signed(report.cash.monthNet)} cash movement during the month. ${report.daysRecorded} daily income statement entr${report.daysRecorded === 1 ? "y was" : "ies were"} recorded.`;
+  const channelRows = (report.revenueChannels ?? [])
+    .map(
+      c => `<tr>
+        <td ${td}><b>${c.label}</b></td>
+        <td ${tdR}>${currency(c.usd)}</td>
+        <td ${tdR}>${currency(c.cad)}</td>
+        <td ${tdR}>${currency(c.pkr)}</td>
+        <td ${tdR}><b>${currency(c.netPkr)}</b></td>
+      </tr>`,
+    )
+    .join("");
 
-  return `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
-<head>
-<meta charset="utf-8"><title>BEM Executive Summary ${label}</title>
-<!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View><w:Zoom>100</w:Zoom></w:WordDocument></xml><![endif]-->
+  const collectionRows = (report.collections ?? [])
+    .map(
+      c => `<tr>
+        <td ${td}>${c.paidAt || "—"}</td>
+        <td ${td}><b>${c.client}</b>${c.projectCode ? `<br/><span style="color:#64748B;font-size:9px;">${c.projectCode}</span>` : ""}</td>
+        <td ${td}>${c.channelLabel || c.channel}</td>
+        <td ${td}>${c.type || "—"}</td>
+        <td ${tdC}>${c.currency}</td>
+        <td ${tdR}><b>${currency(c.amount)}</b></td>
+      </tr>`,
+    )
+    .join("");
+
+  const dayRows = (report.days ?? [])
+    .map(
+      d => `<tr>
+        <td ${td}>${d.date}</td>
+        <td ${tdR}>${currency(d.payroll)}</td>
+        <td ${tdR}>${currency(d.opex)}</td>
+        <td ${tdR}>${currency(d.loans)}</td>
+        <td ${tdR}>${currency(d.pf)}</td>
+        <td ${tdR}><b>${currency(d.cost)}</b></td>
+      </tr>`,
+    )
+    .join("");
+
+  const ledgerHeads = cashBanks.map(b => b.bank);
+  const ledgerColSpan = 3 + ledgerHeads.length * 2 + 1;
+  const ledgerRows = (report.cash.ledger ?? [])
+    .map(r => {
+      const byBank = new Map(r.banks.map(b => [b.bank, b]));
+      return `<tr>
+        <td ${td}>${r.date || "—"}</td>
+        <td ${td}>${r.section}</td>
+        <td ${td}>${r.description}</td>
+        ${ledgerHeads
+          .map(b => {
+            const x = byBank.get(b);
+            return `<td ${tdR}>${currency(x?.debit ?? 0)}</td><td ${tdR}>${currency(x?.credit ?? 0)}</td>`;
+          })
+          .join("")}
+        <td ${tdR}><b style="color:${r.net >= 0 ? GREEN_D : RED_TXT};">${signed(r.net)}</b></td>
+      </tr>`;
+    })
+    .join("");
+
+  const fixRows = report.csr.rows
+    .flatMap(r =>
+      (r.fixClients ?? []).map(
+        p => `<tr>
+          <td ${td}><b>${r.name}</b></td>
+          <td ${td}>${p.clientName}</td>
+          <td ${tdC}>${p.currency}</td>
+          <td ${tdR}>${currency(p.projectPay)}</td>
+        </tr>`,
+      ),
+    )
+    .join("");
+
+  const generatedAt = new Date().toLocaleString("en-GB");
+
+  return `<!DOCTYPE html>
+<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word">
+<head><meta charset="utf-8"><title>Accounts Report ${label}</title>
+<!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View></w:WordDocument></xml><![endif]-->
 <style>
-  @page Section1 { size:8.5in 11.0in; margin:0.55in 0.6in; }
-  div.Section1 { page:Section1; }
-</style>
-</head>
-<body style="font-family:Calibri,Arial,sans-serif;color:#1a1a1a;margin:0;">
-<div class="Section1">
+  body { font-family: Calibri, Arial, sans-serif; color: #0F172A; margin: 24px; }
+  h1 { color: ${RED}; font-size: 22px; margin: 0 0 4px; }
+  h2 { color: ${NAVY}; font-size: 14px; margin: 20px 0 8px; border-bottom: 2px solid ${RED}; padding-bottom: 4px; }
+  p.meta { color: #64748B; font-size: 10px; margin: 0 0 16px; }
+</style></head>
+<body>
+  <h1>Accounts Team — Monthly Report</h1>
+  <p class="meta">${label} · Generated ${generatedAt} · BEM Solutions CRM</p>
 
-  <!-- Header banner -->
-  <table cellspacing="0" cellpadding="0" width="100%">
-    <tr>
-      <td style="background:${NAVY};padding:16px 18px;">
-        <table cellspacing="0" cellpadding="0" width="100%"><tr>
-          <td>
-            <p style="margin:0;font-size:21px;font-weight:bold;color:#FFFFFF;letter-spacing:1px;">BEM SOLUTIONS</p>
-            <p style="margin:4px 0 0;font-size:10.5px;color:#CBD5E1;">Executive Summary Report &nbsp;|&nbsp; Month of <b style="color:#FFFFFF;">${label}</b></p>
-          </td>
-          <td align="right" valign="top">
-            ${badge("Confidential", RED, "#fff")}
-            <p style="margin:6px 0 0;font-size:8.5px;color:#94A3B8;">Generated ${new Date().toISOString().slice(0, 10)}</p>
-          </td>
-        </tr></table>
-      </td>
-    </tr>
-    <tr><td height="4" style="background:${RED};font-size:1px;">&nbsp;</td></tr>
-  </table>
+  <table width="100%" cellpadding="0" cellspacing="0"><tr>
+    ${card("Revenue", pkr(report.totals.revenue), ins.revenueVsPrev != null ? `${signed(ins.revenueVsPrev)} vs prev month` : "Month collections", "#EFF6FF")}
+    ${card("Total cost", pkr(report.totals.totalCost), ins.costVsPrev != null ? `${signed(ins.costVsPrev)} vs prev month` : `Payroll ${pkr(report.totals.payroll)}`, "#FFF1F3")}
+    ${card("Net profit", signed(net), ins.profitNote, net >= 0 ? "#ECFDF5" : "#FFF7ED")}
+    ${card("Cash (net)", pkr(report.cash.closingNet), report.cash.asOf ? `As of ${report.cash.asOf}` : "Closing position", "#F5F3FF")}
+  </tr></table>
 
-  <!-- KPI cards -->
-  <table cellspacing="7" cellpadding="0" width="100%" style="margin-top:10px;">
+  <h2>Revenue — currency channels</h2>
+  <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
     <tr>
-      ${kpiCard(`${monthShort(report.month)} Revenue`, pkr(report.totals.revenue), ins.revenueVsPrev != null ? `${signed(ins.revenueVsPrev)} vs prev month` : "No previous month data", BLUE)}
-      ${kpiCard("Total Cost", pkr(report.totals.totalCost), ins.costVsPrev != null ? `${signed(ins.costVsPrev)} vs prev month` : `Payroll ${pkr(report.totals.payroll)}`, RED)}
-      ${kpiCard("Net Profit", signed(net), ins.profitNote, net >= 0 ? GREEN_D : "#B45309")}
+      <td ${th}>Channel</td><td ${thR}>USD</td><td ${thR}>CAD</td><td ${thR}>PKR</td><td ${thR}>Net PKR</td>
     </tr>
-    <tr>
-      ${kpiCard("Cash (Net)", pkr(report.cash.closingNet), report.cash.asOf ? `As of ${report.cash.asOf}` : "No cash flow entries", TEAL)}
-      ${kpiCard("Cash Movement", signed(report.cash.monthNet), "Cash flow rows dated in this month", PURPLE)}
-      ${kpiCard("Days Recorded", String(report.daysRecorded), `Daily entries in ${label}`, "#1E293B")}
+    ${channelRows || tdEmpty(5, "No channel amounts this month.")}
+    <tr style="background:#EFF6FF;">
+      <td ${td}><b>TOTAL REVENUE</b></td>
+      <td ${tdR}><b>${currency((report.revenueChannels ?? []).reduce((a, c) => a + c.usd, 0))}</b></td>
+      <td ${tdR}><b>${currency((report.revenueChannels ?? []).reduce((a, c) => a + c.cad, 0))}</b></td>
+      <td ${tdR}><b>${currency((report.revenueChannels ?? []).reduce((a, c) => a + c.pkr, 0))}</b></td>
+      <td ${tdR}><b>${currency(report.totals.revenue)}</b></td>
     </tr>
   </table>
 
-  <!-- Summary paragraph -->
-  <table cellspacing="0" cellpadding="0" width="100%" style="margin-top:10px;">
+  <h2>Revenue — each collection</h2>
+  <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
     <tr>
-      <td width="5" style="background:${net >= 0 ? GREEN : "#F59E0B"};font-size:1px;">&nbsp;</td>
-      <td style="background:#F8FAFC;border:1px solid #E2E8F0;border-left:none;padding:9px 12px;font-size:10px;color:${SLATE};line-height:1.5;">${summaryText}</td>
+      <td ${th}>Paid</td><td ${th}>Client / Code</td><td ${th}>Channel</td><td ${th}>Type</td><td ${thC}>Ccy</td><td ${thR}>Amount</td>
+    </tr>
+    ${collectionRows || tdEmpty(6, "No paid project collections this month.")}
+    <tr style="background:#F8FAFC;">
+      <td ${td} colspan="5"><b>${(report.collections ?? []).length} payment(s)</b></td>
+      <td ${tdR}><b>${currency((report.collections ?? []).reduce((a, c) => a + c.amount, 0))}</b></td>
     </tr>
   </table>
 
-  ${section(1, "Financial Performance — Month by Month")}
-  <table cellspacing="0" cellpadding="0" width="100%" style="border-collapse:collapse;">
-    <tr><th ${th}>Month</th><th ${thR}>Revenue (PKR)</th><th ${thR}>Total Cost (PKR)</th><th ${thR}>Net P/L (PKR)</th><th ${thC}>Status</th></tr>
+  <h2>Daily income statement — ${label}</h2>
+  <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
+    <tr>
+      <td ${th}>Date</td><td ${thR}>Payroll</td><td ${thR}>OPEX</td><td ${thR}>Loans</td><td ${thR}>PF</td><td ${thR}>Day cost</td>
+    </tr>
+    ${dayRows || tdEmpty(6, "No income statement days recorded.")}
+    <tr style="background:#FFF1F3;">
+      <td ${td}><b>TOTAL (${report.daysRecorded} day${report.daysRecorded === 1 ? "" : "s"})</b></td>
+      <td ${tdR}><b>${currency(report.totals.payroll)}</b></td>
+      <td ${tdR}><b>${currency(report.totals.opex)}</b></td>
+      <td ${tdR}><b>${currency(report.totals.loans)}</b></td>
+      <td ${tdR}><b>${currency(report.totals.pf)}</b></td>
+      <td ${tdR}><b>${currency(report.totals.totalCost)}</b></td>
+    </tr>
+  </table>
+
+  <h2>Financial performance — month by month</h2>
+  <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
+    <tr>
+      <td ${th}>Month</td><td ${thR}>Revenue (PKR)</td><td ${thR}>Total Cost (PKR)</td><td ${thR}>Net P/L (PKR)</td><td ${thC}>Status</td>
+    </tr>
     ${historyRows || tdEmpty(5, "No income statement records yet.")}
-    <tr style="background:#EEF2F6;">
+    <tr style="background:#F8FAFC;">
       <td ${td}><b>TOTAL</b></td>
       <td ${tdR}><b>${currency(histTotal.revenue)}</b></td>
       <td ${tdR}><b>${currency(histTotal.cost)}</b></td>
@@ -475,55 +591,121 @@ function buildWordHtml(report: MonthlyReport): string {
     </tr>
   </table>
 
-  ${section(2, "Net Profit / Loss Trend")}
-  <table cellspacing="0" cellpadding="0" width="100%" style="border:1px solid #E2E8F0;">
-    <tr><td style="padding:10px 12px;">
-      <table cellspacing="0" cellpadding="0" width="100%">${netTrendBars || tdEmpty(1, "No history data.")}</table>
-      <p style="margin:8px 0 0;font-size:9.5px;color:#64748B;">
-        <b style="color:${GREEN_D};">■</b> Profit &nbsp; <b style="color:#EF4444;">■</b> Loss &nbsp;·&nbsp; ● = this report month
-        ${ins.netVsPrev != null ? ` &nbsp;·&nbsp; Swing vs previous month: <b style="color:${ins.netVsPrev >= 0 ? GREEN_D : RED_TXT};">${signed(ins.netVsPrev)}</b>` : ""}
-      </p>
-    </td></tr>
-  </table>
+  <h2>Net profit / loss trend</h2>
+  <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">${netTrendBars || tdEmpty(3, "No history data.")}</table>
+  <p style="margin:6px 0 0;font-size:9px;color:#64748B;"><b style="color:${GREEN};">■</b> Profit &nbsp; <b style="color:#EF4444;">■</b> Loss &nbsp;·&nbsp; ● = this report month</p>
 
-  ${movementsTable}
+  <h2>Revenue vs total cost</h2>
+  <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">${revCostBars || tdEmpty(3, "No history data.")}</table>
+  <p style="margin:6px 0 0;font-size:9px;color:#64748B;"><b style="color:${BLUE};">■</b> Revenue &nbsp; <b style="color:#F97066;">■</b> Total Cost</p>
 
-  ${section(4, "Revenue vs Cost Trend")}
-  <table cellspacing="0" cellpadding="0" width="100%" style="border:1px solid #E2E8F0;">
-    <tr><td style="padding:10px 12px;">
-      <table cellspacing="0" cellpadding="0" width="100%">${revCostBars || tdEmpty(1, "No history data.")}</table>
-      <p style="margin:6px 0 0;font-size:9.5px;color:#64748B;"><b style="color:${BLUE};">■</b> Revenue &nbsp; <b style="color:#F97066;">■</b> Total Cost</p>
-    </td></tr>
-  </table>
+  ${
+    ins.prev
+      ? `<h2>Key movements — vs ${monthShort(ins.prev.month)}</h2>
+  <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
+    <tr><td ${th}>Metric</td><td ${thR}>Change (PKR)</td><td ${thC}>Direction</td></tr>
+    ${movement("Revenue", ins.revenueVsPrev, true)}
+    ${movement("Total Cost", ins.costVsPrev, false)}
+    ${movement("Net Profit Swing", ins.netVsPrev, true)}
+  </table>`
+      : ""
+  }
 
-  ${section(5, `Cash Position${report.cash.asOf ? ` — as of ${report.cash.asOf}` : ""}`)}
-  <table cellspacing="0" cellpadding="0" width="100%" style="border-collapse:collapse;">
-    <tr><th ${th}>Account</th><th ${thR}>Balance (PKR)</th></tr>
-    ${cashRows || tdEmpty(2, "No cash flow entries recorded.")}
-    <tr style="background:#E6F4F1;"><td ${td}><b>TOTAL AVAILABLE CASH (NET)</b></td><td ${tdR}><b style="color:${TEAL};">${currency(report.cash.closingNet)}</b></td></tr>
-  </table>
+  <h2>Cost mix — ${pkr(report.totals.totalCost)}</h2>
+  <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">${costMixBars}</table>
 
-  ${section(6, `CSR Team Performance — ${label}`)}
-  <table cellspacing="0" cellpadding="0" width="100%" style="border-collapse:collapse;">
+  <h2>Cash flow statement${report.cash.asOf ? ` — as of ${report.cash.asOf}` : ""}</h2>
+  <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:10px;">
     <tr>
-      <th ${th}>CSR</th>
-      <th ${th}>Role</th>
-      <th ${thC}>Assigned TL</th>
-      <th ${thR}>Old Proj</th>
-      <th ${thR}>Partial</th>
-      <th ${thR}>New Proj</th>
-      <th ${thR}>Fix Proj</th>
-      <th ${thR}>Fix Pay</th>
-      <th ${thR}>Total Proj</th>
-      <th ${thR}>Old Comm</th>
-      <th ${thR}>New Comm</th>
-      <th ${thR}>Fix Comm</th>
-      <th ${thR}>Total Comm</th>
-      <th ${thR}>Share %</th>
-      <th ${thC}>Status</th>
+      <td width="40%" style="padding:6px;">
+        <table width="100%" cellpadding="0" cellspacing="0" style="background:${RED};border-radius:8px;">
+          <tr><td style="padding:14px 16px;">
+            <p style="margin:0;font-size:9px;color:#FECACA;text-transform:uppercase;letter-spacing:0.5px;font-weight:bold;">Net cash flow</p>
+            <p style="margin:6px 0 4px;font-size:22px;font-weight:bold;color:#FFFFFF;">${currency(report.cash.monthNet)}</p>
+            <p style="margin:0;font-size:9px;color:#FECACA;">${report.cash.monthEntries ?? 0} entries in ${label} · closing ${pkr(report.cash.closingNet)}</p>
+          </td></tr>
+        </table>
+      </td>
+      <td width="60%" style="padding:6px;">
+        <table width="100%" cellpadding="0" cellspacing="0" style="background:#FFF1F3;border-radius:8px;">
+          <tr><td style="padding:12px 14px;">
+            <p style="margin:0 0 8px;font-size:9px;color:#64748B;text-transform:uppercase;letter-spacing:0.5px;font-weight:bold;">Bank accounts</p>
+            ${
+              cashBanks.length
+                ? cashBanks
+                    .map(
+                      (b, i) =>
+                        `<span style="display:inline-block;background:${["#0B84F3", "#B8112D", "#12B76A", "#F59E0B", "#0D9488", "#EA580C"][i % 6]};color:#fff;font-size:9px;font-weight:bold;padding:3px 8px;margin:0 4px 4px 0;">${b.bank}</span>`,
+                    )
+                    .join("")
+                : `<span style="font-size:10px;color:#94A3B8;">No bank heads recorded</span>`
+            }
+          </td></tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+
+  ${sectionBars ? `<p style="margin:12px 0 6px;font-size:11px;font-weight:bold;color:${NAVY};">Net by section</p>
+  <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">${sectionBars}</table>` : ""}
+
+  <p style="margin:12px 0 6px;font-size:11px;font-weight:bold;color:${NAVY};">Bank debit vs credit</p>
+  <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">${cashDrCrBars || tdEmpty(3, "No bank activity this month.")}</table>
+  <p style="margin:6px 0 0;font-size:9px;color:#64748B;"><b style="color:${BLUE};">■</b> Debit &nbsp; <b style="color:${RED};">■</b> Credit</p>
+
+  <p style="margin:12px 0 6px;font-size:11px;font-weight:bold;color:${NAVY};">Bank net (debit − credit)</p>
+  <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">${cashNetBars || tdEmpty(3, "No bank activity this month.")}</table>
+
+  <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin-top:10px;">
+    <tr><td ${th}>Bank</td><td ${thR}>Debit (PKR)</td><td ${thR}>Credit (PKR)</td><td ${thR}>Net (PKR)</td></tr>
+    ${cashRows || tdEmpty(4, "No cash flow entries recorded.")}
+    <tr style="background:#FFF1F3;">
+      <td ${td}><b>MONTH NET</b></td>
+      <td ${tdR}><b>${currency(cashBanks.reduce((a, b) => a + (b.debit ?? 0), 0))}</b></td>
+      <td ${tdR}><b>${currency(cashBanks.reduce((a, b) => a + (b.credit ?? 0), 0))}</b></td>
+      <td ${tdR}><b style="color:${report.cash.monthNet >= 0 ? GREEN_D : RED_TXT};">${signed(report.cash.monthNet)}</b></td>
+    </tr>
+    <tr style="background:#F8FAFC;">
+      <td ${td} colspan="3"><b>CLOSING CASH (NET)</b></td>
+      <td ${tdR}><b style="color:${TEAL};">${currency(report.cash.closingNet)}</b></td>
+    </tr>
+  </table>
+
+  <p style="margin:12px 0 6px;font-size:11px;font-weight:bold;color:${NAVY};">Cash flow ledger — each entry</p>
+  <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
+    <tr>
+      <td ${th}>Date</td><td ${th}>Section</td><td ${th}>Description</td>
+      ${ledgerHeads.map(b => `<td ${thR}>${b} Dr</td><td ${thR}>${b} Cr</td>`).join("")}
+      <td ${thR}>Net</td>
+    </tr>
+    ${ledgerRows || tdEmpty(ledgerColSpan, "No cash flow rows dated in this month.")}
+    <tr style="background:#FFF1F3;">
+      <td ${td} colspan="${3 + ledgerHeads.length * 2}"><b>MONTH NET (${report.cash.monthEntries ?? 0} entries)</b></td>
+      <td ${tdR}><b style="color:${report.cash.monthNet >= 0 ? GREEN_D : RED_TXT};">${signed(report.cash.monthNet)}</b></td>
+    </tr>
+  </table>
+
+  <h2>CSR team performance — ${label}</h2>
+  <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
+    <tr>
+      <td ${th}>CSR</td>
+      <td ${th}>Role</td>
+      <td ${thC}>Assigned TL</td>
+      <td ${thR}>Old Proj</td>
+      <td ${thR}>Partial</td>
+      <td ${thR}>New Proj</td>
+      <td ${thR}>Fix Proj</td>
+      <td ${thR}>Fix Pay</td>
+      <td ${thR}>Total Proj</td>
+      <td ${thR}>Old Comm</td>
+      <td ${thR}>New Comm</td>
+      <td ${thR}>Fix Comm</td>
+      <td ${thR}>Total Comm</td>
+      <td ${thR}>Share %</td>
+      <td ${thC}>Status</td>
     </tr>
     ${csrRows || tdEmpty(csrColSpan, "No sales / team-lead CSRs recorded this month.")}
-    <tr style="background:#EEF2F6;">
+    <tr style="background:#F8FAFC;">
       <td ${td} colspan="3"><b>TOTAL</b></td>
       <td ${tdR}><b>${ct.oldProjects}</b></td>
       <td ${tdR}><b>${ct.partialCount}</b></td>
@@ -540,39 +722,37 @@ function buildWordHtml(report: MonthlyReport): string {
     </tr>
   </table>
 
-  ${section(7, `Cost Mix — ${label} (${pkr(report.totals.totalCost)})`)}
-  <table cellspacing="0" cellpadding="0" width="100%" style="border:1px solid #E2E8F0;">
-    <tr><td style="padding:10px 12px;">
-      <table cellspacing="0" cellpadding="0" width="100%">${costMixBars}</table>
-      <p style="margin:6px 0 0;font-size:9.5px;color:#64748B;">
-        <b style="color:${RED};">■</b> Team Salaries &nbsp; <b style="color:${BLUE};">■</b> OPEX &nbsp; <b style="color:#F59E0B;">■</b> Loans &nbsp; <b style="color:${PURPLE};">■</b> Provident Fund
-      </p>
-    </td></tr>
+  <h2>CSR fix projects — each client</h2>
+  <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
+    <tr>
+      <td ${th}>CSR</td><td ${th}>Client</td><td ${thC}>Currency</td><td ${thR}>Project pay</td>
+    </tr>
+    ${fixRows || tdEmpty(4, "No fix-client projects this month.")}
   </table>
 
-  ${catSection(8, `Team Salaries — Cost Breakdown (${pkr(report.totals.payroll)})`, report.salaryTeams, report.totals.payroll)}
-  ${catSection(9, `Operating Expenses (${pkr(report.totals.opex)})`, report.opexHeads, report.totals.opex)}
-  ${catSection(10, `Loans (${pkr(report.totals.loans)})`, report.loanHeads, report.totals.loans)}
-  ${catSection(11, `Provident Fund (${pkr(report.totals.pf)})`, report.pfHeads, report.totals.pf)}
+  ${catSection(`Team salaries — cost breakdown (${pkr(report.totals.payroll)})`, report.salaryTeams, report.totals.payroll)}
+  ${catSection(`Operating expenses (${pkr(report.totals.opex)})`, report.opexHeads, report.totals.opex)}
+  ${catSection(`Loans (${pkr(report.totals.loans)})`, report.loanHeads, report.totals.loans)}
+  ${catSection(`Provident fund (${pkr(report.totals.pf)})`, report.pfHeads, report.totals.pf)}
 
-  ${section(12, `Executive Salaries — ${label}`)}
-  <table cellspacing="0" cellpadding="0" width="100%" style="border-collapse:collapse;">
-    <tr><th ${th}>Executive</th><th ${thR}>Basic (PKR)</th><th ${thR}>Comm. %</th><th ${thR}>Commission (PKR)</th><th ${thR}>Total (PKR)</th><th ${thR}>Loan +ve</th><th ${thR}>Loan −ve</th><th ${th}>Remarks</th></tr>
+  <h2>Executive salaries — ${label}</h2>
+  <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
+    <tr>
+      <td ${th}>Executive</td><td ${thR}>Basic (PKR)</td><td ${thR}>Comm. %</td><td ${thR}>Commission (PKR)</td>
+      <td ${thR}>Total (PKR)</td><td ${thR}>Loan +ve</td><td ${thR}>Loan −ve</td><td ${th}>Remarks</td>
+    </tr>
     ${execRows || tdEmpty(8, "No executive salary entries this month.")}
-    ${execRows ? `<tr style="background:#EEF2F6;"><td ${td}><b>TOTAL SALARY</b></td><td ${td} colspan="3"></td><td ${tdR}><b style="color:${RED};">${currency(execTotal)}</b></td><td ${td} colspan="3"></td></tr>` : ""}
+    ${execRows ? `<tr style="background:#F8FAFC;"><td ${td}><b>TOTAL SALARY</b></td><td ${td} colspan="3"></td><td ${tdR}><b style="color:${RED};">${currency(execTotal)}</b></td><td ${td} colspan="3"></td></tr>` : ""}
   </table>
 
-  <p style="font-size:9px;color:#94A3B8;margin-top:22px;text-align:center;">
-    BEM SOLUTIONS &nbsp;|&nbsp; Executive Summary &nbsp;|&nbsp; ${label} &nbsp;|&nbsp; Confidential — Daily aggregate (${report.daysRecorded} day${report.daysRecorded === 1 ? "" : "s"})
-  </p>
-</div>
+  <p style="margin-top:24px;font-size:9px;color:#94A3B8;">Auto-generated from CRM accounts daily records, cash flow &amp; payroll. ${report.daysRecorded} income-statement day${report.daysRecorded === 1 ? "" : "s"} in ${label}.</p>
 </body></html>`;
 }
 
 function buildWordBlob(report: MonthlyReport): { blob: Blob; fileName: string } {
   const html = buildWordHtml(report);
-  const blob = new Blob(["\ufeff", html], { type: "application/msword" });
-  const fileName = `BEM-Executive-Summary-${monthLabel(report.month).replace(/\s+/g, "-")}.doc`;
+  const blob = new Blob(["\ufeff", html], { type: "application/msword;charset=utf-8" });
+  const fileName = `Accounts-Report-${report.month}.doc`;
   return { blob, fileName };
 }
 
@@ -630,22 +810,24 @@ function MiniBar({ pct, color }: { pct: number; color: string }) {
 function SectionCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className={`${BENTO_CARD} overflow-hidden`}>
-      <div className="px-4 py-3 border-b border-crm-border-subtle bg-gradient-to-r from-[#FFF8F9] to-white">
-        <h2 className="font-extrabold text-crm-text text-sm tracking-tight">{title}</h2>
+      <div className="px-4 sm:px-5 pt-4 pb-2">
+        <h2 className="font-extrabold text-[#0B1220] dark:text-crm-text text-sm tracking-tight border-b-2 border-[#B8112D] pb-2">
+          {title}
+        </h2>
       </div>
       {children}
     </div>
   );
 }
 
-const thCls = "px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-crm-text-faint";
+const thCls = "px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-white";
 const tdCls = "px-3 py-2 text-xs";
 
 function CategoryTable({ groups, total }: { groups: CategoryGroup[]; total: number }) {
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-sm min-w-130">
-        <thead className="bg-[#FAFBFC]">
+        <thead className="bg-[#0B1220]">
           <tr className="border-b border-crm-border/80">
             <th className={`${thCls} text-left`}>Head</th>
             <th className={`${thCls} text-right w-40`}>Amount (PKR)</th>
@@ -765,37 +947,64 @@ export default function AccountsReportsPage() {
 
   const kpis = report
     ? [
-        { label: `${monthShort(month)} Revenue`, value: pkr(report.totals.revenue), note: ins?.revenueVsPrev != null ? `${signed(ins.revenueVsPrev)} vs prev month` : "No previous month data", cls: "from-[#0B84F3] to-[#0369A1]" },
-        { label: "Total Cost", value: pkr(report.totals.totalCost), note: ins?.costVsPrev != null ? `${signed(ins.costVsPrev)} vs prev month` : `Payroll ${pkr(report.totals.payroll)}`, cls: "from-[#B8112D] to-[#8b0d22]" },
-        { label: "Net Profit", value: signed(report.totals.netProfit), note: ins?.profitNote ?? "", cls: report.totals.netProfit >= 0 ? "from-[#12B76A] to-[#027A48]" : "from-[#F59E0B] to-[#B45309]" },
-        { label: "Cash (Net)", value: pkr(report.cash.closingNet), note: report.cash.asOf ? `As of ${report.cash.asOf}` : "No cash flow entries", cls: "from-[#0D9488] to-[#0F766E]" },
-        { label: "Cash Movement (Month)", value: signed(report.cash.monthNet), note: "Cash flow rows dated in this month", cls: "from-[#6D28D9] to-[#4C1D95]" },
-        { label: "Days Recorded", value: String(report.daysRecorded), note: report.sourceDate ? `Daily entries · last ${report.sourceDate}` : `No IS records in ${label}`, cls: "from-[#0F172A] to-[#334155]" },
+        {
+          label: "Revenue",
+          value: pkr(report.totals.revenue),
+          note: ins?.revenueVsPrev != null ? `${signed(ins.revenueVsPrev)} vs prev month` : "Month collections",
+          bg: "bg-[#EFF6FF]",
+        },
+        {
+          label: "Total cost",
+          value: pkr(report.totals.totalCost),
+          note: ins?.costVsPrev != null ? `${signed(ins.costVsPrev)} vs prev month` : `Payroll ${pkr(report.totals.payroll)}`,
+          bg: "bg-[#FFF1F3]",
+        },
+        {
+          label: "Net profit",
+          value: signed(report.totals.netProfit),
+          note: ins?.profitNote ?? "",
+          bg: report.totals.netProfit >= 0 ? "bg-[#ECFDF5]" : "bg-[#FFF7ED]",
+        },
+        {
+          label: "Cash (net)",
+          value: pkr(report.cash.closingNet),
+          note: report.cash.asOf ? `As of ${report.cash.asOf}` : "Closing position",
+          bg: "bg-[#F5F3FF]",
+        },
       ]
     : [];
+
+  const bankChart = (report?.cash.banks ?? [])
+    .map((b, i) => ({
+      name: b.bank.length > 14 ? `${b.bank.slice(0, 12)}…` : b.bank,
+      full: b.bank,
+      net: b.balance,
+      debit: b.debit ?? 0,
+      credit: b.credit ?? 0,
+      color: bankColor(i),
+    }))
+    .filter(b => b.debit !== 0 || b.credit !== 0 || b.net !== 0);
+
+  const sectionChart = (report?.cash.sections ?? []).map(s => ({
+    name: s.name.slice(0, 12),
+    net: s.net,
+  }));
 
   return (
     <div className="flex min-h-screen accounts-page-bg">
       <AccountsSidebar />
       <main className={`flex-1 min-w-0 overflow-x-hidden ${ACCOUNTS_MAIN_OFFSET}`}>
         <div id="monthly-report" className={`${STAFF_PAGE_PAD} scroll-mt-[80px]`}>
-          <div className={`${BENTO_CARD} px-4 sm:px-5 py-4 flex flex-col sm:flex-row sm:items-center gap-3`}>
+          <div className={`${BENTO_CARD} px-4 sm:px-5 py-4 sm:py-5 flex flex-col sm:flex-row sm:items-end gap-3`}>
             <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2">
-                <span className="w-9 h-9 rounded-xl bg-[#B8112D] text-white inline-flex items-center justify-center shadow-md shadow-[#B8112D]/25">
-                  <FileText size={16} />
-                </span>
-                <div>
-                  <h1 className="font-extrabold text-crm-text text-base sm:text-lg tracking-tight leading-none">
-                    Executive Summary Report
-                  </h1>
-                  <p className="text-[11px] text-crm-text-faint mt-1">
-                    BEM Solutions · Daily aggregate
-                    {report?.daysRecorded != null ? ` · ${report.daysRecorded} day(s)` : ""}
-                    {report?.sourceDate ? ` · last ${report.sourceDate}` : ""} · Confidential
-                  </p>
-                </div>
-              </div>
+              <h1 className="font-bold text-[#B8112D] text-xl sm:text-2xl tracking-tight leading-none">
+                Accounts Team — Monthly Report
+              </h1>
+              <p className="text-[11px] sm:text-xs text-[#64748B] mt-2">
+                {label}
+                {report?.daysRecorded != null ? ` · ${report.daysRecorded} day(s) recorded` : ""}
+                {report?.sourceDate ? ` · last ${report.sourceDate}` : ""} · BEM Solutions CRM
+              </p>
             </div>
             <div className="flex items-center gap-2 shrink-0">
               <label className="inline-flex items-center gap-2 h-10 px-3 rounded-xl border border-crm-border bg-[#F8FAFC] text-xs font-bold text-crm-text-secondary">
@@ -872,12 +1081,12 @@ export default function AccountsReportsPage() {
                 </section>
               )}
 
-              <section className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-2.5">
+              <section className="grid grid-cols-2 xl:grid-cols-4 gap-2.5 sm:gap-3">
                 {kpis.map(k => (
-                  <div key={k.label} className={`bg-gradient-to-br ${k.cls} rounded-xl sm:rounded-2xl p-3 sm:p-3.5 text-white shadow-md`}>
-                    <p className="text-[9px] font-bold uppercase tracking-wider text-white/75 leading-snug">{k.label}</p>
-                    <p className="text-base sm:text-lg font-extrabold mt-1.5 tabular-nums tracking-tight">{k.value}</p>
-                    <p className="text-[9px] text-white/60 mt-1 font-medium leading-snug">{k.note}</p>
+                  <div key={k.label} className={`${k.bg} rounded-xl sm:rounded-2xl p-3 sm:p-4`}>
+                    <p className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-[#64748B] leading-snug">{k.label}</p>
+                    <p className="text-lg sm:text-xl font-extrabold mt-1.5 tabular-nums tracking-tight text-[#0F172A]">{k.value}</p>
+                    <p className="text-[9px] sm:text-[10px] text-[#64748B] mt-1 font-medium leading-snug">{k.note}</p>
                   </div>
                 ))}
               </section>
@@ -907,10 +1116,135 @@ export default function AccountsReportsPage() {
                 </p>
               </section>
 
-              <SectionCard title="1. Financial Performance — Month by Month">
+              <SectionCard title="Revenue — currency channels">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm min-w-140">
+                    <thead className="bg-[#0B1220]">
+                      <tr>
+                        <th className={`${thCls} text-left`}>Channel</th>
+                        <th className={`${thCls} text-right`}>USD</th>
+                        <th className={`${thCls} text-right`}>CAD</th>
+                        <th className={`${thCls} text-right`}>PKR</th>
+                        <th className={`${thCls} text-right`}>Net PKR</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(report.revenueChannels ?? []).length === 0 ? (
+                        <tr><td colSpan={5} className="px-3 py-6 text-center text-crm-text-faint text-xs">No channel amounts this month.</td></tr>
+                      ) : (
+                        (report.revenueChannels ?? []).map(c => (
+                          <tr key={c.key} className="border-b border-crm-border-subtle">
+                            <td className={`${tdCls} font-bold text-crm-text`}>{c.label}</td>
+                            <td className={`${tdCls} text-right tabular-nums`}>{currency(c.usd)}</td>
+                            <td className={`${tdCls} text-right tabular-nums`}>{currency(c.cad)}</td>
+                            <td className={`${tdCls} text-right tabular-nums`}>{currency(c.pkr)}</td>
+                            <td className={`${tdCls} text-right tabular-nums font-bold`}>{currency(c.netPkr)}</td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                    <tfoot>
+                      <tr className="border-t-2 border-[#0B84F3]/20 bg-[#EFF6FF]">
+                        <td className="px-3 py-2.5 font-extrabold text-crm-text text-xs">TOTAL REVENUE</td>
+                        <td className="px-3 py-2.5 text-right font-extrabold tabular-nums text-xs">{currency((report.revenueChannels ?? []).reduce((a, c) => a + c.usd, 0))}</td>
+                        <td className="px-3 py-2.5 text-right font-extrabold tabular-nums text-xs">{currency((report.revenueChannels ?? []).reduce((a, c) => a + c.cad, 0))}</td>
+                        <td className="px-3 py-2.5 text-right font-extrabold tabular-nums text-xs">{currency((report.revenueChannels ?? []).reduce((a, c) => a + c.pkr, 0))}</td>
+                        <td className="px-3 py-2.5 text-right font-extrabold tabular-nums text-xs text-[#0B84F3]">{currency(report.totals.revenue)}</td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </SectionCard>
+
+              <SectionCard title={`Revenue — each collection (${(report.collections ?? []).length})`}>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm min-w-180">
+                    <thead className="bg-[#0B1220]">
+                      <tr>
+                        <th className={`${thCls} text-left`}>Paid</th>
+                        <th className={`${thCls} text-left`}>Client / Code</th>
+                        <th className={`${thCls} text-left`}>Channel</th>
+                        <th className={`${thCls} text-left`}>Type</th>
+                        <th className={`${thCls} text-center`}>Ccy</th>
+                        <th className={`${thCls} text-right`}>Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(report.collections ?? []).length === 0 ? (
+                        <tr><td colSpan={6} className="px-3 py-6 text-center text-crm-text-faint text-xs">No paid project collections this month.</td></tr>
+                      ) : (
+                        (report.collections ?? []).map((c, i) => (
+                          <tr key={`${c.client}-${c.paidAt}-${i}`} className="border-b border-crm-border-subtle">
+                            <td className={`${tdCls} text-crm-text-secondary`}>{c.paidAt || "—"}</td>
+                            <td className={`${tdCls} font-semibold text-crm-text`}>
+                              {c.client}
+                              {c.projectCode ? <span className="block text-[10px] font-normal text-crm-text-faint">{c.projectCode}</span> : null}
+                            </td>
+                            <td className={`${tdCls} text-crm-text-secondary`}>{c.channelLabel || c.channel}</td>
+                            <td className={`${tdCls} text-crm-text-muted`}>{c.type || "—"}</td>
+                            <td className={`${tdCls} text-center`}>{c.currency}</td>
+                            <td className={`${tdCls} text-right tabular-nums font-bold`}>{currency(c.amount)}</td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                    <tfoot>
+                      <tr className="border-t-2 border-[#0B84F3]/20 bg-[#EFF6FF]">
+                        <td className="px-3 py-2.5 font-extrabold text-crm-text text-xs" colSpan={5}>{(report.collections ?? []).length} payment(s)</td>
+                        <td className="px-3 py-2.5 text-right font-extrabold tabular-nums text-xs">{currency((report.collections ?? []).reduce((a, c) => a + c.amount, 0))}</td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </SectionCard>
+
+              <SectionCard title={`Daily income statement — ${label}`}>
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm min-w-160">
-                    <thead className="bg-[#FAFBFC]">
+                    <thead className="bg-[#0B1220]">
+                      <tr>
+                        <th className={`${thCls} text-left`}>Date</th>
+                        <th className={`${thCls} text-right`}>Payroll</th>
+                        <th className={`${thCls} text-right`}>OPEX</th>
+                        <th className={`${thCls} text-right`}>Loans</th>
+                        <th className={`${thCls} text-right`}>PF</th>
+                        <th className={`${thCls} text-right`}>Day cost</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(report.days ?? []).length === 0 ? (
+                        <tr><td colSpan={6} className="px-3 py-6 text-center text-crm-text-faint text-xs">No income statement days recorded.</td></tr>
+                      ) : (
+                        (report.days ?? []).map(d => (
+                          <tr key={d.date} className="border-b border-crm-border-subtle">
+                            <td className={`${tdCls} font-bold text-crm-text`}>{d.date}</td>
+                            <td className={`${tdCls} text-right tabular-nums`}>{currency(d.payroll)}</td>
+                            <td className={`${tdCls} text-right tabular-nums`}>{currency(d.opex)}</td>
+                            <td className={`${tdCls} text-right tabular-nums`}>{currency(d.loans)}</td>
+                            <td className={`${tdCls} text-right tabular-nums`}>{currency(d.pf)}</td>
+                            <td className={`${tdCls} text-right tabular-nums font-bold`}>{currency(d.cost)}</td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                    <tfoot>
+                      <tr className="border-t-2 border-[#B8112D]/20 bg-[#FFF1F3]">
+                        <td className="px-3 py-2.5 font-extrabold text-crm-text text-xs">TOTAL ({report.daysRecorded} day{report.daysRecorded === 1 ? "" : "s"})</td>
+                        <td className="px-3 py-2.5 text-right font-extrabold tabular-nums text-xs">{currency(report.totals.payroll)}</td>
+                        <td className="px-3 py-2.5 text-right font-extrabold tabular-nums text-xs">{currency(report.totals.opex)}</td>
+                        <td className="px-3 py-2.5 text-right font-extrabold tabular-nums text-xs">{currency(report.totals.loans)}</td>
+                        <td className="px-3 py-2.5 text-right font-extrabold tabular-nums text-xs">{currency(report.totals.pf)}</td>
+                        <td className="px-3 py-2.5 text-right font-extrabold tabular-nums text-xs text-[#B8112D]">{currency(report.totals.totalCost)}</td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </SectionCard>
+
+              <SectionCard title="Financial performance — month by month">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm min-w-160">
+                    <thead className="bg-[#0B1220]">
                       <tr className="border-b border-crm-border/80">
                         <th className={`${thCls} text-left`}>Month</th>
                         <th className={`${thCls} text-right`}>Revenue (PKR)</th>
@@ -973,7 +1307,7 @@ export default function AccountsReportsPage() {
               </SectionCard>
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                <SectionCard title="2. Net Profit / Loss Trend">
+                <SectionCard title="Net profit / loss trend">
                   <div className="p-4" id="report-chart-net">
                     <RechartsBox height={230}>
                       <BarChart data={report.history.map(h => ({ name: monthShort(h.month), net: h.net }))} barSize={26}>
@@ -996,7 +1330,7 @@ export default function AccountsReportsPage() {
                   </div>
                 </SectionCard>
 
-                <SectionCard title="3. Revenue vs Total Cost">
+                <SectionCard title="Revenue vs total cost">
                   <div className="p-4" id="report-chart-revcost">
                     <RechartsBox height={230}>
                       <BarChart
@@ -1021,7 +1355,7 @@ export default function AccountsReportsPage() {
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                <SectionCard title={`4. Key Movements${ins?.prev ? ` — vs ${monthShort(ins.prev.month)}` : ""}`}>
+                <SectionCard title={`Key movements${ins?.prev ? ` — vs ${monthShort(ins.prev.month)}` : ""}`}>
                   {ins?.prev ? (
                     <div className="divide-y divide-gray-50">
                       {[
@@ -1050,7 +1384,7 @@ export default function AccountsReportsPage() {
                   )}
                 </SectionCard>
 
-                <SectionCard title={`5. Cost Mix — ${pkr(report.totals.totalCost)}`}>
+                <SectionCard title={`Cost mix — ${pkr(report.totals.totalCost)}`}>
                   {costMix.length === 0 ? (
                     <p className="px-4 py-8 text-center text-crm-text-faint text-xs">No cost entries this month.</p>
                   ) : (
@@ -1083,41 +1417,241 @@ export default function AccountsReportsPage() {
                 </SectionCard>
               </div>
 
-              <SectionCard title={`6. Cash Position${report.cash.asOf ? ` — as of ${report.cash.asOf}` : ""}`}>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm min-w-100">
-                    <thead className="bg-[#FAFBFC]">
-                      <tr className="border-b border-crm-border/80">
-                        <th className={`${thCls} text-left`}>Account</th>
-                        <th className={`${thCls} text-right w-44`}>Balance (PKR)</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {report.cash.banks.length === 0 ? (
-                        <tr><td colSpan={2} className="px-3 py-6 text-center text-crm-text-faint text-xs">No cash flow entries recorded.</td></tr>
-                      ) : (
-                        report.cash.banks.map(b => (
-                          <tr key={b.bank} className="border-b border-crm-border-subtle">
-                            <td className={`${tdCls} font-semibold text-crm-text-secondary`}>{b.bank}</td>
-                            <td className={`${tdCls} text-right tabular-nums font-semibold`}>{currency(b.balance)}</td>
+              <SectionCard title={`Cash flow statement${report.cash.asOf ? ` — as of ${report.cash.asOf}` : ""}`}>
+                <div className="p-4 space-y-4">
+                  <section className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+                    <div className="lg:col-span-4 rounded-2xl border-2 border-[#B8112D]/20 p-5 text-white bg-gradient-to-br from-[#B8112D] to-[#8b0d22] shadow-lg">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Wallet size={18} className="text-white/80" />
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-white/75">Net Cash Flow</p>
+                      </div>
+                      <p className="text-3xl font-extrabold tabular-nums">{currency(report.cash.monthNet)}</p>
+                      <p className="text-[11px] text-white/60 mt-2">
+                        {report.cash.monthEntries ?? 0} entries in {label} · closing {currency(report.cash.closingNet)}
+                      </p>
+                    </div>
+                    <div className="lg:col-span-8 bg-crm-surface rounded-2xl border-2 border-[#B8112D]/20 p-4 sm:p-5">
+                      <div className="flex items-center gap-2 mb-3">
+                        <Building2 size={16} className="text-[#B8112D]" />
+                        <h3 className="font-bold text-sm text-crm-text">Bank Accounts</h3>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {report.cash.banks.length === 0 ? (
+                          <p className="text-xs text-crm-text-faint">No bank heads recorded this month.</p>
+                        ) : (
+                          report.cash.banks.map((b, i) => (
+                            <span
+                              key={b.bank}
+                              className="px-2.5 py-1 rounded-lg text-[11px] font-bold text-white"
+                              style={{ backgroundColor: bankColor(i) }}
+                            >
+                              {b.bank}
+                            </span>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  </section>
+
+                  <section className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                    <AccountsChartCard
+                      title="Net by Section"
+                      subtitle="Cash movement across month sections"
+                      accent="#B8112D"
+                      icon={<Activity size={16} />}
+                    >
+                      <RechartsBox height={230}>
+                        <AreaChart data={sectionChart.length ? sectionChart : [{ name: "—", net: 0 }]}>
+                          <defs>
+                            <linearGradient id="reportCfArea" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="0%" stopColor="#B8112D" stopOpacity={0.4} />
+                              <stop offset="100%" stopColor="#B8112D" stopOpacity={0.02} />
+                            </linearGradient>
+                          </defs>
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                          <XAxis dataKey="name" tick={{ fontSize: 10, fontWeight: 600 }} />
+                          <YAxis tick={{ fontSize: 10 }} />
+                          <Tooltip formatter={v => currency(Number(v ?? 0))} />
+                          <Area type="monotone" dataKey="net" stroke="#B8112D" fill="url(#reportCfArea)" strokeWidth={2.5} />
+                        </AreaChart>
+                      </RechartsBox>
+                    </AccountsChartCard>
+
+                    <AccountsChartCard
+                      title="Bank Activity"
+                      subtitle="Volume share per bank"
+                      accent="#0B84F3"
+                      icon={<PieIcon size={16} />}
+                    >
+                      <RechartsBox height={230}>
+                        {bankChart.length > 0 ? (
+                          <PieChart>
+                            <Pie
+                              data={bankChart.map(b => ({
+                                name: b.name,
+                                value: Math.abs(b.net) || Math.abs(b.debit) + Math.abs(b.credit) || 1,
+                                color: b.color,
+                              }))}
+                              dataKey="value"
+                              nameKey="name"
+                              innerRadius={55}
+                              outerRadius={88}
+                              paddingAngle={3}
+                              stroke="#fff"
+                              strokeWidth={2}
+                            >
+                              {bankChart.map((b, i) => (
+                                <Cell key={b.full} fill={b.color || CHART_COLORS[i % CHART_COLORS.length]} />
+                              ))}
+                            </Pie>
+                            <Tooltip formatter={v => currency(Number(v ?? 0))} />
+                          </PieChart>
+                        ) : (
+                          <BarChart data={[{ name: "No activity", value: 0 }]}>
+                            <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+                            <YAxis tick={{ fontSize: 10 }} />
+                            <Bar dataKey="value" fill="#E2E8F0" radius={[8, 8, 0, 0]} />
+                          </BarChart>
+                        )}
+                      </RechartsBox>
+                    </AccountsChartCard>
+                  </section>
+
+                  {bankChart.length > 0 && (
+                    <AccountsChartCard
+                      title="Bank Debit vs Credit"
+                      subtitle="Side-by-side activity"
+                      accent="#12B76A"
+                      icon={<Wallet size={16} />}
+                    >
+                      <RechartsBox height={220}>
+                        <BarChart data={bankChart} barGap={4}>
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                          <XAxis dataKey="name" tick={{ fontSize: 10, fontWeight: 600 }} />
+                          <YAxis tick={{ fontSize: 10 }} />
+                          <Tooltip formatter={v => currency(Number(v ?? 0))} />
+                          <Bar dataKey="debit" name="Debit" fill="#0B84F3" radius={[8, 8, 0, 0]} />
+                          <Bar dataKey="credit" name="Credit" fill="#B8112D" radius={[8, 8, 0, 0]} />
+                        </BarChart>
+                      </RechartsBox>
+                    </AccountsChartCard>
+                  )}
+
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm min-w-140">
+                      <thead className="bg-[#0B1220]">
+                        <tr>
+                          <th className={`${thCls} text-left`}>Bank</th>
+                          <th className={`${thCls} text-right`}>Debit (PKR)</th>
+                          <th className={`${thCls} text-right`}>Credit (PKR)</th>
+                          <th className={`${thCls} text-right`}>Net (PKR)</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {report.cash.banks.length === 0 ? (
+                          <tr><td colSpan={4} className="px-3 py-6 text-center text-crm-text-faint text-xs">No cash flow entries recorded.</td></tr>
+                        ) : (
+                          report.cash.banks.map(b => (
+                            <tr key={b.bank} className="border-b border-crm-border-subtle">
+                              <td className={`${tdCls} font-semibold text-crm-text-secondary`}>{b.bank}</td>
+                              <td className={`${tdCls} text-right tabular-nums`}>{currency(b.debit ?? 0)}</td>
+                              <td className={`${tdCls} text-right tabular-nums`}>{currency(b.credit ?? 0)}</td>
+                              <td className={`${tdCls} text-right tabular-nums font-bold ${b.balance >= 0 ? "text-emerald-600" : "text-red-600"}`}>
+                                {signed(b.balance)}
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                      <tfoot>
+                        <tr className="border-t-2 border-[#B8112D]/20 bg-[#FFF1F3]">
+                          <td className="px-3 py-2.5 font-extrabold text-crm-text text-xs">MONTH NET</td>
+                          <td className="px-3 py-2.5 text-right font-extrabold tabular-nums text-xs">
+                            {currency(report.cash.banks.reduce((a, b) => a + (b.debit ?? 0), 0))}
+                          </td>
+                          <td className="px-3 py-2.5 text-right font-extrabold tabular-nums text-xs">
+                            {currency(report.cash.banks.reduce((a, b) => a + (b.credit ?? 0), 0))}
+                          </td>
+                          <td className={`px-3 py-2.5 text-right font-extrabold tabular-nums text-xs ${report.cash.monthNet >= 0 ? "text-emerald-600" : "text-red-600"}`}>
+                            {signed(report.cash.monthNet)}
+                          </td>
+                        </tr>
+                        <tr className="bg-[#F8FAFC]">
+                          <td className="px-3 py-2.5 font-extrabold text-crm-text text-xs" colSpan={3}>CLOSING CASH (NET)</td>
+                          <td className="px-3 py-2.5 text-right font-extrabold tabular-nums text-[#0D9488] text-xs">{currency(report.cash.closingNet)}</td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+
+                  <div className="overflow-x-auto">
+                    <p className="text-[11px] font-bold text-[#0B1220] mb-2">Cash flow ledger — each entry</p>
+                    <table className="w-full text-sm" style={{ minWidth: `${520 + report.cash.banks.length * 140}px` }}>
+                      <thead className="bg-[#0B1220]">
+                        <tr>
+                          <th className={`${thCls} text-left`}>Date</th>
+                          <th className={`${thCls} text-left`}>Section</th>
+                          <th className={`${thCls} text-left`}>Description</th>
+                          {report.cash.banks.map((b, i) => (
+                            <th key={b.bank} colSpan={2} className={`${thCls} text-center`} style={{ borderBottom: `3px solid ${bankColor(i)}` }}>
+                              {b.bank}
+                              <span className="block text-[9px] font-semibold text-white/70 normal-case tracking-normal">Dr / Cr</span>
+                            </th>
+                          ))}
+                          <th className={`${thCls} text-right`}>Net</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(report.cash.ledger ?? []).length === 0 ? (
+                          <tr>
+                            <td colSpan={4 + report.cash.banks.length * 2} className="px-3 py-6 text-center text-crm-text-faint text-xs">
+                              No cash flow rows dated in this month.
+                            </td>
                           </tr>
-                        ))
-                      )}
-                    </tbody>
-                    <tfoot>
-                      <tr className="border-t-2 border-[#0D9488]/25 bg-[#0D9488]/5">
-                        <td className="px-3 py-2.5 font-extrabold text-crm-text text-xs">TOTAL AVAILABLE CASH (NET)</td>
-                        <td className="px-3 py-2.5 text-right font-extrabold tabular-nums text-[#0D9488] text-xs">{currency(report.cash.closingNet)}</td>
-                      </tr>
-                    </tfoot>
-                  </table>
+                        ) : (
+                          (report.cash.ledger ?? []).map((r, i) => {
+                            const byBank = new Map(r.banks.map(b => [b.bank, b]));
+                            return (
+                              <tr key={`${r.date}-${r.description}-${i}`} className="border-b border-crm-border-subtle">
+                                <td className={`${tdCls} text-crm-text-secondary whitespace-nowrap`}>{r.date || "—"}</td>
+                                <td className={`${tdCls} text-crm-text-muted`}>{r.section}</td>
+                                <td className={`${tdCls} font-semibold text-crm-text`}>{r.description}</td>
+                                {report.cash.banks.map(b => {
+                                  const x = byBank.get(b.bank);
+                                  return (
+                                    <Fragment key={b.bank}>
+                                      <td className={`${tdCls} text-right tabular-nums`}>{currency(x?.debit ?? 0)}</td>
+                                      <td className={`${tdCls} text-right tabular-nums`}>{currency(x?.credit ?? 0)}</td>
+                                    </Fragment>
+                                  );
+                                })}
+                                <td className={`${tdCls} text-right tabular-nums font-bold ${r.net >= 0 ? "text-emerald-600" : "text-red-600"}`}>
+                                  {signed(r.net)}
+                                </td>
+                              </tr>
+                            );
+                          })
+                        )}
+                      </tbody>
+                      <tfoot>
+                        <tr className="border-t-2 border-[#B8112D]/20 bg-[#FFF1F3]">
+                          <td className="px-3 py-2.5 font-extrabold text-crm-text text-xs" colSpan={3 + report.cash.banks.length * 2}>
+                            MONTH NET ({report.cash.monthEntries ?? 0} entries)
+                          </td>
+                          <td className={`px-3 py-2.5 text-right font-extrabold tabular-nums text-xs ${report.cash.monthNet >= 0 ? "text-emerald-600" : "text-red-600"}`}>
+                            {signed(report.cash.monthNet)}
+                          </td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
                 </div>
               </SectionCard>
 
-              <SectionCard title={`7. CSR Team Performance — ${label}`}>
+              <SectionCard title={`CSR team performance — ${label}`}>
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm min-w-[1100px]">
-                    <thead className="bg-[#FAFBFC]">
+                    <thead className="bg-[#0B1220]">
                       <tr className="border-b border-crm-border/80">
                         <th className={`${thCls} text-left`}>CSR</th>
                         <th className={`${thCls} text-left`}>Role</th>
@@ -1199,27 +1733,58 @@ export default function AccountsReportsPage() {
                 </div>
               </SectionCard>
 
-              <SectionCard title={`8. Team Salaries — Cost Breakdown (${pkr(report.totals.payroll)})`}>
+              <SectionCard title="CSR fix projects — each client">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm min-w-140">
+                    <thead className="bg-[#0B1220]">
+                      <tr>
+                        <th className={`${thCls} text-left`}>CSR</th>
+                        <th className={`${thCls} text-left`}>Client</th>
+                        <th className={`${thCls} text-center`}>Currency</th>
+                        <th className={`${thCls} text-right`}>Project pay</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {report.csr.rows.every(r => !(r.fixClients ?? []).length) ? (
+                        <tr><td colSpan={4} className="px-3 py-6 text-center text-crm-text-faint text-xs">No fix-client projects this month.</td></tr>
+                      ) : (
+                        report.csr.rows.flatMap(r =>
+                          (r.fixClients ?? []).map((p, i) => (
+                            <tr key={`${r.name}-${p.clientName}-${i}`} className="border-b border-crm-border-subtle">
+                              <td className={`${tdCls} font-semibold text-crm-text`}>{r.name}</td>
+                              <td className={`${tdCls} text-crm-text-secondary`}>{p.clientName}</td>
+                              <td className={`${tdCls} text-center`}>{p.currency}</td>
+                              <td className={`${tdCls} text-right tabular-nums font-bold`}>{currency(p.projectPay)}</td>
+                            </tr>
+                          )),
+                        )
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </SectionCard>
+
+              <SectionCard title={`Team salaries — cost breakdown (${pkr(report.totals.payroll)})`}>
                 <CategoryTable groups={report.salaryTeams} total={report.totals.payroll} />
               </SectionCard>
 
-              <SectionCard title={`9. Operating Expenses (${pkr(report.totals.opex)})`}>
+              <SectionCard title={`Operating expenses (${pkr(report.totals.opex)})`}>
                 <CategoryTable groups={report.opexHeads} total={report.totals.opex} />
               </SectionCard>
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                <SectionCard title={`10. Loans (${pkr(report.totals.loans)})`}>
+                <SectionCard title={`Loans (${pkr(report.totals.loans)})`}>
                   <CategoryTable groups={report.loanHeads} total={report.totals.loans} />
                 </SectionCard>
-                <SectionCard title={`11. Provident Fund (${pkr(report.totals.pf)})`}>
+                <SectionCard title={`Provident fund (${pkr(report.totals.pf)})`}>
                   <CategoryTable groups={report.pfHeads} total={report.totals.pf} />
                 </SectionCard>
               </div>
 
-              <SectionCard title={`12. Executive Salaries — ${label}`}>
+              <SectionCard title={`Executive salaries — ${label}`}>
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm min-w-200">
-                    <thead className="bg-[#FAFBFC]">
+                    <thead className="bg-[#0B1220]">
                       <tr className="border-b border-crm-border/80">
                         <th className={`${thCls} text-left`}>Executive</th>
                         <th className={`${thCls} text-right`}>Basic (PKR)</th>
@@ -1265,8 +1830,8 @@ export default function AccountsReportsPage() {
                 </div>
               </SectionCard>
 
-              <p className="text-center text-[10px] text-crm-text-faint pb-6">
-                Generated from CRM Accounts daily records · {label} · Confidential
+              <p className="text-center text-[10px] text-[#94A3B8] pb-6">
+                Auto-generated from CRM accounts daily records, cash flow & payroll · {label}
               </p>
             </>
           )}
