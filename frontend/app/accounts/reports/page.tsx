@@ -303,7 +303,7 @@ function buildWordHtml(report: MonthlyReport): string {
       </td>
     </tr>`;
   };
-
+//
   const maxNet = Math.max(...report.history.map(h => Math.abs(h.net)), 1);
   const netTrendBars = report.history
     .map(h =>
