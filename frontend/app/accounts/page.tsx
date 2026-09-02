@@ -342,23 +342,33 @@ export default function AccountsDashboardPage() {
 
   const combinedTotal = ahCalc.total + snCalc.total + chqCalc.total + hmCalc.total;
 
-  const isAllTime = normalizePeriodPreset(acc.periodPreset) === "all_time";
-  const scopeHint = isAllTime ? `All Time · through ${todayIso()}` : `As of ${acc.recordDate || todayIso()}`;
-  const currencyCardTotal = isAllTime
+  const periodMode = normalizePeriodPreset(acc.periodPreset);
+  const isAllTime = periodMode === "all_time";
+  const isMonth = periodMode === "month";
+  const isDateRange = periodMode === "date_range";
+  const usesPeriodSummary = isAllTime || isMonth || isDateRange;
+  const periodHint = isAllTime
+    ? `All Time · through ${todayIso()}`
+    : isMonth
+      ? "This month · same as Income Statement"
+      : isDateRange
+        ? "This range · same as Income Statement"
+        : `As of ${acc.recordDate || todayIso()}`;
+  const currencyCardTotal = usesPeriodSummary
     ? (summaries.currencyFormulaTotal ?? combinedTotal)
     : combinedTotal;
 
   const metrics = [
-    { label: "Currency Formula Total", value: currencyCardTotal, color: "from-[#F59E0B] to-[#B45309]", hint: isAllTime ? "Sum of all days through today" : "AH + SN + Cheque + Habib Metro (this date)", icon: <Receipt size={14} /> },
-    { label: "IS Total Revenue", value: summaries.incomeTotalRevenue ?? 0, color: "from-[#6D28D9] to-[#4C1D95]", hint: isAllTime ? "Sum of currency formula · all days" : "From Currency Formula (AH+SN+CHQ+HM)", icon: <TrendingUp size={14} /> },
-    { label: "IS Payroll", value: summaries.incomePayroll ?? 0, color: "from-[#0B84F3] to-[#0369A1]", hint: isAllTime ? "Team Salaries · all days" : "Team Salaries total · same date", icon: <Cpu size={14} /> },
-    { label: "IS Total Expense", value: summaries.incomeTotalExpense ?? 0, color: "from-[#B8112D] to-[#8b0d22]", hint: "Payroll + OPEX", icon: <Layers3 size={14} /> },
-    { label: "BS Total Assets", value: bsAssets, color: "from-[#0B84F3] to-[#0369A1]", hint: isAllTime ? "Latest balance sheet ≤ today" : "Must equal Equity + Liabilities", icon: <Scale size={14} /> },
+    { label: "Currency Formula Total", value: currencyCardTotal, color: "from-[#F59E0B] to-[#B45309]", hint: isAllTime ? "Sum of monthly currency formula through today" : isMonth || isDateRange ? "Currency formula · same period as Income Statement" : "AH + SN + Cheque + Habib Metro (this date)", icon: <Receipt size={14} /> },
+    { label: "IS Total Revenue", value: summaries.incomeTotalRevenue ?? 0, color: "from-[#6D28D9] to-[#4C1D95]", hint: isAllTime ? "Sum of currency formula · each month once" : "From Currency Formula (AH+SN+CHQ+HM)", icon: <TrendingUp size={14} /> },
+    { label: "IS Payroll", value: summaries.incomePayroll ?? 0, color: "from-[#0B84F3] to-[#0369A1]", hint: isAllTime ? "Team Salaries · latest day per month" : "Team Salaries · same as Income Statement", icon: <Cpu size={14} /> },
+    { label: "IS Total Expense", value: summaries.incomeTotalExpense ?? 0, color: "from-[#B8112D] to-[#8b0d22]", hint: isAllTime ? "Payroll + OPEX · latest day per month" : "Payroll + OPEX · same as Income Statement", icon: <Layers3 size={14} /> },
+    { label: "BS Total Assets", value: bsAssets, color: "from-[#0B84F3] to-[#0369A1]", hint: isAllTime ? "Latest balance sheet ≤ today" : isMonth || isDateRange ? "Latest balance sheet in this period" : "Must equal Equity + Liabilities", icon: <Scale size={14} /> },
     { label: "BS Equity + Liabilities", value: bsEquityLiab, color: "from-[#0D9488] to-[#0F766E]", hint: `Equity ${currency(summaries.balanceSheetTotalEquity ?? 0)} · Liab ${currency(summaries.balanceSheetTotalLiabilities ?? 0)}`, icon: <Wallet size={14} /> },
     { label: bsBalanced ? "BS Balanced (Diff 0)" : "BS Difference (A − E−L)", value: bsDiff, color: bsBalanced ? "from-[#12B76A] to-[#027A48]" : "from-[#F59E0B] to-[#B45309]", hint: bsBalanced ? "Assets = Equity + Liabilities" : "Should be zero when balanced", icon: <CheckCircle2 size={14} /> },
     { label: "Income Statement Net Profit", value: summaries.incomeNetProfit ?? 0, color: "from-[#12B76A] to-[#027A48]", hint: `Revenue − Expense (${currency(summaries.incomeTotalExpense ?? 0)})`, icon: <TrendingUp size={14} /> },
-    { label: "Cash Flow Net Amount", value: summaries.cashFlowNet ?? 0, color: "from-[#B8112D] to-[#8b0d22]", hint: scopeHint, icon: <Waves size={14} /> },
-    { label: "Total Assets Register", value: summaries.totalAssetsRegister ?? 0, color: "from-[#0D9488] to-[#0F766E]", hint: isAllTime ? "Latest register ≤ today" : "BEM + GPS + BDS register sum", icon: <Boxes size={14} /> },
+    { label: "Cash Flow Net Amount", value: summaries.cashFlowNet ?? 0, color: "from-[#B8112D] to-[#8b0d22]", hint: periodHint, icon: <Waves size={14} /> },
+    { label: "Total Assets Register", value: summaries.totalAssetsRegister ?? 0, color: "from-[#0D9488] to-[#0F766E]", hint: isAllTime ? "Latest register ≤ today" : isMonth || isDateRange ? "Latest register in this period" : "BEM + GPS + BDS register sum", icon: <Boxes size={14} /> },
   ];
 
   const channelChips = [
@@ -485,7 +495,11 @@ export default function AccountsDashboardPage() {
                 <div className="flex flex-wrap items-center gap-2">
                   <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/60">Total Received — All Channels</p>
                   <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-white/10 border border-white/15 text-white/80 tabular-nums">
-                    {acc.recordDate || todayIso()}
+                    {isMonth
+                      ? acc.filterMonth
+                      : isDateRange && acc.filterFrom && acc.filterTo
+                        ? `${acc.filterFrom} → ${acc.filterTo}`
+                        : (acc.recordDate || todayIso())}
                   </span>
                   <span
                     className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${
@@ -499,10 +513,11 @@ export default function AccountsDashboardPage() {
                   </span>
                 </div>
                 <p className="mt-2 text-3xl sm:text-4xl xl:text-5xl font-extrabold tabular-nums tracking-tight bg-gradient-to-r from-white via-white to-white/70 bg-clip-text text-transparent">
-                  {currency(combinedTotal)}
+                  {currency(currencyCardTotal)}
                 </p>
                 <p className="mt-1.5 text-[11px] text-white/50 font-medium">
                   Ahmed + Sharjeel + Cheque + Habib Metro — after tax, PKR net
+                  {usesPeriodSummary ? " · selected period" : ""}
                 </p>
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-2 xl:grid-cols-4 gap-2 lg:ml-auto shrink-0">
@@ -836,7 +851,7 @@ export default function AccountsDashboardPage() {
 
               <AccountsChartCard
                 title="Pages Snapshot"
-                subtitle={`As of ${acc.recordDate}`}
+                subtitle={usesPeriodSummary ? periodHint : `As of ${acc.recordDate}`}
                 accent="#0F172A"
                 icon={<LayoutDashboard size={16} />}
               >

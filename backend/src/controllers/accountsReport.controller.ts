@@ -32,6 +32,14 @@ import {
 } from "../utils/projectCurrencyCollections";
 import { defaultAccountsData } from "../utils/accountsDefaults";
 import { fetchLiveFxRates } from "../utils/fxRates";
+import {
+  CORE_BUDGET_LINE_DEFS,
+  accumulateCoreBudget,
+  accumulateOpexHeads,
+  emptyCoreActuals,
+  type CoreBudgetKey,
+  type OpexHeadBucket,
+} from "../utils/incomeBudget";
 
 /**
  * Monthly Executive Summary — Total Cost / salaries / OPEX / loans / PF come from
@@ -380,6 +388,143 @@ function money(n: number): number {
   return Math.round((Number(n) || 0) * 100) / 100;
 }
 
+const INCOME_BUDGET_STORE_DATE = "2000-01-01";
+
+type BudgetCompareRow = {
+  key: string;
+  name: string;
+  kind: "core" | "opex_head";
+  budget: number;
+  actual: number;
+  variance: number;
+};
+
+function budgetLineAmount(line: {
+  months?: Record<string, number>;
+  budget?: number;
+}, month: string): number {
+  const fromMonth = Number(line.months?.[month]);
+  if (Number.isFinite(fromMonth) && fromMonth > 0) return fromMonth;
+  if (Number.isFinite(fromMonth) && fromMonth === 0 && line.months && month in line.months) return 0;
+  return Math.max(0, Number(line.budget) || 0);
+}
+
+function findBudgetPeriod(store: Record<string, unknown>, month: string) {
+  const quarters = Array.isArray(store.quarters) ? store.quarters : [];
+  return quarters.find(raw => {
+    const q = raw as {
+      monthKeys?: string[];
+      fromDate?: string;
+      toDate?: string;
+      startMonth?: string;
+      endMonth?: string;
+    };
+    if ((q.monthKeys ?? []).includes(month)) return true;
+    const from = String(q.fromDate || q.startMonth || "").slice(0, 7);
+    const to = String(q.toDate || q.endMonth || "").slice(0, 7);
+    return /^\d{4}-\d{2}$/.test(from) && /^\d{4}-\d{2}$/.test(to) && from <= month && month <= to;
+  }) as { lines?: Array<{ key?: string; label?: string; kind?: string; months?: Record<string, number>; budget?: number }> } | undefined;
+}
+
+function buildBudgetCompare(
+  month: string,
+  snapshot: Record<string, unknown>,
+  revenue: number,
+  budgetStore: Record<string, unknown> | null,
+): {
+  hasBudget: boolean;
+  rows: BudgetCompareRow[];
+  totals: {
+    budgetRevenue: number;
+    actualRevenue: number;
+    budgetExpense: number;
+    actualExpense: number;
+    variance: number;
+  };
+} {
+  const emptyTotals = {
+    budgetRevenue: 0,
+    actualRevenue: 0,
+    budgetExpense: 0,
+    actualExpense: 0,
+    variance: 0,
+  };
+  const actuals = emptyCoreActuals();
+  accumulateCoreBudget(snapshot, actuals, revenue);
+  const opexInto: Record<string, OpexHeadBucket> = {};
+  accumulateOpexHeads(snapshot, opexInto);
+
+  const period = budgetStore ? findBudgetPeriod(budgetStore, month) : undefined;
+  if (!period) {
+    return { hasBudget: false, rows: [], totals: emptyTotals };
+  }
+
+  const rows: BudgetCompareRow[] = [];
+  const seen = new Set<string>();
+  for (const line of period.lines ?? []) {
+    const key = String(line.key ?? "").trim();
+    if (!key) continue;
+    const budget = money(budgetLineAmount(line, month));
+    let actual = 0;
+    let kind: "core" | "opex_head" = "core";
+    if (key in actuals) {
+      actual = money(actuals[key as CoreBudgetKey]);
+    } else if (key.startsWith("opex_head::") || line.kind === "opex_head") {
+      kind = "opex_head";
+      actual = money(opexInto[key]?.amount ?? 0);
+    }
+    if (budget === 0 && actual === 0) continue;
+    seen.add(key);
+    rows.push({
+      key,
+      name: String(line.label || CORE_BUDGET_LINE_DEFS.find(d => d.key === key)?.label || key),
+      kind,
+      budget,
+      actual,
+      variance: money(actual - budget),
+    });
+  }
+
+  for (const [key, bucket] of Object.entries(opexInto)) {
+    if (seen.has(key) || !bucket.amount) continue;
+    rows.push({
+      key,
+      name: bucket.label,
+      kind: "opex_head",
+      budget: 0,
+      actual: money(bucket.amount),
+      variance: money(bucket.amount),
+    });
+  }
+
+  const order = CORE_BUDGET_LINE_DEFS.map(d => d.key);
+  rows.sort((a, b) => {
+    const ia = order.indexOf(a.key as CoreBudgetKey);
+    const ib = order.indexOf(b.key as CoreBudgetKey);
+    if (ia >= 0 && ib >= 0) return ia - ib;
+    if (ia >= 0) return -1;
+    if (ib >= 0) return 1;
+    if (a.kind !== b.kind) return a.kind === "core" ? -1 : 1;
+    return a.name.localeCompare(b.name);
+  });
+
+  const budgetRevenue = rows.find(r => r.key === "revenue")?.budget ?? 0;
+  const actualRevenue = rows.find(r => r.key === "revenue")?.actual ?? 0;
+  const budgetExpense = rows.filter(r => r.key !== "revenue").reduce((a, r) => a + r.budget, 0);
+  const actualExpense = rows.filter(r => r.key !== "revenue").reduce((a, r) => a + r.actual, 0);
+  return {
+    hasBudget: true,
+    rows,
+    totals: {
+      budgetRevenue: money(budgetRevenue),
+      actualRevenue: money(actualRevenue),
+      budgetExpense: money(budgetExpense),
+      actualExpense: money(actualExpense),
+      variance: money(actualExpense - budgetExpense),
+    },
+  };
+}
+
 const HAMMAD_TEAM_LEAD_ID = "stl-hammad";
 
 function tlExtraForLead(
@@ -481,7 +626,7 @@ function buildSalaryTables(data: Record<string, unknown>, opts?: SalesPayrollCal
     if (isSales) {
       const columns = [
         "Employee", "Commission", "Basic", "Allowance", "Late", "Unpaid",
-        "Loan", "Baqiya", "PF", "Tax", "Deduct", "Occas.", "Net",
+        "Loan", "Remaining", "PF", "Tax", "Deduct", "Occas.", "Net",
       ];
       const rows = subs.map(s => {
         const sp = salesEmpFromSub(title, s);
@@ -552,7 +697,7 @@ function buildSalaryTables(data: Record<string, unknown>, opts?: SalesPayrollCal
 
     const columns = [
       "Employee", "Basic", "Allowance", "OT", "Earning", "Late", "Unpaid",
-      "Loan", "Baqiya", "PF", "Tax", "Deduct", "Occas.", "Net",
+      "Loan", "Remaining", "PF", "Tax", "Deduct", "Occas.", "Net",
     ];
     const rows = subs.map(s => {
       const sal = s.salary;
@@ -888,6 +1033,20 @@ export async function getMonthlyAccountsReport(req: AuthRequest, res: Response) 
     const salaryTables = monthSnap ? buildSalaryTables(snapshot, csrOpts) : [];
     const csr = aggregateCsrFromSalesPayroll(monthRecords, csrOpts, month);
 
+    let budgetStore: Record<string, unknown> | null = null;
+    try {
+      const budgetRec = await prisma.accountsRecord.findFirst({
+        where: { page: "income_budget", recordDate: INCOME_BUDGET_STORE_DATE },
+        select: { data: true },
+      });
+      if (budgetRec?.data && typeof budgetRec.data === "object") {
+        budgetStore = budgetRec.data as Record<string, unknown>;
+      }
+    } catch {
+      budgetStore = null;
+    }
+    const budgetCompare = buildBudgetCompare(month, snapshot, revenue, budgetStore);
+
     return res.json({
       success: true,
       month,
@@ -916,6 +1075,7 @@ export async function getMonthlyAccountsReport(req: AuthRequest, res: Response) 
         ledger: cashLedger,
       },
       csr,
+      budgetCompare,
       daysRecorded: monthSnap?.days ?? 0,
     });
   } catch (err) {

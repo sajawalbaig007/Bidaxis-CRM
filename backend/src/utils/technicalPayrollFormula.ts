@@ -144,7 +144,7 @@ export function computeTechnicalSalary(detail: TechnicalSalaryDetail): SalaryBre
   const allowance = Number(detail.allowance) || 0;
   const monthlySalary = basic + allowance;
   const daySalary = basic / 30;
-  const hourSalary = daySalary / 8;
+  const hourSalary = monthlySalary / 30 / 8;
 
   const weekdayOtHours = Number(detail.weekdayOtHours) || 0;
   const weekendOtHours = Number(detail.weekendOtHours) || 0;

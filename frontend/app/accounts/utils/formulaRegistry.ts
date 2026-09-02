@@ -105,7 +105,8 @@ export const BUILTIN_FORMULAS: FormulaDef[] = [
     id: "tech-ot",
     section: "Payroll — Technical Team",
     title: "Overtime",
-    expression: "Weekday OT = hours × hourly × 1.5 · Weekend OT = hours × hourly × 2",
+    expression:
+      "Hourly = (Basic + Allowances) ÷ 30 ÷ 8 · Weekday OT = hours × hourly × 1.5 · Weekend OT = hours × hourly × 2",
     appliesTo: "Technical team employee editor → Overtime section",
   },
   {

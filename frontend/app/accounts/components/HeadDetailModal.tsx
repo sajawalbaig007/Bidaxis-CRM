@@ -444,7 +444,7 @@ export default function HeadDetailModal({
                       payrollKind === "sales_lead" ? tlExtraFromPeers(s.id, salesPeers, calcOpts) : 0;
                     const net = netFromSalesSub({ ...s, salesPayroll: sp }, role, extra, calcOpts);
                     return (
-                      <div key={s.id} className="rounded-xl border border-emerald-200 overflow-hidden">
+                      <div key={s.id} className="rounded-xl border border-emerald-200 overflow-visible">
                         <div className="flex items-center gap-2 px-2.5 py-2 bg-[#ECFDF3]">
                           <button type="button" onClick={() => toggleSalary(s.id)} className="text-crm-text-muted">
                             {openEd ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
@@ -626,7 +626,7 @@ export default function HeadDetailModal({
                       />
                       <AmountInput
                         value={Number(s.amount) || 0}
-                        onChange={n => updateSub(s.id, { amount: n })}
+                        onChange={n => updateSub(s.id, { amount: n, userEdited: true })}
                         className="col-span-3 h-8 rounded-lg border border-crm-border px-2 text-xs text-right bg-crm-surface"
                       />
                       <input
