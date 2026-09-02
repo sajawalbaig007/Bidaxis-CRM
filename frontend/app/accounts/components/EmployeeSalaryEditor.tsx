@@ -212,7 +212,9 @@ export default function EmployeeSalaryEditor({
       {!isAdmin && (
         <div className="rounded-xl border border-blue-100 bg-blue-50/40 p-2.5 space-y-2">
           <p className="text-[10px] font-extrabold uppercase tracking-wide text-blue-700">Overtime</p>
-          <p className="text-[10px] text-blue-600/80">Weekday OT = hours × hourly × 1.5 · Weekend OT = hours × hourly × 2</p>
+          <p className="text-[10px] text-blue-600/80">
+            Hourly = (Basic + Allowances) ÷ 30 ÷ 8 · Weekday OT = hours × hourly × 1.5 · Weekend OT = hours × hourly × 2
+          </p>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             <Num label="Weekday OT Hours" value={d.weekdayOtHours} onChange={v => set("weekdayOtHours", v)} step="0.25" />
             <Num label="Weekend OT Hours" value={d.weekendOtHours} onChange={v => set("weekendOtHours", v)} step="0.25" />

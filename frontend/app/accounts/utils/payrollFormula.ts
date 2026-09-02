@@ -117,10 +117,15 @@ export function allowanceParts(detail: {
   return { misc, home, fuel, medical, total: misc + home + fuel + medical };
 }
 
-/** 1 day = Basic ÷ 30 · 1 hour = Day ÷ 8 (allowances never enter this base). */
+/** Late / unpaid: 1 day = Basic ÷ 30 · 1 hour = Day ÷ 8 (allowances never enter this base). */
 export function dayHourFromBasic(basic: number): { daySalary: number; hourSalary: number } {
   const daySalary = (Number(basic) || 0) / 30;
   return { daySalary, hourSalary: daySalary / 8 };
+}
+
+/** Original technical OT hourly: (Basic + Allowances) ÷ 30 ÷ 8. */
+export function otHourFromMonthly(monthly: number): number {
+  return (Number(monthly) || 0) / 30 / 8;
 }
 
 export function emptySalaryDetail(partial?: Partial<EmployeeSalaryDetail>): EmployeeSalaryDetail {
@@ -418,7 +423,8 @@ export function computeSalary(
   const parts = allowanceParts(detail);
   const travelAllowance = Number(detail.travelAllowance) || 0;
   const monthlySalary = basic + parts.total + travelAllowance;
-  const { daySalary, hourSalary } = dayHourFromBasic(basic);
+  const { daySalary } = dayHourFromBasic(basic);
+  const hourSalary = otHourFromMonthly(monthlySalary);
 
   const weekdayOtHours = Number(detail.weekdayOtHours) || 0;
   const weekendOtHours = Number(detail.weekendOtHours) || 0;

@@ -114,6 +114,11 @@ export function usesProjectSlabRules(recordDate?: string | null): boolean {
   return ym >= PROJECT_SLAB_FROM_MONTH;
 }
 
+/** Display slab % without IEEE junk (`0.035 * 100` → `3.50`, not `3.5000000000000004`). */
+export function formatSlabPct(rate: number): string {
+  return (Math.round((Number(rate) || 0) * 1e6) / 1e4).toFixed(2);
+}
+
 /** $0–1000 = 3% · $1001–3000 = 3.5% · $3001–5000 = 4% · $5001–10,000 = 4.5% · $10,001+ = 5% */
 export function projectSlabRate(amount: number): number {
   const a = Math.max(0, Number(amount) || 0);

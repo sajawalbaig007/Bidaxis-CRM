@@ -28,7 +28,7 @@ import {
   seededIncomeStatementData,
 } from "../utils/incomeStatementSeed";
 import { recomputePayrollSubAmounts } from "../utils/payrollAmountSync";
-import { syncProvidentFundFromSalaries } from "../utils/payrollPfSync";
+import { pfDropKey, syncProvidentFundFromSalaries } from "../utils/payrollPfSync";
 import { syncLoanHeadsFromSalaries } from "../utils/payrollLoanHeadsSync";
 import {
   clearPersonLoanFromTeamSalaries,
@@ -143,7 +143,7 @@ function mergePfDisplayRows(heads: OpexRow[], byHead: PfBreakdown | null): Expan
       const fallback = Number(s.amount) || 0;
       return {
         ...s,
-        periodAmount: fallback,
+        periodAmount: hit?.period ?? fallback,
         allTimeAmount: hit?.allTime ?? fallback,
       };
     });
@@ -619,10 +619,36 @@ export default function IncomeStatementPage() {
               title="Provident Fund"
               accent="#0D9488"
               addLabel="Add PF Head"
-              emptyLabel="PF lists this day’s Team Salaries people. Delete leftover names — they stay gone if the person is no longer an employee. Amounts are editable."
+              emptyLabel="PF follows this day’s Team Salaries. Delete a name to hide it. Amounts come from 8% of basic unless you edit them."
               rows={pfRows}
-              amountSplit={{ periodLabel: pfPeriod.label, allTimeLabel: "All time" }}
-              onChange={(rows, opts) => commit({ providentFundHeads: rows.map(headToOpex) }, opts)}
+              amountSplit={{
+                periodLabel: pfPeriod.label,
+                allTimeLabel: "All time",
+                periodReadOnly: pfPeriod.from !== pfPeriod.to,
+              }}
+              lockedHeadTitles={["Sales Team PF", "Administration PF", "Technical Team PF"]}
+              onChange={(rows, opts) => {
+                const heads = rows.map(headToOpex);
+                const present = new Set(
+                  heads.flatMap(h => (h.subHeads ?? []).map(s => pfDropKey(h.label, s.label).toLowerCase())),
+                );
+                const previously = (data.providentFundHeads ?? []).flatMap(h =>
+                  (h.subHeads ?? []).map(s => pfDropKey(h.label, s.label).toLowerCase()),
+                );
+                const newlyGone = previously.filter(k => !present.has(k));
+                const dropped = [...new Set([
+                  ...(data.pfDroppedNames ?? []).filter(k => !present.has(k.toLowerCase())),
+                  ...newlyGone,
+                ])];
+                commit({ providentFundHeads: heads, pfDroppedNames: dropped }, opts);
+              }}
+              onDeleteSubHead={({ parent, sub, nextRows }) => {
+                const heads = nextRows.map(headToOpex);
+                const key = pfDropKey(parent.title, sub.label);
+                const dropped = [...new Set([...(data.pfDroppedNames ?? []), key])];
+                commit({ providentFundHeads: heads, pfDroppedNames: dropped }, { persist: true });
+                return true;
+              }}
               onPersist={() => void acc.save()}
               saving={acc.saving}
             />

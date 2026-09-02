@@ -46,6 +46,8 @@ export type SubHeadEntry = {
   allTimeAmount?: number;
   /** User-added PF line — keep even if the person is not in Team Salaries. */
   manual?: boolean;
+  /** User typed this PF amount — sync will not overwrite it from salary formula. */
+  userEdited?: boolean;
 };
 
 /** Date-tagged note on a table row / head. */
@@ -103,6 +105,8 @@ export type IncomeStatementData = {
   opexHeads: OpexRow[];
   loanHeads?: OpexRow[];
   providentFundHeads?: OpexRow[];
+  /** PF people the user removed from the table — stay gone until added back. */
+  pfDroppedNames?: string[];
 };
 
 export type CashFlowRow = {

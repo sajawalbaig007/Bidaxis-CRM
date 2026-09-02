@@ -12,6 +12,7 @@ import {
   projectAmountPkr,
   projectCommissionPkr,
   projectSlabRateFromKey,
+  formatSlabPct,
   usesProjectSlabRules,
   type ProjectSlabKey,
   type SalesPayrollCalcOpts,
@@ -63,8 +64,8 @@ function Num({
 
 function Read({ label, value, accent }: { label: string; value: string; accent?: string }) {
   return (
-    <div className="rounded-lg border border-crm-border-subtle bg-[#F8FAFC] px-2.5 py-2">
-      <p className="text-[9px] font-bold uppercase tracking-wide text-crm-text-faint">{label}</p>
+    <div className="rounded-lg border border-crm-border-subtle bg-[#F8FAFC] px-2.5 py-2 min-w-0">
+      <p className="text-[9px] font-bold uppercase tracking-wide text-crm-text-faint leading-snug break-words">{label}</p>
       <p className={`mt-0.5 text-sm font-bold tabular-nums ${accent ?? "text-crm-text"}`}>{value}</p>
     </div>
   );
@@ -161,7 +162,7 @@ export default function SalesPayrollEmployeeEditor({
   );
 
   return (
-    <article className={`rounded-2xl border border-crm-border-subtle bg-crm-surface shadow-sm overflow-hidden ${embedded ? "border-0 shadow-none rounded-none" : ""}`}>
+    <article className={`rounded-2xl border border-crm-border-subtle bg-crm-surface shadow-sm ${embedded ? "border-0 shadow-none rounded-none overflow-visible" : "overflow-visible"}`}>
       {!embedded && (
       <button
         type="button"
@@ -237,23 +238,24 @@ export default function SalesPayrollEmployeeEditor({
                 });
               if (slab) {
                 const slabKey = (p.slabKey && PROJECT_SLABS.some(s => s.key === p.slabKey) ? p.slabKey : inferSlabKey(p.projectPay)) as ProjectSlabKey;
-                const pct = projectSlabRateFromKey(slabKey, p.projectPay) * 100;
+                const pctLabel = formatSlabPct(projectSlabRateFromKey(slabKey, p.projectPay));
                 const rowWithKey = { ...p, slabKey };
                 const rowComm = projectCommissionPkr(rowWithKey, calcOpts);
                 const rowPkr = projectAmountPkr(rowWithKey, calcOpts);
                 return (
-                  <div key={p.id} className="rounded-lg border border-emerald-100 bg-white/70 p-2 space-y-2">
-                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 items-end">
-                      <label className="block text-[10px] font-bold uppercase text-crm-text-muted col-span-2 sm:col-span-1">
+                  <div key={p.id} className="relative z-[1] rounded-lg border border-emerald-100 bg-white/70 p-2 space-y-2 overflow-visible">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-12 gap-2 items-end">
+                      <label className="block text-[10px] font-bold uppercase text-crm-text-muted min-w-0 sm:col-span-2 xl:col-span-4">
                         Commission range
                         <select
                           value={slabKey}
                           onChange={e => patch({ slabKey: e.target.value as ProjectSlabKey })}
-                          className="mt-1 h-9 w-full rounded-lg border border-crm-border px-2 text-sm bg-crm-surface"
+                          title={`${PROJECT_SLABS.find(s => s.key === slabKey)?.label ?? ""} · ${pctLabel}%`}
+                          className="mt-1 h-9 w-full min-w-0 rounded-lg border border-crm-border pl-2 pr-8 text-xs bg-crm-surface"
                         >
                           {PROJECT_SLABS.map(s => (
                             <option key={s.key} value={s.key}>
-                              {s.label} · {s.rate * 100}%
+                              {s.label} · {formatSlabPct(s.rate)}%
                             </option>
                           ))}
                         </select>
@@ -283,7 +285,19 @@ export default function SalesPayrollEmployeeEditor({
                           <option value="CAD">CAD</option>
                         </select>
                       </label>
-                      <Read label={`${cur} → PKR`} value={fx ? fx.toFixed(4) : "—"} accent="text-emerald-800" />
+                      <label className="block text-[10px] font-bold uppercase tracking-wide text-crm-text-muted xl:col-span-2">
+                        {cur} → PKR
+                        <AmountInput
+                          value={Number.isFinite(fx) ? fx : 0}
+                          onChange={v => patch({ fxRate: v })}
+                          className="mt-1 h-9 w-full rounded-lg border border-crm-border bg-crm-surface px-2 text-sm tabular-nums outline-none focus:border-[#B8112D]"
+                        />
+                        {liveFx > 0 && (
+                          <span className="block mt-0.5 text-[9px] font-normal normal-case text-crm-text-faint">
+                            Live {liveFx.toFixed(4)}
+                          </span>
+                        )}
+                      </label>
                       <button
                         type="button"
                         onClick={() => setComm({
@@ -294,9 +308,9 @@ export default function SalesPayrollEmployeeEditor({
                         Remove
                       </button>
                     </div>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       <Read label="This range PKR (amount × FX)" value={currency(rowPkr)} accent="text-emerald-800" />
-                      <Read label={`${pct}% × 0.89 × FX`} value={currency(rowComm)} accent="text-emerald-800" />
+                      <Read label={`${pctLabel}% × 0.89 × FX`} value={currency(rowComm)} accent="text-emerald-800" />
                     </div>
                   </div>
                 );

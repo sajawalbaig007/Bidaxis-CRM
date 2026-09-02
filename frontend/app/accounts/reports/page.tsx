@@ -134,6 +134,24 @@ type MonthlyReport = {
     }[];
   };
   daysRecorded: number;
+  budgetCompare?: {
+    hasBudget: boolean;
+    rows: {
+      key: string;
+      name: string;
+      kind: "core" | "opex_head";
+      budget: number;
+      actual: number;
+      variance: number;
+    }[];
+    totals: {
+      budgetRevenue: number;
+      actualRevenue: number;
+      budgetExpense: number;
+      actualExpense: number;
+      variance: number;
+    };
+  };
 };
 
 type SavedMonthlyReport = {
@@ -484,6 +502,23 @@ function buildWordHtml(report: MonthlyReport): string {
     .join("");
 
   const generatedAt = new Date().toLocaleString("en-GB");
+  const bc = report.budgetCompare;
+  const budgetRowHtml = (bc?.rows ?? [])
+    .map(r => {
+      const over = r.variance > 0;
+      return `<tr>
+        <td ${td}><b>${r.name}</b></td>
+        <td ${tdR}>${currency(r.budget)}</td>
+        <td ${tdR}>${currency(r.actual)}</td>
+        <td ${tdR}><b style="color:${over ? RED_TXT : GREEN_D};">${signed(r.variance)}</b></td>
+        <td style="padding:4px 8px;border:1px solid #E2E8F0;text-align:center;font-size:9px;font-weight:bold;color:${over ? RED_TXT : GREEN_D};">${over ? "OVER" : r.variance < 0 ? "UNDER" : "ON PLAN"}</td>
+      </tr>`;
+    })
+    .join("");
+  const budgetMax = Math.max(...(bc?.rows ?? []).flatMap(r => [r.budget, r.actual]), 1);
+  const budgetBars = (bc?.rows ?? [])
+    .map(r => barRow(`${r.name} plan`, r.budget, budgetMax, VIOLET) + barRow(`${r.name} actual`, r.actual, budgetMax, BLUE))
+    .join("");
 
   return `<!DOCTYPE html>
 <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word">
@@ -520,6 +555,34 @@ function buildWordHtml(report: MonthlyReport): string {
       <td ${tdR}><b>${currency(report.totals.revenue)}</b></td>
     </tr>
   </table>
+
+  <h2>Budget plan vs actual — ${label}</h2>
+  ${
+    !bc?.hasBudget
+      ? `<p style="font-size:10px;color:#64748B;">No Income Statement budget saved for this month. Set a plan on the Income Statement budget planner first.</p>`
+      : `<table width="100%" cellpadding="0" cellspacing="0"><tr>
+    ${card("Planned revenue", pkr(bc.totals.budgetRevenue), "Income Statement budget", "#F5F3FF")}
+    ${card("Actual revenue", pkr(bc.totals.actualRevenue), "Collections this month", "#EFF6FF")}
+    ${card("Planned expense", pkr(bc.totals.budgetExpense), "Payroll + OPEX plan", "#FFF7ED")}
+    ${card("Actual expense", pkr(bc.totals.actualExpense), `Spent vs plan ${signed(bc.totals.variance)}`, bc.totals.variance > 0 ? "#FFF1F3" : "#ECFDF5")}
+  </tr></table>
+  <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin-top:10px;">
+    <tr>
+      <td ${th}>Head</td><td ${thR}>Planned budget (PKR)</td><td ${thR}>Actual spent (PKR)</td><td ${thR}>Variance</td><td ${thC}>Status</td>
+    </tr>
+    ${budgetRowHtml || tdEmpty(5, "No budget / actual lines.")}
+    <tr style="background:#F8FAFC;">
+      <td ${td}><b>EXPENSE TOTAL</b></td>
+      <td ${tdR}><b>${currency(bc.totals.budgetExpense)}</b></td>
+      <td ${tdR}><b>${currency(bc.totals.actualExpense)}</b></td>
+      <td ${tdR}><b style="color:${bc.totals.variance > 0 ? RED_TXT : GREEN_D};">${signed(bc.totals.variance)}</b></td>
+      <td style="padding:4px 8px;border:1px solid #E2E8F0;text-align:center;font-size:9px;font-weight:bold;">${bc.totals.variance > 0 ? "OVER" : bc.totals.variance < 0 ? "UNDER" : "ON PLAN"}</td>
+    </tr>
+  </table>
+  ${budgetBars ? `<p style="margin:12px 0 6px;font-size:11px;font-weight:bold;color:${NAVY};">Plan vs spent by head</p>
+  <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">${budgetBars}</table>
+  <p style="margin:6px 0 0;font-size:9px;color:#64748B;"><b style="color:${VIOLET};">■</b> Planned &nbsp; <b style="color:${BLUE};">■</b> Actual</p>` : ""}`
+  }
 
   <h2>Financial performance — ${label} and previous 5 months</h2>
   <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
@@ -828,6 +891,122 @@ function OpexFieldTableView({ tables, total }: { tables: OpexFieldTable[]; total
   );
 }
 
+function BudgetComparePanel({
+  data,
+  label,
+}: {
+  data: NonNullable<MonthlyReport["budgetCompare"]>;
+  label: string;
+}) {
+  return (
+    <>
+      <div className="px-4 pb-3 grid grid-cols-2 xl:grid-cols-4 gap-2.5">
+        {[
+          { label: "Planned revenue", value: data.totals.budgetRevenue, note: "IS budget", cls: "text-violet-700" },
+          { label: "Actual revenue", value: data.totals.actualRevenue, note: "Collections", cls: "text-sky-700" },
+          { label: "Planned expense", value: data.totals.budgetExpense, note: "Payroll + OPEX plan", cls: "text-amber-700" },
+          { label: "Actual expense", value: data.totals.actualExpense, note: `Vs plan ${signed(data.totals.variance)}`, cls: data.totals.variance > 0 ? "text-red-600" : "text-emerald-700" },
+        ].map(c => (
+          <div key={c.label} className="rounded-xl border border-crm-border-subtle bg-[#FAFBFC] px-3 py-2.5">
+            <p className="text-[9px] font-bold uppercase tracking-wider text-crm-text-faint">{c.label}</p>
+            <p className={`text-base font-extrabold tabular-nums mt-1 ${c.cls}`}>{pkr(c.value)}</p>
+            <p className="text-[10px] text-crm-text-muted mt-0.5">{c.note}</p>
+          </div>
+        ))}
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm min-w-160">
+          <thead className="bg-[#0B1220]">
+            <tr>
+              <th className={`${thCls} text-left`}>Head</th>
+              <th className={`${thCls} text-right`}>Planned budget (PKR)</th>
+              <th className={`${thCls} text-right`}>Actual spent (PKR)</th>
+              <th className={`${thCls} text-right`}>Variance</th>
+              <th className={`${thCls} text-center w-24`}>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.rows.length === 0 ? (
+              <tr>
+                <td colSpan={5} className="px-3 py-6 text-center text-crm-text-faint text-xs">
+                  No budget / actual lines for this month.
+                </td>
+              </tr>
+            ) : (
+              data.rows.map(r => {
+                const over = r.variance > 0;
+                return (
+                  <tr key={r.key} className="border-b border-crm-border-subtle">
+                    <td className={`${tdCls} font-bold text-crm-text`}>{r.name}</td>
+                    <td className={`${tdCls} text-right tabular-nums`}>{currency(r.budget)}</td>
+                    <td className={`${tdCls} text-right tabular-nums`}>{currency(r.actual)}</td>
+                    <td className={`${tdCls} text-right font-bold tabular-nums ${over ? "text-red-600" : "text-emerald-600"}`}>
+                      {signed(r.variance)}
+                    </td>
+                    <td className={`${tdCls} text-center`}>
+                      <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                        over ? "bg-red-50 text-red-600" : r.variance < 0 ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-600"
+                      }`}>
+                        {over ? "Over" : r.variance < 0 ? "Under" : "On plan"}
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
+          {data.rows.length > 0 && (
+            <tfoot>
+              <tr className="border-t-2 border-violet-200 bg-violet-50/40">
+                <td className="px-3 py-2.5 font-extrabold text-crm-text text-xs">EXPENSE TOTAL</td>
+                <td className="px-3 py-2.5 text-right font-extrabold tabular-nums text-xs">{currency(data.totals.budgetExpense)}</td>
+                <td className="px-3 py-2.5 text-right font-extrabold tabular-nums text-xs">{currency(data.totals.actualExpense)}</td>
+                <td className={`px-3 py-2.5 text-right font-extrabold tabular-nums text-xs ${data.totals.variance > 0 ? "text-red-600" : "text-emerald-600"}`}>
+                  {signed(data.totals.variance)}
+                </td>
+                <td className="px-3 py-2.5 text-center">
+                  <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                    data.totals.variance > 0 ? "bg-red-50 text-red-600" : "bg-emerald-50 text-emerald-700"
+                  }`}>
+                    {data.totals.variance > 0 ? "Over" : data.totals.variance < 0 ? "Under" : "On plan"}
+                  </span>
+                </td>
+              </tr>
+            </tfoot>
+          )}
+        </table>
+      </div>
+      {data.rows.length > 0 && (
+        <div className="p-4" id="report-chart-budget">
+          <RechartsBox height={Math.max(220, data.rows.length * 28)}>
+            <BarChart
+              data={data.rows.map(r => ({
+                name: r.name.replace(/\s*\(incl\.[^)]*\)/gi, "").slice(0, 22),
+                budget: r.budget,
+                actual: r.actual,
+              }))}
+              layout="vertical"
+              barSize={10}
+              margin={{ left: 8, right: 12 }}
+            >
+              <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
+              <XAxis type="number" tick={{ fontSize: 10 }} />
+              <YAxis type="category" dataKey="name" width={118} tick={{ fontSize: 10, fontWeight: 600 }} />
+              <Tooltip formatter={v => pkr(Number(v ?? 0))} />
+              <Legend wrapperStyle={{ fontSize: 11, fontWeight: 600 }} />
+              <Bar dataKey="budget" name="Planned" fill="#7C3AED" radius={[0, 6, 6, 0]} />
+              <Bar dataKey="actual" name="Actual" fill="#0B84F3" radius={[0, 6, 6, 0]} />
+            </BarChart>
+          </RechartsBox>
+          <p className="text-[11px] text-crm-text-muted mt-2">
+            Purple = Income Statement budget plan. Blue = actual spent on the latest IS day for {label}.
+          </p>
+        </div>
+      )}
+    </>
+  );
+}
+
 export default function AccountsReportsPage() {
   const [month, setMonth] = useState<string>(currentMonthIso());
   const [result, setResult] = useState<{ month: string; report: MonthlyReport | null } | null>(null);
@@ -998,7 +1177,8 @@ export default function AccountsReportsPage() {
                 <b className="text-crm-text">Month compile:</b> Revenue is that month&apos;s project collections
                 (once). Total cost, team salaries, OPEX, loans and PF match the latest Income Statement
                 day in the month{report.sourceDate ? ` (${report.sourceDate})` : ""} — same Total Expense as
-                that IS card. Financial performance shows the selected month plus the previous 5 months.{" "}
+                that IS card. Budget plan vs actual uses the Income Statement budget planner for this month.
+                Financial performance shows the selected month plus the previous 5 months.{" "}
                 <b>Save Report</b> downloads a Word file and archives it to Cloudinary.
               </section>
 
@@ -1106,6 +1286,17 @@ export default function AccountsReportsPage() {
                     </tfoot>
                   </table>
                 </div>
+              </SectionCard>
+
+              <SectionCard title={`Budget plan vs actual — ${label}`}>
+                {report.budgetCompare && report.budgetCompare.hasBudget ? (
+                  <BudgetComparePanel data={report.budgetCompare} label={label} />
+                ) : (
+                  <p className="px-4 pb-4 text-xs text-crm-text-muted">
+                    Is month ka Income Statement budget plan save nahi hai. Pehle Income Statement page par budget planner
+                    mein plan set karein.
+                  </p>
+                )}
               </SectionCard>
 
               <SectionCard title={`Financial performance — ${label} + previous 5 months`}>

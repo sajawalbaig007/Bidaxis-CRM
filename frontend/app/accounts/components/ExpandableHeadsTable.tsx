@@ -73,7 +73,9 @@ type ExpandableHeadsTableProps = {
     nextRows: ExpandableHeadRow[];
   }) => boolean | void;
   /** Show Per month + All time amount columns (Provident Fund). */
-  amountSplit?: { periodLabel: string; allTimeLabel: string };
+  amountSplit?: { periodLabel: string; allTimeLabel: string; periodReadOnly?: boolean };
+  /** Head titles that cannot be deleted (e.g. standard PF heads). */
+  lockedHeadTitles?: string[];
 };
 
 export default function ExpandableHeadsTable({
@@ -93,6 +95,7 @@ export default function ExpandableHeadsTable({
   salarySlipCompany = DEFAULT_SALARY_SLIP_COMPANY,
   onDeleteSubHead,
   amountSplit,
+  lockedHeadTitles,
 }: ExpandableHeadsTableProps) {
   const [openIds, setOpenIds] = useState<Set<string>>(new Set());
   const [editing, setEditing] = useState<HeadDetailModel | null>(null);
@@ -179,6 +182,10 @@ export default function ExpandableHeadsTable({
 
   const deleteEditing = () => {
     if (!editing) return;
+    if (lockedHeadTitles?.includes(editing.title)) {
+      setEditing(null);
+      return;
+    }
     onChange(rows.filter(r => r.id !== editing.id), { persist: true });
     setEditing(null);
   };
@@ -430,9 +437,13 @@ export default function ExpandableHeadsTable({
                           </button>
                           <button
                             type="button"
-                            onClick={() => onChange(rows.filter(r => r.id !== row.id), { persist: true })}
-                            className="w-8 h-8 rounded-lg text-red-500 hover:bg-red-50 inline-flex items-center justify-center transition-colors"
-                            title="Delete"
+                            onClick={() => {
+                              if (lockedHeadTitles?.includes(row.title)) return;
+                              onChange(rows.filter(r => r.id !== row.id), { persist: true });
+                            }}
+                            disabled={lockedHeadTitles?.includes(row.title)}
+                            className="w-8 h-8 rounded-lg text-red-500 hover:bg-red-50 inline-flex items-center justify-center transition-colors disabled:opacity-30 disabled:pointer-events-none"
+                            title={lockedHeadTitles?.includes(row.title) ? "This PF head stays on the statement" : "Delete"}
                           >
                             <Trash2 size={14} />
                           </button>
@@ -651,7 +662,7 @@ export default function ExpandableHeadsTable({
                                     <th className="px-2 py-2 text-right font-bold uppercase tracking-wide text-[9px]">Late</th>
                                     <th className="px-2 py-2 text-right font-bold uppercase tracking-wide text-[9px]">Unpaid</th>
                                     <th className="px-2 py-2 text-right font-bold uppercase tracking-wide text-[9px]">Loan</th>
-                                    <th className="px-2 py-2 text-right font-bold uppercase tracking-wide text-[9px]">Baqiya</th>
+                                    <th className="px-2 py-2 text-right font-bold uppercase tracking-wide text-[9px]">Remaining</th>
                                     <th className="px-2 py-2 text-right font-bold uppercase tracking-wide text-[9px]">PF</th>
                                     <th className="px-2 py-2 text-right font-bold uppercase tracking-wide text-[9px]">Tax</th>
                                     <th className="px-2 py-2 text-right font-bold uppercase tracking-wide text-[9px]">Deduct</th>
@@ -842,12 +853,18 @@ export default function ExpandableHeadsTable({
                                       {amountSplit ? (
                                         <>
                                           <td className="px-3 py-2 text-right">
-                                            <AmountInput
-                                              value={Number(s.amount) || 0}
-                                              onChange={n => patchSub(row.id, s.id, { amount: n, periodAmount: n })}
-                                              onBlur={() => patchSub(row.id, s.id, {}, true)}
-                                              className="h-8 w-full rounded-lg border border-crm-border bg-crm-surface px-2 text-xs text-right font-semibold outline-none focus:ring-2 focus:ring-[#0D9488]/30"
-                                            />
+                                            {amountSplit.periodReadOnly ? (
+                                              <span className="text-xs font-semibold tabular-nums text-crm-text">
+                                                {currency(Number(s.periodAmount ?? s.amount) || 0)}
+                                              </span>
+                                            ) : (
+                                              <AmountInput
+                                                value={Number(s.amount) || 0}
+                                                onChange={n => patchSub(row.id, s.id, { amount: n, periodAmount: n, userEdited: true })}
+                                                onBlur={() => patchSub(row.id, s.id, {}, true)}
+                                                className="h-8 w-full rounded-lg border border-crm-border bg-crm-surface px-2 text-xs text-right font-semibold outline-none focus:ring-2 focus:ring-[#0D9488]/30"
+                                              />
+                                            )}
                                           </td>
                                           <td className="px-3 py-2 text-right font-semibold tabular-nums text-teal-800">{currency(Number(s.allTimeAmount) || 0)}</td>
                                         </>

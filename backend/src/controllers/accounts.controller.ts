@@ -391,12 +391,71 @@ export async function getAccountsDashboardSummary(req: AuthRequest, res: Respons
       };
     };
 
+    const cashRowNet = (row: {
+      netAmount?: number;
+      bankAmounts?: Record<string, { debit?: number; credit?: number }>;
+    }) => {
+      let debit = 0;
+      let credit = 0;
+      for (const amt of Object.values(row.bankAmounts ?? {})) {
+        debit += Number(amt?.debit) || 0;
+        credit += Number(amt?.credit) || 0;
+      }
+      if (debit === 0 && credit === 0) return Number(row.netAmount) || 0;
+      return debit - credit;
+    };
+
     const summarizeCashFlow = (data: Record<string, unknown>) => {
-      const months = (data.months as Array<{ rows: Array<{ netAmount: number }> }>) ?? [];
+      const months =
+        (data.months as Array<{
+          rows: Array<{
+            netAmount?: number;
+            bankAmounts?: Record<string, { debit?: number; credit?: number }>;
+          }>;
+        }>) ?? [];
       return months.reduce(
-        (acc, m) => acc + m.rows.reduce((a, r) => a + (Number(r.netAmount) || 0), 0),
+        (acc, m) => acc + m.rows.reduce((a, r) => a + cashRowNet(r), 0),
         0,
       );
+    };
+
+    const incomePartsFromRaw = async (raw: Record<string, unknown>, recordDate: string) => {
+      const data = preparePageData(
+        "income_statement",
+        await applyStaffPayrollToIncomeData(raw, recordDate),
+      );
+      return {
+        payroll: sumLines(
+          data.teamSalaries as Array<{ totalSalary?: number; subHeads?: Array<{ amount?: number }> }>,
+        ),
+        opex: sumLines(data.opexHeads as Array<{ amount?: number; subHeads?: Array<{ amount?: number }> }>),
+        loans: sumLines(data.loanHeads as Array<{ amount?: number; subHeads?: Array<{ amount?: number }> }>),
+        pf: sumLines(
+          data.providentFundHeads as Array<{ amount?: number; subHeads?: Array<{ amount?: number }> }>,
+        ),
+      };
+    };
+
+    const assignIncomeSummaries = (
+      target: Record<string, number>,
+      parts: {
+        revenue: number;
+        currencyTotal?: number;
+        payroll: number;
+        opex: number;
+        loans: number;
+        pf: number;
+      },
+    ) => {
+      const expense = parts.payroll + parts.opex;
+      target.currencyFormulaTotal = parts.currencyTotal ?? parts.revenue;
+      target.incomeTotalRevenue = parts.revenue;
+      target.incomePayroll = parts.payroll;
+      target.incomeOpex = parts.opex;
+      target.incomeLoans = parts.loans;
+      target.incomeProvidentFund = parts.pf;
+      target.incomeTotalExpense = expense;
+      target.incomeNetProfit = parts.revenue - expense;
     };
 
     const summarizeTotalAssets = (data: Record<string, unknown>) => {
@@ -427,11 +486,14 @@ export async function getAccountsDashboardSummary(req: AuthRequest, res: Respons
     let dashData: Record<string, unknown> = defaultAccountsData("dashboard");
 
     if (useRange) {
-      // Flow: sum every saved IS day in range (All Time = through toDate).
+      // Income Statement page in Month / Date Range shows the latest saved day
+      // in that period (not a sum of every daily snapshot). Match that here.
+      // All Time: latest IS day per calendar month, then sum those months.
       // Revenue: project collections once per calendar month (no day double-count).
       const flowWhere =
         mode === "all_time" ? { lte: toDate } : { gte: fromDate, lte: toDate };
-      const stockWhere = { lte: toDate };
+      const stockWhere =
+        mode === "all_time" ? { lte: toDate } : { gte: fromDate, lte: toDate };
       const rangeMonths = mode === "all_time" ? [] : yearMonthsInclusive(fromDate, toDate);
       const rangeMonthStarts = rangeMonths.map(monthStartIso);
       const dashWhere =
@@ -503,45 +565,54 @@ export async function getAccountsDashboardSummary(req: AuthRequest, res: Respons
         );
       };
 
-      let revenue = 0;
-      let payroll = 0;
-      let opex = 0;
-      let loans = 0;
-      let pf = 0;
       let currencyFormulaTotal = 0;
-
-      // Project collections are monthly — count each month once (no day double-count)
       for (const ym of collectionMonths) {
         currencyFormulaTotal += currencyFormulaTotalFromDashboard(dashForMonth(ym));
       }
 
-      const revenueMonths = new Set<string>();
-      for (const rec of isRecs) {
-        const data = preparePageData("income_statement", rec.data as Record<string, unknown>);
-        const ym = yearMonthFromDate(rec.recordDate);
-        if (!revenueMonths.has(ym)) {
-          revenueMonths.add(ym);
-          revenue += currencyFormulaTotalFromDashboard(dashForMonth(ym));
+      if (mode === "all_time") {
+        const latestByMonth = new Map<string, { date: string; data: Record<string, unknown> }>();
+        for (const rec of isRecs) {
+          latestByMonth.set(yearMonthFromDate(rec.recordDate), {
+            date: rec.recordDate,
+            data: rec.data as Record<string, unknown>,
+          });
         }
-        payroll += sumLines(data.teamSalaries as Array<{ totalSalary?: number; subHeads?: Array<{ amount?: number }> }>);
-        opex += sumLines(data.opexHeads as Array<{ amount?: number; subHeads?: Array<{ amount?: number }> }>);
-        loans += sumLines(data.loanHeads as Array<{ amount?: number; subHeads?: Array<{ amount?: number }> }>);
-        pf += sumLines(data.providentFundHeads as Array<{ amount?: number; subHeads?: Array<{ amount?: number }> }>);
+        let revenue = 0;
+        let payroll = 0;
+        let opex = 0;
+        let loans = 0;
+        let pf = 0;
+        for (const [ym, snap] of latestByMonth) {
+          revenue += currencyFormulaTotalFromDashboard(dashForMonth(ym));
+          const parts = await incomePartsFromRaw(snap.data, snap.date);
+          payroll += parts.payroll;
+          opex += parts.opex;
+          loans += parts.loans;
+          pf += parts.pf;
+        }
+        if (latestByMonth.size === 0) revenue = currencyFormulaTotal;
+        assignIncomeSummaries(summaries, {
+          revenue,
+          currencyTotal: currencyFormulaTotal,
+          payroll,
+          opex,
+          loans,
+          pf,
+        });
+      } else {
+        // Month / date range: same snapshot the Income Statement page shows
+        const latestIs = isRecs[isRecs.length - 1];
+        const snapshotYm = latestIs
+          ? yearMonthFromDate(latestIs.recordDate)
+          : (rangeMonths[rangeMonths.length - 1] ?? yearMonthFromDate(toDate));
+        const revenue = currencyFormulaTotalFromDashboard(dashForMonth(snapshotYm));
+        const parts = latestIs
+          ? await incomePartsFromRaw(latestIs.data as Record<string, unknown>, latestIs.recordDate)
+          : { payroll: 0, opex: 0, loans: 0, pf: 0 };
+        assignIncomeSummaries(summaries, { revenue, payroll: parts.payroll, opex: parts.opex, loans: parts.loans, pf: parts.pf });
+        if (latestIs) recordDate = latestIs.recordDate;
       }
-
-      // If no IS days, revenue still equals currency months
-      if (isRecs.length === 0) revenue = currencyFormulaTotal;
-
-      // Total expense aligns with Income Statement cards: salaries + OPEX only
-      const expense = payroll + opex;
-      summaries.currencyFormulaTotal = currencyFormulaTotal;
-      summaries.incomeTotalRevenue = revenue;
-      summaries.incomePayroll = payroll;
-      summaries.incomeOpex = opex;
-      summaries.incomeLoans = loans;
-      summaries.incomeProvidentFund = pf;
-      summaries.incomeTotalExpense = expense;
-      summaries.incomeNetProfit = revenue - expense;
 
       const bs = bsRecs[0];
       persistedPages.balance_sheet = !!bs;
@@ -579,7 +650,7 @@ export async function getAccountsDashboardSummary(req: AuthRequest, res: Respons
       dashData = latestDash
         ? dashForMonth(yearMonthFromDate(latestDash.recordDate))
         : defaultAccountsData("dashboard");
-      recordDate = toDate;
+      if (mode === "all_time") recordDate = toDate;
     } else {
       const pages: AccountsPageKey[] = [
         "balance_sheet",
@@ -606,20 +677,11 @@ export async function getAccountsDashboardSummary(req: AuthRequest, res: Respons
             collections,
           );
           const revenue = currencyFormulaTotalFromDashboard(dashMerged);
-          const payroll = sumLines(data.teamSalaries as Array<{ totalSalary?: number; subHeads?: Array<{ amount?: number }> }>);
-          const opex = sumLines(data.opexHeads as Array<{ amount?: number; subHeads?: Array<{ amount?: number }> }>);
-          const loans = sumLines(data.loanHeads as Array<{ amount?: number; subHeads?: Array<{ amount?: number }> }>);
-          const pf = sumLines(data.providentFundHeads as Array<{ amount?: number; subHeads?: Array<{ amount?: number }> }>);
-          // Align with Income Statement page: Total Expense = payroll + OPEX
-          const expense = payroll + opex;
-          summaries.currencyFormulaTotal = revenue;
-          summaries.incomeTotalRevenue = revenue;
-          summaries.incomePayroll = payroll;
-          summaries.incomeOpex = opex;
-          summaries.incomeLoans = loans;
-          summaries.incomeProvidentFund = pf;
-          summaries.incomeTotalExpense = expense;
-          summaries.incomeNetProfit = revenue - expense;
+          const parts = await incomePartsFromRaw(
+            (record?.data as Record<string, unknown> | undefined) ?? defaultAccountsData(page),
+            toDate,
+          );
+          assignIncomeSummaries(summaries, { revenue, ...parts });
         } else if (page === "cash_flow") {
           summaries.cashFlowNet = summarizeCashFlow(data);
         } else if (page === "total_assets") {

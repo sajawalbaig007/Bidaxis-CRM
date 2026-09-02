@@ -87,6 +87,10 @@ export type PfContribution = {
   amount: number;
 };
 
+export function pfDropKey(head: string, name: string): string {
+  return `${head}::${normName(name)}`;
+}
+
 /** Collect this-period PF by employee from Team Salaries. */
 export function collectPfFromTeamSalaries(teams: TeamSalaryRow[]): PfContribution[] {
   const byKey = new Map<string, PfContribution>();
@@ -147,8 +151,11 @@ export function syncProvidentFundFromSalaries(data: IncomeStatementData): Income
     return data;
   }
 
+  const dropped = new Set((data.pfDroppedNames ?? []).map(k => k.trim().toLowerCase()).filter(Boolean));
+
   const contribByHead = new Map<PfHeadKey, PfContribution[]>();
   for (const c of contributions) {
+    if (dropped.has(pfDropKey(c.head, c.name).toLowerCase())) continue;
     const list = contribByHead.get(c.head) ?? [];
     list.push(c);
     contribByHead.set(c.head, list);
@@ -171,11 +178,11 @@ export function syncProvidentFundFromSalaries(data: IncomeStatementData): Income
       if (idx >= 0) {
         const old = prevSubs[idx]!;
         matched.add(old.id);
+        const keepManual = !!old.userEdited;
         nextSubs.push({
           ...old,
           label: c.name,
-          // Keep saved / user-edited amount; new people get formula PF below.
-          amount: Number.isFinite(Number(old.amount)) ? Number(old.amount) : c.amount,
+          amount: keepManual && Number.isFinite(Number(old.amount)) ? Number(old.amount) : c.amount,
           filledAt: old.filledAt || todayIso(),
         });
       } else {
@@ -192,6 +199,7 @@ export function syncProvidentFundFromSalaries(data: IncomeStatementData): Income
     for (const s of prevSubs) {
       if (matched.has(s.id)) continue;
       if (contribs.some(c => normName(c.name) === normName(s.label))) continue;
+      if (dropped.has(pfDropKey(label, s.label).toLowerCase())) continue;
       if (!s.manual) continue;
       nextSubs.push(s);
     }
