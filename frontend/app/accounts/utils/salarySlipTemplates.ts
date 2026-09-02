@@ -631,7 +631,7 @@ async function renderPremiumSlip(
   y = drawKpiStrip(doc, y, earningsSum, deductionsTotalAmt, netPay, occasional, theme);
   y = drawPfAndOccasional(doc, payload, y, theme);
   y = ensureSpace(doc, y, 22, company, theme);
-  y = drawComments(doc, payload, theme, y);
+  y = drawComments(doc, payload, y, theme);
 
   if (theme.thankYou) {
     y = ensureSpace(doc, y, 10, company, theme);
