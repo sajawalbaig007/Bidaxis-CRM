@@ -1,4 +1,5 @@
-import type { FixClientProject, SalesCommissionFields, SalesPayrollEmployee } from "./salesPayrollDefaults";
+import type { FixClientProject, ProjectSlabKey, SalesCommissionFields, SalesPayrollEmployee } from "./salesPayrollDefaults";
+import { PROJECT_SLABS } from "./salesPayrollDefaults";
 
 const OLD_RATE = 1000;
 const NEW_RATE = 3000;
@@ -28,6 +29,28 @@ export function projectSlabRate(amount: number): number {
   return 0.05;
 }
 
+export function inferSlabKey(amount: number): ProjectSlabKey {
+  const a = Math.max(0, Number(amount) || 0);
+  if (a <= 1000) return "0-1000";
+  if (a <= 3000) return "1001-3000";
+  if (a <= 5000) return "3001-5000";
+  if (a <= 10000) return "5001-10000";
+  return "10001+";
+}
+
+export function projectSlabRateFromKey(key?: string | null, fallbackAmount = 0): number {
+  const found = PROJECT_SLABS.find(s => s.key === key);
+  if (found) return found.rate;
+  return projectSlabRate(fallbackAmount);
+}
+
+export function fixRowProjectCount(p: Pick<FixClientProject, "projectCount">): number {
+  if (p.projectCount != null && Number.isFinite(Number(p.projectCount))) {
+    return Math.max(0, Number(p.projectCount));
+  }
+  return 1;
+}
+
 function projectFxRate(p: FixClientProject, opts?: SalesPayrollCalcOpts): number {
   const stored = Number(p.fxRate);
   if (Number.isFinite(stored) && stored > 0) return stored;
@@ -38,7 +61,8 @@ function projectFxRate(p: FixClientProject, opts?: SalesPayrollCalcOpts): number
 
 export function projectCommissionPkr(p: FixClientProject, opts?: SalesPayrollCalcOpts): number {
   const amount = Number(p.projectPay) || 0;
-  return amount * projectSlabRate(amount) * PROJECT_TAX_FACTOR * projectFxRate(p, opts);
+  const rate = projectSlabRateFromKey(p.slabKey, amount);
+  return amount * rate * PROJECT_TAX_FACTOR * projectFxRate(p, opts);
 }
 
 export function tlProjectCommissionPkr(p: FixClientProject, opts?: SalesPayrollCalcOpts): number {
@@ -92,7 +116,10 @@ export function calcSalesCommission(
     (s, p) => s + (slab ? projectCommissionPkr(p, opts) : (Number(p.projectPay) || 0) * 0.025),
     0,
   );
-  const totalProjects = oldCount + (Number(commission.newClientProjects) || 0) + (commission.fixClientProjects?.length ?? 0);
+  const totalProjects =
+    oldCount +
+    (Number(commission.newClientProjects) || 0) +
+    (commission.fixClientProjects ?? []).reduce((s, p) => s + fixRowProjectCount(p), 0);
   const totalCommission = oldComm + newComm + fixComm;
   return { oldComm, newComm, fixComm, totalProjects, totalCommission, slab };
 }

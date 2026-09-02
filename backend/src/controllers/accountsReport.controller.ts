@@ -9,14 +9,18 @@ import {
   recomputeExecutiveTeamInIncomeStatement,
 } from "../utils/incomeStatementNormalize";
 import { recomputeTechnicalTeamInIncomeStatement } from "../utils/technicalPayrollDefaults";
-import { currencyFormulaTotalFromDashboard } from "../utils/currencyFormula";
+import {
+  currencyFormulaBreakdownFromDashboard,
+  currencyFormulaTotalFromDashboard,
+} from "../utils/currencyFormula";
 import { ACCOUNTS_CLOUDINARY_FOLDERS } from "../utils/accountsStorage";
-import { calcSalesCommission, type SalesPayrollCalcOpts } from "../utils/salesPayrollFormula";
-import type { SalesCommissionFields } from "../utils/salesPayrollDefaults";
+import { calcSalesCommission, fixRowProjectCount, type SalesPayrollCalcOpts } from "../utils/salesPayrollFormula";
+import type { ProjectSlabKey, SalesCommissionFields } from "../utils/salesPayrollDefaults";
 import {
   aggregateAllCollectionMonths,
   applyCollectionsToDashboardData,
   emptyDayCollections,
+  listPaidCollectionsForMonth,
   monthStartIso,
   yearMonthFromDate,
 } from "../utils/projectCurrencyCollections";
@@ -60,6 +64,8 @@ type SubHead = {
         projectPay?: number;
         currency?: "USD" | "CAD";
         fxRate?: number;
+        slabKey?: string;
+        projectCount?: number;
       }[];
     };
   };
@@ -75,13 +81,14 @@ type HeadRow = {
 
 type CashFlowRow = {
   date?: string;
+  description?: string;
   netAmount?: number;
   bankAmounts?: Record<string, { debit?: number; credit?: number }>;
 };
 
 type CashFlowData = {
   bankHeads?: string[];
-  months?: { rows?: CashFlowRow[] }[];
+  months?: { month?: string; rows?: CashFlowRow[] }[];
 };
 
 function lineTotal(row: HeadRow): number {
@@ -130,9 +137,7 @@ function aggregateCategory(
   return [...groups.entries()].map(([name, g]) => ({
     name,
     total: g.total,
-    lines: [...g.lines.entries()]
-      .map(([label, amount]) => ({ label, amount }))
-      .filter(l => l.amount !== 0 || g.lines.size <= 12),
+    lines: [...g.lines.entries()].map(([label, amount]) => ({ label, amount })),
   }));
 }
 
@@ -207,6 +212,7 @@ export type CsrPerformanceRow = {
   fixComm: number;
   totalCommission: number;
   share: number;
+  fixClients: { clientName: string; projectPay: number; currency: string }[];
 };
 
 export type CsrPerformanceReport = {
@@ -246,6 +252,7 @@ function emptyCsrRow(name: string, teamTitle: string, sub: SubHead): CsrPerforma
     fixComm: 0,
     totalCommission: 0,
     share: 0,
+    fixClients: [],
   };
 }
 
@@ -268,6 +275,8 @@ function csrRowFromSub(
       projectPay: Number(p.projectPay) || 0,
       currency: p.currency === "CAD" ? "CAD" : "USD",
       fxRate: Number(p.fxRate) || 0,
+      slabKey: p.slabKey as ProjectSlabKey | undefined,
+      projectCount: Number(p.projectCount) || undefined,
     })),
   };
   const calc = calcSalesCommission(commission, row.role, opts);
@@ -277,13 +286,18 @@ function csrRowFromSub(
     oldProjects: Number(commission.oldClientProjects) || 0,
     partialCount: Number(commission.oldClientPartialCount) || 0,
     newProjects: Number(commission.newClientProjects) || 0,
-    fixProjects: commission.fixClientProjects.length,
+    fixProjects: commission.fixClientProjects.reduce((s, p) => s + fixRowProjectCount(p), 0),
     fixPay,
     projects: calc.totalProjects,
     oldComm: calc.oldComm,
     newComm: calc.newComm,
     fixComm: calc.fixComm,
     totalCommission: calc.totalCommission,
+    fixClients: commission.fixClientProjects.map(p => ({
+      clientName: String(p.clientName || "—").trim() || "—",
+      projectPay: Number(p.projectPay) || 0,
+      currency: p.currency === "CAD" ? "CAD" : "USD",
+    })),
   };
 }
 
@@ -340,6 +354,10 @@ function aggregateCsrFromSalesPayroll(
   };
 }
 
+function categorySum(data: Record<string, unknown>, key: string): number {
+  return ((data[key] as HeadRow[]) ?? []).reduce((a, r) => a + lineTotal(r), 0);
+}
+
 function monthEndIso(month: string): string {
   const [y, mm] = month.split("-").map(Number);
   const lastDay = new Date(Date.UTC(y, mm, 0)).getUTCDate();
@@ -384,6 +402,14 @@ export async function getMonthlyAccountsReport(req: AuthRequest, res: Response) 
 
     const byMonth = new Map<string, { revenue: number; cost: number; days: number; lastDate: string }>();
     const monthRecords: Record<string, unknown>[] = [];
+    const dayLines: {
+      date: string;
+      payroll: number;
+      opex: number;
+      loans: number;
+      pf: number;
+      cost: number;
+    }[] = [];
     let lastDateInMonth: string | null = null;
 
     const allMonths = new Set<string>([
@@ -418,6 +444,18 @@ export async function getMonthlyAccountsReport(req: AuthRequest, res: Response) 
       if (m === month) {
         monthRecords.push({ ...data, totalRevenue: entry.revenue });
         if (!lastDateInMonth || rec.recordDate > lastDateInMonth) lastDateInMonth = rec.recordDate;
+        const payroll = categorySum(data, "teamSalaries");
+        const opex = categorySum(data, "opexHeads");
+        const loans = categorySum(data, "loanHeads");
+        const pf = categorySum(data, "providentFundHeads");
+        dayLines.push({
+          date: rec.recordDate,
+          payroll,
+          opex,
+          loans,
+          pf,
+          cost: payroll + opex,
+        });
       }
     }
 
@@ -447,6 +485,8 @@ export async function getMonthlyAccountsReport(req: AuthRequest, res: Response) 
 
     const monthEntry = byMonth.get(month);
     const revenue = monthEntry?.revenue ?? revenueForMonth(month);
+    const revenueChannels = currencyFormulaBreakdownFromDashboard(dashForMonth(month));
+    const collections = await listPaidCollectionsForMonth(month);
     const salaryTeams = aggregateCategory(monthRecords, "teamSalaries", "team");
     const opexHeads = aggregateCategory(monthRecords, "opexHeads", "label");
     const loanHeads = aggregateCategory(monthRecords, "loanHeads", "label");
@@ -472,31 +512,84 @@ export async function getMonthlyAccountsReport(req: AuthRequest, res: Response) 
       cfRecords[0] ??
       null;
 
-    const bankTotals = new Map<string, number>();
+    const bankDebit = new Map<string, number>();
+    const bankCredit = new Map<string, number>();
+    const sectionNets = new Map<string, number>();
+    const cashLedger: {
+      section: string;
+      date: string;
+      description: string;
+      banks: { bank: string; debit: number; credit: number }[];
+      debit: number;
+      credit: number;
+      net: number;
+    }[] = [];
     let closingNet = 0;
     let monthNet = 0;
+    let monthEntries = 0;
     let bankHeads: string[] = [];
+
+    const rowNet = (row: CashFlowRow): number => {
+      let debit = 0;
+      let credit = 0;
+      for (const amt of Object.values(row.bankAmounts ?? {})) {
+        debit += Number(amt?.debit) || 0;
+        credit += Number(amt?.credit) || 0;
+      }
+      if (debit === 0 && credit === 0) return Number(row.netAmount) || 0;
+      return debit - credit;
+    };
 
     if (cfRecord) {
       const cf = cfRecord.data as CashFlowData;
       bankHeads = cf.bankHeads ?? [];
       for (const m of cf.months ?? []) {
+        const sectionName = String(m.month || "Section");
         for (const row of m.rows ?? []) {
           const date = String(row.date ?? "");
           if (date && date > monthEnd) continue;
-          closingNet += Number(row.netAmount) || 0;
-          if (date.startsWith(month)) monthNet += Number(row.netAmount) || 0;
-          for (const [bank, amt] of Object.entries(row.bankAmounts ?? {})) {
-            const delta = (Number(amt?.credit) || 0) - (Number(amt?.debit) || 0);
-            bankTotals.set(bank, (bankTotals.get(bank) ?? 0) + delta);
+          const net = rowNet(row);
+          closingNet += net;
+          const inMonth = !date || date.startsWith(month);
+          if (inMonth) {
+            monthNet += net;
+            monthEntries += 1;
+            sectionNets.set(sectionName, (sectionNets.get(sectionName) ?? 0) + net);
+            let debit = 0;
+            let credit = 0;
+            const heads = bankHeads.length ? bankHeads : Object.keys(row.bankAmounts ?? {});
+            const banks = heads.map(bank => {
+              const amt = row.bankAmounts?.[bank];
+              const d = Number(amt?.debit) || 0;
+              const c = Number(amt?.credit) || 0;
+              debit += d;
+              credit += c;
+              bankDebit.set(bank, (bankDebit.get(bank) ?? 0) + d);
+              bankCredit.set(bank, (bankCredit.get(bank) ?? 0) + c);
+              return { bank, debit: d, credit: c };
+            });
+            cashLedger.push({
+              section: sectionName,
+              date,
+              description: String(row.description ?? "").trim() || "—",
+              banks,
+              debit,
+              credit,
+              net,
+            });
           }
         }
       }
     }
 
-    const cashBanks = (bankHeads.length ? bankHeads : [...bankTotals.keys()]).map(bank => ({
-      bank,
-      balance: bankTotals.get(bank) ?? 0,
+    const cashBanks = (bankHeads.length ? bankHeads : [...new Set([...bankDebit.keys(), ...bankCredit.keys()])]).map(bank => {
+      const debit = bankDebit.get(bank) ?? 0;
+      const credit = bankCredit.get(bank) ?? 0;
+      return { bank, debit, credit, balance: debit - credit };
+    });
+    const cashSections = [...sectionNets.entries()].map(([name, net]) => ({
+      name: name.slice(0, 24),
+      net,
     }));
 
     const csrOpts: SalesPayrollCalcOpts = { recordDate: `${month}-01` };
@@ -518,6 +611,9 @@ export async function getMonthlyAccountsReport(req: AuthRequest, res: Response) 
       monthEnd,
       mode: "daily_aggregate",
       totals: { revenue, payroll, opex, loans, pf, totalCost, netProfit },
+      revenueChannels,
+      collections,
+      days: dayLines,
       history,
       salaryTeams,
       opexHeads,
@@ -526,9 +622,12 @@ export async function getMonthlyAccountsReport(req: AuthRequest, res: Response) 
       executives,
       cash: {
         banks: cashBanks,
+        sections: cashSections,
         monthNet,
         closingNet,
+        monthEntries,
         asOf: cfRecord?.recordDate ?? null,
+        ledger: cashLedger,
       },
       csr,
       daysRecorded: monthRecords.length,

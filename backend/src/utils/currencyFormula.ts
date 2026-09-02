@@ -139,9 +139,39 @@ function roundMoney(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
-/** Merged AH+SN+CHQ+HM net — Income Statement Total Revenue source. */
-export function currencyFormulaTotalFromDashboard(data: Record<string, unknown> | null | undefined): number {
+const CHANNEL_LABELS: Record<"AH" | "SN" | "CHQ" | "HM", string> = {
+  AH: "Ahmed Hamza",
+  SN: "Sharjeel Nasir",
+  CHQ: "Cheque",
+  HM: "Habib Metro",
+};
+
+export type CurrencyChannelBreakdown = {
+  key: "AH" | "SN" | "CHQ" | "HM";
+  label: string;
+  usd: number;
+  cad: number;
+  pkr: number;
+  netPkr: number;
+};
+
+/** Per-channel USD/CAD/PKR + net PKR after tax/FX — same formula as dashboard. */
+export function currencyFormulaBreakdownFromDashboard(
+  data: Record<string, unknown> | null | undefined,
+): CurrencyChannelBreakdown[] {
   const currency = (data?.currency as CurrencyBlock | undefined) ?? null;
   const tabs = normalize(currency);
-  return calcTab(tabs.AH) + calcTab(tabs.SN) + calcTab(tabs.CHQ) + calcTab(tabs.HM);
+  return (["AH", "SN", "CHQ", "HM"] as const).map(key => ({
+    key,
+    label: CHANNEL_LABELS[key],
+    usd: Number(tabs[key].usdAmount) || 0,
+    cad: Number(tabs[key].cadAmount) || 0,
+    pkr: Number(tabs[key].pkrAmount) || 0,
+    netPkr: roundMoney(calcTab(tabs[key])),
+  }));
+}
+
+/** Merged AH+SN+CHQ+HM net — Income Statement Total Revenue source. */
+export function currencyFormulaTotalFromDashboard(data: Record<string, unknown> | null | undefined): number {
+  return currencyFormulaBreakdownFromDashboard(data).reduce((a, c) => a + c.netPkr, 0);
 }

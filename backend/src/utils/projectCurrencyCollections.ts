@@ -169,6 +169,63 @@ async function loadAllPaymentEntries(): Promise<ProjectPaymentEntry[]> {
   return out;
 }
 
+export type CollectionLine = {
+  client: string;
+  projectCode: string;
+  channel: PaymentChannel;
+  currency: "USD" | "CAD" | "PKR";
+  amount: number;
+  paidAt: string;
+  type: string;
+};
+
+const CHANNEL_LABEL: Record<PaymentChannel, string> = {
+  AH: "Ahmed Hamza",
+  SN: "Sharjeel Nasir",
+  CHQ: "Cheque",
+  HM: "Habib Metro",
+};
+
+/** Every paid project payment that counts in this calendar month. */
+export async function listPaidCollectionsForMonth(yearMonth: string): Promise<(CollectionLine & { channelLabel: string })[]> {
+  if (!/^\d{4}-\d{2}$/.test(yearMonth)) return [];
+  const leads = await prisma.lead.findMany({
+    where: { projectPayments: { not: null } },
+    select: {
+      name: true,
+      company: true,
+      projectTitle: true,
+      projectCode: true,
+      clientCode: true,
+      projectPayments: true,
+    },
+  });
+  const out: (CollectionLine & { channelLabel: string })[] = [];
+  for (const lead of leads) {
+    const client = String(lead.company || lead.name || lead.projectTitle || "—").trim() || "—";
+    const projectCode = String(lead.projectCode || lead.clientCode || "").trim();
+    for (const entry of parseProjectPayments(lead.projectPayments)) {
+      if (!entry.isPaid) continue;
+      if (paymentAccountsMonth(entry) !== yearMonth) continue;
+      if (!entry.paymentChannel || !entry.currency) continue;
+      const amount = parseMoney(entry.amount);
+      if (amount <= 0) continue;
+      out.push({
+        client,
+        projectCode,
+        channel: entry.paymentChannel,
+        channelLabel: CHANNEL_LABEL[entry.paymentChannel],
+        currency: entry.currency,
+        amount,
+        paidAt: String(entry.paidAt || entry.accountsMonth || ""),
+        type: String(entry.type || "").trim(),
+      });
+    }
+  }
+  out.sort((a, b) => a.paidAt.localeCompare(b.paidAt) || a.client.localeCompare(b.client));
+  return out;
+}
+
 /** All paid project payments that belong to this calendar month (YYYY-MM). */
 export async function aggregateCollectionsForMonth(yearMonth: string): Promise<DayCollections> {
   const bucket = emptyDayCollections();
