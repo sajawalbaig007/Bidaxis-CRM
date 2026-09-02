@@ -24,7 +24,7 @@ import ProofUploadField from "./ProofUploadField";
 import SalarySlipDownloadButton from "./SalarySlipDownloadButton";
 import SalarySlipTemplateEditorModal from "./SalarySlipTemplateEditorModal";
 import { ensureSalaryDetail } from "./EmployeeSalaryEditor";
-import AmountInput from "./AmountInput";
+import AmountInput, { parseNonNegativeAmount } from "./AmountInput";
 import type { SalarySlipCompanyKey } from "../utils/salarySlipCompanies";
 import { DEFAULT_SALARY_SLIP_COMPANY } from "../utils/salarySlipCompanies";
 import { slipKindTitle } from "../utils/salarySlipFieldConfig";
@@ -819,7 +819,7 @@ export default function ExpandableHeadsTable({
                                         <input
                                           value={s.label}
                                           onChange={e => patchSub(row.id, s.id, { label: e.target.value })}
-                                          onBlur={() => patchSub(row.id, s.id, {}, true)}
+                                          onBlur={e => patchSub(row.id, s.id, { label: e.currentTarget.value }, true)}
                                           className="w-full h-8 rounded-lg border border-crm-border bg-crm-surface px-2 text-xs font-medium text-crm-text-secondary outline-none focus:ring-2 focus:ring-[#0D9488]/30"
                                           placeholder="Name"
                                         />
@@ -861,7 +861,10 @@ export default function ExpandableHeadsTable({
                                               <AmountInput
                                                 value={Number(s.amount) || 0}
                                                 onChange={n => patchSub(row.id, s.id, { amount: n, periodAmount: n, userEdited: true })}
-                                                onBlur={() => patchSub(row.id, s.id, {}, true)}
+                                                onBlur={e => {
+                                                  const n = parseNonNegativeAmount((e.target as HTMLInputElement).value);
+                                                  patchSub(row.id, s.id, { amount: n, periodAmount: n, userEdited: true }, true);
+                                                }}
                                                 className="h-8 w-full rounded-lg border border-crm-border bg-crm-surface px-2 text-xs text-right font-semibold outline-none focus:ring-2 focus:ring-[#0D9488]/30"
                                               />
                                             )}
@@ -873,7 +876,10 @@ export default function ExpandableHeadsTable({
                                           <AmountInput
                                             value={Number(s.amount) || 0}
                                             onChange={n => patchSub(row.id, s.id, { amount: n })}
-                                            onBlur={() => patchSub(row.id, s.id, {}, true)}
+                                            onBlur={e => {
+                                              const n = parseNonNegativeAmount((e.target as HTMLInputElement).value);
+                                              patchSub(row.id, s.id, { amount: n }, true);
+                                            }}
                                             className="h-8 w-full rounded-lg border border-crm-border bg-crm-surface px-2 text-xs text-right font-semibold outline-none focus:ring-2 focus:ring-[#0D9488]/30"
                                           />
                                         </td>

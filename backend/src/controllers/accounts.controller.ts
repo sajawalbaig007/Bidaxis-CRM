@@ -821,15 +821,17 @@ export async function getIncomeBudgetActuals(req: AuthRequest, res: Response) {
         ? 0
         : currencyFormulaTotalFromDashboard(dashForMonth(ym));
       revenueMonthsAdded.add(ym);
-      accumulateCoreBudget(data, actuals, revenue);
-      accumulateCoreBudget(data, byMonth[ym]!, revenue);
+      accumulateCoreBudget(data, actuals, revenue, rec.recordDate);
+      accumulateCoreBudget(data, byMonth[ym]!, revenue, rec.recordDate);
       accumulateOpexHeads(data, opexHeadsTotal);
       accumulateOpexHeads(data, opexHeadsByMonth[ym]!);
     }
 
     const payroll =
       actuals.sales +
+      actuals.sales_commission +
       actuals.technical +
+      actuals.technical_overtime +
       actuals.email_marketing +
       actuals.administration +
       actuals.executive +

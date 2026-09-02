@@ -450,7 +450,7 @@ function buildBudgetCompare(
     variance: 0,
   };
   const actuals = emptyCoreActuals();
-  accumulateCoreBudget(snapshot, actuals, revenue);
+  accumulateCoreBudget(snapshot, actuals, revenue, `${month}-01`);
   const opexInto: Record<string, OpexHeadBucket> = {};
   accumulateOpexHeads(snapshot, opexInto);
 

@@ -148,7 +148,9 @@ export default function BudgetVsActualCharts({
       const order = [
         "revenue",
         "sales",
+        "sales_commission",
         "technical",
+        "technical_overtime",
         "email_marketing",
         "administration",
         "executive",
