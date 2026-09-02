@@ -20,9 +20,9 @@ import {
   type SalarySlipPayload,
 } from "./salarySlipShared";
 
-const M = 11;
-const FOOTER_H = 18;
-const SIG_H = 22;
+const M = 12;
+const FOOTER_H = 20;
+const SIG_H = 32;
 const SLIP_FOOTER_TEL = "Tel: 0323-6431991";
 const SLIP_FOOTER_ADDRESS = "425, J-03 Block, Phase 2 Johar Town, Lahore";
 
@@ -166,23 +166,23 @@ function drawFooterBar(doc: JsPdfWithAutoTable, company: SalarySlipCompany, them
 
   doc.setTextColor(255, 255, 255);
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(7.4);
-  doc.text(company.legalName || "Salary Slip", M, footerY + 5.6);
+  doc.setFontSize(8);
+  doc.text(company.legalName || "Salary Slip", M, footerY + 6.2);
 
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(6.6);
+  doc.setFontSize(7);
   doc.setTextColor(230, 230, 230);
-  doc.text(SLIP_FOOTER_TEL, M, footerY + 10);
-  doc.text(SLIP_FOOTER_ADDRESS, M, footerY + 14.4);
+  doc.text(SLIP_FOOTER_TEL, M, footerY + 11);
+  doc.text(SLIP_FOOTER_ADDRESS, M, footerY + 15.8);
 
   const rightBits = [company.website, company.email].filter(Boolean);
   if (rightBits.length) {
-    doc.setFontSize(6.4);
-    doc.text(rightBits.join("  ·  "), pageW - M, footerY + 10, { align: "right" });
+    doc.setFontSize(6.8);
+    doc.text(rightBits.join("  ·  "), pageW - M, footerY + 11, { align: "right" });
   }
-  doc.setFontSize(6);
+  doc.setFontSize(6.2);
   doc.setTextColor(190, 190, 196);
-  doc.text("Computer generated payslip", pageW - M, footerY + 14.4, { align: "right" });
+  doc.text("Computer generated payslip", pageW - M, footerY + 15.8, { align: "right" });
 }
 
 function drawPageChrome(
@@ -229,45 +229,45 @@ async function drawHeaderBand(
   theme: SlipTheme,
 ): Promise<number> {
   const pageW = doc.internal.pageSize.getWidth();
-  const headerH = 28;
+  const headerH = 32;
   doc.setFillColor(...theme.header);
   doc.rect(0, 2.4, pageW, headerH, "F");
 
   const logoKey = theme.id === "gps" ? "GPS" : "BEM";
-  const logo = await drawLogo(doc, company, logoKey, M, 6.4, theme.id === "gps" ? 50 : 36, 17);
+  const logo = await drawLogo(doc, company, logoKey, M, 7, theme.id === "gps" ? 54 : 38, 18);
 
   const textX = M + (logo.w > 0 ? logo.w + 8 : 0);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(9);
   doc.setTextColor(...theme.headerInk);
-  doc.text(company.legalName.toUpperCase(), textX, 11.4);
-
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(6.6);
-  doc.setTextColor(210, 214, 220);
-  doc.text(company.brandLine || "Official Payslip", textX, 16);
-
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(16);
-  doc.setTextColor(...theme.headerInk);
-  doc.text("PAYSLIP", pageW - M, 12.2, { align: "right" });
+  doc.text(company.legalName.toUpperCase(), textX, 12.2);
 
   doc.setFont("helvetica", "normal");
   doc.setFontSize(7);
+  doc.setTextColor(210, 214, 220);
+  doc.text(company.brandLine || "Official Payslip", textX, 17.2);
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(17);
+  doc.setTextColor(...theme.headerInk);
+  doc.text("PAYSLIP", pageW - M, 13, { align: "right" });
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(7.2);
   doc.setTextColor(theme.id === "bem" ? 255 : 191, theme.id === "bem" ? 200 : 219, theme.id === "bem" ? 205 : 254);
-  doc.text("CONFIDENTIAL  ·  FOR EMPLOYEE USE", pageW - M, 17.6, { align: "right" });
+  doc.text("CONFIDENTIAL  ·  FOR EMPLOYEE USE", pageW - M, 19, { align: "right" });
 
   const pill = payload.monthLabel;
-  const pillW = Math.max(30, doc.getTextWidth(pill) + 8);
+  const pillW = Math.max(32, doc.getTextWidth(pill) + 10);
   const pillX = pageW - M - pillW;
   doc.setFillColor(...theme.accent);
-  doc.roundedRect(pillX, 20.6, pillW, 7, 1.4, 1.4, "F");
+  doc.roundedRect(pillX, 22.4, pillW, 7.6, 1.5, 1.5, "F");
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(7.4);
+  doc.setFontSize(7.8);
   doc.setTextColor(255, 255, 255);
-  doc.text(pill, pillX + pillW / 2, 25.2, { align: "center" });
+  doc.text(pill, pillX + pillW / 2, 27.4, { align: "center" });
 
-  return 2.4 + headerH + 2.4;
+  return 2.4 + headerH + 3.5;
 }
 
 function drawMetaRow(
@@ -278,7 +278,7 @@ function drawMetaRow(
 ): number {
   const pageW = doc.internal.pageSize.getWidth();
   const w = pageW - M * 2;
-  const h = 10;
+  const h = 12;
   doc.setFillColor(...theme.card);
   doc.setDrawColor(...theme.line);
   doc.setLineWidth(0.25);
@@ -300,13 +300,13 @@ function drawMetaRow(
     doc.setFont("helvetica", "normal");
     doc.setFontSize(6.2);
     doc.setTextColor(...theme.muted);
-    doc.text(label.toUpperCase(), x + 4, y + 3.6);
+    doc.text(label.toUpperCase(), x + 4, y + 4.2);
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(7.6);
+    doc.setFontSize(8);
     doc.setTextColor(...theme.ink);
-    doc.text(value, x + 4, y + 7.8);
+    doc.text(value, x + 4, y + 9);
   });
-  return y + h + 2.4;
+  return y + h + 3.5;
 }
 
 function drawEmployeeCard(
@@ -329,9 +329,9 @@ function drawEmployeeCard(
   }
 
   const cols = 2;
-  const rowH = 9;
+  const rowH = 10.5;
   const gridRows = Math.ceil(rows.length / cols);
-  const h = 7 + gridRows * rowH + (theme.fieldBoxes ? 1 : 0);
+  const h = 8 + gridRows * rowH + (theme.fieldBoxes ? 1 : 0);
 
   doc.setFillColor(...theme.card);
   doc.setDrawColor(...theme.line);
@@ -343,13 +343,13 @@ function drawEmployeeCard(
   doc.setFont("helvetica", "bold");
   doc.setFontSize(7);
   doc.setTextColor(...theme.accent);
-  doc.text("EMPLOYEE DETAILS", M + 6, y + 4.6);
+  doc.text("EMPLOYEE DETAILS", M + 6, y + 5.2);
 
   rows.forEach(([label, value], i) => {
     const col = i % cols;
     const row = Math.floor(i / cols);
     const x = M + 6 + col * (w / cols);
-    const yy = y + 7.6 + row * rowH;
+    const yy = y + 8.6 + row * rowH;
     const maxW = w / cols - 12;
     doc.setFont("helvetica", "normal");
     doc.setFontSize(6.2);
@@ -363,10 +363,10 @@ function drawEmployeeCard(
     doc.setFontSize(8.2);
     doc.setTextColor(...theme.ink);
     const lines = doc.splitTextToSize(value, maxW);
-    doc.text(Array.isArray(lines) ? lines[0] : lines, x, yy + 4.8);
+    doc.text(Array.isArray(lines) ? lines[0] : lines, x, yy + 5.2);
   });
 
-  return y + h + 2.4;
+  return y + h + 4;
 }
 
 function earningsDeductionTables(
@@ -381,7 +381,7 @@ function earningsDeductionTables(
   const mid = pageW / 2;
   const colW = mid - M - 2;
   const bottom = FOOTER_H + 2;
-  const tablePad = { font: "helvetica" as const, lineColor: theme.line, lineWidth: 0.18, cellPadding: 1.35 };
+  const tablePad = { font: "helvetica" as const, lineColor: theme.line, lineWidth: 0.2, cellPadding: 1.85 };
 
   autoTable(doc, {
     startY: y,
@@ -405,11 +405,11 @@ function earningsDeductionTables(
     headStyles: {
       fillColor: theme.tableHead,
       textColor: theme.tableHeadText,
-      fontSize: 7,
+      fontSize: 7.4,
       fontStyle: "bold",
       halign: "center",
     },
-    bodyStyles: { fontSize: 7.2, textColor: theme.ink },
+    bodyStyles: { fontSize: 7.6, textColor: theme.ink },
     alternateRowStyles: { fillColor: theme.zebra },
     columnStyles: {
       0: { cellWidth: colW * 0.48, halign: "left" },
@@ -451,11 +451,11 @@ function earningsDeductionTables(
     headStyles: {
       fillColor: theme.deductHead,
       textColor: 255,
-      fontSize: 7,
+      fontSize: 7.4,
       fontStyle: "bold",
       halign: "center",
     },
-    bodyStyles: { fontSize: 7.2, textColor: theme.ink },
+    bodyStyles: { fontSize: 7.6, textColor: theme.ink },
     alternateRowStyles: { fillColor: theme.zebra },
     columnStyles: {
       0: { cellWidth: colW * 0.64, halign: "left" },
@@ -471,7 +471,7 @@ function earningsDeductionTables(
   });
 
   const rightY = doc.lastAutoTable?.finalY ?? y;
-  return { y: Math.max(leftY, rightY) + 3, earningsSum, deductionsTotalAmt };
+  return { y: Math.max(leftY, rightY) + 5, earningsSum, deductionsTotalAmt };
 }
 
 function drawKpiStrip(
@@ -486,7 +486,7 @@ function drawKpiStrip(
   const pageW = doc.internal.pageSize.getWidth();
   const gap = 3;
   const w = (pageW - M * 2 - gap * 2) / 3;
-  const h = 13;
+  const h = 16;
   const cards: { label: string; value: string; bg: Rgb; ink: Rgb }[] = [
     { label: "Total earnings", value: pkr(earningsSum), bg: theme.accentSoft, ink: theme.ink },
     { label: "Total deductions", value: pkr(deductionsTotalAmt), bg: [254, 242, 242], ink: BEM_RED },
@@ -500,13 +500,13 @@ function drawKpiStrip(
     doc.setFont("helvetica", "normal");
     doc.setFontSize(6.4);
     doc.setTextColor(...(c.ink[0] > 200 ? ([230, 230, 230] as Rgb) : theme.muted));
-    doc.text(c.label.toUpperCase(), x + 4, y + 4.2);
+    doc.text(c.label.toUpperCase(), x + 4, y + 5);
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(10);
+    doc.setFontSize(11);
     doc.setTextColor(...c.ink);
-    doc.text(c.value, x + 4, y + 10);
+    doc.text(c.value, x + 4, y + 11.6);
   });
-  return y + h + 2.4;
+  return y + h + 4;
 }
 
 function drawPfAndOccasional(
@@ -530,12 +530,12 @@ function drawPfAndOccasional(
 
   doc.setFillColor(...theme.card);
   doc.setDrawColor(...theme.line);
-  doc.roundedRect(M, y, pageW - M * 2, 7.4, 1.4, 1.4, "FD");
+  doc.roundedRect(M, y, pageW - M * 2, 9, 1.6, 1.6, "FD");
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(6.8);
+  doc.setFontSize(7.2);
   doc.setTextColor(...theme.muted);
-  doc.text(bits.join("     ·     "), M + 4, y + 4.7);
-  return y + 10;
+  doc.text(bits.join("     ·     "), M + 4, y + 5.6);
+  return y + 13;
 }
 
 function drawComments(
@@ -543,24 +543,25 @@ function drawComments(
   payload: SalarySlipPayload,
   y: number,
   theme: SlipTheme,
+  extraH = 0,
 ): number {
   const pageW = doc.internal.pageSize.getWidth();
   const text = payload.comments?.trim() || "No comments for this period.";
   const lines = doc.splitTextToSize(text, pageW - M * 2 - 10) as string[];
-  const h = Math.max(12, 7.5 + lines.length * 3.6);
+  const h = Math.max(16, 9 + lines.length * 4.2) + extraH;
 
   doc.setFillColor(...theme.card);
   doc.setDrawColor(...theme.line);
-  doc.roundedRect(M, y, pageW - M * 2, h, 1.4, 1.4, "FD");
+  doc.roundedRect(M, y, pageW - M * 2, h, 1.8, 1.8, "FD");
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(6.2);
+  doc.setFontSize(6.5);
   doc.setTextColor(...theme.accent);
-  doc.text("REMARKS", M + 4, y + 3.8);
+  doc.text("REMARKS", M + 4, y + 4.8);
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(7.4);
+  doc.setFontSize(8);
   doc.setTextColor(...theme.ink);
-  doc.text(lines, M + 4, y + 7.8);
-  return y + h + 2.4;
+  doc.text(lines, M + 4, y + 10);
+  return y + h + 4;
 }
 
 async function drawSignatures(
@@ -568,44 +569,42 @@ async function drawSignatures(
   payload: SalarySlipPayload,
   y: number,
   theme: SlipTheme,
+  h = SIG_H,
 ): Promise<number> {
   const pageW = doc.internal.pageSize.getWidth();
-  const boxW = Math.min(92, pageW - M * 2);
+  const boxW = Math.min(96, pageW - M * 2);
   const x = pageW - M - boxW;
   const sig = await loadLogoForPdf("/images/hr-signature.png", { stripWhite: true });
   const stamp = formatSlipSignedAt(payload.signedAt);
-  const pageH = doc.internal.pageSize.getHeight();
-  const maxH = Math.max(16, pageH - FOOTER_H - y - 1);
-  const h = Math.min(SIG_H, maxH);
 
   doc.setDrawColor(...theme.line);
   doc.setFillColor(...theme.card);
-  doc.roundedRect(x, y, boxW, h, 1.4, 1.4, "FD");
+  doc.roundedRect(x, y, boxW, h, 1.8, 1.8, "FD");
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(6);
+  doc.setFontSize(6.5);
   doc.setTextColor(...theme.muted);
-  doc.text("FOR THE COMPANY", x + 4, y + 4.2);
+  doc.text("FOR THE COMPANY", x + 4, y + 5.2);
 
   if (sig) {
-    const box = fitLogoBox(sig.width, sig.height, boxW - 18, Math.max(7, h - 14));
+    const box = fitLogoBox(sig.width, sig.height, boxW - 20, Math.max(10, h - 18));
     const imgX = x + (boxW - box.w) / 2;
-    const imgY = y + 5.2;
+    const imgY = y + 7 + Math.max(0, (h - 18 - box.h) / 2);
     doc.addImage(sig.dataUrl, sig.format, imgX, imgY, box.w, box.h);
   } else {
     doc.setDrawColor(...theme.ink);
     doc.setLineWidth(0.3);
-    doc.line(x + 8, y + h - 9, x + boxW - 8, y + h - 9);
+    doc.line(x + 10, y + h - 11, x + boxW - 10, y + h - 11);
   }
 
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(7.4);
+  doc.setFontSize(8);
   doc.setTextColor(...theme.ink);
-  doc.text("HR", x + boxW / 2, y + h - 5.4, { align: "center" });
+  doc.text("HR", x + boxW / 2, y + h - 6.4, { align: "center" });
   if (stamp) {
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(5.8);
+    doc.setFontSize(6.2);
     doc.setTextColor(...theme.muted);
-    doc.text(stamp, x + boxW / 2, y + h - 2, { align: "center" });
+    doc.text(stamp, x + boxW / 2, y + h - 2.4, { align: "center" });
   }
   return y + h;
 }
@@ -633,26 +632,38 @@ async function renderPremiumSlip(
   const netPay = slipNetPayment(payload);
   y = drawKpiStrip(doc, y, earningsSum, deductionsTotalAmt, netPay, occasional, theme);
   y = drawPfAndOccasional(doc, payload, y, theme);
-  y = drawComments(doc, payload, y, theme);
+
+  const pageH = doc.internal.pageSize.getHeight();
+  const pageW = doc.internal.pageSize.getWidth();
+  const floor = pageH - FOOTER_H - 2.4;
+  const remarksMin = 16;
+  const thankH = theme.thankYou ? 10 : 0;
+  const leftover = floor - y - remarksMin - thankH - SIG_H - 4;
+  const extra = Math.max(0, leftover);
+  const remarksExtra = extra * 0.48;
+  const sigExtra = extra * 0.4;
+  y += extra * 0.12;
+
+  y = drawComments(doc, payload, y, theme, remarksExtra);
 
   if (theme.thankYou) {
-    const pageW = doc.internal.pageSize.getWidth();
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(8.5);
+    doc.setFontSize(10);
     doc.setTextColor(...theme.ink);
     const a = "THANK YOU SO MUCH FOR YOUR ";
     const b = "EFFORTS!";
     const totalW = doc.getTextWidth(a) + doc.getTextWidth(b);
     const start = (pageW - totalW) / 2;
-    doc.text(a, start, y + 1.6);
+    const thankY = y + 4;
+    doc.text(a, start, thankY);
     doc.setTextColor(...theme.accent);
-    doc.text(b, start + doc.getTextWidth(a), y + 1.6);
-    y += 5.5;
+    doc.text(b, start + doc.getTextWidth(a), thankY);
+    y += thankH;
   }
 
-  const pageH = doc.internal.pageSize.getHeight();
-  const ySig = Math.min(y, pageH - FOOTER_H - SIG_H - 1);
-  await drawSignatures(doc, payload, ySig, theme);
+  const sigH = SIG_H + sigExtra;
+  const ySig = Math.min(y, floor - sigH);
+  await drawSignatures(doc, payload, ySig, theme, Math.max(24, floor - ySig));
   dropExtraPages(doc);
 }
 
