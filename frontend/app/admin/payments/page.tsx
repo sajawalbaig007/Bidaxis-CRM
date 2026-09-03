@@ -995,7 +995,7 @@ export default function AdminPaymentsPage() {
               value={loading && !data ? "…" : formatMoneyAlways(t?.quotedAmount ?? 0)}
               hint={
                 month
-                  ? "Collected + outstanding"
+                  ? "Cash this month + outstanding"
                   : `${t?.quotedProjects ?? 0} projects with quote`
               }
               accent="#2563EB"
@@ -1037,7 +1037,7 @@ export default function AdminPaymentsPage() {
               />
               {month ? (
                 <p className="text-[10px] text-crm-text-faint leading-snug">
-                  Prev month collected = paid this month on older projects. Those amounts stay out of the older month’s collected.
+                  Prev month collected = paid this month on older projects. Closed months keep that cash in Collected; the current month shows it only here.
                 </p>
               ) : null}
             </KpiCard>
