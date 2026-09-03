@@ -280,15 +280,17 @@ export async function buildPaymentsSummary(month?: string | null): Promise<Payme
     const remainingDue = quoted > 0 ? Math.max(0, quoted - paidTotalAllTime) : 0;
     const discarded = Boolean(lead.paymentDiscarded);
 
+    const createdMonth = calendarMonthEst(lead.createdAt);
     const projectMonth = projectBusinessMonth(lead.createdAt, allPayments);
 
+    /** Outstanding / unpaid-with-quote = invoices created in that month, still due. */
     if (quoted > 0) {
       if (!discarded && remainingDue > 0) {
         outstandingAllTime += remainingDue;
-        if (projectMonth === thisMonthKey) outstandingThisMonth += remainingDue;
-        else if (projectMonth && projectMonth < thisMonthKey) {
+        if (createdMonth === thisMonthKey) outstandingThisMonth += remainingDue;
+        else if (createdMonth && createdMonth < thisMonthKey) {
           outstandingPrevMonths += remainingDue;
-          if (projectMonth === prevMonthKey) outstandingPrevMonthOnly += remainingDue;
+          if (createdMonth === prevMonthKey) outstandingPrevMonthOnly += remainingDue;
         }
       }
     }
@@ -339,19 +341,13 @@ export async function buildPaymentsSummary(month?: string | null): Promise<Payme
       }
     }
 
-    /** Month view = projects that belong to that business month. */
+    const showCollected = !monthFilter || projectMonth === monthFilter;
+    const showUnpaidInvoice = quoted > 0 && remainingDue > 0;
+
     if (monthFilter) {
-      if (projectMonth !== monthFilter) continue;
+      if (!showCollected && !showUnpaidInvoice) continue;
     } else if (quoted <= 0 && allPayments.length === 0) {
       continue;
-    }
-
-    projectCount += 1;
-
-    if (quoted > 0 && !quotedListedIds.has(lead.id)) {
-      quotedListedIds.add(lead.id);
-      if (!monthFilter) quotedProjects += 1;
-      else if (projectMonth === thisMonthKey) quotedProjects += 1;
     }
 
     const monthPayments = monthFilter
@@ -393,17 +389,25 @@ export async function buildPaymentsSummary(month?: string | null): Promise<Payme
       payments: rowPayments,
     };
 
-    if (status === "full") {
-      if (paidTotalDisplay > 0) {
-        fullPaidCount += 1;
-        fullPaidProjects.push({
-          ...row,
-          rowKey: `${lead.id}-collected`,
-          sumAmount: paidTotalDisplay,
-        });
+    if (showCollected) {
+      projectCount += 1;
+
+      if (quoted > 0 && !quotedListedIds.has(lead.id)) {
+        quotedListedIds.add(lead.id);
+        if (!monthFilter) quotedProjects += 1;
+        else if (projectMonth === thisMonthKey) quotedProjects += 1;
       }
-    } else if (status === "partial") {
-      if (paidTotalDisplay > 0) {
+
+      if (status === "full") {
+        if (paidTotalDisplay > 0) {
+          fullPaidCount += 1;
+          fullPaidProjects.push({
+            ...row,
+            rowKey: `${lead.id}-collected`,
+            sumAmount: paidTotalDisplay,
+          });
+        }
+      } else if (status === "partial" && paidTotalDisplay > 0) {
         partialPaidCount += 1;
         partialPaidProjects.push({
           ...row,
@@ -411,7 +415,10 @@ export async function buildPaymentsSummary(month?: string | null): Promise<Payme
           sumAmount: paidTotalDisplay,
         });
       }
-      if (remainingDue > 0) {
+    }
+
+    if (showUnpaidInvoice) {
+      if (status === "partial") {
         unpaidProjects.push({
           ...row,
           rowKey: `${lead.id}-unpaid`,
@@ -420,24 +427,19 @@ export async function buildPaymentsSummary(month?: string | null): Promise<Payme
           unpaidFromPartial: true,
           payments: [],
         });
+      } else if (status === "unpaid") {
+        unpaidWithQuoteCount += 1;
+        unpaidProjects.push({
+          ...row,
+          rowKey: `${lead.id}-unpaid`,
+          sumAmount: quoted,
+        });
       }
-    } else if (quoted > 0) {
-      unpaidWithQuoteCount += 1;
-      unpaidProjects.push({
-        ...row,
-        rowKey: `${lead.id}-unpaid`,
-        sumAmount: quoted,
-      });
     }
   }
 
   quotedThisMonth = cashThisMonth + outstandingThisMonth;
   quotedPrevMonth = outstandingPrevMonthOnly;
-
-  /* Current month: quoted with $0 this-month collected → all of that quote is still outstanding. */
-  if (monthFilter && monthFilter === currentMonthEst()) {
-    outstandingThisMonth = Math.max(0, quotedThisMonth - collectedThisMonth);
-  }
 
   const collectedAmount = monthFilter
     ? collectedThisMonth + collectedPrevMonth

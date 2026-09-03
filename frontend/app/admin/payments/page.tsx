@@ -1042,14 +1042,14 @@ export default function AdminPaymentsPage() {
               value={loading && !data ? "…" : formatMoneyAlways(t?.outstandingAmount ?? 0)}
               hint={
                 month
-                  ? "This month + all-time outstanding"
+                  ? "Unpaid with quote this month + all-time outstanding"
                   : `${t?.unpaidWithQuoteCount ?? 0} unpaid · ${t?.partialPaidCount ?? 0} partial`
               }
               accent="#DC2626"
               icon={AlertCircle}
             >
               <MonthCompare
-                thisLabel="This month"
+                thisLabel="Unpaid with quote"
                 thisValue={t?.outstandingThisMonth ?? 0}
                 prevValue={t?.outstandingPrevMonths ?? 0}
                 prevLabel="All time outstanding"
@@ -1259,7 +1259,9 @@ export default function AdminPaymentsPage() {
               subtitle={
                 dateRangeActive
                   ? `Partial remaining that also has a payment date ${paymentDateLabel}`
-                  : "Fully unpaid quotes plus remaining balance on partial pays"
+                  : month
+                    ? "This month’s unpaid invoices plus all-time outstanding"
+                    : "Fully unpaid quotes plus remaining balance on partial pays"
               }
               rows={unpaidRows}
               tone="red"
