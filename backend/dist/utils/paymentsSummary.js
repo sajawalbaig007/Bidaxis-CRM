@@ -151,9 +151,7 @@ async function buildPaymentsSummary(month) {
     let collectedPrevMonth = 0;
     let collectedOnPrevMonthProjects = 0;
     let cashThisMonth = 0;
-    let cashPrevMonth = 0;
     let collectedFromPending = 0;
-    const viewingClosedMonth = Boolean(monthFilter && monthFilter < currentMonthEst());
     let outstandingThisMonth = 0;
     let outstandingPrevMonthOnly = 0;
     let outstandingPrevMonths = 0;
@@ -197,9 +195,6 @@ async function buildPaymentsSummary(month) {
             if (payMonth === thisMonthKey && projectMonth && projectMonth <= thisMonthKey) {
                 cashThisMonth += amt;
             }
-            if (payMonth === prevMonthKey && projectMonth && projectMonth <= prevMonthKey) {
-                cashPrevMonth += amt;
-            }
             if (payMonth === thisMonthKey && projectMonth === thisMonthKey)
                 collectedThisMonth += amt;
             if (payMonth === prevMonthKey && projectMonth === prevMonthKey)
@@ -211,9 +206,7 @@ async function buildPaymentsSummary(month) {
                 collectedFromPending += amt;
             const inCollectedView = !monthFilter
                 ? true
-                : viewingClosedMonth
-                    ? payMonth === monthFilter && Boolean(projectMonth && projectMonth <= monthFilter)
-                    : payMonth === monthFilter && projectMonth === monthFilter;
+                : payMonth === monthFilter && Boolean(projectMonth && projectMonth <= monthFilter);
             if (!inCollectedView)
                 continue;
             collectedEntries += 1;
@@ -321,17 +314,17 @@ async function buildPaymentsSummary(month) {
             });
         }
     }
-    const collectedAmount = monthFilter
-        ? viewingClosedMonth
-            ? cashThisMonth
-            : collectedThisMonth
-        : collectedAllTime;
-    const outstandingAmount = monthFilter ? outstandingThisMonth : outstandingAllTime;
-    const quotedAmount = monthFilter
-        ? cashThisMonth + outstandingThisMonth
-        : collectedAllTime + outstandingAllTime;
     quotedThisMonth = cashThisMonth + outstandingThisMonth;
-    quotedPrevMonth = cashPrevMonth + outstandingPrevMonthOnly;
+    quotedPrevMonth = outstandingPrevMonthOnly;
+    const collectedAmount = monthFilter
+        ? collectedThisMonth + collectedPrevMonth
+        : collectedAllTime;
+    const outstandingAmount = monthFilter
+        ? outstandingThisMonth + outstandingPrevMonths
+        : outstandingAllTime;
+    const quotedAmount = monthFilter
+        ? quotedThisMonth + quotedPrevMonth
+        : collectedAllTime + outstandingAllTime;
     fullPaidProjects.sort((a, b) => b.paidTotal - a.paidTotal);
     partialPaidProjects.sort((a, b) => b.percent - a.percent || b.paidTotal - a.paidTotal);
     unpaidProjects.sort((a, b) => Number(a.discarded) - Number(b.discarded) || b.quoted - a.quoted);

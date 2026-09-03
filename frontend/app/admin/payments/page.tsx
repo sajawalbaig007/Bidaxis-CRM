@@ -995,7 +995,7 @@ export default function AdminPaymentsPage() {
               value={loading && !data ? "…" : formatMoneyAlways(t?.quotedAmount ?? 0)}
               hint={
                 month
-                  ? "Cash this month + outstanding"
+                  ? "This month + previous month unpaid"
                   : `${t?.quotedProjects ?? 0} projects with quote`
               }
               accent="#2563EB"
@@ -1011,6 +1011,7 @@ export default function AdminPaymentsPage() {
               <MonthCompare
                 thisValue={t?.quotedThisMonth ?? 0}
                 prevValue={t?.quotedPrevMonth ?? 0}
+                prevLabel="Previous month unpaid"
                 thisClass="text-blue-600"
                 prevClass="text-violet-600"
               />
@@ -1020,7 +1021,7 @@ export default function AdminPaymentsPage() {
               value={loading && !data ? "…" : formatMoneyAlways(t?.collectedAmount ?? 0)}
               hint={
                 month
-                  ? `${t?.collectedEntries ?? 0} payments dated this month on this month’s projects`
+                  ? "This month collected + previous month collected"
                   : `${t?.collectedEntries ?? 0} payments`
               }
               accent="#059669"
@@ -1028,35 +1029,30 @@ export default function AdminPaymentsPage() {
             >
               {t?.collectedByCurrency ? <CurrencyLines totals={t.collectedByCurrency} /> : null}
               <MonthCompare
-                thisLabel="All time"
-                thisValue={t?.collectedFromPending ?? 0}
+                thisLabel="This month collected"
+                thisValue={t?.collectedThisMonth ?? 0}
                 prevValue={t?.collectedPrevMonth ?? 0}
                 prevLabel="Prev month collected"
                 thisClass="text-emerald-600"
                 prevClass="text-violet-600"
               />
-              {month ? (
-                <p className="text-[10px] text-crm-text-faint leading-snug">
-                  Prev month collected = paid this month on older projects. Closed months keep that cash in Collected; the current month shows it only here.
-                </p>
-              ) : null}
             </KpiCard>
             <KpiCard
               title="Outstanding"
               value={loading && !data ? "…" : formatMoneyAlways(t?.outstandingAmount ?? 0)}
               hint={
                 month
-                  ? `Unpaid on this month’s projects · ${t?.unpaidWithQuoteCount ?? 0} unpaid · ${t?.partialPaidCount ?? 0} partial`
+                  ? "This month + all-time outstanding"
                   : `${t?.unpaidWithQuoteCount ?? 0} unpaid · ${t?.partialPaidCount ?? 0} partial`
               }
               accent="#DC2626"
               icon={AlertCircle}
             >
               <MonthCompare
-                thisLabel="Previous month"
-                thisValue={t?.outstandingPrevMonthOnly ?? 0}
+                thisLabel="This month"
+                thisValue={t?.outstandingThisMonth ?? 0}
                 prevValue={t?.outstandingPrevMonths ?? 0}
-                prevLabel="Pending"
+                prevLabel="All time outstanding"
                 thisClass="text-red-600"
                 prevClass="text-red-800"
               />
