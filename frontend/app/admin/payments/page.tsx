@@ -979,7 +979,7 @@ export default function AdminPaymentsPage() {
               value={loading && !data ? "…" : formatMoneyAlways(t?.quotedAmount ?? 0)}
               hint={
                 month
-                  ? `${t?.quotedProjects ?? 0} arrived this month — same quotes as the project list`
+                  ? "Collected + outstanding"
                   : `${t?.quotedProjects ?? 0} projects with quote`
               }
               accent="#2563EB"
@@ -1029,7 +1029,7 @@ export default function AdminPaymentsPage() {
               <MonthCompare
                 thisValue={t?.outstandingThisMonth ?? 0}
                 prevValue={t?.outstandingPrevMonths ?? 0}
-                prevLabel="Prev month"
+                prevLabel="Pending"
                 thisClass="text-red-600"
                 prevClass="text-red-800"
               />

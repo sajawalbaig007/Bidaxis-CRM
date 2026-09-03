@@ -249,7 +249,6 @@ export async function buildPaymentsSummary(month?: string | null): Promise<Payme
   let fullPaidCount = 0;
   let partialPaidCount = 0;
   let unpaidWithQuoteCount = 0;
-  let quotedAllTime = 0;
   let collectedAllTime = 0;
   let outstandingAllTime = 0;
   let quotedThisMonth = 0;
@@ -257,6 +256,7 @@ export async function buildPaymentsSummary(month?: string | null): Promise<Payme
   let collectedThisMonth = 0;
   let collectedPrevMonth = 0;
   let outstandingThisMonth = 0;
+  let outstandingPrevMonthOnly = 0;
   let outstandingPrevMonths = 0;
   const quotedListedIds = new Set<string>();
   const collectedByCurrency = emptyChannelTotals();
@@ -279,8 +279,14 @@ export async function buildPaymentsSummary(month?: string | null): Promise<Payme
     const unpaidQuotedThisMonth = arrivedThisMonth && paidTotalAllTime <= 0;
 
     if (quoted > 0) {
-      quotedAllTime += quoted;
-      if (!discarded && remainingDue > 0) outstandingAllTime += remainingDue;
+      if (!discarded && remainingDue > 0) {
+        outstandingAllTime += remainingDue;
+        if (createdMonth === thisMonthKey) outstandingThisMonth += remainingDue;
+        else if (createdMonth && createdMonth < thisMonthKey) {
+          outstandingPrevMonths += remainingDue;
+          if (createdMonth === prevMonthKey) outstandingPrevMonthOnly += remainingDue;
+        }
+      }
     }
 
     /* Collected = paid amount on the payment-link date (every project). */
@@ -328,14 +334,7 @@ export async function buildPaymentsSummary(month?: string | null): Promise<Payme
     if (quoted > 0 && !quotedListedIds.has(lead.id)) {
       quotedListedIds.add(lead.id);
       if (!monthFilter) quotedProjects += 1;
-      if (createdMonth === thisMonthKey) {
-        quotedThisMonth += quoted;
-        if (monthFilter) quotedProjects += 1;
-        if (!discarded && remainingDue > 0) outstandingThisMonth += remainingDue;
-      } else if (createdMonth === prevMonthKey) {
-        quotedPrevMonth += quoted;
-        if (!discarded && remainingDue > 0) outstandingPrevMonths += remainingDue;
-      }
+      else if (createdMonth === thisMonthKey) quotedProjects += 1;
     }
 
     const rowPayments = (monthFilter ? paidInScope : allPayments)
@@ -412,9 +411,11 @@ export async function buildPaymentsSummary(month?: string | null): Promise<Payme
     }
   }
 
-  const quotedAmount = monthFilter ? quotedThisMonth : quotedAllTime;
   const collectedAmount = monthFilter ? collectedThisMonth : collectedAllTime;
   const outstandingAmount = monthFilter ? outstandingThisMonth : outstandingAllTime;
+  const quotedAmount = collectedAmount + outstandingAmount;
+  quotedThisMonth = collectedThisMonth + outstandingThisMonth;
+  quotedPrevMonth = collectedPrevMonth + outstandingPrevMonthOnly;
 
   fullPaidProjects.sort((a, b) => b.paidTotal - a.paidTotal);
   partialPaidProjects.sort((a, b) => b.percent - a.percent || b.paidTotal - a.paidTotal);
