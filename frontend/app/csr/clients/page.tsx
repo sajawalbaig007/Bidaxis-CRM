@@ -44,6 +44,7 @@ import StateFilterDropdown from "../components/shared/StateFilterDropdown";
 import PhoneAreaCodeFilterInput from "../components/shared/PhoneAreaCodeFilterInput";
 import { matchesStateLocationFilter, matchesPhoneAreaCodeFilter } from "@/lib/stateLocationFilter";
 import { websiteHref } from "../components/LeadDetailModal";
+import ExtraProjectCodesPopup from "@/app/admin/leads/ExtraProjectCodesPopup";
 
 function clientDisplayCode(lead: Pick<ClientLead, "clientCode" | "projectCode">): string | null {
   const code = (lead.clientCode || lead.projectCode || "").trim();
@@ -476,6 +477,9 @@ export default function LeadsPage() {
                   const displayName = lead.name;
                   /* Prefer clientCode from DB; fall back to projectCode only if client code missing */
                   const displayCode = (lead.clientCode?.trim() || lead.projectCode?.trim() || null);
+                  const extraProjects = (lead.extraProjects ?? []).filter(
+                    e => e.code.trim().toLowerCase() !== (displayCode ?? "").toLowerCase(),
+                  );
                   const rowIsOld = lead.isOldClient;
                   const displaySub  = rowIsOld && lead.rawCompany && lead.rawCompany !== lead.name ? lead.rawCompany : null;
                   return (
@@ -484,11 +488,12 @@ export default function LeadsPage() {
                       className={`grid gap-3 px-3 sm:px-4 lg:px-5 xl:px-6 py-3 sm:py-4 items-center hover:bg-[#FAFAFA] transition-colors grid-cols-[1fr_auto] ${CLIENT_GRID_ROW}`}
                     >
                       {/* Code column */}
-                      <div className="hidden lg:block">
+                      <div className="hidden lg:flex items-center gap-1 min-w-0">
                         {displayCode
-                          ? <span className="bg-[#B8112D]/10 text-[#B8112D] text-[10px] font-bold px-2 py-1 rounded-lg truncate block">{displayCode}</span>
+                          ? <span className="bg-[#B8112D]/10 text-[#B8112D] text-[10px] font-bold px-2 py-1 rounded-lg truncate">{displayCode}</span>
                           : <span className="text-gray-300 text-xs">—</span>
                         }
+                        <ExtraProjectCodesPopup extras={extraProjects} title="Previous projects" />
                       </div>
 
                       {/* Client */}
@@ -502,6 +507,9 @@ export default function LeadsPage() {
                             {displayCode && (
                               <span className="lg:hidden bg-[#B8112D]/10 text-[#B8112D] text-[9px] font-bold px-1.5 py-0.5 rounded-md shrink-0">{displayCode}</span>
                             )}
+                            <span className="lg:hidden">
+                              <ExtraProjectCodesPopup extras={extraProjects} title="Previous projects" />
+                            </span>
                             <p className="text-xs sm:text-sm font-semibold text-[#0F172A] truncate">{displayName}</p>
                             {(() => {
                               const tz = getCompanyTimezoneAbbr(lead);

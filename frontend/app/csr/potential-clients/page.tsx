@@ -23,6 +23,8 @@ import InterestedServicesCell from "../components/shared/InterestedServicesCell"
 import InterestedModal from "../components/modals/InterestedModal";
 import { clientCompany, ourCompany } from "../utils/leadFieldLabels";
 import { sortByOldestNote } from "../utils/sortByOldestNote";
+import ClientSortControls from "../components/shared/ClientSortControls";
+import type { SortDir } from "../utils/clientListSort";
 import { collectLeadPhones } from "../utils/parsePhones";
 import {
   decomposeInterestedServices,
@@ -87,6 +89,7 @@ export default function ImportantCallsPage() {
   const [phoneFilter, setPhoneFilter] = useState("");
   const [monthFrom, setMonthFrom] = useState("");
   const [monthTo, setMonthTo] = useState("");
+  const [sortDir, setSortDir] = useState<SortDir>("asc");
 
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingLead,   setEditingLead]   = useState<Lead | null>(null);
@@ -196,8 +199,9 @@ export default function ImportantCallsPage() {
         const matchesMonth  = inMonth(lead.statusUpdatedAt || "");
         return matchesTab && matchesSearch && matchesState && matchesPhone && matchesDate && matchesMonth;
       });
-    return sortByOldestNote(list);
-  }, [uniqueAll, uniqueImportant, uniqueScheduled, uniqueInterested, activeTab, searchQuery, filterDate, monthFrom, monthTo, stateFilter, phoneFilter]);
+    const sorted = sortByOldestNote(list);
+    return sortDir === "desc" ? [...sorted].reverse() : sorted;
+  }, [uniqueAll, uniqueImportant, uniqueScheduled, uniqueInterested, activeTab, searchQuery, filterDate, monthFrom, monthTo, stateFilter, phoneFilter, sortDir]);
 
   const totalPages = Math.max(1, Math.ceil(filteredCalls.length / PAGE_SIZE));
   const paginated  = filteredCalls.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
@@ -378,7 +382,7 @@ export default function ImportantCallsPage() {
               Potential Clients
             </h1>
             <p className="text-gray-500 dark:text-gray-400 mt-1 sm:mt-2 text-xs sm:text-sm">
-              Manage important, scheduled, and interested clients — latest activity first.
+              Manage important, scheduled, and interested clients — sort notes ascending or descending.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -424,6 +428,14 @@ export default function ImportantCallsPage() {
         <div className="flex flex-wrap items-center gap-2 mt-3 sm:mt-4">
           <StateFilterDropdown value={stateFilter} onChange={v => { setStateFilter(v); setPage(1); }} />
           <PhoneAreaCodeFilterInput value={phoneFilter} onChange={v => { setPhoneFilter(v); setPage(1); }} />
+          <ClientSortControls
+            sortBy="oldestNote"
+            sortDir={sortDir}
+            onSortBy={() => {}}
+            onSortDir={v => { setSortDir(v); setPage(1); }}
+            dirOnly
+            dirLabel="Notes"
+          />
         </div>
 
         {/* ══ ALL + IMPORTANT TABLE ══ */}

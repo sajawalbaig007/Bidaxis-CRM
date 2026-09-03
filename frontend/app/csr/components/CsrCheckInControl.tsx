@@ -28,7 +28,6 @@ type StatusResponse = {
 };
 
 const AUTO_PAUSE_KEY = "csr_lock_auto_paused";
-const HIDDEN_PAUSE_MS = 5000;
 
 function formatDurationMs(ms: number): string {
   const totalSec = Math.max(0, Math.floor(ms / 1000));
@@ -155,26 +154,6 @@ export default function CsrCheckInControl({ compact = false }: { compact?: boole
     );
   };
 
-  const autoPauseForLock = useCallback(async () => {
-    if (!checkedInRef.current || pausedRef.current || lockBusyRef.current) return;
-    lockBusyRef.current = true;
-    autoPausedRef.current = true;
-    writeAutoPausedFlag(true);
-    pausedRef.current = true;
-    setPaused(true);
-    try {
-      await postKeepalive("/csr/pause");
-      notifyPause(true);
-    } catch {
-      autoPausedRef.current = false;
-      writeAutoPausedFlag(false);
-      pausedRef.current = false;
-      setPaused(false);
-    } finally {
-      lockBusyRef.current = false;
-    }
-  }, []);
-
   const autoResumeAfterUnlock = useCallback(async () => {
     if (!checkedInRef.current || !autoPausedRef.current || lockBusyRef.current) return;
     lockBusyRef.current = true;
@@ -195,44 +174,13 @@ export default function CsrCheckInControl({ compact = false }: { compact?: boole
     }
   }, []);
 
+  /* Tab switch / hide must not pause — only the Pause button does.
+     Resume leftover auto-pauses from older sessions. */
   useEffect(() => {
-    let hiddenTimer: number | undefined;
-
-    const onFreeze = () => {
-      void autoPauseForLock();
-    };
-    const onPageResume = () => {
-      void autoResumeAfterUnlock();
-    };
-    const onVisibility = () => {
-      if (document.visibilityState === "hidden") {
-        hiddenTimer = window.setTimeout(() => {
-          void autoPauseForLock();
-        }, HIDDEN_PAUSE_MS);
-        return;
-      }
-      if (hiddenTimer) {
-        window.clearTimeout(hiddenTimer);
-        hiddenTimer = undefined;
-      }
-      void autoResumeAfterUnlock();
-    };
-
-    document.addEventListener("freeze", onFreeze);
-    document.addEventListener("resume", onPageResume);
-    document.addEventListener("visibilitychange", onVisibility);
-
-    if (document.visibilityState === "visible" && autoPausedRef.current) {
+    if (autoPausedRef.current) {
       void autoResumeAfterUnlock();
     }
-
-    return () => {
-      if (hiddenTimer) window.clearTimeout(hiddenTimer);
-      document.removeEventListener("freeze", onFreeze);
-      document.removeEventListener("resume", onPageResume);
-      document.removeEventListener("visibilitychange", onVisibility);
-    };
-  }, [autoPauseForLock, autoResumeAfterUnlock]);
+  }, [autoResumeAfterUnlock]);
 
   const liveDuration =
     session?.checkInAt

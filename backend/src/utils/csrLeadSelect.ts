@@ -60,6 +60,7 @@ export const CSR_CLIENT_LIST_SELECT = {
   isOldClient:        true,
   clientCode:         true,
   projectCode:        true,
+  projectScope:       true,
   projectBudget:      true,
   paidAmount:         true,
   projectPayments:    true,

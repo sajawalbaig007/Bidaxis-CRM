@@ -4,6 +4,7 @@ import { useOnCsrDataReset } from "./useOnCsrDataReset";
 import toast from "react-hot-toast";
 import { apiErrorMessage } from "@/lib/api";
 import { buildNoteHistory } from "../utils/noteHistory";
+import { parseProjectCodeSeq } from "@/lib/projectCodeSeq";
 
 export interface SubContact {
   id: string;
@@ -47,6 +48,8 @@ export type ClientLead = {
   createdAt: string;
   clientCode: string | null;
   projectCode: string | null;
+  projectScope: string;
+  extraProjects: { code: string; scope: string }[];
   contacts: SubContact[];
   noteHistory: NoteEntry[];
 };
@@ -61,7 +64,7 @@ export type RawClientLead = {
   followUpNotes?: string | null;
   projectBudget?: string | null; paidAmount?: string | null;
   isOldClient?: boolean; createdAt?: string; updatedAt?: string;
-  clientCode?: string | null; projectCode?: string | null;
+  clientCode?: string | null; projectCode?: string | null; projectScope?: string | null;
   important?: boolean; interested?: boolean;
   contacts?: RawContact[];
   subContacts?: RawContact[];
@@ -70,6 +73,30 @@ export type RawClientLead = {
 
 function buildClientNoteHistory(l: RawClientLead): NoteEntry[] {
   return buildNoteHistory(l).noteHistory;
+}
+
+function extrasFromGroup(group: ClientLead[]): { code: string; scope: string }[] {
+  const seen = new Set<string>();
+  const extras: { code: string; scope: string }[] = [];
+  for (const lead of group) {
+    const project = (lead.projectCode || "").trim();
+    const client = (lead.clientCode || "").trim();
+    const raw = project || (/-\d+$/.test(client) ? client : "");
+    if (!raw) continue;
+    const key = raw.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    extras.push({
+      code: raw,
+      scope: (lead.projectScope || lead.interestedService || "").trim(),
+    });
+  }
+  extras.sort((a, b) => {
+    const sa = parseProjectCodeSeq(a.code)?.seq ?? 0;
+    const sb = parseProjectCodeSeq(b.code)?.seq ?? 0;
+    return sa - sb;
+  });
+  return extras;
 }
 
 /** Group key for same client across multiple won projects (phone, then company). */
@@ -81,7 +108,7 @@ export function clientIdentityKey(l: Pick<ClientLead, "id" | "phone" | "rawCompa
   return `id:${l.id}`;
 }
 
-/** One row per client — upload isOldClient flag decides New vs Old tab. */
+/** One row per client — 2+ won projects or isOldClient → Old tab. */
 export function splitWonClientsByIdentity(wonLeads: ClientLead[]): {
   newLeads: ClientLead[];
   oldLeads: ClientLead[];
@@ -107,8 +134,10 @@ export function splitWonClientsByIdentity(wonLeads: ClientLead[]): {
     const representative = [...group].sort(
       (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
     )[0]!;
-    if (representative.isOldClient) oldLeads.push(representative);
-    else newLeads.push(representative);
+    const isOld = group.length >= 2 || group.some(l => l.isOldClient);
+    const withExtras = { ...representative, extraProjects: extrasFromGroup(group) };
+    if (isOld) oldLeads.push({ ...withExtras, isOldClient: true });
+    else newLeads.push(withExtras);
   }
 
   newLeads.sort(byDate);
@@ -139,6 +168,8 @@ export function mapClientLead(l: RawClientLead): ClientLead {
     createdAt:         l.createdAt         ?? "",
     clientCode:        l.clientCode        ?? null,
     projectCode:       l.projectCode       ?? null,
+    projectScope:      l.projectScope      ?? "",
+    extraProjects:     [],
     contacts: (l.subContacts ?? l.contacts ?? []).map((c: RawContact) => ({
       id:          c.id          ?? String(Math.random()),
       name:        c.name        ?? "",

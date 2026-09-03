@@ -88,13 +88,12 @@ export function scheduledCallWhere(): Prisma.LeadWhereInput {
 
 
 
-/** CSR Clients page: won deals assigned to a CSR, not in bin (New + Old). */
+/** Won / closed clients not in bin — includes admin-created closed records. */
 export function closedClientStatusWhere(): Prisma.LeadWhereInput {
   return {
     AND: [
       wonClientStatusWhere(),
       notInBinFilter(),
-      { csr: { is: { role: "csr" } } },
     ],
   };
 }

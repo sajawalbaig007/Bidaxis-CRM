@@ -559,8 +559,9 @@ router.post("/lead", verifyToken, allowRoles("admin", "manager", "technical_mana
     const adminId = req.user?.id;
     if (!adminId) return res.status(401).json({ success: false, message: "Unauthorized" });
 
-    const { name, email, phone, company, status, csrId } = req.body as {
+    const { name, email, phone, company, status, csrId, interestedService, comments } = req.body as {
       name?: string; email?: string; phone?: string; company?: string; status?: string; csrId?: string;
+      interestedService?: string; comments?: string;
     };
 
     if (!name?.trim()) return res.status(400).json({ success: false, message: "Client name is required." });
@@ -578,6 +579,14 @@ router.post("/lead", verifyToken, allowRoles("admin", "manager", "technical_mana
 
     const trimmedPhone = phone?.trim() || null;
     const existingLeads = trimmedPhone ? await findLeadsByPhone(trimmedPhone) : [];
+    const rawStatus = String(status ?? "pending").trim();
+    const n = rawStatus.toLowerCase();
+    const canonical =
+      n === "close client" || n === "closed" ? "Close Client" :
+      n === "interested" ? "interested" :
+      n === "important" ? "important" :
+      n === "pending" || n === "active" ? "pending" :
+      rawStatus || "pending";
 
     const lead = await prisma.lead.create({
       data: {
@@ -585,11 +594,14 @@ router.post("/lead", verifyToken, allowRoles("admin", "manager", "technical_mana
         email:       email.trim().toLowerCase(),
         phone:       trimmedPhone,
         company:     company?.trim() || null,
-        status:      status || "pending",
+        status:      canonical,
         assignedTo:  assignTo,
-        important:   false,
-        interested:  false,
+        important:   canonical === "important",
+        interested:  canonical === "interested",
         isOldClient: existingLeads.length > 0,
+        hiddenOnMain: canonical === "Close Client",
+        interestedService: interestedService?.trim() || null,
+        comments: comments?.trim() || null,
       },
       include: { csr: { select: { id: true, name: true, csrCode: true } } },
     });

@@ -382,9 +382,9 @@ router.post("/project", auth_middleware_1.verifyToken, (0, role_middleware_1.all
                 resolvedProjectCode = await (0, nextProjectCode_1.allocateNextProjectCode)(baseCode, { assignedTo: csrId });
             }
         }
-        /* From an existing client: keep their New/Old flag — do not promote via prior-win check */
+        /* Second+ project on an existing client → Old. */
         const isOldClient = source
-            ? source.isOldClient
+            ? true
             : (trimmedPhone || company?.trim()
                 ? await (0, leadClientPromotion_1.hasPriorWonClient)(trimmedPhone, company?.trim() ?? null)
                 : false);
@@ -419,9 +419,13 @@ router.post("/project", auth_middleware_1.verifyToken, (0, role_middleware_1.all
         if ((company ?? source?.company)?.trim()) {
             await (0, leadClientPromotion_1.clearPendingDuplicatesForCompany)((company ?? source?.company).trim(), csrId, lead.id);
         }
-        if (!source) {
-            await (0, leadClientPromotion_1.reconcileClientOldFlagsForCsr)(csrId);
+        if (source && !source.isOldClient) {
+            await db_1.default.lead.update({
+                where: { id: source.id },
+                data: { isOldClient: true },
+            });
         }
+        await (0, leadClientPromotion_1.reconcileClientOldFlagsForCsr)(csrId);
         (0, csrCache_1.invalidateCsrLeadCaches)(csrId);
         (0, cache_1.flushAdminClientsCache)();
         return res.status(201).json({ success: true, lead });

@@ -77,13 +77,12 @@ function scheduledCallWhere() {
         AND: [isImportantStatusWhere(), hasScheduleWhere()],
     };
 }
-/** CSR Clients page: won deals assigned to a CSR, not in bin (New + Old). */
+/** Won / closed clients not in bin — includes admin-created closed records. */
 function closedClientStatusWhere() {
     return {
         AND: [
             (0, projectLeads_1.wonClientStatusWhere)(),
             (0, binLeads_1.notInBinFilter)(),
-            { csr: { is: { role: "csr" } } },
         ],
     };
 }

@@ -10,6 +10,8 @@ interface ClientSortControlsProps {
   onSortDir: (v: SortDir) => void;
   /** Hide the field dropdown — Asc/Desc only (e.g. Active Projects locked to code). */
   dirOnly?: boolean;
+  /** Label used in dirOnly button title (default Code). */
+  dirLabel?: string;
   className?: string;
 }
 
@@ -19,6 +21,7 @@ export default function ClientSortControls({
   onSortBy,
   onSortDir,
   dirOnly = false,
+  dirLabel = "Code",
   className = "",
 }: ClientSortControlsProps) {
   return (
@@ -42,8 +45,8 @@ export default function ClientSortControls({
         title={
           dirOnly
             ? sortDir === "asc"
-              ? "Code ascending — click for descending"
-              : "Code descending — click for ascending"
+              ? `${dirLabel} ascending — click for descending`
+              : `${dirLabel} descending — click for ascending`
             : sortDir === "asc"
               ? "Ascending — click for descending"
               : "Descending — click for ascending"

@@ -470,9 +470,9 @@ router.post("/project", verifyToken, allowRoles("csr"), async (req: any, res) =>
       }
     }
 
-    /* From an existing client: keep their New/Old flag — do not promote via prior-win check */
+    /* Second+ project on an existing client → Old. */
     const isOldClient = source
-      ? source.isOldClient
+      ? true
       : (trimmedPhone || company?.trim()
         ? await hasPriorWonClient(trimmedPhone, company?.trim() ?? null)
         : false);
@@ -510,9 +510,13 @@ router.post("/project", verifyToken, allowRoles("csr"), async (req: any, res) =>
       await clearPendingDuplicatesForCompany((company ?? source?.company)!.trim(), csrId, lead.id);
     }
 
-    if (!source) {
-      await reconcileClientOldFlagsForCsr(csrId);
+    if (source && !source.isOldClient) {
+      await prisma.lead.update({
+        where: { id: source.id },
+        data: { isOldClient: true },
+      });
     }
+    await reconcileClientOldFlagsForCsr(csrId);
 
     invalidateCsrLeadCaches(csrId);
     flushAdminClientsCache();
