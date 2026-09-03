@@ -695,8 +695,24 @@ export default function AdminPaymentsPage() {
   }, [month]);
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetchPaymentsSummary(month || null);
+        if (cancelled) return;
+        setData(res);
+      } catch (err) {
+        if (cancelled) return;
+        toast.error(apiErrorMessage(err, "Failed to load payments summary"));
+        setData(null);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [month]);
 
   const openProjectEdit = async (leadId: string) => {
     setViewingLeadId(leadId);
