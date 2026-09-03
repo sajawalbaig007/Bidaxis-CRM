@@ -434,6 +434,11 @@ export async function buildPaymentsSummary(month?: string | null): Promise<Payme
   quotedThisMonth = cashThisMonth + outstandingThisMonth;
   quotedPrevMonth = outstandingPrevMonthOnly;
 
+  /* Current month: quoted with $0 this-month collected → all of that quote is still outstanding. */
+  if (monthFilter && monthFilter === currentMonthEst()) {
+    outstandingThisMonth = Math.max(0, quotedThisMonth - collectedThisMonth);
+  }
+
   const collectedAmount = monthFilter
     ? collectedThisMonth + collectedPrevMonth
     : collectedAllTime;
