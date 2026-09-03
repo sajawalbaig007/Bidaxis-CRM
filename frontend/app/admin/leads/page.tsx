@@ -237,8 +237,8 @@ function ClientsPageContent() {
     lastEmail: "",
     lastCall: "",
     lastComment: "",
-    status: "Active",
-    rawStatus: "active",
+    status: "Closed",
+    rawStatus: "closed",
     csr: "",
     nextFollowup: "",
     time: "",
@@ -498,12 +498,11 @@ function ClientsPageContent() {
       toast.success("Client updated successfully.");
     } else {
       try {
-        const uiStatus = (newClient.status || "Pending").toLowerCase();
+        const uiStatus = (newClient.status || "Closed").trim().toLowerCase();
         const status =
-          uiStatus === "closed" ? "Close Client" :
           uiStatus === "interested" ? "interested" :
-          uiStatus === "active" ? "pending" :
-          "pending";
+          uiStatus === "important" ? "important" :
+          "Close Client";
         const matchedCsr = addCsrId || csrOptions.find(
           c => c.name.trim().toLowerCase() === newClient.csr.trim().toLowerCase(),
         )?.id;
@@ -1452,7 +1451,7 @@ function ClientsPageContent() {
                     }
                     className="w-full border border-gray-200 rounded-xl sm:rounded-2xl px-3 sm:px-4 py-2.5 sm:py-3 text-sm outline-none focus:border-[#B8112D] bg-white"
                   >
-                    {["Active", "Pending", "Closed", "Interested"].map((s) => (
+                    {["Closed", "Interested", "Important"].map((s) => (
                       <option key={s} value={s}>{s}</option>
                     ))}
                   </select>

@@ -7,6 +7,7 @@ exports.leadHasMeetingDate = leadHasMeetingDate;
 exports.importantOnlyWhere = importantOnlyWhere;
 exports.scheduledCallWhere = scheduledCallWhere;
 exports.closedClientStatusWhere = closedClientStatusWhere;
+exports.adminAssignedPendingWhere = adminAssignedPendingWhere;
 exports.allAdminClientViewsWhere = allAdminClientViewsWhere;
 exports.adminClientBucket = adminClientBucket;
 exports.clientCodeFamilyKey = clientCodeFamilyKey;
@@ -86,7 +87,17 @@ function closedClientStatusWhere() {
         ],
     };
 }
-/** Important + Schedule + Interested + Closed (Admin Leads "All" pill). */
+/** Admin/manager manual adds left on pending — must still appear on All / search. */
+function adminAssignedPendingWhere() {
+    return {
+        AND: [
+            statusIn(["pending", "active"]),
+            (0, binLeads_1.notInBinFilter)(),
+            { csr: { is: { role: { in: ["admin", "manager", "technical_manager"] } } } },
+        ],
+    };
+}
+/** Important + Schedule + Interested + Closed + admin-added pending (Admin Leads "All" pill). */
 function allAdminClientViewsWhere() {
     return {
         OR: [
@@ -94,6 +105,7 @@ function allAdminClientViewsWhere() {
             scheduledCallWhere(),
             isInterestedStatusWhere(),
             closedClientStatusWhere(),
+            adminAssignedPendingWhere(),
         ],
     };
 }

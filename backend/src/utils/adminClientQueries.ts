@@ -98,7 +98,18 @@ export function closedClientStatusWhere(): Prisma.LeadWhereInput {
   };
 }
 
-/** Important + Schedule + Interested + Closed (Admin Leads "All" pill). */
+/** Admin/manager manual adds left on pending — must still appear on All / search. */
+export function adminAssignedPendingWhere(): Prisma.LeadWhereInput {
+  return {
+    AND: [
+      statusIn(["pending", "active"]),
+      notInBinFilter(),
+      { csr: { is: { role: { in: ["admin", "manager", "technical_manager"] } } } },
+    ],
+  };
+}
+
+/** Important + Schedule + Interested + Closed + admin-added pending (Admin Leads "All" pill). */
 export function allAdminClientViewsWhere(): Prisma.LeadWhereInput {
   return {
     OR: [
@@ -106,6 +117,7 @@ export function allAdminClientViewsWhere(): Prisma.LeadWhereInput {
       scheduledCallWhere(),
       isInterestedStatusWhere(),
       closedClientStatusWhere(),
+      adminAssignedPendingWhere(),
     ],
   };
 }

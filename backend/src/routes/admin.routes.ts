@@ -350,8 +350,8 @@ router.get("/clients/tab-counts", verifyToken, allowRoles("admin", "manager", "t
       search || state || phonePrefix || scheduleDate || areaCodes.length || assignee.csrId
     );
     const CACHE_KEY = hasFilters
-      ? `admin:clients:tab-counts:v9:${search ?? ""}:${state ?? ""}:${phonePrefix ?? ""}:${scheduleDate ?? ""}:${areaCodes.join(",")}:${assignee.csrId ?? "all"}`
-      : "admin:clients:tab-counts:v9";
+      ? `admin:clients:tab-counts:v10:${search ?? ""}:${state ?? ""}:${phonePrefix ?? ""}:${scheduleDate ?? ""}:${areaCodes.join(",")}:${assignee.csrId ?? "all"}`
+      : "admin:clients:tab-counts:v10";
 
     const cached = getCache<object>(CACHE_KEY);
     if (cached) return res.json(cached);
@@ -414,7 +414,7 @@ router.get("/clients", verifyToken, allowRoles("admin", "manager", "technical_ma
     const sortDir = String(req.query.dir || "desc").toLowerCase() === "asc" ? "asc" : "desc";
     const assignee = await resolveCsrAssignedTo(csrIdRaw, csrName);
 
-    const cacheKey = `admin:clients:list:v13:${view}:${page}:${limit}:${sortBy}:${sortDir}:${assignee.csrId ?? "all"}:${search ?? ""}:${scheduleDate ?? ""}:${state ?? ""}:${phonePrefix ?? ""}:${areaCodes.join(",")}`;
+    const cacheKey = `admin:clients:list:v14:${view}:${page}:${limit}:${sortBy}:${sortDir}:${assignee.csrId ?? "all"}:${search ?? ""}:${scheduleDate ?? ""}:${state ?? ""}:${phonePrefix ?? ""}:${areaCodes.join(",")}`;
     const cached = getCache<object>(cacheKey);
     if (cached) return res.json(cached);
 
@@ -580,14 +580,12 @@ router.post("/lead", verifyToken, allowRoles("admin", "manager", "technical_mana
 
     const trimmedPhone = phone?.trim() || null;
     const existingLeads = trimmedPhone ? await findLeadsByPhone(trimmedPhone) : [];
-    const rawStatus = String(status ?? "pending").trim();
+    const rawStatus = String(status ?? "Close Client").trim();
     const n = rawStatus.toLowerCase();
     const canonical =
-      n === "close client" || n === "closed" ? "Close Client" :
       n === "interested" ? "interested" :
       n === "important" ? "important" :
-      n === "pending" || n === "active" ? "pending" :
-      rawStatus || "pending";
+      "Close Client";
 
     const lead = await prisma.lead.create({
       data: {
