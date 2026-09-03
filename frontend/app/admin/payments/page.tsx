@@ -1042,14 +1042,14 @@ export default function AdminPaymentsPage() {
               value={loading && !data ? "…" : formatMoneyAlways(t?.outstandingAmount ?? 0)}
               hint={
                 month
-                  ? "Unpaid with quote this month + all-time outstanding"
+                  ? "This month outstanding + all-time outstanding"
                   : `${t?.unpaidWithQuoteCount ?? 0} unpaid · ${t?.partialPaidCount ?? 0} partial`
               }
               accent="#DC2626"
               icon={AlertCircle}
             >
               <MonthCompare
-                thisLabel="Unpaid with quote"
+                thisLabel="This month outstanding"
                 thisValue={t?.outstandingThisMonth ?? 0}
                 prevValue={t?.outstandingPrevMonths ?? 0}
                 prevLabel="All time outstanding"
