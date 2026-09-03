@@ -979,7 +979,7 @@ export default function AdminPaymentsPage() {
               value={loading && !data ? "…" : formatMoneyAlways(t?.quotedAmount ?? 0)}
               hint={
                 month
-                  ? `${t?.quotedProjects ?? 0} projects that arrived this month`
+                  ? `${t?.quotedProjects ?? 0} arrived this month — same quotes as the project list`
                   : `${t?.quotedProjects ?? 0} projects with quote`
               }
               accent="#2563EB"
@@ -1167,10 +1167,7 @@ export default function AdminPaymentsPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
               {channels.map((ch) => {
                 const style = CHANNEL_STYLES[ch.key];
-                const active = CURRENCY_ORDER.filter((c) => {
-                  if (c === "PKR") return (ch.pkrFormula ?? 0) > 0 || (ch.totals.PKR ?? 0) > 0;
-                  return (ch.totals[c] ?? 0) > 0;
-                });
+                const active = CURRENCY_ORDER.filter((c) => (ch.totals[c] ?? 0) > 0);
                 const primary =
                   active.length === 1
                     ? formatMoneyAlways(ch.totals[active[0]!], active[0])
@@ -1205,7 +1202,7 @@ export default function AdminPaymentsPage() {
                       {ch.projectCount} project{ch.projectCount === 1 ? "" : "s"}
                       {active.length > 0 ? ` · ${active.join(" + ")}` : " · No currency yet"}
                     </p>
-                    <CurrencyBreakdown totals={ch.totals} accent={style.color} pkrFormula={ch.pkrFormula} />
+                    <CurrencyBreakdown totals={ch.totals} accent={style.color} />
                   </div>
                 );
               })}
