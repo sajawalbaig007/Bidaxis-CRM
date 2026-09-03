@@ -267,8 +267,8 @@ router.get("/clients/tab-counts", auth_middleware_1.verifyToken, (0, role_middle
         const assignee = await resolveCsrAssignedTo(csrIdRaw, csrName);
         const hasFilters = !!(search || state || phonePrefix || scheduleDate || areaCodes.length || assignee.csrId);
         const CACHE_KEY = hasFilters
-            ? `admin:clients:tab-counts:v8:${search ?? ""}:${state ?? ""}:${phonePrefix ?? ""}:${scheduleDate ?? ""}:${areaCodes.join(",")}:${assignee.csrId ?? "all"}`
-            : "admin:clients:tab-counts:v8";
+            ? `admin:clients:tab-counts:v9:${search ?? ""}:${state ?? ""}:${phonePrefix ?? ""}:${scheduleDate ?? ""}:${areaCodes.join(",")}:${assignee.csrId ?? "all"}`
+            : "admin:clients:tab-counts:v9";
         const cached = (0, cache_1.getCache)(CACHE_KEY);
         if (cached)
             return res.json(cached);
@@ -326,11 +326,13 @@ router.get("/clients", auth_middleware_1.verifyToken, (0, role_middleware_1.allo
         const sortBy = sortRaw === "clientcode" || sortRaw === "client_code" ? "clientCode" : "notes";
         const sortDir = String(req.query.dir || "desc").toLowerCase() === "asc" ? "asc" : "desc";
         const assignee = await resolveCsrAssignedTo(csrIdRaw, csrName);
-        const cacheKey = `admin:clients:list:v12:${view}:${page}:${limit}:${sortBy}:${sortDir}:${assignee.csrId ?? "all"}:${search ?? ""}:${scheduleDate ?? ""}:${state ?? ""}:${phonePrefix ?? ""}:${areaCodes.join(",")}`;
+        const cacheKey = `admin:clients:list:v13:${view}:${page}:${limit}:${sortBy}:${sortDir}:${assignee.csrId ?? "all"}:${search ?? ""}:${scheduleDate ?? ""}:${state ?? ""}:${phonePrefix ?? ""}:${areaCodes.join(",")}`;
         const cached = (0, cache_1.getCache)(cacheKey);
         if (cached)
             return res.json(cached);
-        const fetchView = view === "important" || view === "schedule" ? "important_status" : view;
+        const fetchView = search
+            ? "all"
+            : view === "important" || view === "schedule" ? "important_status" : view;
         const where = (0, adminClientQueries_1.buildAdminClientListWhere)(fetchView, assignee.csrName, search, undefined, {
             state,
             phonePrefix,
@@ -340,6 +342,7 @@ router.get("/clients", auth_middleware_1.verifyToken, (0, role_middleware_1.allo
         const identitySelect = {
             id: true,
             phone: true,
+            email: true,
             company: true,
             clientCode: true,
             projectCode: true,
@@ -413,13 +416,9 @@ router.get("/clients", auth_middleware_1.verifyToken, (0, role_middleware_1.allo
             }
             const ka = (0, adminClientQueries_1.adminLeadIdentityKey)(a, preferClientCode);
             const kb = (0, adminClientQueries_1.adminLeadIdentityKey)(b, preferClientCode);
-            const na = groupNoteMs.get(ka) ?? 0;
-            const nb = groupNoteMs.get(kb) ?? 0;
+            const na = groupNoteMs.get(ka) || a.updatedAt.getTime();
+            const nb = groupNoteMs.get(kb) || b.updatedAt.getTime();
             if (na !== nb) {
-                if (na === 0)
-                    return 1;
-                if (nb === 0)
-                    return -1;
                 return sortDir === "asc" ? na - nb : nb - na;
             }
             return sortDir === "asc"
@@ -507,6 +506,7 @@ router.post("/lead", auth_middleware_1.verifyToken, (0, role_middleware_1.allowR
                 interested: canonical === "interested",
                 isOldClient: existingLeads.length > 0,
                 hiddenOnMain: canonical === "Close Client",
+                inBin: false,
                 interestedService: interestedService?.trim() || null,
                 comments: comments?.trim() || null,
             },
