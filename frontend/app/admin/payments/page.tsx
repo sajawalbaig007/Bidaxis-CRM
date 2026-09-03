@@ -979,7 +979,7 @@ export default function AdminPaymentsPage() {
               value={loading && !data ? "…" : formatMoneyAlways(t?.quotedAmount ?? 0)}
               hint={
                 month
-                  ? `${t?.quotedProjects ?? 0} projects · collected this month + still due`
+                  ? `${t?.quotedProjects ?? 0} projects quoted this month`
                   : `${t?.quotedProjects ?? 0} projects with quote`
               }
               accent="#2563EB"
@@ -1020,7 +1020,7 @@ export default function AdminPaymentsPage() {
               value={loading && !data ? "…" : formatMoneyAlways(t?.outstandingAmount ?? 0)}
               hint={
                 month
-                  ? `Still due after all payments · ${t?.unpaidWithQuoteCount ?? 0} unpaid · ${t?.partialPaidCount ?? 0} partial`
+                  ? `Open balance through this month · ${t?.unpaidWithQuoteCount ?? 0} unpaid · ${t?.partialPaidCount ?? 0} partial`
                   : `${t?.unpaidWithQuoteCount ?? 0} unpaid · ${t?.partialPaidCount ?? 0} partial`
               }
               accent="#DC2626"

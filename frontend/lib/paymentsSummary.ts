@@ -1,4 +1,5 @@
 import API from "@/lib/api";
+import { estCurrentMonthValue } from "@/lib/estTime";
 
 export type PaymentChannelKey = "AH" | "SN" | "CHQ" | "HM";
 
@@ -107,7 +108,7 @@ export const CHANNEL_STYLES: Record<
 };
 
 export function currentMonthIso(): string {
-  return new Date().toISOString().slice(0, 7);
+  return estCurrentMonthValue();
 }
 
 export function formatMoney(n: number, currency?: string | null): string {
