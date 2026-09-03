@@ -101,8 +101,10 @@ export type PaymentsSummaryPayload = {
     quotedPrevMonth: number;
     collectedThisMonth: number;
     collectedPrevMonth: number;
+    collectedFromPending: number;
     outstandingThisMonth: number;
     outstandingPrevMonths: number;
+    outstandingPrevMonthOnly: number;
   };
   statusBreakdown: {
     paid: number;
@@ -255,6 +257,7 @@ export async function buildPaymentsSummary(month?: string | null): Promise<Payme
   let quotedPrevMonth = 0;
   let collectedThisMonth = 0;
   let collectedPrevMonth = 0;
+  let collectedFromPending = 0;
   let outstandingThisMonth = 0;
   let outstandingPrevMonthOnly = 0;
   let outstandingPrevMonths = 0;
@@ -298,6 +301,7 @@ export async function buildPaymentsSummary(month?: string | null): Promise<Payme
       collectedAllTime += amt;
       if (payMonth === thisMonthKey) collectedThisMonth += amt;
       else if (payMonth === prevMonthKey) collectedPrevMonth += amt;
+      if (createdMonth && createdMonth < thisMonthKey) collectedFromPending += amt;
 
       const inCollectedView = !monthFilter || payMonth === monthFilter;
       if (!inCollectedView) continue;
@@ -466,8 +470,10 @@ export async function buildPaymentsSummary(month?: string | null): Promise<Payme
       quotedPrevMonth,
       collectedThisMonth,
       collectedPrevMonth,
+      collectedFromPending,
       outstandingThisMonth,
       outstandingPrevMonths,
+      outstandingPrevMonthOnly,
     },
     statusBreakdown: {
       paid: fullPaidCount,

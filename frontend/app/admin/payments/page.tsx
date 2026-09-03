@@ -1008,7 +1008,8 @@ export default function AdminPaymentsPage() {
             >
               {t?.collectedByCurrency ? <CurrencyLines totals={t.collectedByCurrency} /> : null}
               <MonthCompare
-                thisValue={t?.collectedThisMonth ?? 0}
+                thisLabel="All time"
+                thisValue={t?.collectedFromPending ?? 0}
                 prevValue={t?.collectedPrevMonth ?? 0}
                 prevLabel="Prev month collected"
                 thisClass="text-emerald-600"
@@ -1027,7 +1028,8 @@ export default function AdminPaymentsPage() {
               icon={AlertCircle}
             >
               <MonthCompare
-                thisValue={t?.outstandingThisMonth ?? 0}
+                thisLabel="Previous month"
+                thisValue={t?.outstandingPrevMonthOnly ?? 0}
                 prevValue={t?.outstandingPrevMonths ?? 0}
                 prevLabel="Pending"
                 thisClass="text-red-600"
