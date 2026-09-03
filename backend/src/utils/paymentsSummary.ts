@@ -137,8 +137,21 @@ function shiftMonth(yyyyMm: string, delta: number): string {
 
 function calendarMonthEst(d: Date | string | null | undefined): string | null {
   if (!d) return null;
-  const dt = typeof d === "string" ? new Date(d) : d;
+  if (typeof d === "string") {
+    const m = d.trim().match(/^(\d{4}-\d{2})/);
+    if (m) return m[1];
+  }
+  const dt = d instanceof Date ? d : new Date(d);
   if (Number.isNaN(dt.getTime())) return null;
+  /* Date-only UTC midnight must not roll back to the previous EST calendar month. */
+  if (
+    dt.getUTCHours() === 0 &&
+    dt.getUTCMinutes() === 0 &&
+    dt.getUTCSeconds() === 0 &&
+    dt.getUTCMilliseconds() === 0
+  ) {
+    return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, "0")}`;
+  }
   return estDateYmd(dt).slice(0, 7);
 }
 
@@ -245,6 +258,7 @@ export async function buildPaymentsSummary(month?: string | null): Promise<Payme
   let collectedPrevMonth = 0;
   let outstandingThisMonth = 0;
   let outstandingPrevMonths = 0;
+  const quotedListedIds = new Set<string>();
   const collectedByCurrency = emptyChannelTotals();
   let projectCount = 0;
 
@@ -261,23 +275,15 @@ export async function buildPaymentsSummary(month?: string | null): Promise<Payme
     const discarded = Boolean(lead.paymentDiscarded);
 
     const createdMonth = calendarMonthEst(lead.createdAt);
-    const unpaidQuotedThisMonth =
-      quoted > 0 && paidTotalAllTime <= 0 && createdMonth === monthFilter;
+    const arrivedThisMonth = quoted > 0 && createdMonth === monthFilter;
+    const unpaidQuotedThisMonth = arrivedThisMonth && paidTotalAllTime <= 0;
 
-    /* Quoted = projects that arrived this month. Outstanding = still pending on those projects. */
     if (quoted > 0) {
       quotedAllTime += quoted;
-      if (!monthFilter || createdMonth === monthFilter) quotedProjects += 1;
-      if (createdMonth === thisMonthKey) quotedThisMonth += quoted;
-      else if (createdMonth === prevMonthKey) quotedPrevMonth += quoted;
-      if (!discarded && remainingDue > 0) {
-        outstandingAllTime += remainingDue;
-        if (createdMonth === thisMonthKey) outstandingThisMonth += remainingDue;
-        else if (createdMonth === prevMonthKey) outstandingPrevMonths += remainingDue;
-      }
+      if (!discarded && remainingDue > 0) outstandingAllTime += remainingDue;
     }
 
-    /* Collected = paid amount on the payment-link date. */
+    /* Collected = paid amount on the payment-link date (every project). */
     for (const entry of allPayments) {
       if (!entry.isPaid) continue;
       const amt = parseMoney(entry.amount);
@@ -308,17 +314,29 @@ export async function buildPaymentsSummary(month?: string | null): Promise<Payme
     }
 
     /**
-     * Lists stay month-scoped:
-     * - Payments received this month
-     * - Unpaid quotes created this month
+     * Lists = payments dated this month, plus this month’s arrived projects that still have pending.
+     * Cards then use those same rows so totals match the amounts on each project.
      */
     if (monthFilter) {
-      if (!hasMonthPay && !unpaidQuotedThisMonth) continue;
+      if (!hasMonthPay && !(arrivedThisMonth && remainingDue > 0)) continue;
     } else if (quoted <= 0 && allPayments.length === 0) {
       continue;
     }
 
     projectCount += 1;
+
+    if (quoted > 0 && !quotedListedIds.has(lead.id)) {
+      quotedListedIds.add(lead.id);
+      if (!monthFilter) quotedProjects += 1;
+      if (createdMonth === thisMonthKey) {
+        quotedThisMonth += quoted;
+        if (monthFilter) quotedProjects += 1;
+        if (!discarded && remainingDue > 0) outstandingThisMonth += remainingDue;
+      } else if (createdMonth === prevMonthKey) {
+        quotedPrevMonth += quoted;
+        if (!discarded && remainingDue > 0) outstandingPrevMonths += remainingDue;
+      }
+    }
 
     const rowPayments = (monthFilter ? paidInScope : allPayments)
       .map(entrySummary)
@@ -371,19 +389,19 @@ export async function buildPaymentsSummary(month?: string | null): Promise<Payme
           rowKey: `${lead.id}-collected`,
           sumAmount: paidTotalDisplay,
         });
-        if (remainingDue > 0) {
-          unpaidProjects.push({
-            ...row,
-            rowKey: `${lead.id}-unpaid`,
-            status: "unpaid",
-            sumAmount: remainingDue,
-            unpaidFromPartial: true,
-            payments: [],
-          });
-        }
+      }
+      if (remainingDue > 0 && (!monthFilter || hasMonthPay || arrivedThisMonth)) {
+        unpaidProjects.push({
+          ...row,
+          rowKey: `${lead.id}-unpaid`,
+          status: "unpaid",
+          sumAmount: remainingDue,
+          unpaidFromPartial: true,
+          payments: [],
+        });
       }
     } else if (quoted > 0) {
-      if (!monthFilter || unpaidQuotedThisMonth) {
+      if (!monthFilter || unpaidQuotedThisMonth || (arrivedThisMonth && remainingDue > 0)) {
         unpaidWithQuoteCount += 1;
         unpaidProjects.push({
           ...row,
