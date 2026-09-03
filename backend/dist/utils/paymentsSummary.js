@@ -165,15 +165,17 @@ async function buildPaymentsSummary(month) {
         const pctAllTime = (0, projectPayments_1.paymentPercent)(allPayments, lead.projectBudget);
         const remainingDue = quoted > 0 ? Math.max(0, quoted - paidTotalAllTime) : 0;
         const discarded = Boolean(lead.paymentDiscarded);
+        const createdMonth = calendarMonthEst(lead.createdAt);
         const projectMonth = projectBusinessMonth(lead.createdAt, allPayments);
+        /** Outstanding / unpaid-with-quote = invoices created in that month, still due. */
         if (quoted > 0) {
             if (!discarded && remainingDue > 0) {
                 outstandingAllTime += remainingDue;
-                if (projectMonth === thisMonthKey)
+                if (createdMonth === thisMonthKey)
                     outstandingThisMonth += remainingDue;
-                else if (projectMonth && projectMonth < thisMonthKey) {
+                else if (createdMonth && createdMonth < thisMonthKey) {
                     outstandingPrevMonths += remainingDue;
-                    if (projectMonth === prevMonthKey)
+                    if (createdMonth === prevMonthKey)
                         outstandingPrevMonthOnly += remainingDue;
                 }
             }
@@ -226,21 +228,14 @@ async function buildPaymentsSummary(month) {
                 ch.activeCurrencies.push(entry.currency);
             }
         }
-        /** Month view = projects that belong to that business month. */
+        const showCollected = !monthFilter || projectMonth === monthFilter;
+        const showUnpaidInvoice = quoted > 0 && remainingDue > 0;
         if (monthFilter) {
-            if (projectMonth !== monthFilter)
+            if (!showCollected && !showUnpaidInvoice)
                 continue;
         }
         else if (quoted <= 0 && allPayments.length === 0) {
             continue;
-        }
-        projectCount += 1;
-        if (quoted > 0 && !quotedListedIds.has(lead.id)) {
-            quotedListedIds.add(lead.id);
-            if (!monthFilter)
-                quotedProjects += 1;
-            else if (projectMonth === thisMonthKey)
-                quotedProjects += 1;
         }
         const monthPayments = monthFilter
             ? allPayments.filter((e) => e.isPaid && paymentDateMonth(e) === monthFilter)
@@ -275,18 +270,26 @@ async function buildPaymentsSummary(month) {
             remainingDue,
             payments: rowPayments,
         };
-        if (status === "full") {
-            if (paidTotalDisplay > 0) {
-                fullPaidCount += 1;
-                fullPaidProjects.push({
-                    ...row,
-                    rowKey: `${lead.id}-collected`,
-                    sumAmount: paidTotalDisplay,
-                });
+        if (showCollected) {
+            projectCount += 1;
+            if (quoted > 0 && !quotedListedIds.has(lead.id)) {
+                quotedListedIds.add(lead.id);
+                if (!monthFilter)
+                    quotedProjects += 1;
+                else if (projectMonth === thisMonthKey)
+                    quotedProjects += 1;
             }
-        }
-        else if (status === "partial") {
-            if (paidTotalDisplay > 0) {
+            if (status === "full") {
+                if (paidTotalDisplay > 0) {
+                    fullPaidCount += 1;
+                    fullPaidProjects.push({
+                        ...row,
+                        rowKey: `${lead.id}-collected`,
+                        sumAmount: paidTotalDisplay,
+                    });
+                }
+            }
+            else if (status === "partial" && paidTotalDisplay > 0) {
                 partialPaidCount += 1;
                 partialPaidProjects.push({
                     ...row,
@@ -294,7 +297,9 @@ async function buildPaymentsSummary(month) {
                     sumAmount: paidTotalDisplay,
                 });
             }
-            if (remainingDue > 0) {
+        }
+        if (showUnpaidInvoice) {
+            if (status === "partial") {
                 unpaidProjects.push({
                     ...row,
                     rowKey: `${lead.id}-unpaid`,
@@ -304,22 +309,18 @@ async function buildPaymentsSummary(month) {
                     payments: [],
                 });
             }
-        }
-        else if (quoted > 0) {
-            unpaidWithQuoteCount += 1;
-            unpaidProjects.push({
-                ...row,
-                rowKey: `${lead.id}-unpaid`,
-                sumAmount: quoted,
-            });
+            else if (status === "unpaid") {
+                unpaidWithQuoteCount += 1;
+                unpaidProjects.push({
+                    ...row,
+                    rowKey: `${lead.id}-unpaid`,
+                    sumAmount: quoted,
+                });
+            }
         }
     }
     quotedThisMonth = cashThisMonth + outstandingThisMonth;
     quotedPrevMonth = outstandingPrevMonthOnly;
-    /* Current month: quoted with $0 this-month collected → all of that quote is still outstanding. */
-    if (monthFilter && monthFilter === currentMonthEst()) {
-        outstandingThisMonth = Math.max(0, quotedThisMonth - collectedThisMonth);
-    }
     const collectedAmount = monthFilter
         ? collectedThisMonth + collectedPrevMonth
         : collectedAllTime;
