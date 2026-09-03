@@ -979,7 +979,7 @@ export default function AdminPaymentsPage() {
               value={loading && !data ? "…" : formatMoneyAlways(t?.quotedAmount ?? 0)}
               hint={
                 month
-                  ? `${t?.quotedProjects ?? 0} projects quoted this month`
+                  ? `${t?.quotedProjects ?? 0} projects that arrived this month`
                   : `${t?.quotedProjects ?? 0} projects with quote`
               }
               accent="#2563EB"
@@ -1002,7 +1002,7 @@ export default function AdminPaymentsPage() {
             <KpiCard
               title="Collected"
               value={loading && !data ? "…" : formatMoneyAlways(t?.collectedAmount ?? 0)}
-              hint={`${t?.collectedEntries ?? 0} payment entries`}
+              hint={`${t?.collectedEntries ?? 0} payments by payment date`}
               accent="#059669"
               icon={TrendingUp}
             >
@@ -1020,7 +1020,7 @@ export default function AdminPaymentsPage() {
               value={loading && !data ? "…" : formatMoneyAlways(t?.outstandingAmount ?? 0)}
               hint={
                 month
-                  ? `Open balance through this month · ${t?.unpaidWithQuoteCount ?? 0} unpaid · ${t?.partialPaidCount ?? 0} partial`
+                  ? `Pending on this month’s projects · ${t?.unpaidWithQuoteCount ?? 0} unpaid · ${t?.partialPaidCount ?? 0} partial`
                   : `${t?.unpaidWithQuoteCount ?? 0} unpaid · ${t?.partialPaidCount ?? 0} partial`
               }
               accent="#DC2626"
@@ -1029,7 +1029,7 @@ export default function AdminPaymentsPage() {
               <MonthCompare
                 thisValue={t?.outstandingThisMonth ?? 0}
                 prevValue={t?.outstandingPrevMonths ?? 0}
-                prevLabel="Previous months"
+                prevLabel="Prev month"
                 thisClass="text-red-600"
                 prevClass="text-red-800"
               />
