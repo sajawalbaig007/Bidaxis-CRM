@@ -13,6 +13,7 @@ exports.emitConversationRead = emitConversationRead;
 exports.emitPinnedMessage = emitPinnedMessage;
 exports.emitPresence = emitPresence;
 exports.notifyCsrDataReset = notifyCsrDataReset;
+exports.forceLogoutUser = forceLogoutUser;
 exports.notifyLoginAttempt = notifyLoginAttempt;
 exports.notifyAdminSummaryStale = notifyAdminSummaryStale;
 exports.isChatSocketReady = isChatSocketReady;
@@ -249,6 +250,25 @@ function emitPresence(userId, isOnline) {
 /** Tell a CSR browser to drop cached lists after admin reset. */
 function notifyCsrDataReset(csrId) {
     sendToUser(csrId, { type: "csr-data-reset" });
+}
+/** Drop every live socket for this user and tell their browser to sign out. */
+function forceLogoutUser(userId) {
+    sendToUser(userId, {
+        type: "auth:force_logout",
+        message: "You were logged out from all devices by an administrator.",
+    });
+    setTimeout(() => {
+        const set = userSockets.get(userId);
+        if (!set)
+            return;
+        for (const ws of [...set]) {
+            try {
+                ws.close(4401, "Logged out");
+            }
+            catch { /* ignore */ }
+        }
+    }, 150);
+    broadcastPresence(userId, false);
 }
 /** Notify the active session that another device tried to log in. */
 function notifyLoginAttempt(userId, attemptId) {

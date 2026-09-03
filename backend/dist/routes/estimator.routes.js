@@ -65,6 +65,8 @@ router.get("/projects", async (req, res) => {
         const me = await currentEstimator(req);
         if (!me)
             return res.status(401).json({ success: false, message: "Unauthorized" });
+        /* Overnight / forgotten Start → Pause (keep timerSeconds); never auto-Complete */
+        await (0, technicalEstimators_1.pauseStaleTimersForEstimator)(me);
         const raw = await db_1.default.lead.findMany({
             where: {
                 ...(0, projectLeads_1.buildProjectLeadWhere)(),
@@ -107,6 +109,7 @@ router.get("/dashboard", async (req, res) => {
         const me = await currentEstimator(req);
         if (!me)
             return res.status(401).json({ success: false, message: "Unauthorized" });
+        await (0, technicalEstimators_1.pauseStaleTimersForEstimator)(me);
         const raw = await db_1.default.lead.findMany({
             where: {
                 ...(0, projectLeads_1.buildProjectLeadWhere)(),
@@ -211,7 +214,7 @@ router.put("/project/:id/timer", async (req, res) => {
         if (current.takeoffDone) {
             return res.status(400).json({
                 success: false,
-                message: "Completed tasks are locked. Ask Chief Estimation to set pending if needed.",
+                message: "Completed tasks are locked. Ask Chief Estimator to set pending if needed.",
             });
         }
         if (action === "start") {
@@ -340,7 +343,7 @@ router.put("/project/:id/takeoff", async (req, res) => {
         if (!takeoffDone) {
             return res.status(403).json({
                 success: false,
-                message: "Only Chief Estimation can set a completed task back to pending.",
+                message: "Only Chief Estimator can set a completed task back to pending.",
             });
         }
         const leadId = String(req.params.id);
@@ -439,7 +442,7 @@ router.post("/lead/:id/notes", async (req, res) => {
             source: "estimator",
             title: "Estimator note",
             message: `${me.name} on ${label}: ${text.slice(0, 160)}`,
-            changes: ["Notes for Chief Estimation"],
+            changes: ["Notes for Chief Estimator"],
         });
         return res.json({
             success: true,
@@ -649,13 +652,20 @@ router.post("/check-in", async (req, res) => {
 });
 router.post("/check-out", async (req, res) => {
     try {
+        const me = await currentEstimator(req);
+        /* Leaving for the day: pause project timers so tomorrow resumes from same time */
+        if (me) {
+            await (0, technicalEstimators_1.pauseOtherRunningTimersForEstimator)(me);
+        }
         const closed = await (0, csrSessionTracking_1.checkOutCsrWorkSession)(req.user.id);
         return res.json({
             success: true,
             closed,
             checkedIn: false,
             session: null,
-            message: closed ? "Checked out successfully." : "No active check-in.",
+            message: closed
+                ? "Checked out — project timers paused. Resume tomorrow from the same time."
+                : "No active check-in.",
         });
     }
     catch (error) {

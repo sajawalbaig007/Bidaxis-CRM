@@ -4,6 +4,7 @@ exports.NOT_PICKED_LIMIT = exports.NOT_INTERESTED_LIMIT = void 0;
 exports.binReasonLabel = binReasonLabel;
 exports.resolveDeleteBinReason = resolveDeleteBinReason;
 exports.notInBinFilter = notInBinFilter;
+exports.notHiddenOnMainFilter = notHiddenOnMainFilter;
 exports.activeCsrLeadWhere = activeCsrLeadWhere;
 exports.mainPipelineWhere = mainPipelineWhere;
 exports.pendingLeadWhere = pendingLeadWhere;
@@ -38,6 +39,10 @@ function resolveDeleteBinReason(status) {
 function notInBinFilter() {
     return { NOT: { inBin: true } };
 }
+/** Visible on CSR main pipeline — includes legacy docs where hiddenOnMain was never persisted */
+function notHiddenOnMainFilter() {
+    return { NOT: { hiddenOnMain: true } };
+}
 /** Active leads for a CSR (not in bin) — same rules as legacy filterActiveLeads for inBin */
 function activeCsrLeadWhere(csrId) {
     return {
@@ -48,13 +53,13 @@ function activeCsrLeadWhere(csrId) {
 /** Main dashboard pipeline — matches old frontend mainLeads (!hiddenOnMain) */
 function mainPipelineWhere(csrId) {
     return {
-        ...activeCsrLeadWhere(csrId),
-        hiddenOnMain: false,
+        AND: [activeCsrLeadWhere(csrId), notHiddenOnMainFilter()],
     };
 }
+/** Today / Pending queue — pending status is enough; hiddenOnMain must not hide them */
 function pendingLeadWhere(csrId) {
     return {
-        ...mainPipelineWhere(csrId),
+        ...activeCsrLeadWhere(csrId),
         status: { equals: "pending", mode: "insensitive" },
     };
 }

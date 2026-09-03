@@ -151,6 +151,7 @@ router.post("/upload-cnic", (0, role_middleware_1.allowRoles)("admin"), upload_m
     }
 });
 router.put("/:id/password", (0, role_middleware_1.allowRoles)("admin"), user_controller_1.adminSetUserPassword);
+router.post("/:id/logout-all", (0, role_middleware_1.allowRoles)("admin"), user_controller_1.adminLogoutAllDevices);
 router.put("/:id", (0, role_middleware_1.allowRoles)("admin"), user_controller_1.updateUser);
 router.delete("/:id", (0, role_middleware_1.allowRoles)("admin"), user_controller_1.deleteUser);
 exports.default = router;

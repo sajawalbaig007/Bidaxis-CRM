@@ -44,7 +44,8 @@ const uploadImage = (0, multer_1.default)({
 });
 const uploadExcel = (0, multer_1.default)({
     storage,
-    limits: { fileSize: 15 * 1024 * 1024, files: 1 },
+    /* 50k+ lead sheets are often 20–80MB; keep headroom for denser CSVs */
+    limits: { fileSize: 100 * 1024 * 1024, files: 1 },
     fileFilter: excelFilter,
 });
 exports.uploadExcel = uploadExcel;

@@ -11,6 +11,8 @@ const db_1 = __importDefault(require("../config/db"));
 const leadPhoneLookup_1 = require("./leadPhoneLookup");
 const leadClientPromotion_1 = require("./leadClientPromotion");
 const CHUNK_LOOKUP = 500;
+/** Cap in-memory preview while classifying — large sheets still process all rows. */
+const CLASSIFY_PREVIEW_CAP = 500;
 function normalizeHeaderKey(key) {
     return key.trim().toLowerCase().replace(/[\s_]+/g, " ");
 }
@@ -167,6 +169,13 @@ function parseLeadRows(data, csrs, initialStatuses, leadType) {
             "notes", "note", "comments", "comment", "remarks", "remark",
             "conversation", "discussion", "talk", "history", "follow up", "followup",
         ], ["project"]),
+        // Sheet columns: "Search Trade" = main trade, "Trades" = sub-trade / trade type
+        trade: resolveColumnKey(headerKeys, ["search trade", "searchtrade", "main trade", "maintrade", "trade", "csi", "division"], ["sub", "trades"]),
+        subTrades: resolveColumnKey(headerKeys, ["sub trades", "subtrades", "sub trade", "subtrade", "trades", "trade type", "trade types"], ["search"]),
+        subContacts: resolveColumnKey(headerKeys, [
+            "sub contacts", "subcontacts", "sub contact", "subcontact",
+            "additional contacts", "other contacts",
+        ]),
     };
     const parsed = [];
     for (let i = 0; i < data.length; i++) {
@@ -199,6 +208,9 @@ function parseLeadRows(data, csrs, initialStatuses, leadType) {
             projectTitle: readCell(row, col.projectTitle) || (isActiveUpload ? "" : null),
             projectBudget: readCell(row, col.projectBudget) || null,
             comments: readCell(row, col.comments) || null,
+            trade: readCell(row, col.trade),
+            subTrades: readCell(row, col.subTrades),
+            subContactsRaw: readCell(row, col.subContacts),
             csrId: csr.id,
             csrName: csr.name,
             status: initialStatuses[i % initialStatuses.length],
@@ -233,24 +245,30 @@ async function classifyRows(parsed, isActiveUpload, _uploadCategory = "call-data
     /* Back-compat: older callers passed promoteWonClients as the 3rd arg */
     const promoteWonClients = typeof _uploadCategory === "boolean" ? _uploadCategory : promoteWonClientsArg;
     const preview = [];
-    const toPreview = (r, status, reason) => ({
-        row: r.rowIndex,
-        name: r.name || "—",
-        phone: r.phone || "—",
-        email: r.email || "—",
-        company: r.company || "—",
-        ...(r.interestedService ? { interestedService: r.interestedService } : {}),
-        status,
-        reason,
-    });
+    const previewCounts = { new: 0, duplicate: 0, updated: 0, empty: 0 };
+    const pushPreview = (r, status, reason) => {
+        previewCounts[status] += 1;
+        if (preview.length >= CLASSIFY_PREVIEW_CAP)
+            return;
+        preview.push({
+            row: r.rowIndex,
+            name: r.name || "—",
+            phone: r.phone || "—",
+            email: r.email || "—",
+            company: r.company || "—",
+            ...(r.interestedService ? { interestedService: r.interestedService } : {}),
+            status,
+            reason,
+        });
+    };
     if (isActiveUpload) {
         const validParsed = parsed.filter(r => r.name);
         const uniqueCodes = [...new Set(validParsed.map(r => r.clientCode).filter((c) => !!c))];
         const existingLeads = uniqueCodes.length
-            ? await db_1.default.lead.findMany({
-                where: { clientCode: { in: uniqueCodes } },
+            ? await chunkedLookup(uniqueCodes, CHUNK_LOOKUP, chunk => db_1.default.lead.findMany({
+                where: { clientCode: { in: chunk } },
                 select: { id: true, clientCode: true, inBin: true },
-            })
+            }))
             : [];
         const existingCodeMap = new Map(existingLeads.map(l => [l.clientCode, l.id]));
         const binByCode = new Map(existingLeads.filter(l => l.inBin).map(l => [l.clientCode, l.id]));
@@ -259,29 +277,40 @@ async function classifyRows(parsed, isActiveUpload, _uploadCategory = "call-data
         const toRestore = [];
         for (const r of parsed) {
             if (!r.name) {
-                preview.push(toPreview(r, "empty", "Missing client name"));
+                pushPreview(r, "empty", "Missing client name");
                 continue;
             }
             if (r.clientCode && binByCode.has(r.clientCode)) {
                 toRestore.push({ row: r, existingId: binByCode.get(r.clientCode) });
-                preview.push(toPreview(r, "updated", "Restored from Bin → Active Projects"));
+                pushPreview(r, "updated", "Restored from Bin → Active Projects");
             }
             else if (r.clientCode && existingCodeMap.has(r.clientCode)) {
                 toUpdate.push(r);
-                preview.push(toPreview(r, "updated", "Existing project — will refresh on Active Projects"));
+                pushPreview(r, "updated", "Existing project — will refresh on Active Projects");
             }
             else {
                 fresh.push(r);
-                preview.push(toPreview(r, "new", "New project — will be added to Active Projects"));
+                pushPreview(r, "new", "New project — will be added to Active Projects");
             }
         }
-        return { fresh, toUpdate, toPromote: [], toRefresh: [], toRestore, emailUpdates: [], preview, existingCodeMap };
+        return {
+            fresh,
+            toUpdate,
+            toPromote: [],
+            toRefresh: [],
+            toRestore,
+            emailUpdates: [],
+            preview,
+            previewCounts,
+            existingCodeMap,
+        };
     }
     const phones = [...new Set(parsed.map(r => r.phone).filter(p => p.length >= 7))];
     const emails = [...new Set(parsed.map(r => r.email).filter(e => e.includes("@")))];
+    const phoneChunk = phones.length > 5000 ? 2000 : CHUNK_LOOKUP;
     /* Large sheets: skip fuzzy contains — variants cover common formats */
     const [phoneMatchMap, existingByEmail] = await Promise.all([
-        (0, leadPhoneLookup_1.findLeadsByPhonesBulk)(phones, CHUNK_LOOKUP, { fuzzy: phones.length <= 800 }),
+        (0, leadPhoneLookup_1.findLeadsByPhonesBulk)(phones, phoneChunk, { fuzzy: phones.length <= 800 }),
         chunkedLookup(emails, CHUNK_LOOKUP, chunk => db_1.default.lead.findMany({
             where: { email: { in: chunk } },
             select: { email: true, id: true, phone: true, status: true, inBin: true, assignedTo: true },
@@ -311,7 +340,7 @@ async function classifyRows(parsed, isActiveUpload, _uploadCategory = "call-data
         const hasValidPhone = r.phone.length >= 7;
         const hasValidEmail = r.email.includes("@");
         if (!r.name && !hasValidPhone && !hasValidEmail) {
-            preview.push(toPreview(r, "empty", "Empty row — skipped"));
+            pushPreview(r, "empty", "Empty row — skipped");
             continue;
         }
         if (r.phone && hasValidPhone) {
@@ -329,20 +358,20 @@ async function classifyRows(parsed, isActiveUpload, _uploadCategory = "call-data
             /* Bin-only match → restore onto the upload target page */
             if (binMatches.length > 0 && activeMatches.length === 0) {
                 toRestore.push({ row: r, existingId: binMatches[0].id });
-                preview.push(toPreview(r, "updated", `Restored from Bin → ${pageLabel(r.status)}`));
+                pushPreview(r, "updated", `Restored from Bin → ${pageLabel(r.status)}`);
                 continue;
             }
-            let pendingMatch = activeMatches.find(m => (0, leadClientPromotion_1.isPendingPipelineStatus)(m.status));
+            const pendingMatch = activeMatches.find(m => (0, leadClientPromotion_1.isPendingPipelineStatus)(m.status));
             if (promoteWonClients && pendingMatch && (0, leadClientPromotion_1.isWonClientUploadStatus)(r.status)) {
                 toPromote.push({ row: r, existingId: pendingMatch.id });
-                preview.push(toPreview(r, "updated", "Moved from Call Data → Clients"));
+                pushPreview(r, "updated", "Moved from Call Data → Clients");
                 continue;
             }
             /* Non–call-data uploads always land on their target page (refresh existing) */
             if (!callDataUpload && activeMatches.length > 0) {
                 const target = pickActiveRefreshTarget(activeMatches, r.status);
                 toRefresh.push({ row: r, existingId: target.id });
-                preview.push(toPreview(r, "updated", `Moved to ${pageLabel(r.status)}`));
+                pushPreview(r, "updated", `Moved to ${pageLabel(r.status)}`);
                 continue;
             }
             /* Call-data: never overwrite existing active leads */
@@ -351,7 +380,7 @@ async function classifyRows(parsed, isActiveUpload, _uploadCategory = "call-data
                 if (!exactExisting.email && hasValidEmail) {
                     emailUpdates.push({ id: exactExisting.id, email: r.email });
                 }
-                preview.push(toPreview(r, "duplicate", "Already in database (matching phone)"));
+                pushPreview(r, "duplicate", "Already in database (matching phone)");
                 continue;
             }
             /* Call-data + bin only already handled; active empty → fresh below */
@@ -360,19 +389,19 @@ async function classifyRows(parsed, isActiveUpload, _uploadCategory = "call-data
             const emailHit = dupEmails.get(r.email.toLowerCase());
             if (emailHit.inBin) {
                 toRestore.push({ row: r, existingId: emailHit.id });
-                preview.push(toPreview(r, "updated", `Restored from Bin → ${pageLabel(r.status)}`));
+                pushPreview(r, "updated", `Restored from Bin → ${pageLabel(r.status)}`);
                 continue;
             }
             if (!isCallDataStatus(r.status)) {
                 toRefresh.push({ row: r, existingId: emailHit.id });
-                preview.push(toPreview(r, "updated", `Moved to ${pageLabel(r.status)}`));
+                pushPreview(r, "updated", `Moved to ${pageLabel(r.status)}`);
                 continue;
             }
-            preview.push(toPreview(r, "duplicate", "Already in database (matching email)"));
+            pushPreview(r, "duplicate", "Already in database (matching email)");
             continue;
         }
         fresh.push(r);
-        preview.push(toPreview(r, "new", `New contact — will be added to ${pageLabel(r.status)}`));
+        pushPreview(r, "new", `New contact — will be added to ${pageLabel(r.status)}`);
     }
-    return { fresh, toUpdate: [], toPromote, toRefresh, toRestore, emailUpdates, preview };
+    return { fresh, toUpdate: [], toPromote, toRefresh, toRestore, emailUpdates, preview, previewCounts };
 }

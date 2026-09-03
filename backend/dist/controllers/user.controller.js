@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.deleteUser = exports.adminSetUserPassword = exports.updateUser = exports.getUsers = void 0;
+exports.deleteUser = exports.adminLogoutAllDevices = exports.adminSetUserPassword = exports.updateUser = exports.getUsers = void 0;
 const db_1 = __importDefault(require("../config/db"));
 const cache_1 = require("../utils/cache");
 const purgeCsrLeads_1 = require("../utils/purgeCsrLeads");
@@ -13,6 +13,7 @@ const hash_1 = require("../utils/hash");
 const security_1 = require("../config/security");
 const passwordBreach_1 = require("../utils/passwordBreach");
 const auditLog_1 = require("../utils/auditLog");
+const accessHistory_1 = require("../utils/accessHistory");
 const requestMeta_1 = require("../utils/requestMeta");
 const sessions_1 = require("../utils/sessions");
 const networkAccess_1 = require("../utils/networkAccess");
@@ -173,6 +174,56 @@ const adminSetUserPassword = async (req, res) => {
     }
 };
 exports.adminSetUserPassword = adminSetUserPassword;
+const adminLogoutAllDevices = async (req, res) => {
+    try {
+        const id = req.params.id;
+        const target = await db_1.default.user.findUnique({
+            where: { id },
+            select: { id: true, email: true, name: true },
+        });
+        if (!target) {
+            return res.status(404).json({ success: false, message: "User not found." });
+        }
+        await db_1.default.user.update({
+            where: { id },
+            data: {
+                tokenVersion: { increment: 1 },
+                isOnline: false,
+                activeSessionId: null,
+            },
+        });
+        await (0, sessions_1.clearActiveSession)(id);
+        sessions_1.userBrowserMap.delete(id);
+        (0, chatSocket_1.forceLogoutUser)(id);
+        const ip = (0, requestMeta_1.getClientIp)(req);
+        const ua = (0, requestMeta_1.getUserAgent)(req);
+        await (0, auditLog_1.writeAuditLog)({
+            action: "admin_logout_all",
+            userId: id,
+            email: target.email,
+            ip,
+            userAgent: ua,
+            meta: { resetBy: req.user?.id },
+        });
+        await (0, accessHistory_1.recordAccessHistory)({
+            userId: id,
+            email: target.email,
+            ip,
+            userAgent: ua,
+            event: "logout_all",
+        });
+        (0, cache_1.invalidateCache)(`auth:me:${id}`, "users:list", "users:list:admin", "users:list:csr", "users:list:manager", "admin:csrs");
+        return res.json({
+            success: true,
+            message: `${target.name} was logged out from all devices.`,
+            self: req.user?.id === id,
+        });
+    }
+    catch {
+        return res.status(500).json({ success: false, message: "Failed to log user out." });
+    }
+};
+exports.adminLogoutAllDevices = adminLogoutAllDevices;
 const deleteUser = async (req, res) => {
     try {
         const id = req.params.id;

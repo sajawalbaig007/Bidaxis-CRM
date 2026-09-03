@@ -1,7 +1,6 @@
 "use strict";
 /**
- * Business calendar — day rolls at 4:00 AM (default Asia/Karachi).
- * Example: activity at 2:30 AM Tue counts toward Monday's business day.
+ * Business calendar — day rolls at 12:00 AM (midnight) Eastern (BEM Solutions).
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.BUSINESS_DAY_START_HOUR = exports.BUSINESS_TIMEZONE = void 0;
@@ -18,8 +17,8 @@ exports.fmtWeekDayFromYmd = fmtWeekDayFromYmd;
 exports.fmtShortDateFromYmd = fmtShortDateFromYmd;
 exports.fmtMonthShortFromYmd = fmtMonthShortFromYmd;
 exports.businessChartSinceUtc = businessChartSinceUtc;
-exports.BUSINESS_TIMEZONE = process.env.BUSINESS_TIMEZONE?.trim() || "Asia/Karachi";
-exports.BUSINESS_DAY_START_HOUR = Number(process.env.BUSINESS_DAY_START_HOUR ?? 4);
+exports.BUSINESS_TIMEZONE = process.env.BUSINESS_TIMEZONE?.trim() || "America/New_York";
+exports.BUSINESS_DAY_START_HOUR = Number(process.env.BUSINESS_DAY_START_HOUR ?? 0);
 function hourInTz(date) {
     return Number(date.toLocaleString("en-US", {
         timeZone: exports.BUSINESS_TIMEZONE,

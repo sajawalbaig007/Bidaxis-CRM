@@ -1020,7 +1020,7 @@ export default function AdminPaymentsPage() {
               value={loading && !data ? "…" : formatMoneyAlways(t?.collectedAmount ?? 0)}
               hint={
                 month
-                  ? `${t?.collectedEntries ?? 0} payments on this month’s projects`
+                  ? `${t?.collectedEntries ?? 0} payments dated this month on this month’s projects`
                   : `${t?.collectedEntries ?? 0} payments`
               }
               accent="#059669"
@@ -1035,6 +1035,11 @@ export default function AdminPaymentsPage() {
                 thisClass="text-emerald-600"
                 prevClass="text-violet-600"
               />
+              {month ? (
+                <p className="text-[10px] text-crm-text-faint leading-snug">
+                  Prev month collected = paid this month on older projects. Those amounts stay out of the older month’s collected.
+                </p>
+              ) : null}
             </KpiCard>
             <KpiCard
               title="Outstanding"

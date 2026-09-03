@@ -25,6 +25,7 @@ const binLeads_1 = require("../utils/binLeads");
 const uploadSourceSelect_1 = require("../utils/uploadSourceSelect");
 const csrLeadSelect_1 = require("../utils/csrLeadSelect");
 const csrDashboardQueries_1 = require("../utils/csrDashboardQueries");
+const masterFormatTrades_1 = require("../utils/masterFormatTrades");
 const nextProjectCode_1 = require("../utils/nextProjectCode");
 const router = express_1.default.Router();
 async function logStatusChange(csrId, leadId, status) {
@@ -82,7 +83,7 @@ router.get("/activity-report", auth_middleware_1.verifyToken, (0, role_middlewar
     try {
         const csrId = req.user.id;
         const period = String(req.query.period ?? "day");
-        const date = String(req.query.date ?? new Date().toISOString().split("T")[0]);
+        const date = String(req.query.date ?? (0, estTime_1.estDateYmd)());
         if (!["day", "week", "month"].includes(period)) {
             return res.status(400).json({ success: false, message: "Invalid period. Use day, week, or month." });
         }
@@ -128,7 +129,7 @@ router.get("/notifications", auth_middleware_1.verifyToken, (0, role_middleware_
     try {
         const csrId = req.user.id;
         const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
-        const today = new Date().toISOString().split("T")[0];
+        const today = (0, estTime_1.estDateYmd)();
         const [scheduledLeads, grouped] = await Promise.all([
             db_1.default.lead.findMany({
                 where: {
@@ -176,11 +177,13 @@ router.get("/notifications", auth_middleware_1.verifyToken, (0, role_middleware_
 router.get("/stats", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("csr"), async (req, res) => {
     try {
         const csrId = req.user.id;
-        const cacheKey = `csr:stats:${csrId}`;
+        const from = typeof req.query.from === "string" ? req.query.from : undefined;
+        const to = typeof req.query.to === "string" ? req.query.to : undefined;
+        const cacheKey = `csr:stats:${csrId}:${from ?? ""}:${to ?? ""}`;
         const cached = (0, cache_1.getCache)(cacheKey);
         if (cached)
             return res.json(cached);
-        const stats = await (0, csrDashboardQueries_1.getCsrLeadStats)(csrId);
+        const stats = await (0, csrDashboardQueries_1.getCsrLeadStats)(csrId, from, to);
         const payload = { success: true, stats };
         (0, cache_1.setCache)(cacheKey, payload, 45000);
         return res.json(payload);
@@ -252,25 +255,28 @@ router.get("/dashboard", auth_middleware_1.verifyToken, (0, role_middleware_1.al
         if (cached)
             return res.json(cached);
         const stats = await (0, csrDashboardQueries_1.getCsrLeadStats)(csrId);
-        const rawLeads = await db_1.default.lead.findMany({
-            where: {
-                ...(0, binLeads_1.activeCsrLeadWhere)(csrId),
-                status: {
-                    in: ["no owner available", "not in service", "in house"],
-                    mode: "insensitive",
-                },
+        const dashWhere = {
+            ...(0, binLeads_1.activeCsrLeadWhere)(csrId),
+            status: {
+                in: ["no owner available", "not in service", "in house"],
+                mode: "insensitive",
             },
-            select: {
-                ...csrLeadSelect_1.CSR_DASHBOARD_LEAD_SELECT,
-                notes: {
-                    orderBy: { createdAt: "desc" },
-                    take: 5,
-                    select: { id: true, text: true, createdAt: true, parentId: true },
+        };
+        const [ids, rawLeads] = await Promise.all([
+            (0, csrDashboardQueries_1.fetchLeadIdsByOldestNote)(dashWhere),
+            db_1.default.lead.findMany({
+                where: dashWhere,
+                select: {
+                    ...csrLeadSelect_1.CSR_DASHBOARD_LEAD_SELECT,
+                    notes: {
+                        orderBy: { createdAt: "desc" },
+                        take: 5,
+                        select: { id: true, text: true, createdAt: true, parentId: true },
+                    },
                 },
-            },
-            orderBy: { updatedAt: "desc" },
-        });
-        const leads = (0, binLeads_1.filterActiveLeads)(rawLeads).map(csrDashboardQueries_1.mapDashboardLead);
+            }),
+        ]);
+        const leads = (0, binLeads_1.filterActiveLeads)((0, csrDashboardQueries_1.reorderByIds)(rawLeads, ids)).map(csrDashboardQueries_1.mapDashboardLead);
         const payload = { success: true, totalLeads: stats.totalAssigned, stats, leads };
         (0, cache_1.setCache)(cacheKey, payload, 45000);
         return res.json(payload);
@@ -288,19 +294,22 @@ router.get("/not-interested", auth_middleware_1.verifyToken, (0, role_middleware
         const cached = (0, cache_1.getCache)(cacheKey);
         if (cached)
             return res.json(cached);
-        const rawLeads = await db_1.default.lead.findMany({
-            where: (0, binLeads_1.buildActiveRetryWhere)(csrId),
-            select: {
-                ...csrLeadSelect_1.CSR_DASHBOARD_LEAD_SELECT,
-                notes: {
-                    orderBy: { createdAt: "desc" },
-                    take: 20,
-                    select: { id: true, text: true, createdAt: true, parentId: true },
+        const niWhere = (0, binLeads_1.buildActiveRetryWhere)(csrId);
+        const [ids, rawLeads] = await Promise.all([
+            (0, csrDashboardQueries_1.fetchLeadIdsByOldestNote)(niWhere),
+            db_1.default.lead.findMany({
+                where: niWhere,
+                select: {
+                    ...csrLeadSelect_1.CSR_DASHBOARD_LEAD_SELECT,
+                    notes: {
+                        orderBy: { createdAt: "desc" },
+                        take: 20,
+                        select: { id: true, text: true, createdAt: true, parentId: true },
+                    },
                 },
-            },
-            orderBy: { updatedAt: "desc" },
-        });
-        const leads = (0, binLeads_1.filterActiveLeads)(rawLeads);
+            }),
+        ]);
+        const leads = (0, binLeads_1.filterActiveLeads)((0, csrDashboardQueries_1.reorderByIds)(rawLeads, ids));
         const payload = { success: true, leads };
         (0, cache_1.setCache)(cacheKey, payload, 30000);
         return res.json(payload);
@@ -658,6 +667,12 @@ router.put("/lead/:id", auth_middleware_1.verifyToken, (0, role_middleware_1.all
             updateData.qaDeadline = req.body.qaDeadline;
         if (req.body.clientCode !== undefined)
             updateData.clientCode = req.body.clientCode;
+        if (req.body.trade !== undefined)
+            updateData.trade = req.body.trade;
+        if (req.body.subTrades !== undefined)
+            updateData.subTrades = req.body.subTrades;
+        if (req.body.tradeNotes !== undefined)
+            updateData.tradeNotes = req.body.tradeNotes;
         const payments = (0, projectPayments_1.normalizePaymentsInput)(req.body.projectPayments);
         if (payments !== undefined) {
             // CSR cannot add/change payment slip links — Admin / Manager only
@@ -942,15 +957,18 @@ router.get("/clients", auth_middleware_1.verifyToken, (0, role_middleware_1.allo
         if (cached)
             return res.json(cached);
         await (0, leadClientPromotion_1.reconcileClientOldFlagsForCsr)(csrId);
-        const rawLeads = await db_1.default.lead.findMany({
-            where: {
-                ...(0, binLeads_1.activeCsrLeadWhere)(csrId),
-                ...(0, projectLeads_1.wonClientStatusWhere)(),
-            },
-            select: csrLeadSelect_1.CSR_CLIENT_LIST_SELECT,
-            orderBy: { createdAt: "desc" },
-        });
-        const leads = rawLeads.map(lead => ({
+        const clientWhere = {
+            ...(0, binLeads_1.activeCsrLeadWhere)(csrId),
+            ...(0, projectLeads_1.wonClientStatusWhere)(),
+        };
+        const [ids, rawLeads] = await Promise.all([
+            (0, csrDashboardQueries_1.fetchLeadIdsByOldestNote)(clientWhere),
+            db_1.default.lead.findMany({
+                where: clientWhere,
+                select: csrLeadSelect_1.CSR_CLIENT_LIST_SELECT,
+            }),
+        ]);
+        const leads = (0, csrDashboardQueries_1.reorderByIds)(rawLeads, ids).map(lead => ({
             ...lead,
             isOldClient: lead.isOldClient,
         }));
@@ -985,10 +1003,10 @@ router.get("/leads", auth_middleware_1.verifyToken, (0, role_middleware_1.allowR
         const rawLeads = await db_1.default.lead.findMany({
             where: { assignedTo: csrId },
             include: { uploadFile: { select: uploadSourceSelect_1.CSR_UPLOAD_FILE_SELECT }, notes: { orderBy: { createdAt: "asc" } }, subContacts: { orderBy: { createdAt: "asc" } } },
-            orderBy: { createdAt: "desc" },
         });
         const csrLeads = (0, binLeads_1.filterActiveLeads)(rawLeads);
-        const leads = csrLeads.map(lead => ({
+        const ids = await (0, csrDashboardQueries_1.fetchLeadIdsByOldestNote)({ assignedTo: csrId });
+        const leads = (0, csrDashboardQueries_1.reorderByIds)(csrLeads, ids).map(lead => ({
             ...lead,
             isOldClient: lead.isOldClient,
         }));
@@ -1009,23 +1027,26 @@ router.get("/projects", auth_middleware_1.verifyToken, (0, role_middleware_1.all
         const cached = (0, cache_1.getCache)(cacheKey);
         if (cached)
             return res.json(cached);
-        const rawLeads = await db_1.default.lead.findMany({
-            where: (0, projectLeads_1.buildProjectLeadWhere)(csrId),
-            select: {
-                ...csrLeadSelect_1.CSR_DASHBOARD_LEAD_SELECT,
-                projectTitle: true,
-                projectCode: true,
-                projectDeadline: true,
-                projectBudget: true,
-                projectNotes: true,
-                clientCode: true,
-                isOldClient: true,
-                projectPayments: true,
-                notes: csrLeadSelect_1.CSR_LIST_NOTES_SELECT,
-            },
-            orderBy: { updatedAt: "desc" },
-        });
-        const leads = rawLeads.filter(projectLeads_1.isDisplayableProjectLead);
+        const projectWhere = (0, projectLeads_1.buildProjectLeadWhere)(csrId);
+        const [ids, rawLeads] = await Promise.all([
+            (0, csrDashboardQueries_1.fetchLeadIdsByOldestNote)(projectWhere),
+            db_1.default.lead.findMany({
+                where: projectWhere,
+                select: {
+                    ...csrLeadSelect_1.CSR_DASHBOARD_LEAD_SELECT,
+                    projectTitle: true,
+                    projectCode: true,
+                    projectDeadline: true,
+                    projectBudget: true,
+                    projectNotes: true,
+                    clientCode: true,
+                    isOldClient: true,
+                    projectPayments: true,
+                    notes: csrLeadSelect_1.CSR_LIST_NOTES_SELECT,
+                },
+            }),
+        ]);
+        const leads = (0, csrDashboardQueries_1.reorderByIds)(rawLeads, ids).filter(projectLeads_1.isDisplayableProjectLead);
         const payload = { success: true, leads };
         (0, cache_1.setCache)(cacheKey, payload, 30000);
         return res.json(payload);
@@ -1097,17 +1118,20 @@ router.get("/bin", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRol
         const cached = (0, cache_1.getCache)(cacheKey);
         if (cached)
             return res.json(cached);
-        const rawLeads = await db_1.default.lead.findMany({
-            where: (0, binLeads_1.buildBinWhere)(csrId),
-            select: {
-                ...csrLeadSelect_1.CSR_DASHBOARD_LEAD_SELECT,
-                binReason: true,
-                binPreviousStatus: true,
-                notes: csrLeadSelect_1.CSR_LIST_NOTES_SELECT,
-            },
-            orderBy: { updatedAt: "desc" },
-        });
-        const leads = rawLeads;
+        const binWhere = (0, binLeads_1.buildBinWhere)(csrId);
+        const [ids, rawLeads] = await Promise.all([
+            (0, csrDashboardQueries_1.fetchLeadIdsByOldestNote)(binWhere),
+            db_1.default.lead.findMany({
+                where: binWhere,
+                select: {
+                    ...csrLeadSelect_1.CSR_DASHBOARD_LEAD_SELECT,
+                    binReason: true,
+                    binPreviousStatus: true,
+                    notes: csrLeadSelect_1.CSR_LIST_NOTES_SELECT,
+                },
+            }),
+        ]);
+        const leads = (0, csrDashboardQueries_1.reorderByIds)(rawLeads, ids);
         const payload = { success: true, leads };
         (0, cache_1.setCache)(cacheKey, payload, 30000);
         return res.json(payload);
@@ -1366,6 +1390,7 @@ router.post("/offline", auth_middleware_1.verifyToken, (0, role_middleware_1.all
 /* ================= TRADES (read-only for CSR) ================= */
 router.get("/trades", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("csr"), async (_req, res) => {
     try {
+        await (0, masterFormatTrades_1.ensureMasterFormatTrades)();
         const trades = await db_1.default.trade.findMany({ orderBy: { name: "asc" } });
         return res.json({ success: true, trades });
     }

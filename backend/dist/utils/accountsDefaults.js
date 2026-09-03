@@ -182,9 +182,7 @@ function defaultAccountsData(page) {
                         id: rid("t", 6),
                         team: "Sales Team Lead Salaries",
                         totalSalary: 0,
-                        subHeads: [
-                            sub("stl", 1, "Hammad", 0),
-                        ],
+                        subHeads: [],
                     },
                     {
                         id: rid("t", 3),

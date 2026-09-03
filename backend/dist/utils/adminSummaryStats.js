@@ -186,30 +186,47 @@ async function buildAdminTabCountsPayload(filters) {
         state: filters?.state,
         phonePrefix: filters?.phonePrefix,
         areaCodes: filters?.areaCodes,
+        csrId: filters?.csrId,
     };
     const search = filters?.search;
     const scheduleDate = filters?.scheduleDate;
     const csrName = filters?.csrName;
-    const [all, important, schedule, interested, closed] = await Promise.all([
-        db_1.default.lead.count({
-            where: (0, adminClientQueries_1.buildAdminClientListWhere)("all", csrName, search, undefined, extras),
-        }),
-        db_1.default.lead.count({
-            where: (0, adminClientQueries_1.buildAdminClientListWhere)("important", csrName, search, undefined, extras),
-        }),
-        db_1.default.lead.count({
-            where: (0, adminClientQueries_1.buildAdminClientListWhere)("schedule", csrName, search, scheduleDate, extras),
-        }),
-        db_1.default.lead.count({
-            where: (0, adminClientQueries_1.buildAdminClientListWhere)("interested", csrName, search, undefined, extras),
-        }),
-        db_1.default.lead.count({
-            where: (0, adminClientQueries_1.buildAdminClientListWhere)("closed", csrName, search, undefined, extras),
-        }),
-    ]);
+    /* Same uniqueness as /admin/clients table: phone for pipeline tabs, client-code family for Closed / All */
+    const rows = await db_1.default.lead.findMany({
+        where: (0, adminClientQueries_1.buildAdminClientListWhere)("all", csrName, search, undefined, extras),
+        select: {
+            id: true,
+            phone: true,
+            company: true,
+            clientCode: true,
+            projectCode: true,
+            status: true,
+            nextSchedule: true,
+        },
+    });
+    const buckets = {
+        important: [],
+        schedule: [],
+        interested: [],
+        closed: [],
+    };
+    for (const row of rows) {
+        const bucket = (0, adminClientQueries_1.adminClientBucket)(row.status, row.nextSchedule);
+        if (bucket)
+            buckets[bucket].push(row);
+    }
+    if (scheduleDate) {
+        buckets.schedule = buckets.schedule.filter(l => l.nextSchedule === scheduleDate);
+    }
     return {
         success: true,
-        tabCounts: { all, important, schedule, interested, closed },
+        tabCounts: {
+            all: (0, adminClientQueries_1.uniqueLeadsByPhone)(rows).length,
+            important: (0, adminClientQueries_1.uniqueLeadsByPhone)(buckets.important).length,
+            schedule: (0, adminClientQueries_1.uniqueLeadsByPhone)(buckets.schedule).length,
+            interested: (0, adminClientQueries_1.uniqueLeadsByPhone)(buckets.interested).length,
+            closed: (0, adminClientQueries_1.uniqueClosedLeadsByClientCode)(buckets.closed).length,
+        },
     };
 }
 async function buildAdminClientSummaryPayload() {
@@ -219,9 +236,9 @@ async function buildAdminClientSummaryPayload() {
     const todayYmd = (0, businessCalendar_1.currentBusinessYmd)();
     const todayStart = (0, businessCalendar_1.businessDayStartUtc)(todayYmd);
     const tomorrowStart = (0, businessCalendar_1.businessDayStartUtc)((0, businessCalendar_1.addDaysToYmd)(todayYmd, 1));
-    const [pipeline, closedTab, todayCompletedCalls, totalCompletedCalls, recent, recentStatusLogs, chartSeries, csrGroups, resolvedGroups, onlineCSRs, totalOnline,] = await Promise.all([
+    const [pipeline, uniqueTabCounts, todayCompletedCalls, totalCompletedCalls, recent, recentStatusLogs, chartSeries, csrGroups, resolvedGroups, onlineCSRs, totalOnline,] = await Promise.all([
         pipelinePromise,
-        db_1.default.lead.count({ where: (0, adminClientQueries_1.buildAdminClientViewWhere)("closed") }),
+        buildAdminTabCountsPayload(),
         db_1.default.callLog.count({
             where: { createdAt: { gte: todayStart, lt: tomorrowStart } },
         }),
@@ -292,13 +309,15 @@ async function buildAdminClientSummaryPayload() {
         .filter(p => p.total > 0)
         .sort((a, b) => b.resolved - a.resolved || b.rate - a.rate)
         .slice(0, 5);
-    const { totalLeads, pending, interested, projectWon, importantOnly, scheduled, other, inBin, legacyCompleted, } = pipeline;
+    const { totalLeads, pending, interested, importantOnly, scheduled, other, inBin, legacyCompleted, } = pipeline;
+    const tabCounts = uniqueTabCounts.tabCounts;
+    const uniqueClosed = tabCounts.closed;
     const distribution = {
         Pending: pending,
         Important: importantOnly,
         Schedule: scheduled,
         Interested: interested,
-        "Close Client": projectWon,
+        "Close Client": uniqueClosed,
     };
     if (legacyCompleted > 0)
         distribution.Completed = legacyCompleted;
@@ -315,23 +334,17 @@ async function buildAdminClientSummaryPayload() {
             importantOnly,
             scheduled,
             interested,
-            projectWon,
+            projectWon: uniqueClosed,
             /** All-time CallLog rows = every CSR status update */
             completed: totalCompletedCalls,
-            closed: closedTab,
+            closed: uniqueClosed,
             todayCompletedCalls,
             other,
             inBin,
             onlineCSRs,
             totalOnline,
         },
-        tabCounts: {
-            all: totalLeads,
-            important: importantOnly,
-            schedule: scheduled,
-            interested,
-            closed: closedTab,
-        },
+        tabCounts,
         distribution,
         recent,
         recentStatus: recentStatusLogs.map(log => ({
@@ -343,7 +356,7 @@ async function buildAdminClientSummaryPayload() {
         })),
         chartSeries,
         businessDay: {
-            timezone: process.env.BUSINESS_TIMEZONE?.trim() || "Asia/Karachi",
+            timezone: process.env.BUSINESS_TIMEZONE?.trim() || "America/New_York",
             startHour: Number(process.env.BUSINESS_DAY_START_HOUR ?? 4),
             currentBusinessDate: (0, businessCalendar_1.currentBusinessYmd)(),
         },

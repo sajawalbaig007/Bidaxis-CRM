@@ -1,6 +1,8 @@
 "use strict";
 /** Currency Payment Formula totals — shared with Income Statement Total Revenue. */
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.paymentsChannelPkr = paymentsChannelPkr;
+exports.currencyFormulaBreakdownFromDashboard = currencyFormulaBreakdownFromDashboard;
 exports.currencyFormulaTotalFromDashboard = currencyFormulaTotalFromDashboard;
 const TAB_DEFAULTS = {
     SN: {
@@ -90,9 +92,48 @@ function normalize(raw) {
         HM: { ...TAB_DEFAULTS.HM },
     };
 }
-/** Merged AH+SN+CHQ+HM net — Income Statement Total Revenue source. */
-function currencyFormulaTotalFromDashboard(data) {
+/** PKR equivalent for Payments source cards — same tax/rate formula as Accounts. */
+function paymentsChannelPkr(channel, totals) {
+    const d = TAB_DEFAULTS[channel];
+    if (channel === "CHQ" || channel === "HM") {
+        const usdRate = 280;
+        const cadRate = 200;
+        const pkrGross = (Number(totals.PKR) || 0) +
+            (Number(totals.USD) || 0) * usdRate +
+            (Number(totals.CAD) || 0) * cadRate;
+        const tax = Number(d.taxDeductionRate) || 0;
+        return roundMoney(pkrGross - pkrGross * tax);
+    }
+    return roundMoney(calcTab({
+        ...d,
+        usdAmount: totals.USD,
+        cadAmount: totals.CAD,
+        pkrAmount: totals.PKR,
+    }));
+}
+function roundMoney(n) {
+    return Math.round(n * 100) / 100;
+}
+const CHANNEL_LABELS = {
+    AH: "Ahmed Hamza",
+    SN: "Sharjeel Nasir",
+    CHQ: "Cheque",
+    HM: "Habib Metro",
+};
+/** Per-channel USD/CAD/PKR + net PKR after tax/FX — same formula as dashboard. */
+function currencyFormulaBreakdownFromDashboard(data) {
     const currency = data?.currency ?? null;
     const tabs = normalize(currency);
-    return calcTab(tabs.AH) + calcTab(tabs.SN) + calcTab(tabs.CHQ) + calcTab(tabs.HM);
+    return ["AH", "SN", "CHQ", "HM"].map(key => ({
+        key,
+        label: CHANNEL_LABELS[key],
+        usd: Number(tabs[key].usdAmount) || 0,
+        cad: Number(tabs[key].cadAmount) || 0,
+        pkr: Number(tabs[key].pkrAmount) || 0,
+        netPkr: roundMoney(calcTab(tabs[key])),
+    }));
+}
+/** Merged AH+SN+CHQ+HM net — Income Statement Total Revenue source. */
+function currencyFormulaTotalFromDashboard(data) {
+    return currencyFormulaBreakdownFromDashboard(data).reduce((a, c) => a + c.netPkr, 0);
 }

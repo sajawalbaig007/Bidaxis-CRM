@@ -9,6 +9,8 @@ exports.saveAccountsRecord = saveAccountsRecord;
 exports.uploadAccountsFile = uploadAccountsFile;
 exports.getAccountsDashboardSummary = getAccountsDashboardSummary;
 exports.getIncomeBudgetActuals = getIncomeBudgetActuals;
+exports.listEmployeeNameMerges = listEmployeeNameMerges;
+exports.getProvidentFundBreakdown = getProvidentFundBreakdown;
 const streamifier_1 = __importDefault(require("streamifier"));
 const db_1 = __importDefault(require("../config/db"));
 const cloudinary_1 = __importDefault(require("../config/cloudinary"));
@@ -22,8 +24,11 @@ const projectCurrencyCollections_1 = require("../utils/projectCurrencyCollection
 const accountsStorage_1 = require("../utils/accountsStorage");
 const incomeBudget_1 = require("../utils/incomeBudget");
 const loadStaffPayroll_1 = require("../utils/loadStaffPayroll");
+const pfNameAlias_1 = require("../utils/pfNameAlias");
+const employeeNameMerge_1 = require("../utils/employeeNameMerge");
+const estTime_1 = require("../utils/estTime");
 function todayIsoDate() {
-    return new Date().toISOString().slice(0, 10);
+    return (0, estTime_1.estDateYmd)();
 }
 /** Full income-statement pipeline: sales-lead split → technical sync → executive commission. */
 function prepareIncomeStatement(data) {
@@ -277,8 +282,15 @@ async function getAccountsDashboardSummary(req, res) {
     try {
         const mode = String(req.query.mode ?? "day").trim().toLowerCase();
         const toDate = String(req.query.to ?? req.query.date ?? todayIsoDate()).trim();
+        const fromDate = String(req.query.from ?? "").trim();
         if (!(0, accountsDefaults_1.isValidRecordDate)(toDate)) {
             return res.status(400).json({ success: false, message: "Invalid date." });
+        }
+        const useRange = mode === "all_time" || mode === "range" || mode === "month";
+        if (useRange && mode !== "all_time") {
+            if (!(0, accountsDefaults_1.isValidRecordDate)(fromDate)) {
+                return res.status(400).json({ success: false, message: "Invalid from date." });
+            }
         }
         const sumLines = (rows) => (rows ?? []).reduce((a, row) => {
             if (row.subHeads && row.subHeads.length > 0) {
@@ -310,9 +322,40 @@ async function getAccountsDashboardSummary(req, res) {
                 balanceSheetDifference: totalAssets - totalEquityLiabilities,
             };
         };
+        const cashRowNet = (row) => {
+            let debit = 0;
+            let credit = 0;
+            for (const amt of Object.values(row.bankAmounts ?? {})) {
+                debit += Number(amt?.debit) || 0;
+                credit += Number(amt?.credit) || 0;
+            }
+            if (debit === 0 && credit === 0)
+                return Number(row.netAmount) || 0;
+            return debit - credit;
+        };
         const summarizeCashFlow = (data) => {
             const months = data.months ?? [];
-            return months.reduce((acc, m) => acc + m.rows.reduce((a, r) => a + (Number(r.netAmount) || 0), 0), 0);
+            return months.reduce((acc, m) => acc + m.rows.reduce((a, r) => a + cashRowNet(r), 0), 0);
+        };
+        const incomePartsFromRaw = async (raw, recordDate) => {
+            const data = preparePageData("income_statement", await (0, loadStaffPayroll_1.applyStaffPayrollToIncomeData)(raw, recordDate));
+            return {
+                payroll: sumLines(data.teamSalaries),
+                opex: sumLines(data.opexHeads),
+                loans: sumLines(data.loanHeads),
+                pf: sumLines(data.providentFundHeads),
+            };
+        };
+        const assignIncomeSummaries = (target, parts) => {
+            const expense = parts.payroll + parts.opex;
+            target.currencyFormulaTotal = parts.currencyTotal ?? parts.revenue;
+            target.incomeTotalRevenue = parts.revenue;
+            target.incomePayroll = parts.payroll;
+            target.incomeOpex = parts.opex;
+            target.incomeLoans = parts.loans;
+            target.incomeProvidentFund = parts.pf;
+            target.incomeTotalExpense = expense;
+            target.incomeNetProfit = parts.revenue - expense;
         };
         const summarizeTotalAssets = (data) => {
             const sumSections = (sections) => sections.reduce((a, s) => {
@@ -334,38 +377,62 @@ async function getAccountsDashboardSummary(req, res) {
         const persistedPages = {};
         let recordDate = toDate;
         let dashData = (0, accountsDefaults_1.defaultAccountsData)("dashboard");
-        if (mode === "all_time") {
-            // Flow statements: sum every saved day through `toDate`. Stock: latest snapshot ≤ toDate.
+        if (useRange) {
+            // Income Statement page in Month / Date Range shows the latest saved day
+            // in that period (not a sum of every daily snapshot). Match that here.
+            // All Time: latest IS day per calendar month, then sum those months.
+            // Revenue: project collections once per calendar month (no day double-count).
+            const flowWhere = mode === "all_time" ? { lte: toDate } : { gte: fromDate, lte: toDate };
+            const stockWhere = mode === "all_time" ? { lte: toDate } : { gte: fromDate, lte: toDate };
+            const rangeMonths = mode === "all_time" ? [] : (0, projectCurrencyCollections_1.yearMonthsInclusive)(fromDate, toDate);
+            const rangeMonthStarts = rangeMonths.map(projectCurrencyCollections_1.monthStartIso);
+            const dashWhere = mode === "all_time"
+                ? { page: "dashboard", recordDate: { lte: toDate } }
+                : {
+                    page: "dashboard",
+                    OR: [
+                        { recordDate: { gte: fromDate, lte: toDate } },
+                        { recordDate: { in: rangeMonthStarts } },
+                    ],
+                };
             const [dashRecs, isRecs, bsRecs, cfRecs, taRecs] = await Promise.all([
                 db_1.default.accountsRecord.findMany({
-                    where: { page: "dashboard", recordDate: { lte: toDate } },
+                    where: dashWhere,
                     orderBy: { recordDate: "asc" },
                 }),
                 db_1.default.accountsRecord.findMany({
-                    where: { page: "income_statement", recordDate: { lte: toDate } },
+                    where: { page: "income_statement", recordDate: flowWhere },
                     orderBy: { recordDate: "asc" },
                 }),
                 db_1.default.accountsRecord.findMany({
-                    where: { page: "balance_sheet", recordDate: { lte: toDate } },
+                    where: { page: "balance_sheet", recordDate: stockWhere },
                     orderBy: { recordDate: "desc" },
                     take: 1,
                 }),
                 db_1.default.accountsRecord.findMany({
-                    where: { page: "cash_flow", recordDate: { lte: toDate } },
+                    where: { page: "cash_flow", recordDate: stockWhere },
                     orderBy: { recordDate: "desc" },
                     take: 1,
                 }),
                 db_1.default.accountsRecord.findMany({
-                    where: { page: "total_assets", recordDate: { lte: toDate } },
+                    where: { page: "total_assets", recordDate: stockWhere },
                     orderBy: { recordDate: "desc" },
                     take: 1,
                 }),
             ]);
             const dashByDate = new Map(dashRecs.map(r => [r.recordDate, r.data]));
+            const paidMonths = mode === "all_time"
+                ? [...(await (0, projectCurrencyCollections_1.aggregateAllCollectionMonths)()).keys()].filter(m => m <= toDate.slice(0, 7))
+                : [];
             const collectionMonths = [
                 ...new Set([
-                    ...dashRecs.map((r) => (0, projectCurrencyCollections_1.yearMonthFromDate)(r.recordDate)),
-                    ...isRecs.map((r) => (0, projectCurrencyCollections_1.yearMonthFromDate)(r.recordDate)),
+                    ...(mode === "all_time"
+                        ? [
+                            ...dashRecs.map(r => (0, projectCurrencyCollections_1.yearMonthFromDate)(r.recordDate)),
+                            ...isRecs.map(r => (0, projectCurrencyCollections_1.yearMonthFromDate)(r.recordDate)),
+                            ...paidMonths,
+                        ]
+                        : rangeMonths),
                 ]),
             ];
             const collectionsByMonth = await (0, projectCurrencyCollections_1.aggregateCollectionsForMonths)(collectionMonths);
@@ -376,42 +443,56 @@ async function getAccountsDashboardSummary(req, res) {
                     (0, accountsDefaults_1.defaultAccountsData)("dashboard");
                 return (0, projectCurrencyCollections_1.applyCollectionsToDashboardData)(raw, collectionsByMonth.get(ym) ?? (0, projectCurrencyCollections_1.emptyDayCollections)());
             };
-            let revenue = 0;
-            let payroll = 0;
-            let opex = 0;
-            let loans = 0;
-            let pf = 0;
             let currencyFormulaTotal = 0;
-            // Project collections are monthly — count each month once (no day double-count)
             for (const ym of collectionMonths) {
                 currencyFormulaTotal += (0, currencyFormula_1.currencyFormulaTotalFromDashboard)(dashForMonth(ym));
             }
-            const revenueMonths = new Set();
-            for (const rec of isRecs) {
-                const data = preparePageData("income_statement", rec.data);
-                const ym = (0, projectCurrencyCollections_1.yearMonthFromDate)(rec.recordDate);
-                if (!revenueMonths.has(ym)) {
-                    revenueMonths.add(ym);
-                    revenue += (0, currencyFormula_1.currencyFormulaTotalFromDashboard)(dashForMonth(ym));
+            if (mode === "all_time") {
+                const latestByMonth = new Map();
+                for (const rec of isRecs) {
+                    latestByMonth.set((0, projectCurrencyCollections_1.yearMonthFromDate)(rec.recordDate), {
+                        date: rec.recordDate,
+                        data: rec.data,
+                    });
                 }
-                payroll += sumLines(data.teamSalaries);
-                opex += sumLines(data.opexHeads);
-                loans += sumLines(data.loanHeads);
-                pf += sumLines(data.providentFundHeads);
+                let revenue = 0;
+                let payroll = 0;
+                let opex = 0;
+                let loans = 0;
+                let pf = 0;
+                for (const [ym, snap] of latestByMonth) {
+                    revenue += (0, currencyFormula_1.currencyFormulaTotalFromDashboard)(dashForMonth(ym));
+                    const parts = await incomePartsFromRaw(snap.data, snap.date);
+                    payroll += parts.payroll;
+                    opex += parts.opex;
+                    loans += parts.loans;
+                    pf += parts.pf;
+                }
+                if (latestByMonth.size === 0)
+                    revenue = currencyFormulaTotal;
+                assignIncomeSummaries(summaries, {
+                    revenue,
+                    currencyTotal: currencyFormulaTotal,
+                    payroll,
+                    opex,
+                    loans,
+                    pf,
+                });
             }
-            // If no IS days, revenue still equals currency months
-            if (isRecs.length === 0)
-                revenue = currencyFormulaTotal;
-            // Total expense aligns with Income Statement cards: salaries + OPEX only
-            const expense = payroll + opex;
-            summaries.currencyFormulaTotal = currencyFormulaTotal;
-            summaries.incomeTotalRevenue = revenue;
-            summaries.incomePayroll = payroll;
-            summaries.incomeOpex = opex;
-            summaries.incomeLoans = loans;
-            summaries.incomeProvidentFund = pf;
-            summaries.incomeTotalExpense = expense;
-            summaries.incomeNetProfit = revenue - expense;
+            else {
+                // Month / date range: same snapshot the Income Statement page shows
+                const latestIs = isRecs[isRecs.length - 1];
+                const snapshotYm = latestIs
+                    ? (0, projectCurrencyCollections_1.yearMonthFromDate)(latestIs.recordDate)
+                    : (rangeMonths[rangeMonths.length - 1] ?? (0, projectCurrencyCollections_1.yearMonthFromDate)(toDate));
+                const revenue = (0, currencyFormula_1.currencyFormulaTotalFromDashboard)(dashForMonth(snapshotYm));
+                const parts = latestIs
+                    ? await incomePartsFromRaw(latestIs.data, latestIs.recordDate)
+                    : { payroll: 0, opex: 0, loans: 0, pf: 0 };
+                assignIncomeSummaries(summaries, { revenue, payroll: parts.payroll, opex: parts.opex, loans: parts.loans, pf: parts.pf });
+                if (latestIs)
+                    recordDate = latestIs.recordDate;
+            }
             const bs = bsRecs[0];
             persistedPages.balance_sheet = !!bs;
             Object.assign(summaries, summarizeBalanceSheet(preparePageData("balance_sheet", bs?.data ?? (0, accountsDefaults_1.defaultAccountsData)("balance_sheet"))));
@@ -427,7 +508,8 @@ async function getAccountsDashboardSummary(req, res) {
             dashData = latestDash
                 ? dashForMonth((0, projectCurrencyCollections_1.yearMonthFromDate)(latestDash.recordDate))
                 : (0, accountsDefaults_1.defaultAccountsData)("dashboard");
-            recordDate = toDate;
+            if (mode === "all_time")
+                recordDate = toDate;
         }
         else {
             const pages = [
@@ -448,20 +530,8 @@ async function getAccountsDashboardSummary(req, res) {
                     const collections = await (0, projectCurrencyCollections_1.aggregateCollectionsForDate)(toDate);
                     const dashMerged = (0, projectCurrencyCollections_1.applyCollectionsToDashboardData)(dashRec?.data ?? (0, accountsDefaults_1.defaultAccountsData)("dashboard"), collections);
                     const revenue = (0, currencyFormula_1.currencyFormulaTotalFromDashboard)(dashMerged);
-                    const payroll = sumLines(data.teamSalaries);
-                    const opex = sumLines(data.opexHeads);
-                    const loans = sumLines(data.loanHeads);
-                    const pf = sumLines(data.providentFundHeads);
-                    // Align with Income Statement page: Total Expense = payroll + OPEX
-                    const expense = payroll + opex;
-                    summaries.currencyFormulaTotal = revenue;
-                    summaries.incomeTotalRevenue = revenue;
-                    summaries.incomePayroll = payroll;
-                    summaries.incomeOpex = opex;
-                    summaries.incomeLoans = loans;
-                    summaries.incomeProvidentFund = pf;
-                    summaries.incomeTotalExpense = expense;
-                    summaries.incomeNetProfit = revenue - expense;
+                    const parts = await incomePartsFromRaw(record?.data ?? (0, accountsDefaults_1.defaultAccountsData)(page), toDate);
+                    assignIncomeSummaries(summaries, { revenue, ...parts });
                 }
                 else if (page === "cash_flow") {
                     summaries.cashFlowNet = summarizeCashFlow(data);
@@ -479,8 +549,9 @@ async function getAccountsDashboardSummary(req, res) {
         return res.json({
             success: true,
             recordDate,
-            mode: mode === "all_time" ? "all_time" : "day",
+            mode: mode === "all_time" ? "all_time" : useRange ? "range" : "day",
             throughDate: toDate,
+            fromDate: useRange && mode !== "all_time" ? fromDate : undefined,
             summaries,
             dashboard: dashData,
             persisted: {
@@ -586,13 +657,15 @@ async function getIncomeBudgetActuals(req, res) {
                 ? 0
                 : (0, currencyFormula_1.currencyFormulaTotalFromDashboard)(dashForMonth(ym));
             revenueMonthsAdded.add(ym);
-            (0, incomeBudget_1.accumulateCoreBudget)(data, actuals, revenue);
-            (0, incomeBudget_1.accumulateCoreBudget)(data, byMonth[ym], revenue);
+            (0, incomeBudget_1.accumulateCoreBudget)(data, actuals, revenue, rec.recordDate);
+            (0, incomeBudget_1.accumulateCoreBudget)(data, byMonth[ym], revenue, rec.recordDate);
             (0, incomeBudget_1.accumulateOpexHeads)(data, opexHeadsTotal);
             (0, incomeBudget_1.accumulateOpexHeads)(data, opexHeadsByMonth[ym]);
         }
         const payroll = actuals.sales +
+            actuals.sales_commission +
             actuals.technical +
+            actuals.technical_overtime +
             actuals.email_marketing +
             actuals.administration +
             actuals.executive +
@@ -654,5 +727,80 @@ async function getIncomeBudgetActuals(req, res) {
     catch (err) {
         console.log(err);
         return res.status(500).json({ success: false, message: "Failed to load budget actuals." });
+    }
+}
+async function listEmployeeNameMerges(_req, res) {
+    try {
+        const pairs = await (0, employeeNameMerge_1.loadMergedNamePairs)();
+        return res.json({
+            success: true,
+            merges: pairs.map(p => ({ from: p.from, to: p.to })),
+        });
+    }
+    catch (err) {
+        console.log(err);
+        return res.status(500).json({ success: false, message: "Failed to load name merges." });
+    }
+}
+/** GET /api/accounts/income-statement/pf-breakdown?from=&to= */
+async function getProvidentFundBreakdown(req, res) {
+    try {
+        const from = String(req.query.from ?? "").trim();
+        const to = String(req.query.to ?? "").trim();
+        const recs = await db_1.default.accountsRecord.findMany({
+            where: { page: "income_statement" },
+            select: { recordDate: true, data: true },
+        });
+        const pairs = await (0, employeeNameMerge_1.loadMergedNamePairs)();
+        const byHead = {};
+        const bump = (head, name, amount, inPeriod) => {
+            const n = Number(amount) || 0;
+            const trimmed = name.trim();
+            if (!trimmed || n === 0)
+                return;
+            const resolved = (0, employeeNameMerge_1.resolveMergedName)(trimmed, pairs);
+            const key = resolved.key;
+            if (!key)
+                return;
+            if (!byHead[head])
+                byHead[head] = {};
+            const prev = byHead[head][key] ?? { name: resolved.name, period: 0, allTime: 0 };
+            prev.name = resolved.name;
+            prev.allTime = Math.round((prev.allTime + n) * 100) / 100;
+            if (inPeriod)
+                prev.period = Math.round((prev.period + n) * 100) / 100;
+            byHead[head][key] = prev;
+        };
+        for (const rec of recs) {
+            const inPeriod = (!from || rec.recordDate >= from) &&
+                (!to || rec.recordDate <= to);
+            const data = preparePageData("income_statement", rec.data ?? {});
+            const heads = data.providentFundHeads ?? [];
+            for (const head of heads) {
+                const headLabel = (head.label || "Provident Fund").trim() || "Provident Fund";
+                const subs = head.subHeads ?? [];
+                const labels = subs.map(s => s.label || "");
+                for (const sub of subs) {
+                    const name = sub.label || "";
+                    if ((0, pfNameAlias_1.pfHasLongerCanonical)(name, labels))
+                        continue;
+                    bump(headLabel, name, Number(sub.amount) || 0, inPeriod);
+                }
+            }
+        }
+        for (const head of Object.keys(byHead)) {
+            byHead[head] = (0, pfNameAlias_1.collapsePfNameBuckets)(byHead[head]);
+        }
+        return res.json({
+            success: true,
+            from: from || null,
+            to: to || null,
+            byHead,
+            nameMerges: pairs.map(p => ({ from: p.from, to: p.to })),
+        });
+    }
+    catch (err) {
+        console.log(err);
+        return res.status(500).json({ success: false, message: "Failed to load PF breakdown." });
     }
 }

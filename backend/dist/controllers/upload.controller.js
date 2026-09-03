@@ -14,8 +14,68 @@ const leadNotes_1 = require("../utils/leadNotes");
 const deleteLeadsCascade_1 = require("../utils/deleteLeadsCascade");
 const uploadSourceSelect_1 = require("../utils/uploadSourceSelect");
 const leadPhoneLookup_1 = require("../utils/leadPhoneLookup");
-const CHUNK_INSERT = 1000;
+const masterFormatTrades_1 = require("../utils/masterFormatTrades");
+const estTime_1 = require("../utils/estTime");
+const CHUNK_INSERT = 500;
 const BATCH_UPDATE = 30;
+async function upsertTradesFromRows(rawValues) {
+    const names = new Set();
+    for (const raw of rawValues) {
+        for (const t of (0, masterFormatTrades_1.parseTradeList)(raw))
+            names.add(t);
+    }
+    if (names.size === 0)
+        return;
+    await (0, masterFormatTrades_1.insertMissingTrades)([...names]);
+}
+async function attachExcelSubContacts(uploadedFileId, rows) {
+    const withContacts = rows.filter(r => r.subContactsRaw?.trim());
+    if (withContacts.length === 0)
+        return;
+    const created = await db_1.default.lead.findMany({
+        where: { uploadedFileId },
+        select: { id: true, phone: true, name: true, email: true },
+    });
+    const used = new Set();
+    const payloads = [];
+    for (const row of withContacts) {
+        const contacts = (0, masterFormatTrades_1.parseSubContactsCell)(row.subContactsRaw);
+        if (contacts.length === 0)
+            continue;
+        const lead = created.find(l => row.phone && l.phone === row.phone && !used.has(l.id)) ||
+            created.find(l => row.name && l.name === row.name && row.email && l.email === row.email && !used.has(l.id)) ||
+            created.find(l => row.name && l.name === row.name && !used.has(l.id));
+        if (!lead)
+            continue;
+        used.add(lead.id);
+        for (const c of contacts) {
+            payloads.push({
+                leadId: lead.id,
+                name: c.name,
+                designation: c.designation,
+                phone: c.phone,
+                email: c.email,
+            });
+        }
+    }
+    if (payloads.length === 0)
+        return;
+    await db_1.default.subContact.createMany({ data: payloads });
+}
+async function attachSubContactsToLead(leadId, raw) {
+    const contacts = (0, masterFormatTrades_1.parseSubContactsCell)(raw);
+    if (contacts.length === 0)
+        return;
+    await db_1.default.subContact.createMany({
+        data: contacts.map(c => ({
+            leadId,
+            name: c.name,
+            designation: c.designation,
+            phone: c.phone,
+            email: c.email,
+        })),
+    });
+}
 /** Clear bin flags when upload restores / moves a lead onto a target page */
 const CLEAR_BIN = {
     inBin: false,
@@ -151,21 +211,25 @@ const uploadLeads = async (req, res) => {
         const uploadCategory = (0, uploadCategory_1.resolveUploadCategory)(leadType, initialStatuses);
         const fileBuffer = req.file.buffer;
         const rows = (0, uploadExcelParse_1.readExcelRows)(fileBuffer);
-        /* ── CLOUDINARY + CSRS in parallel ── */
-        const [cloudinaryUrl, csrs] = await Promise.all([
-            uploadRawBuffer(fileBuffer, cloudFolder),
-            db_1.default.user.findMany({
-                where: {
-                    role: "csr",
-                    isActive: true,
-                    ...(selectedCSRs.length > 0 && { id: { in: selectedCSRs } }),
-                },
-                select: { id: true, name: true, email: true },
-                orderBy: { csrCode: "asc" },
-            }),
-        ]);
+        /* Parse + CSR lookup first — Cloudinary must not block / fail the whole 50k import */
+        const csrs = await db_1.default.user.findMany({
+            where: {
+                role: "csr",
+                isActive: true,
+                ...(selectedCSRs.length > 0 && { id: { in: selectedCSRs } }),
+            },
+            select: { id: true, name: true, email: true },
+            orderBy: { csrCode: "asc" },
+        });
         if (csrs.length === 0) {
             return res.status(400).json({ success: false, message: "No active CSR users found" });
+        }
+        let cloudinaryUrl = "";
+        try {
+            cloudinaryUrl = await uploadRawBuffer(fileBuffer, cloudFolder);
+        }
+        catch (cloudErr) {
+            console.log("[Upload] Cloudinary archive failed (non-fatal for import):", cloudErr);
         }
         /* ── RESET MODE (call data only) ──
            1. Snapshot current call data to Report table
@@ -177,7 +241,7 @@ const uploadLeads = async (req, res) => {
                 select: { id: true, assignedTo: true, csr: { select: { name: true } } },
             });
             if (callDataLeads.length > 0) {
-                const snapshotDate = new Date().toISOString().split("T")[0];
+                const snapshotDate = (0, estTime_1.estDateYmd)();
                 const csrSnap = {};
                 callDataLeads.forEach(l => {
                     const key = l.assignedTo;
@@ -234,7 +298,7 @@ const uploadLeads = async (req, res) => {
         const isSpecialUpload = initialStatuses.some(s => s.toLowerCase() !== "pending");
         const hideOnMain = (status) => isSpecialUpload && (status ?? "").toLowerCase() !== "pending";
         const promoteWonClients = isSpecialUpload && initialStatuses.every(leadClientPromotion_1.isWonClientUploadStatus);
-        const { fresh, toUpdate, toPromote, toRefresh, toRestore, emailUpdates, preview, existingCodeMap } = await (0, uploadExcelParse_1.classifyRows)(parsed, isActiveUpload, uploadCategory, promoteWonClients);
+        const { fresh, toUpdate, toPromote, toRefresh, toRestore, emailUpdates, preview, previewCounts, existingCodeMap } = await (0, uploadExcelParse_1.classifyRows)(parsed, isActiveUpload, uploadCategory, promoteWonClients);
         const distributionMap = {};
         const leadFieldsFromRow = (r, opts) => {
             const statusLower = (r.status ?? "").toLowerCase();
@@ -263,6 +327,13 @@ const uploadLeads = async (req, res) => {
             else if (!opts?.skipEmptyInterestedService) {
                 data.interestedService = null;
             }
+            const rowTrade = r.trade?.trim();
+            if (rowTrade)
+                data.trade = rowTrade;
+            else if (tradeName)
+                data.trade = tradeName;
+            if (r.subTrades?.trim())
+                data.subTrades = r.subTrades.trim();
             return data;
         };
         if (isActiveUpload && toUpdate.length > 0 && existingCodeMap) {
@@ -293,6 +364,7 @@ const uploadLeads = async (req, res) => {
             for (const { row } of toRestore) {
                 distributionMap[row.csrName] = (distributionMap[row.csrName] || 0) + 1;
             }
+            await runBatched(toRestore, BATCH_UPDATE, ({ row, existingId }) => attachSubContactsToLead(existingId, row.subContactsRaw));
         }
         if (!isActiveUpload && toPromote.length > 0) {
             await runBatched(toPromote, BATCH_UPDATE, ({ row, existingId }) => db_1.default.lead.update({
@@ -360,11 +432,22 @@ const uploadLeads = async (req, res) => {
                 uploadedFileId: uploadedFile.id,
                 hiddenOnMain: hideOnMain(r.status),
                 inBin: false,
-                trade: tradeName || null,
+                trade: r.trade?.trim() || tradeName || null,
+                subTrades: r.subTrades?.trim() || null,
             }));
             for (let i = 0; i < insertRows.length; i += CHUNK_INSERT) {
                 await db_1.default.lead.createMany({ data: insertRows.slice(i, i + CHUNK_INSERT) });
             }
+            /* Mongo source of truth for how many rows actually landed */
+            const linkedNow = await db_1.default.lead.count({ where: { uploadedFileId: uploadedFile.id } });
+            if (linkedNow > 0) {
+                await db_1.default.uploadFile.update({
+                    where: { id: uploadedFile.id },
+                    data: { totalLeads: linkedNow },
+                });
+            }
+            await attachExcelSubContacts(uploadedFile.id, fresh);
+            await upsertTradesFromRows([...fresh.map(r => r.trade), tradeName]);
             for (const r of fresh) {
                 distributionMap[r.csrName] = (distributionMap[r.csrName] || 0) + 1;
             }
@@ -408,30 +491,48 @@ const uploadLeads = async (req, res) => {
             where: { id: uploadedFile.id },
             data: { totalLeads: addedCount },
         });
+        /* Prefer actual Mongo count when this file has linked leads */
+        try {
+            const linkedNow = await db_1.default.lead.count({ where: { uploadedFileId: uploadedFile.id } });
+            if (linkedNow > 0 && linkedNow !== addedCount) {
+                await db_1.default.uploadFile.update({
+                    where: { id: uploadedFile.id },
+                    data: { totalLeads: linkedNow },
+                });
+            }
+        }
+        catch {
+            /* keep addedCount */
+        }
         await (0, leadNotes_1.seedLeadNotesFromCommentsForFile)(uploadedFile.id);
-        /* Cap row preview payload for large sheets — UI paginates anyway */
-        const ROW_RESULTS_CAP = 500;
-        const rowResults = preview.length > ROW_RESULTS_CAP
-            ? preview.slice(0, ROW_RESULTS_CAP)
-            : preview;
         return res.json({
             success: true,
             totalLeads: addedCount,
             cloudinaryUrl: cloudinaryUrl,
             file: { ...uploadedFile, uploadCategory },
             distribution,
-            rowResults,
+            rowResults: preview,
             summary: {
-                new: preview.filter(p => p.status === "new").length,
-                duplicate: preview.filter(p => p.status === "duplicate").length,
-                updated: preview.filter(p => p.status === "updated").length,
-                empty: preview.filter(p => p.status === "empty").length,
+                new: previewCounts.new,
+                duplicate: previewCounts.duplicate,
+                updated: previewCounts.updated,
+                empty: previewCounts.empty,
             },
         });
     }
     catch (error) {
         console.log(error);
-        return res.status(500).json({ success: false, message: "Upload failed" });
+        const err = error;
+        if (err?.code === "LIMIT_FILE_SIZE" || /File too large/i.test(err?.message ?? "")) {
+            return res.status(413).json({
+                success: false,
+                message: "File too large. Max upload size is 100 MB — split the sheet or compress and retry.",
+            });
+        }
+        return res.status(500).json({
+            success: false,
+            message: err?.message?.slice(0, 200) || "Upload failed",
+        });
     }
 };
 exports.uploadLeads = uploadLeads;
@@ -509,13 +610,13 @@ const previewUpload = async (req, res) => {
         const parsed = (0, uploadExcelParse_1.parseLeadRows)(rows, csrs, initialStatuses, leadType);
         const isSpecialUpload = initialStatuses.some(s => s.toLowerCase() !== "pending");
         const promoteWonClients = isSpecialUpload && initialStatuses.every(leadClientPromotion_1.isWonClientUploadStatus);
-        const { preview } = await (0, uploadExcelParse_1.classifyRows)(parsed, leadType === "active", (0, uploadCategory_1.resolveUploadCategory)(leadType, initialStatuses), promoteWonClients);
+        const { preview, previewCounts } = await (0, uploadExcelParse_1.classifyRows)(parsed, leadType === "active", (0, uploadCategory_1.resolveUploadCategory)(leadType, initialStatuses), promoteWonClients);
         const summary = {
-            new: preview.filter(p => p.status === "new").length,
-            duplicate: preview.filter(p => p.status === "duplicate").length,
-            updated: preview.filter(p => p.status === "updated").length,
-            empty: preview.filter(p => p.status === "empty").length,
-            total: preview.length,
+            new: previewCounts.new,
+            duplicate: previewCounts.duplicate,
+            updated: previewCounts.updated,
+            empty: previewCounts.empty,
+            total: previewCounts.new + previewCounts.duplicate + previewCounts.updated + previewCounts.empty,
         };
         /* Cap payload — UI only shows a page; full 10k+ JSON freezes browser + proxy */
         const PREVIEW_CAP = 400;
@@ -526,8 +627,8 @@ const previewUpload = async (req, res) => {
             success: true,
             preview: capped,
             summary,
-            previewCapped: preview.length > PREVIEW_CAP,
-            previewTotal: preview.length,
+            previewCapped: summary.total > PREVIEW_CAP,
+            previewTotal: summary.total,
         });
     }
     catch (error) {
@@ -543,11 +644,19 @@ const getUploadHistory = async (req, res) => {
         const filterCategory = categoryParam !== "all" && (0, uploadCategory_1.isUploadCategory)(categoryParam)
             ? categoryParam
             : null;
+        /* Load ALL upload files from Mongo (no artificial page cut). */
         const uploads = await db_1.default.uploadFile.findMany({
+            where: filterCategory ? { uploadCategory: filterCategory } : undefined,
             orderBy: { createdAt: "desc" },
-            include: {
+            select: {
+                id: true,
+                fileName: true,
+                totalLeads: true,
+                companyName: true,
+                cloudinaryUrl: true,
+                uploadCategory: true,
+                createdAt: true,
                 source: { select: uploadSourceSelect_1.ADMIN_UPLOAD_SOURCE_SELECT },
-                _count: { select: { leads: true } },
                 leads: {
                     take: 1,
                     select: { status: true, isOldClient: true, projectTitle: true },
@@ -558,22 +667,55 @@ const getUploadHistory = async (req, res) => {
             let effectiveCategory = u.uploadCategory ?? "uncategorized";
             if (!u.uploadCategory && u.leads[0]) {
                 effectiveCategory = (0, uploadCategory_1.inferUploadCategoryFromLead)(u.leads[0]);
-                /* Backfill DB so future loads are fast — fire-and-forget */
                 void db_1.default.uploadFile
                     .update({ where: { id: u.id }, data: { uploadCategory: effectiveCategory } })
                     .catch(() => undefined);
             }
             return { ...u, effectiveCategory };
         });
+        /* One Mongo aggregation — real linked lead counts for every file (safe at 50k+) */
+        const linkedByFile = new Map();
+        const fileIds = enriched.map(u => u.id);
+        if (fileIds.length > 0) {
+            try {
+                const agg = await db_1.default.$runCommandRaw({
+                    aggregate: "Lead",
+                    pipeline: [
+                        { $match: { uploadedFileId: { $in: fileIds } } },
+                        { $group: { _id: "$uploadedFileId", n: { $sum: 1 } } },
+                    ],
+                    cursor: {},
+                });
+                const batch = agg
+                    ?.cursor?.firstBatch ?? [];
+                for (const row of batch) {
+                    if (row?._id)
+                        linkedByFile.set(String(row._id), Number(row.n) || 0);
+                }
+            }
+            catch (aggErr) {
+                console.log("[UploadHistory] Mongo lead aggregation failed, using totalLeads:", aggErr);
+            }
+        }
         const counts = { all: enriched.length };
         for (const cat of uploadCategory_1.UPLOAD_CATEGORIES)
             counts[cat] = 0;
         for (const u of enriched) {
-            if (u.effectiveCategory in counts) {
+            if (u.effectiveCategory in counts)
                 counts[u.effectiveCategory]++;
-            }
-            else {
+            else
                 counts.uncategorized = (counts.uncategorized ?? 0) + 1;
+        }
+        /* If filtered by category, still show global tab totals from Mongo */
+        if (filterCategory) {
+            try {
+                counts.all = await db_1.default.uploadFile.count();
+                await Promise.all(uploadCategory_1.UPLOAD_CATEGORIES.map(async (cat) => {
+                    counts[cat] = await db_1.default.uploadFile.count({ where: { uploadCategory: cat } });
+                }));
+            }
+            catch {
+                /* keep filtered-page counts */
             }
         }
         const filtered = filterCategory
@@ -582,17 +724,20 @@ const getUploadHistory = async (req, res) => {
         return res.json({
             success: true,
             counts,
-            uploads: filtered.map(u => ({
-                id: u.id,
-                fileName: u.fileName,
-                totalLeads: u.totalLeads,
-                linkedLeads: u._count.leads,
-                companyName: u.companyName,
-                cloudinaryUrl: u.cloudinaryUrl,
-                uploadCategory: u.effectiveCategory === "uncategorized" ? null : u.effectiveCategory,
-                source: u.source,
-                createdAt: u.createdAt,
-            })),
+            uploads: filtered.map(u => {
+                const linked = linkedByFile.get(u.id);
+                return {
+                    id: u.id,
+                    fileName: u.fileName,
+                    totalLeads: linked ?? u.totalLeads,
+                    linkedLeads: linked ?? u.totalLeads,
+                    companyName: u.companyName,
+                    cloudinaryUrl: u.cloudinaryUrl,
+                    uploadCategory: u.effectiveCategory === "uncategorized" ? null : u.effectiveCategory,
+                    source: u.source,
+                    createdAt: u.createdAt,
+                };
+            }),
         });
     }
     catch (error) {
@@ -688,6 +833,10 @@ const deleteUploadFile = async (req, res) => {
         });
         const leadIds = leads.map(l => l.id);
         const deleted = await (0, deleteLeadsCascade_1.deleteLeadsCascade)(leadIds);
+        await db_1.default.lead.updateMany({
+            where: { uploadedFileId: id },
+            data: { uploadedFileId: null },
+        });
         await db_1.default.uploadFile.delete({ where: { id } });
         const csrIds = [...new Set(leads.map(l => l.assignedTo))];
         await (0, deleteLeadsCascade_1.invalidateAllLeadCaches)(csrIds);
@@ -699,7 +848,8 @@ const deleteUploadFile = async (req, res) => {
     }
     catch (error) {
         console.log(error);
-        return res.status(500).json({ success: false, message: "Failed to delete upload" });
+        const msg = error instanceof Error ? error.message : "Failed to delete upload";
+        return res.status(500).json({ success: false, message: msg.includes("constraint") || msg.includes("Foreign") ? "Could not delete this file because related contacts are still linked. Try again or contact support." : "Failed to delete upload" });
     }
 };
 exports.deleteUploadFile = deleteUploadFile;

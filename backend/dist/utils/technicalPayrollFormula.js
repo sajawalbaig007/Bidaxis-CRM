@@ -25,6 +25,10 @@ function emptyTechnicalSalary(partial) {
         pfAuto: true,
         pfOverride: null,
         remarks: "",
+        employeeId: "",
+        address: "",
+        phone: "",
+        cnic: "",
         ...partial,
     };
     merged.occasionalAmount = Math.max(0, Number(merged.occasionalAmount) || 0);
@@ -75,8 +79,8 @@ function computeTechnicalSalary(detail) {
     const basic = Number(detail.basic) || 0;
     const allowance = Number(detail.allowance) || 0;
     const monthlySalary = basic + allowance;
-    const daySalary = monthlySalary / 30;
-    const hourSalary = daySalary / 8;
+    const daySalary = basic / 30;
+    const hourSalary = monthlySalary / 30 / 8;
     const weekdayOtHours = Number(detail.weekdayOtHours) || 0;
     const weekendOtHours = Number(detail.weekendOtHours) || 0;
     const weekdayOtPay = weekdayOtHours * hourSalary * 1.5;
