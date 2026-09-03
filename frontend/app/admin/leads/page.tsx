@@ -520,6 +520,9 @@ function ClientsPageContent() {
         const created = formatAdminLead(res.data.lead);
         setClients((prev) => [created, ...prev]);
         toast.success("Client added successfully.");
+        setPage(1);
+        setSearch("");
+        setSearchDebounced("");
         if (status === "Close Client") {
           setView("closed");
           router.replace(`${staffBase}/leads?tab=closed`);

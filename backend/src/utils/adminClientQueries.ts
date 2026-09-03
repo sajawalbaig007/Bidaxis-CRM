@@ -127,6 +127,7 @@ export function adminClientBucket(
 export type AdminIdentityLead = {
   id: string;
   phone?: string | null;
+  email?: string | null;
   company?: string | null;
   clientCode?: string | null;
   projectCode?: string | null;
@@ -176,8 +177,10 @@ export function adminLeadIdentityKey(lead: AdminIdentityLead, preferClientCode: 
     if (codeKey) return codeKey;
   }
   const digits = (lead.phone ?? "").replace(/\D/g, "");
-  const co = (lead.company ?? "").trim().toLowerCase();
   if (digits.length >= 7) return `phone:${digits}`;
+  const email = (lead.email ?? "").trim().toLowerCase();
+  if (email) return `email:${email}`;
+  const co = (lead.company ?? "").trim().toLowerCase();
   if (co) return `company:${co}`;
   return `id:${lead.id}`;
 }
@@ -284,23 +287,24 @@ export function buildAdminClientListWhere(
 
   const q = search?.trim();
   if (q) {
+    const contains = { contains: q, mode: "insensitive" as const };
     parts.push({
       OR: [
-        { name: { contains: q } },
-        { company: { contains: q } },
-        { phone: { contains: q } },
-        { email: { contains: q } },
-        { ownerName: { contains: q } },
-        { projectTitle: { contains: q } },
-        { projectCode: { contains: q } },
-        { clientCode: { contains: q } },
-        { interestedService: { contains: q } },
-        { status: { contains: q } },
-        { comments: { contains: q } },
-        { projectNotes: { contains: q } },
-        { state: { contains: q } },
-        { csr: { is: { name: { contains: q } } } },
-        { csr: { is: { csrCode: { contains: q } } } },
+        { name: contains },
+        { company: contains },
+        { phone: contains },
+        { email: contains },
+        { ownerName: contains },
+        { projectTitle: contains },
+        { projectCode: contains },
+        { clientCode: contains },
+        { interestedService: contains },
+        { status: contains },
+        { comments: contains },
+        { projectNotes: contains },
+        { state: contains },
+        { csr: { is: { name: contains } } },
+        { csr: { is: { csrCode: contains } } },
       ],
     });
   }

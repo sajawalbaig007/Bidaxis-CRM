@@ -197,6 +197,7 @@ async function buildAdminTabCountsPayload(filters) {
         select: {
             id: true,
             phone: true,
+            email: true,
             company: true,
             clientCode: true,
             projectCode: true,
