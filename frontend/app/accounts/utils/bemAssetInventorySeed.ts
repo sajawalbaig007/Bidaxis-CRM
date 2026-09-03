@@ -165,8 +165,10 @@ export function migrateInventoryIntoCategoryHeads(sections: AssetSectionRow[]): 
       continue;
     }
     used.add(cat);
-    // Fill empty category heads, or replace when redistributing from BEM Asset
-    const shouldFill = !sectionHasInventoryItems(s) || fromBemAsset.length > 0;
+    // Keep existing lines. Only fill when this category is empty, or when
+    // redistributing from the legacy "BEM Asset" head.
+    const hasAnyLines = (s.subHeads?.length ?? 0) > 0 || sectionHasInventoryItems(s);
+    const shouldFill = !hasAnyLines || fromBemAsset.length > 0;
     if (shouldFill && byCat[cat].length > 0) {
       const subs = byCat[cat].map(sh => ({ ...sh, inventoryCategory: cat }));
       next.push({

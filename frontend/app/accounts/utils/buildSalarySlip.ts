@@ -29,6 +29,7 @@ import {
   salarySlipCompanyForKind,
   type SalarySlipCompanyKey,
 } from "./salarySlipCompanies";
+import { technicalCodeForName } from "./technicalPayrollDefaults";
 
 export type SlipPayrollKind =
   | "technical"
@@ -40,11 +41,27 @@ export type SlipPayrollKind =
 
 function profileFromSalary(sal?: Partial<EmployeeSalaryDetail> | null) {
   return {
-    employeeId: sal?.employeeId || "",
+    employeeId: String(sal?.employeeId || "").trim(),
     address: sal?.address || "",
     phone: sal?.phone || "",
     cnic: sal?.cnic || "",
   };
+}
+
+function resolveSlipEmployeeId(
+  sub: SubHeadEntry,
+  kind: SlipPayrollKind,
+  sal?: Partial<EmployeeSalaryDetail> | null,
+): string {
+  const fromSalary = String(sal?.employeeId || "").trim();
+  if (fromSalary) return fromSalary;
+  const sales = sub.salesPayroll as SalesPayrollEmployee | undefined;
+  const fromSales = String(sales?.code || "").trim();
+  if (fromSales) return fromSales;
+  if (kind === "technical" || kind === "technical_manager") {
+    return technicalCodeForName(sub.label);
+  }
+  return "";
 }
 
 function commentsFrom(
@@ -260,7 +277,7 @@ export function buildSalarySlipFromSub(opts: {
       monthLabel,
       monthCompact,
       employeeName: emp.name,
-      employeeId: emp.code || undefined,
+      employeeId: emp.code.trim() || undefined,
       address: emp.address || undefined,
       phone: emp.phone || undefined,
       cnic: emp.cnic || undefined,
@@ -295,6 +312,7 @@ export function buildSalarySlipFromSub(opts: {
       monthCompact,
       employeeName: sub.label,
       ...profile,
+      employeeId: resolveSlipEmployeeId(sub, kind, sal) || profile.employeeId || undefined,
       earnings: [
         { label: "BasicSalary", amount: ex.basic },
         ...allowanceSlipLines(sal),
@@ -334,6 +352,7 @@ export function buildSalarySlipFromSub(opts: {
     monthCompact,
     employeeName: sub.label,
     ...profile,
+    employeeId: resolveSlipEmployeeId(sub, kind, sal) || undefined,
     earnings: isTechnical
       ? isTechMgr
         ? buildTechnicalManagerEarnings(sal)

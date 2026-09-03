@@ -9,6 +9,7 @@ import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import type { SalarySlipCompany } from "./salarySlipCompanies";
 import {
+  BEM_NAVY,
   BEM_RED,
   earningsTotal,
   fitLogoBox,
@@ -32,6 +33,8 @@ type SlipTheme = {
   id: "bem" | "gps";
   header: Rgb;
   headerInk: Rgb;
+  /** Top of header + top of footer — same color */
+  bar: Rgb;
   accent: Rgb;
   accentSoft: Rgb;
   ink: Rgb;
@@ -52,8 +55,9 @@ type SlipTheme = {
 
 const BEM_THEME: SlipTheme = {
   id: "bem",
-  header: [18, 18, 20],
+  header: BEM_NAVY,
   headerInk: [255, 255, 255],
+  bar: BEM_RED,
   accent: BEM_RED,
   accentSoft: [255, 241, 243],
   ink: [22, 22, 24],
@@ -61,7 +65,7 @@ const BEM_THEME: SlipTheme = {
   paper: [252, 251, 249],
   card: [255, 255, 255],
   line: [228, 224, 220],
-  tableHead: [18, 18, 20],
+  tableHead: BEM_NAVY,
   tableHeadText: 255,
   deductHead: BEM_RED,
   zebra: [250, 247, 245],
@@ -78,11 +82,14 @@ const BEM_CSR_THEME: SlipTheme = {
   fieldBoxes: true,
 };
 
+const GPS_NAVY: Rgb = [0, 27, 68];
+
 const GPS_THEME: SlipTheme = {
   id: "gps",
-  header: [8, 32, 92],
+  header: GPS_NAVY,
   headerInk: [255, 255, 255],
-  accent: [37, 99, 235],
+  bar: [43, 87, 151],
+  accent: [43, 87, 151],
   accentSoft: [235, 244, 255],
   ink: [15, 23, 42],
   muted: [71, 85, 105],
@@ -91,9 +98,9 @@ const GPS_THEME: SlipTheme = {
   line: [203, 213, 225],
   tableHead: [219, 234, 254],
   tableHeadText: [15, 57, 138],
-  deductHead: [15, 57, 138],
+  deductHead: GPS_NAVY,
   zebra: [241, 245, 249],
-  netBg: [8, 32, 92],
+  netBg: GPS_NAVY,
   netInk: [255, 255, 255],
   thankYou: false,
   showApproval: false,
@@ -105,9 +112,19 @@ function pkr(n: number): string {
 }
 
 function slipRef(payload: SalarySlipPayload): string {
-  const raw = (payload.employeeId || payload.employeeName || "EMP").replace(/[^\w]/g, "");
-  const id = (raw.slice(0, 8) || "EMP").toUpperCase();
-  const period = (payload.monthCompact || payload.monthLabel).replace(/\s+/g, "");
+  const code = String(payload.employeeId || "")
+    .trim()
+    .replace(/[^\w./-]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  const fromName = (payload.employeeName || "EMP")
+    .trim()
+    .replace(/[^\w]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 24);
+  const id = (code || fromName || "EMP").toUpperCase();
+  const period = (payload.monthCompact || payload.monthLabel).replace(/\s+/g, "-");
   return `SL-${period}-${id}`;
 }
 
@@ -117,23 +134,6 @@ function issuedOn(): string {
     month: "short",
     year: "numeric",
   });
-}
-
-async function drawLogo(
-  doc: JsPdfWithAutoTable,
-  company: SalarySlipCompany,
-  key: string,
-  x: number,
-  y: number,
-  maxW: number,
-  maxH: number,
-) {
-  if (!company.logoUrl) return { w: 0, h: 0 };
-  const logo = await loadLogoForPdf(company.logoUrl, { stripWhite: key === "BEM" });
-  if (!logo) return { w: 0, h: 0 };
-  const { w, h } = fitLogoBox(logo.width, logo.height, maxW, maxH);
-  doc.addImage(logo.dataUrl, logo.format, x, y, w, h);
-  return { w, h };
 }
 
 function drawWatermark(doc: JsPdfWithAutoTable, theme: SlipTheme) {
@@ -161,8 +161,8 @@ function drawFooterBar(doc: JsPdfWithAutoTable, company: SalarySlipCompany, them
   const footerY = pageH - FOOTER_H;
   doc.setFillColor(...theme.header);
   doc.rect(0, footerY, pageW, FOOTER_H, "F");
-  doc.setFillColor(...theme.accent);
-  doc.rect(0, footerY, pageW, 1.4, "F");
+  doc.setFillColor(...theme.bar);
+  doc.rect(0, footerY, pageW, 2.4, "F");
 
   doc.setTextColor(255, 255, 255);
   doc.setFont("helvetica", "bold");
@@ -201,7 +201,7 @@ function drawPageChrome(
     drawWatermark(doc, theme);
   }
 
-  doc.setFillColor(...theme.accent);
+  doc.setFillColor(...theme.bar);
   doc.rect(0, 0, pageW, 2.4, "F");
 
   if (continued) {
@@ -233,19 +233,39 @@ async function drawHeaderBand(
   doc.setFillColor(...theme.header);
   doc.rect(0, 2.4, pageW, headerH, "F");
 
-  const logoKey = theme.id === "gps" ? "GPS" : "BEM";
-  const logo = await drawLogo(doc, company, logoKey, M, 7, theme.id === "gps" ? 54 : 38, 18);
+  const maxLogoW = theme.id === "gps" ? 54 : 38;
+  const maxLogoH = 18;
+  let logoW = 0;
+  let logoH = 0;
+  if (company.logoUrl) {
+    const fitted = await (async () => {
+      const logo = await loadLogoForPdf(company.logoUrl!, { stripWhite: true });
+      if (!logo) return { w: 0, h: 0, dataUrl: "", format: "PNG" as const };
+      const box = fitLogoBox(logo.width, logo.height, maxLogoW, maxLogoH);
+      return { ...box, dataUrl: logo.dataUrl, format: logo.format };
+    })();
+    logoW = fitted.w;
+    logoH = fitted.h;
+    if (logoW > 0) {
+      const plateX = M - 1.2;
+      const plateY = 6.2;
+      const plateW = logoW + 4.4;
+      const plateH = Math.max(logoH + 4, 20);
+      doc.setFillColor(255, 255, 255);
+      doc.roundedRect(plateX, plateY, plateW, plateH, 1.4, 1.4, "F");
+      doc.addImage(fitted.dataUrl, fitted.format, M + 1, plateY + (plateH - logoH) / 2, logoW, logoH);
+      logoW = plateW;
+    }
+  }
 
-  const textX = M + (logo.w > 0 ? logo.w + 8 : 0);
+  const textX = M + (logoW > 0 ? logoW + 6 : 0);
+  const title = company.legalName.toUpperCase();
+  const maxTitleW = Math.max(36, pageW - M - textX - 62);
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(9);
+  doc.setFontSize(title.length > 28 ? 7.6 : 10);
   doc.setTextColor(...theme.headerInk);
-  doc.text(company.legalName.toUpperCase(), textX, 12.2);
-
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(7);
-  doc.setTextColor(210, 214, 220);
-  doc.text(company.brandLine || "Official Payslip", textX, 17.2);
+  const titleLines = doc.splitTextToSize(title, maxTitleW);
+  doc.text(titleLines, textX, titleLines.length > 1 ? 14.6 : 18.4);
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(17);

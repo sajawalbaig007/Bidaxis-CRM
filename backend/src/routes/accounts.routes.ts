@@ -8,6 +8,7 @@ import {
   getIncomeBudgetActuals,
   getProvidentFundBreakdown,
   listAccountsDates,
+  listEmployeeNameMerges,
   saveAccountsRecord,
   uploadAccountsFile,
 } from "../controllers/accounts.controller";
@@ -28,6 +29,7 @@ router.get("/dashboard/summary", getAccountsDashboardSummary);
 router.get("/fx-rates", getLiveFxRates);
 router.get("/income-budget/actuals", getIncomeBudgetActuals);
 router.get("/income-statement/pf-breakdown", getProvidentFundBreakdown);
+router.get("/employee-name-merges", listEmployeeNameMerges);
 router.get("/reports/monthly/saved", listMonthlyAccountsReports);
 router.post("/reports/monthly/save", uploadReportFile.single("file"), saveMonthlyAccountsReport);
 router.get("/reports/monthly", getMonthlyAccountsReport);

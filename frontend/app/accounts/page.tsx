@@ -1,14 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import {
-  ArrowUpRight,
+  Activity,
+  BarChart3,
   Boxes,
   CheckCircle2,
   Cpu,
   Eye,
-  FileText,
   LayoutDashboard,
   Layers3,
   PieChart as PieIcon,
@@ -18,11 +17,26 @@ import {
   TrendingUp,
   Wallet,
   Waves,
-  BadgeDollarSign,
   Receipt,
 } from "lucide-react";
-import { Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, Tooltip, XAxis, YAxis } from "recharts";
-import toast from "react-hot-toast";
+import {
+  Area,
+  AreaChart,
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  ComposedChart,
+  Legend,
+  Pie,
+  PieChart,
+  PolarAngleAxis,
+  RadialBar,
+  RadialBarChart,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import API, { apiErrorMessage } from "@/lib/api";
 import AccountsSidebar from "./components/layout/Sidebar";
 import { ACCOUNTS_MAIN_OFFSET } from "./components/layout/headerOffset";
@@ -38,6 +52,14 @@ import { normalizePeriodPreset } from "./utils/accountsPeriodFilters";
 import type { CurrencyTabKey, DashboardCurrency, DashboardCurrencyTab, DashboardData, FormulasState } from "./types";
 import { CURRENCY_TAB_LABELS, CURRENCY_TAB_SHORT, currency, isLocalPaymentTab, todayIso } from "./types";
 import { BENTO_CARD } from "@/lib/staffPageLayout";
+
+function compactPkr(n: number): string {
+  const a = Math.abs(Number(n) || 0);
+  const sign = (Number(n) || 0) < 0 ? "-" : "";
+  if (a >= 1_000_000) return `${sign}${(a / 1_000_000).toFixed(1)}M`;
+  if (a >= 1_000) return `${sign}${(a / 1_000).toFixed(0)}k`;
+  return `${sign}${Math.round(a)}`;
+}
 
 const TAB_DEFAULTS: Record<CurrencyTabKey, DashboardCurrencyTab> = {
   // Ahmed Hamza — USD/CAD × 0.89 → × FX (example USD rate 285)
@@ -378,16 +400,51 @@ export default function AccountsDashboardPage() {
     { key: "HM", label: "Habib Metro", amount: hmCalc.total, dot: "#2DD4BF" },
   ];
 
-  const quickPages = [
-    { href: "/accounts/income-statement#team-salaries", label: "Income Statement", hint: "Net Profit", stat: summaries.incomeNetProfit, icon: <TrendingUp size={17} />, from: "#12B76A", to: "#027A48" },
-    { href: "/accounts/balance-sheet#bs-assets", label: "Balance Sheet", hint: "Total Assets", stat: summaries.balanceSheetTotalAssets, icon: <Scale size={17} />, from: "#0B84F3", to: "#0369A1" },
-    { href: "/accounts/cash-flow-statement#cash-tables", label: "Cash Flow", hint: "Net Amount", stat: summaries.cashFlowNet, icon: <Waves size={17} />, from: "#B8112D", to: "#8b0d22" },
-    { href: "/accounts/total-assets#assets-register", label: "Total Assets", hint: "Register Sum", stat: summaries.totalAssetsRegister, icon: <Boxes size={17} />, from: "#0D9488", to: "#0F766E" },
-    { href: "/accounts/reports#monthly-report", label: "Monthly Reports", hint: "Executive summary", icon: <FileText size={17} />, from: "#0F172A", to: "#334155" },
-    { href: "/accounts/income-statement#team-salaries", label: "Team Payroll", hint: "Tech · Sales · Admin · Exec", icon: <Cpu size={17} />, from: "#6D28D9", to: "#4C1D95" },
-    { href: "/accounts#live-fx", label: "Live FX Rates", hint: "USD · CAD → PKR", icon: <BadgeDollarSign size={17} />, from: "#0EA5E9", to: "#0369A1" },
-    { href: "/accounts#currency-formula", label: "Currency Formula", hint: "Ahmed · Sharjeel · Cheque · Habib", icon: <Receipt size={17} />, from: "#F59E0B", to: "#B45309" },
-  ] as const;
+  const isRev = summaries.incomeTotalRevenue ?? 0;
+  const isPayroll = summaries.incomePayroll ?? 0;
+  const isOpex = summaries.incomeOpex ?? 0;
+  const isLoans = summaries.incomeLoans ?? 0;
+  const isPf = summaries.incomeProvidentFund ?? 0;
+  const isExp = summaries.incomeTotalExpense ?? 0;
+  const isProfit = summaries.incomeNetProfit ?? 0;
+  const profitMarginPct = isRev > 0 ? (isProfit / isRev) * 100 : 0;
+  const marginClamped = Math.max(0, Math.min(100, Number.isFinite(profitMarginPct) ? Math.abs(profitMarginPct) : 0));
+
+  const pnlComposed = [
+    { name: "Revenue", amount: isRev, marker: isProfit },
+    { name: "Expense", amount: isExp, marker: isProfit },
+    { name: "Net Profit", amount: isProfit, marker: isProfit },
+  ];
+
+  const pnlHorizontal = [
+    { name: "Revenue", value: isRev, fill: "#12B76A" },
+    { name: "Payroll", value: isPayroll, fill: "#0B84F3" },
+    { name: "OPEX", value: isOpex, fill: "#B8112D" },
+    { name: "Loans", value: isLoans, fill: "#F59E0B" },
+    { name: "PF", value: isPf, fill: "#0D9488" },
+    { name: "Net Profit", value: isProfit, fill: isProfit >= 0 ? "#12B76A" : "#B8112D" },
+  ];
+
+  const expenseMix = [
+    { name: "Payroll", value: Math.max(0, isPayroll), color: "#0B84F3" },
+    { name: "OPEX", value: Math.max(0, isOpex), color: "#B8112D" },
+    { name: "Loans", value: Math.max(0, isLoans), color: "#F59E0B" },
+    { name: "PF", value: Math.max(0, isPf), color: "#0D9488" },
+  ];
+
+  const channelMixArea = [
+    { name: "USD", Ahmed: ahCalc.usdInPkr, Sharjeel: snCalc.usdInPkr, Cheque: 0, Habib: 0 },
+    { name: "CAD", Ahmed: ahCalc.cadInPkr, Sharjeel: snCalc.cadInPkr, Cheque: 0, Habib: 0 },
+    { name: "Local PKR", Ahmed: ahCalc.pkrNet, Sharjeel: snCalc.pkrNet, Cheque: chqCalc.pkrNet, Habib: hmCalc.pkrNet },
+  ];
+
+  const marginGauge = [
+    {
+      name: "Margin",
+      value: marginClamped,
+      fill: profitMarginPct >= 0 ? "#12B76A" : "#B8112D",
+    },
+  ];
 
   const ensureNormalized = (prev: DashboardData): DashboardCurrency =>
     normalizeCurrency(prev.currency);
@@ -415,27 +472,6 @@ export default function AccountsDashboardPage() {
         },
       };
     });
-  };
-
-  /** Apply live Google/market rates into AH and/or SN conversion formula fields. */
-  const applyLiveRates = (target: "AH" | "SN" | "both") => {
-    if (!fxRates) return;
-    const usd = fxRates.usdToPkr;
-    const cad = fxRates.cadToPkr;
-    acc.setData(prev => {
-      const tabs = ensureNormalized(prev).tabs;
-      const next = { ...tabs };
-      if (target === "AH" || target === "both") {
-        next.AH = { ...next.AH, usdToPkrRate: usd, cadToPkrRate: cad, usdTaxFactor: 0.89, cadTaxFactor: 0.89 };
-      }
-      if (target === "SN" || target === "both") {
-        next.SN = { ...next.SN, usdToPkrRate: usd, cadToPkrRate: cad, cadTaxFactor: 0.945 };
-      }
-      return { ...prev, currency: { tabs: next } };
-    });
-    const label =
-      target === "both" ? "Ahmed + Sharjeel" : target === "AH" ? "Ahmed Hamza" : "Sharjeel Nasir";
-    toast.success(`Live rates applied to ${label} — click Save to persist.`);
   };
 
   /** Formula Book — edits save straight into the dashboard record */
@@ -568,7 +604,7 @@ export default function AccountsDashboardPage() {
                 <div>
                   <h2 className="font-extrabold text-crm-text text-sm tracking-tight">Live FX Rates — USD & CAD → PKR</h2>
                   <p className="text-[11px] text-crm-text-faint mt-0.5">
-                    Fetched from Google Finance · review these rates, then apply them to your conversion formula
+                    Fetched from Google Finance · live USD and CAD to PKR for review against your formula
                   </p>
                 </div>
                 <button
@@ -619,34 +655,11 @@ export default function AccountsDashboardPage() {
                       </div>
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => applyLiveRates("AH")}
-                        className="h-9 px-3 rounded-xl bg-[#B8112D] text-white text-[11px] font-bold hover:bg-[#9a0e26]"
-                      >
-                        Apply to Ahmed (AH)
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => applyLiveRates("SN")}
-                        className="h-9 px-3 rounded-xl bg-[#0B84F3] text-white text-[11px] font-bold hover:bg-[#0a6fce]"
-                      >
-                        Apply to Sharjeel (SN)
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => applyLiveRates("both")}
-                        className="h-9 px-3 rounded-xl border border-crm-border bg-crm-surface text-crm-text-secondary text-[11px] font-bold hover:border-[#B8112D] hover:text-[#B8112D]"
-                      >
-                        Apply to both
-                      </button>
-                      <p className="text-[10px] text-crm-text-faint ml-auto">
-                        Source: {fxRates.source === "google" ? "Google Finance" : fxRates.source}
-                        {" · "}
-                        {new Date(fxRates.fetchedAt).toLocaleString()}
-                      </p>
-                    </div>
+                    <p className="text-[10px] text-crm-text-faint text-right">
+                      Source: {fxRates.source === "google" ? "Google Finance" : fxRates.source}
+                      {" · "}
+                      {new Date(fxRates.fetchedAt).toLocaleString()}
+                    </p>
                   </div>
                 ) : null}
               </div>
@@ -868,7 +881,7 @@ export default function AccountsDashboardPage() {
                   >
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                     <XAxis dataKey="name" tick={{ fontSize: 10, fontWeight: 700 }} />
-                    <YAxis tick={{ fontSize: 9 }} width={40} />
+                    <YAxis tick={{ fontSize: 9 }} width={40} tickFormatter={compactPkr} />
                     <Tooltip formatter={v => currency(Number(v ?? 0))} />
                     <Bar dataKey="value" radius={[8, 8, 0, 0]}>
                       {["#0B84F3", "#12B76A", "#B8112D", "#0D9488"].map((c, i) => (
@@ -879,48 +892,165 @@ export default function AccountsDashboardPage() {
                 </RechartsBox>
               </AccountsChartCard>
             </div>
-          </section>
 
-          <section className="mt-5">
-            <div className="flex items-center gap-2.5 mb-3 px-0.5">
+            <div className="flex items-center gap-2.5 px-0.5 pt-1">
               <span className="w-1 h-6 rounded-full bg-[#B8112D] shrink-0" />
-              <h2 className="font-extrabold text-crm-text text-sm tracking-tight">Quick Access</h2>
-              <span className="text-[11px] text-crm-text-faint font-medium">Jump to any accounts page — live totals as of {acc.recordDate}</span>
+              <h2 className="font-extrabold text-crm-text text-sm tracking-tight">Financial Insights</h2>
+              <span className="text-[11px] text-crm-text-faint font-medium">{periodHint}</span>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
-              {quickPages.map(p => (
-                <Link
-                  key={p.label}
-                  href={p.href}
-                  prefetch={false}
-                  className={`group relative overflow-hidden ${BENTO_CARD} p-4 transition-all duration-200 hover:-translate-y-1 hover:shadow-[0_16px_40px_-12px_rgba(15,23,42,0.18)]`}
-                >
-                  <div
-                    className="absolute inset-x-0 top-0 h-0.5 opacity-70 group-hover:opacity-100 transition-opacity"
-                    style={{ background: `linear-gradient(90deg, ${p.from}, ${p.to})` }}
-                  />
-                  <div className="flex items-start justify-between gap-2">
-                    <span
-                      className="w-10 h-10 rounded-xl inline-flex items-center justify-center text-white shadow-md"
-                      style={{ background: `linear-gradient(135deg, ${p.from}, ${p.to})` }}
+
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 w-full">
+              <AccountsChartCard
+                title="P&L Overview"
+                subtitle="Revenue · Expense · Net profit"
+                accent="#12B76A"
+                icon={<Activity size={16} />}
+              >
+                <RechartsBox height={230}>
+                  <ComposedChart data={pnlComposed} margin={{ top: 8, right: 8, left: -4, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="dashPnlArea" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#B8112D" stopOpacity={0.22} />
+                        <stop offset="100%" stopColor="#B8112D" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 6" vertical={false} stroke="#f1f5f9" />
+                    <XAxis dataKey="name" tick={{ fontSize: 10, fontWeight: 700 }} />
+                    <YAxis tick={{ fontSize: 9 }} width={44} tickFormatter={compactPkr} />
+                    <Tooltip formatter={v => currency(Number(v ?? 0))} />
+                    <Legend wrapperStyle={{ fontSize: 11, fontWeight: 700 }} />
+                    <Bar dataKey="amount" name="Amount" radius={[8, 8, 0, 0]} maxBarSize={42}>
+                      <Cell fill="#12B76A" />
+                      <Cell fill="#B8112D" />
+                      <Cell fill="#0B84F3" />
+                    </Bar>
+                    <Area
+                      type="monotone"
+                      dataKey="marker"
+                      name="Net profit"
+                      stroke="#B8112D"
+                      strokeWidth={2}
+                      fill="url(#dashPnlArea)"
+                      dot={{ r: 4, fill: "#B8112D", stroke: "#fff", strokeWidth: 2 }}
+                    />
+                  </ComposedChart>
+                </RechartsBox>
+              </AccountsChartCard>
+
+              <AccountsChartCard
+                title="P&L Breakdown"
+                subtitle="Income statement lines"
+                accent="#0B84F3"
+                icon={<BarChart3 size={16} />}
+              >
+                <RechartsBox height={230}>
+                  <BarChart data={pnlHorizontal} layout="vertical" margin={{ top: 4, right: 12, left: 8, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
+                    <XAxis type="number" tick={{ fontSize: 9 }} tickFormatter={compactPkr} />
+                    <YAxis type="category" dataKey="name" tick={{ fontSize: 10, fontWeight: 700 }} width={78} />
+                    <Tooltip formatter={v => currency(Number(v ?? 0))} />
+                    <Bar dataKey="value" radius={[0, 8, 8, 0]} maxBarSize={18}>
+                      {pnlHorizontal.map(row => (
+                        <Cell key={row.name} fill={row.fill} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </RechartsBox>
+              </AccountsChartCard>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 w-full">
+              <AccountsChartCard
+                title="Expense Mix"
+                subtitle="Payroll · OPEX · Loans · PF"
+                accent="#B8112D"
+                icon={<PieIcon size={16} />}
+              >
+                <RechartsBox height={220}>
+                  <PieChart>
+                    <Pie
+                      data={
+                        expenseMix.some(r => r.value > 0)
+                          ? expenseMix.filter(r => r.value > 0)
+                          : [{ name: "Empty", value: 1, color: "#E2E8F0" }]
+                      }
+                      dataKey="value"
+                      nameKey="name"
+                      innerRadius={48}
+                      outerRadius={78}
+                      paddingAngle={3}
+                      stroke="#fff"
+                      strokeWidth={2}
                     >
-                      {p.icon}
-                    </span>
-                    <span className="w-7 h-7 rounded-lg bg-crm-surface-muted border border-crm-border-subtle text-crm-text-faint inline-flex items-center justify-center transition-all duration-200 group-hover:bg-[#B8112D] group-hover:border-[#B8112D] group-hover:text-white group-hover:rotate-45">
-                      <ArrowUpRight size={14} />
-                    </span>
-                  </div>
-                  <p className="mt-3 font-extrabold text-crm-text text-sm tracking-tight">{p.label}</p>
-                  {"stat" in p && p.stat != null ? (
-                    <p className="mt-0.5 text-lg font-extrabold tabular-nums tracking-tight" style={{ color: p.from }}>
-                      {currency(Number(p.stat) || 0)}
+                      {(expenseMix.some(r => r.value > 0) ? expenseMix.filter(r => r.value > 0) : [{ name: "Empty", color: "#E2E8F0" }]).map(row => (
+                        <Cell key={row.name} fill={row.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip formatter={v => currency(Number(v ?? 0))} />
+                    <Legend wrapperStyle={{ fontSize: 11, fontWeight: 700 }} />
+                  </PieChart>
+                </RechartsBox>
+              </AccountsChartCard>
+
+              <AccountsChartCard
+                title="Channel Mix"
+                subtitle="USD · CAD · local PKR by payer"
+                accent="#F59E0B"
+                icon={<Activity size={16} />}
+              >
+                <RechartsBox height={220}>
+                  <AreaChart data={channelMixArea} margin={{ top: 8, right: 8, left: -4, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                    <XAxis dataKey="name" tick={{ fontSize: 10, fontWeight: 700 }} />
+                    <YAxis tick={{ fontSize: 9 }} width={44} tickFormatter={compactPkr} />
+                    <Tooltip formatter={v => currency(Number(v ?? 0))} />
+                    <Legend wrapperStyle={{ fontSize: 11, fontWeight: 700 }} />
+                    <Area type="monotone" dataKey="Ahmed" stackId="ch" stroke="#B8112D" fill="#B8112D" fillOpacity={0.45} />
+                    <Area type="monotone" dataKey="Sharjeel" stackId="ch" stroke="#0B84F3" fill="#0B84F3" fillOpacity={0.4} />
+                    <Area type="monotone" dataKey="Cheque" stackId="ch" stroke="#F59E0B" fill="#F59E0B" fillOpacity={0.4} />
+                    <Area type="monotone" dataKey="Habib" stackId="ch" stroke="#0D9488" fill="#0D9488" fillOpacity={0.4} />
+                  </AreaChart>
+                </RechartsBox>
+              </AccountsChartCard>
+
+              <AccountsChartCard
+                title="Net Margin"
+                subtitle="Profit as % of revenue"
+                accent={profitMarginPct >= 0 ? "#12B76A" : "#B8112D"}
+                icon={<TrendingUp size={16} />}
+                className="md:col-span-2 xl:col-span-1"
+              >
+                <div className="relative">
+                  <RechartsBox height={220}>
+                    <RadialBarChart
+                      data={marginGauge}
+                      innerRadius="62%"
+                      outerRadius="90%"
+                      startAngle={90}
+                      endAngle={-270}
+                    >
+                      <PolarAngleAxis type="number" domain={[0, 100]} tick={false} />
+                      <RadialBar
+                        dataKey="value"
+                        cornerRadius={12}
+                        background={{ fill: "#F1F5F9" }}
+                      />
+                      <Tooltip formatter={v => `${Number(v ?? 0).toFixed(1)}%`} />
+                    </RadialBarChart>
+                  </RechartsBox>
+                  <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                    <p
+                      className="text-2xl font-extrabold tabular-nums tracking-tight"
+                      style={{ color: profitMarginPct >= 0 ? "#12B76A" : "#B8112D" }}
+                    >
+                      {Number.isFinite(profitMarginPct) ? `${profitMarginPct.toFixed(1)}%` : "—"}
                     </p>
-                  ) : (
-                    <p className="mt-0.5 text-lg font-extrabold text-crm-text-faint">—</p>
-                  )}
-                  <p className="text-[10px] text-crm-text-faint font-semibold uppercase tracking-wider mt-0.5">{p.hint}</p>
-                </Link>
-              ))}
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-crm-text-faint mt-0.5">
+                      {currency(isProfit)}
+                    </p>
+                  </div>
+                </div>
+              </AccountsChartCard>
             </div>
           </section>
         </AccountsPageShell>

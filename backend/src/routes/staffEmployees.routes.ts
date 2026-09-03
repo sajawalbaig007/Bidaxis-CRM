@@ -4,6 +4,12 @@ import { verifyToken, AuthRequest } from "../middleware/auth.middleware";
 import { allowRoles } from "../middleware/role.middleware";
 import { isAccountsPayrollHead } from "../utils/staffPayrollSync";
 import { invalidatePattern } from "../utils/cache";
+import {
+  listPreviousEmployeeRows,
+  mergePreviousEmployee,
+  scanPreviousEmployees,
+  unmergePreviousEmployee,
+} from "../utils/employeeNameMerge";
 
 const router = express.Router();
 
@@ -172,6 +178,82 @@ router.get("/", async (_req, res) => {
   } catch (err) {
     console.error("[staff-employees] GET", err);
     return res.status(500).json({ success: false, message: "Failed to load employees" });
+  }
+});
+
+router.get("/previous", async (req, res) => {
+  try {
+    const doScan = String(req.query.scan ?? "") === "1" || String(req.query.scan ?? "") === "true";
+    let scan: { upserted: number; skippedCurrent: number } | undefined;
+    if (doScan) {
+      scan = await scanPreviousEmployees();
+    }
+    const previous = await listPreviousEmployeeRows();
+    return res.json({ success: true, previous, scan: scan ?? null });
+  } catch (err) {
+    console.error("[staff-employees] GET previous", err);
+    return res.status(500).json({ success: false, message: "Failed to load previous employees" });
+  }
+});
+
+router.post("/previous/scan", async (_req, res) => {
+  try {
+    const scan = await scanPreviousEmployees();
+    const previous = await listPreviousEmployeeRows();
+    return res.json({ success: true, previous, scan });
+  } catch (err) {
+    console.error("[staff-employees] POST previous/scan", err);
+    return res.status(500).json({ success: false, message: "Failed to scan previous employees" });
+  }
+});
+
+router.post("/previous/:id/merge", async (req: AuthRequest, res) => {
+  try {
+    const id = String(req.params.id || "");
+    const currentStaffId = strOrNull(req.body?.currentStaffId);
+    const currentUserId = strOrNull(req.body?.currentUserId);
+    let currentName = strOrNull(req.body?.currentName) || "";
+
+    if (currentStaffId) {
+      const employees = await listEnriched();
+      const hit = employees.find(e => e.id === currentStaffId);
+      if (!hit) return res.status(404).json({ success: false, message: "Current employee not found." });
+      currentName = hit.name;
+    } else if (currentUserId && !currentName) {
+      const u = await prisma.user.findUnique({ where: { id: currentUserId }, select: { name: true } });
+      if (!u) return res.status(404).json({ success: false, message: "User not found." });
+      currentName = u.name;
+    }
+
+    if (!currentName) {
+      return res.status(400).json({ success: false, message: "Select a current employee to merge into." });
+    }
+
+    const row = await mergePreviousEmployee(id, {
+      currentName,
+      currentStaffId,
+      currentUserId,
+    });
+    if (!row) return res.status(404).json({ success: false, message: "Previous employee not found." });
+    const previous = await listPreviousEmployeeRows();
+    return res.json({ success: true, row, previous });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Failed to merge employee";
+    console.error("[staff-employees] POST previous/merge", err);
+    return res.status(400).json({ success: false, message: msg });
+  }
+});
+
+router.post("/previous/:id/unmerge", async (req: AuthRequest, res) => {
+  try {
+    const id = String(req.params.id || "");
+    const row = await unmergePreviousEmployee(id);
+    if (!row) return res.status(404).json({ success: false, message: "Previous employee not found." });
+    const previous = await listPreviousEmployeeRows();
+    return res.json({ success: true, row, previous });
+  } catch (err) {
+    console.error("[staff-employees] POST previous/unmerge", err);
+    return res.status(500).json({ success: false, message: "Failed to unmerge employee" });
   }
 });
 

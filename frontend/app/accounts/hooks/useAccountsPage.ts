@@ -57,6 +57,18 @@ export function useAccountsPage<T extends Record<string, unknown>>({
   const loading = loadedKey !== loadKey;
   const [datesVersion, setDatesVersion] = useState(0);
 
+  const dataRef = useRef(data);
+  const dirtyRef = useRef(false);
+  const seqRef = useRef(0);
+  const recordDateRef = useRef(recordDate);
+  const pendingSaveRef = useRef(false);
+  const savingLockRef = useRef(false);
+  const saveRef = useRef<(override?: T) => Promise<void>>(async () => {});
+
+  useEffect(() => {
+    recordDateRef.current = recordDate;
+  }, [recordDate]);
+
   const setFilterMonth = useCallback((month: string) => {
     setFilterMonthState(month);
     setPeriodPresetState("month");
@@ -174,17 +186,31 @@ export function useAccountsPage<T extends Record<string, unknown>>({
 
   useEffect(() => {
     let cancelled = false;
+    // Invalidate in-flight PUTs from a previous date/reload so they cannot clobber this load.
+    seqRef.current += 1;
+    const seqAtStart = seqRef.current;
+    dirtyRef.current = false;
+
     API.get(`/accounts/${page}/${recordDate}`)
       .then(res => {
         if (cancelled) return;
-        setData((res.data.data as T) ?? defaultRef.current());
+        if (seqRef.current !== seqAtStart) {
+          return;
+        }
+        const next = (res.data.data as T) ?? defaultRef.current();
+        dataRef.current = next;
+        setData(next);
         setUploads(res.data.uploads ?? []);
+        dirtyRef.current = false;
         setDirty(false);
       })
       .catch(() => {
         if (cancelled) return;
+        if (seqRef.current !== seqAtStart) return;
         toast.error("Failed to load data for selected date.");
-        setData(defaultRef.current());
+        const fallback = defaultRef.current();
+        dataRef.current = fallback;
+        setData(fallback);
       })
       .finally(() => {
         if (!cancelled) setLoadedKey(loadKey);
@@ -196,58 +222,99 @@ export function useAccountsPage<T extends Record<string, unknown>>({
 
   const patchData = useCallback((updater: (prev: T) => T) => {
     setData(prev => {
+      const next = updater(prev);
+      dataRef.current = next;
+      dirtyRef.current = true;
+      seqRef.current += 1;
       setDirty(true);
-      return updater(prev);
+      return next;
     });
   }, []);
 
-  /** Persist to DB. Pass `override` to save just-updated data without waiting for state. */
+  /**
+   * Persist to DB. Pass `override` to save just-updated data without waiting for state.
+   * Overlapping saves are coalesced: a PUT that finishes after a newer edit is retried
+   * with the latest payload so a stale write cannot wipe a newly added row.
+   */
   const save = useCallback(async (override?: T) => {
+    if (override) dataRef.current = override;
+    pendingSaveRef.current = true;
+    if (savingLockRef.current) return;
+    savingLockRef.current = true;
     setSaving(true);
     try {
-      const payload = override ?? data;
-      const res = await API.put(`/accounts/${page}/${recordDate}`, { data: payload });
-      setData((res.data.data as T) ?? payload);
-      setDirty(false);
-
-      // Income Statement payroll → shared loan ledger (so next month lookup stays correct)
-      if (page === "income_statement") {
-        try {
-          const n = await syncLoansFromIncomeStatement(
-            (res.data.data as IncomeStatementData) ?? (payload as unknown as IncomeStatementData),
-          );
-          toast.success(
-            n > 0
-              ? `Saved for ${recordDate} · ${n} loan(s) synced to ledger`
-              : `Saved for ${recordDate}`,
-          );
-        } catch {
-          toast.success(`Saved for ${recordDate}`);
-          toast.error("Payroll saved, but loan ledger sync failed.");
+      let applied: { payload: T; saved: T; date: string } | null = null;
+      while (pendingSaveRef.current) {
+        pendingSaveRef.current = false;
+        const date = recordDateRef.current;
+        const seq = seqRef.current;
+        const payload = dataRef.current;
+        const res = await API.put(`/accounts/${page}/${date}`, { data: payload });
+        if (recordDateRef.current !== date) break;
+        if (pendingSaveRef.current || seqRef.current !== seq) {
+          pendingSaveRef.current = true;
+          continue;
         }
-      } else {
-        toast.success(`Saved for ${recordDate}`);
+        const saved = (res.data.data as T) ?? payload;
+        dataRef.current = saved;
+        setData(saved);
+        dirtyRef.current = false;
+        setDirty(false);
+        applied = { payload, saved, date };
       }
 
-      refreshDates();
+      if (applied) {
+        if (page === "income_statement") {
+          try {
+            const n = await syncLoansFromIncomeStatement(
+              (applied.saved as unknown as IncomeStatementData) ??
+                (applied.payload as unknown as IncomeStatementData),
+            );
+            toast.success(
+              n > 0
+                ? `Saved for ${applied.date} · ${n} loan(s) synced to ledger`
+                : `Saved for ${applied.date}`,
+            );
+          } catch {
+            toast.success(`Saved for ${applied.date}`);
+            toast.error("Payroll saved, but loan ledger sync failed.");
+          }
+        } else {
+          toast.success(`Saved for ${applied.date}`);
+        }
+        refreshDates();
+      }
     } catch {
       toast.error("Save failed.");
     } finally {
+      savingLockRef.current = false;
       setSaving(false);
+      if (pendingSaveRef.current) void saveRef.current();
     }
-  }, [page, recordDate, data, refreshDates]);
+  }, [page, refreshDates]);
+
+  useEffect(() => {
+    saveRef.current = save;
+  }, [save]);
 
   const uploadFile = useCallback(async (file: File) => {
     setUploading(true);
+    const seqAtStart = seqRef.current;
+    const date = recordDateRef.current;
     try {
       const form = new FormData();
       form.append("file", file);
-      const res = await API.post(`/accounts/${page}/${recordDate}/upload`, form, {
+      const res = await API.post(`/accounts/${page}/${date}/upload`, form, {
         headers: { "Content-Type": "multipart/form-data" },
       });
-      if (res.data.merged && res.data.data) {
-        setData(res.data.data as T);
+      if (res.data.merged && res.data.data && seqRef.current === seqAtStart) {
+        const next = res.data.data as T;
+        dataRef.current = next;
+        setData(next);
+        dirtyRef.current = false;
         setDirty(false);
+        toast.success("File uploaded and data merged for this date.");
+      } else if (res.data.merged && res.data.data) {
         toast.success("File uploaded and data merged for this date.");
       } else {
         toast.success("File uploaded for this date.");
@@ -259,7 +326,7 @@ export function useAccountsPage<T extends Record<string, unknown>>({
     } finally {
       setUploading(false);
     }
-  }, [page, recordDate, refreshDates]);
+  }, [page, refreshDates]);
 
   return {
     recordDate,
