@@ -29,6 +29,7 @@ import {
 } from "../utils/incomeStatementSeed";
 import { recomputePayrollSubAmounts } from "../utils/payrollAmountSync";
 import { pfDropKey, syncProvidentFundFromSalaries } from "../utils/payrollPfSync";
+import { pfAliasMergeAllowed, pfCanonicalKey, pfHasLongerCanonical, type PfNameMerge } from "../utils/pfNameAlias";
 import { syncLoanHeadsFromSalaries } from "../utils/payrollLoanHeadsSync";
 import {
   clearPersonLoanFromTeamSalaries,
@@ -50,7 +51,7 @@ function normalizeIncomeStatement(
   raw: IncomeStatementData,
   totalRevenue: number,
   opts?: SalesPayrollCalcOpts,
-  flags?: { skipPfSync?: boolean },
+  flags?: { skipPfSync?: boolean; nameMerges?: PfNameMerge[] },
 ): IncomeStatementData {
   const core = recomputeExecutiveTeam(
     recomputePayrollSubAmounts(
@@ -61,7 +62,7 @@ function normalizeIncomeStatement(
       opts,
     ),
   );
-  const withPf = flags?.skipPfSync ? core : syncProvidentFundFromSalaries(core);
+  const withPf = flags?.skipPfSync ? core : syncProvidentFundFromSalaries(core, flags?.nameMerges);
   return syncLoanHeadsFromSalaries(withPf);
 }
 
@@ -129,22 +130,46 @@ function headToOpex(h: ExpandableHeadRow): OpexRow {
 type PfBreakdownPerson = { name: string; period: number; allTime: number };
 type PfBreakdown = Record<string, Record<string, PfBreakdownPerson>>;
 
-function normPfName(label: string): string {
-  return label.trim().toLowerCase().replace(/\s+/g, " ");
-}
-
-function mergePfDisplayRows(heads: OpexRow[], byHead: PfBreakdown | null): ExpandableHeadRow[] {
+function mergePfDisplayRows(
+  heads: OpexRow[],
+  byHead: PfBreakdown | null,
+  nameMerges: PfNameMerge[] = [],
+): ExpandableHeadRow[] {
   return (heads ?? []).map(h => {
     const bucket = byHead?.[h.label] ?? {};
-    const subs = (h.subHeads ?? []).map(s => {
-      const key = normPfName(s.label);
-      const hit = bucket[key];
+    const hits = Object.values(bucket);
+    const rawSubs = h.subHeads ?? [];
+    const siblingLabels = rawSubs.map(s => s.label);
+    const pool = [
+      ...siblingLabels,
+      ...hits.map(x => x.name),
+    ];
+    const canonicalSubs = rawSubs.filter(s => {
+      if (pfHasLongerCanonical(s.label, siblingLabels)) return false;
+      const canon = pfCanonicalKey(s.label, nameMerges);
+      return !siblingLabels.some(other => {
+        if (other === s.label) return false;
+        if (pfCanonicalKey(other, nameMerges) !== canon) return false;
+        return other.length >= s.label.length;
+      });
+    });
+    const claimed = new Set<string>();
+    const subs = canonicalSubs.map(s => {
       const fallback = Number(s.amount) || 0;
+      let allTime = 0;
+      for (const hit of hits) {
+        const key = pfCanonicalKey(hit.name, nameMerges);
+        if (!key || claimed.has(key)) continue;
+        const exact = pfCanonicalKey(s.label, nameMerges) === key;
+        const alias = pfAliasMergeAllowed(s.label, hit.name, pool);
+        if (!exact && !alias) continue;
+        allTime += Number(hit.allTime) || 0;
+        claimed.add(key);
+      }
       return {
         ...s,
-        // Editable column = this record. Do not overlay API period (that made the box read-only / stale).
         periodAmount: fallback,
-        allTimeAmount: hit?.allTime ?? fallback,
+        allTimeAmount: allTime || fallback,
       };
     });
     const periodAmount = subs.reduce((a, s) => a + (Number(s.amount) || 0), 0);
@@ -181,6 +206,7 @@ export default function IncomeStatementPage() {
   const [budgetOpen, setBudgetOpen] = useState(false);
   const [budgetChartKey, setBudgetChartKey] = useState(0);
   const [pfBreakdown, setPfBreakdown] = useState<PfBreakdown | null>(null);
+  const [nameMerges, setNameMerges] = useState<PfNameMerge[]>([]);
 
   const pfPeriod = useMemo(() => {
     const mode = normalizePeriodPreset(acc.periodPreset);
@@ -250,7 +276,10 @@ export default function IncomeStatementPage() {
     if (pfPeriod.to) params.set("to", pfPeriod.to);
     API.get(`/accounts/income-statement/pf-breakdown?${params}`)
       .then(res => {
-        if (!cancelled) setPfBreakdown(res.data.byHead ?? {});
+        if (!cancelled) {
+          setPfBreakdown(res.data.byHead ?? {});
+          if (Array.isArray(res.data.nameMerges)) setNameMerges(res.data.nameMerges);
+        }
       })
       .catch(() => {
         if (!cancelled) setPfBreakdown(null);
@@ -266,13 +295,13 @@ export default function IncomeStatementPage() {
 
   /** Always apply sales-team split + payroll migration + executive commission + PF sync */
   const data = useMemo(
-    () => normalizeIncomeStatement(acc.data, currencyTotal, salesCalcOpts),
-    [acc.data, currencyTotal, salesCalcOpts],
+    () => normalizeIncomeStatement(acc.data, currencyTotal, salesCalcOpts, { nameMerges }),
+    [acc.data, currencyTotal, salesCalcOpts, nameMerges],
   );
 
   const pfRows = useMemo(
-    () => mergePfDisplayRows(data.providentFundHeads ?? [], pfBreakdown),
-    [data.providentFundHeads, pfBreakdown],
+    () => mergePfDisplayRows(data.providentFundHeads ?? [], pfBreakdown, nameMerges),
+    [data.providentFundHeads, pfBreakdown, nameMerges],
   );
 
   /** Net profit before executive salaries — commission base for Executive payroll */
@@ -281,11 +310,11 @@ export default function IncomeStatementPage() {
   useLayoutEffect(() => {
     if (acc.loading) return;
     const before = acc.data;
-    const synced = normalizeIncomeStatement(before, currencyTotal, salesCalcOpts);
+    const synced = normalizeIncomeStatement(before, currencyTotal, salesCalcOpts, { nameMerges });
     if (JSON.stringify(synced) === JSON.stringify(before)) return;
     acc.setData(() => synced);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- sync when load/currency settles
-  }, [acc.loading, acc.recordDate, currencyTotal, salesCalcOpts]);
+  }, [acc.loading, acc.recordDate, currencyTotal, salesCalcOpts, nameMerges]);
 
   const uploadOpexProof = useCallback(async (file: File) => {
     try {
@@ -360,12 +389,12 @@ export default function IncomeStatementPage() {
         },
         currencyTotal,
         salesCalcOpts,
-        { skipPfSync: !!patch.providentFundHeads || !!patch.pfDroppedNames },
+        { skipPfSync: !!patch.providentFundHeads || !!patch.pfDroppedNames, nameMerges },
       );
       acc.setData(() => next);
       if (opts?.persist) void acc.save(next);
     },
-    [data, acc, currencyTotal, salesCalcOpts],
+    [data, acc, currencyTotal, salesCalcOpts, nameMerges],
   );
 
   return (

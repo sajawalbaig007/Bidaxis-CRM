@@ -9,6 +9,7 @@ import API, { getApiBase } from "@/lib/api";
 import RequiredMark from "@/app/components/form/RequiredMark";
 import { PdfPreview } from "@/app/components/chat/MessageExtras";
 import { ACCOUNTS_PAYROLL_HEADS, payrollHeadShortLabel } from "@/app/admin/utils/accountsPayrollHeads";
+import PreviousMergedEmployeesPanel from "./PreviousMergedEmployeesPanel";
 
 /** Same preview rules as Admin → Users (Cloudinary raw PDFs blank in iframes). */
 function cnicDocumentPreview(url: string): { kind: "image" | "pdf"; src: string } {
@@ -955,6 +956,8 @@ export default function AllEmployeesPanel({ dashboardUsers }: AllEmployeesPanelP
           </div>
         </div>
       )}
+
+      <PreviousMergedEmployeesPanel currentEmployees={employees} />
     </div>
   );
 }

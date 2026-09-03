@@ -18,6 +18,7 @@ import {
   tlExtraFromPeers,
   type PayrollKind,
 } from "./salesPayrollBridge";
+import { findPfNameMatchIndex, pfNormName, type PfNameMerge } from "./pfNameAlias";
 
 export type PfHeadKey = "Sales Team PF" | "Administration PF" | "Technical Team PF";
 
@@ -39,7 +40,7 @@ export function pfHeadForPayrollKind(kind: PayrollKind): PfHeadKey | null {
 }
 
 function normName(label: string): string {
-  return label.trim().toLowerCase().replace(/\s+/g, " ");
+  return pfNormName(label);
 }
 
 /** This-period PF contribution from a team-salary sub-head. */
@@ -145,7 +146,10 @@ function ensurePfHead(heads: OpexRow[], label: PfHeadKey): OpexRow {
  * Departed employees (previous months, no longer on payroll) are dropped.
  * User-added `manual` lines are kept. Saved amounts stay editable.
  */
-export function syncProvidentFundFromSalaries(data: IncomeStatementData): IncomeStatementData {
+export function syncProvidentFundFromSalaries(
+  data: IncomeStatementData,
+  nameMerges: PfNameMerge[] = [],
+): IncomeStatementData {
   const contributions = collectPfFromTeamSalaries(data.teamSalaries ?? []);
   if (!contributions.length && !(data.providentFundHeads ?? []).length) {
     return data;
@@ -183,9 +187,14 @@ export function syncProvidentFundFromSalaries(data: IncomeStatementData): Income
     const nextSubs: SubHeadEntry[] = [];
 
     for (const c of contribs) {
-      const idx = prevSubs.findIndex(s => normName(s.label) === normName(c.name));
-      if (idx >= 0) {
-        const old = prevSubs[idx]!;
+      const unmatched = prevSubs.filter(s => !matched.has(s.id));
+      const idxInUnmatched = findPfNameMatchIndex(
+        c.name,
+        unmatched.map(s => s.label),
+        nameMerges,
+      );
+      const old = idxInUnmatched >= 0 ? unmatched[idxInUnmatched] : undefined;
+      if (old) {
         matched.add(old.id);
         const keepManual = !!old.userEdited;
         nextSubs.push({
@@ -204,10 +213,10 @@ export function syncProvidentFundFromSalaries(data: IncomeStatementData): Income
       }
     }
 
-    // Keep only user-added lines (not leftover names from a previous month’s payroll).
+    // Keep only user-added lines (not leftover short names from a previous month’s payroll).
     for (const s of prevSubs) {
       if (matched.has(s.id)) continue;
-      if (contribs.some(c => normName(c.name) === normName(s.label))) continue;
+      if (contribs.some(c => findPfNameMatchIndex(c.name, [s.label], nameMerges) === 0)) continue;
       if (nameDropped(label, s.label)) continue;
       if (!s.manual) continue;
       nextSubs.push(s);

@@ -17,7 +17,7 @@ import { useScrollToHash } from "../hooks/useScrollToHash";
 import type { AssetSectionRow, AssetsCompanyKey, TotalAssetsData } from "../types";
 import { ASSETS_COMPANIES, currency, lineAmount, newRowId, todayIso } from "../types";
 import { uploadAccountsProof } from "../utils/uploadAccountsProof";
-import { buildInventorySections, migrateInventoryIntoCategoryHeads } from "../utils/bemAssetInventorySeed";
+import { buildInventorySections, matchInventoryCategory, migrateInventoryIntoCategoryHeads, BEM_INVENTORY_CATEGORIES } from "../utils/bemAssetInventorySeed";
 
 function emptyCompanies(): Record<AssetsCompanyKey, AssetSectionRow[]> {
   return { BEM: [], GPS: [], BDS: [] };
@@ -86,15 +86,20 @@ export default function TotalAssetsPage() {
   const companies = normalizeCompanies(acc.data);
   const seededRef = useRef(false);
 
-  /** One-time: move inventory into IT / Electrical / Furniture; drop BEM Asset. */
+  /** One-time: move inventory into IT / Electrical / Furniture; drop BEM Asset.
+   *  Do not auto-save — a PUT of this snapshot can finish after the user adds a
+   *  line and wipe it. The flag persists on the next user save. */
   useEffect(() => {
     if (acc.loading || seededRef.current) return;
-    if (acc.data.bemInventoryHeadsSeeded) {
+    const base = normalizeCompanies(acc.data);
+    const alreadyCategorized = BEM_INVENTORY_CATEGORIES.every(cat =>
+      base.BEM.some(s => matchInventoryCategory(s.title) === cat),
+    );
+    if (acc.data.bemInventoryHeadsSeeded || alreadyCategorized) {
       seededRef.current = true;
       return;
     }
     seededRef.current = true;
-    const base = normalizeCompanies(acc.data);
     const bem = migrateInventoryIntoCategoryHeads(base.BEM);
     const next: TotalAssetsData = {
       ...acc.data,
@@ -104,7 +109,6 @@ export default function TotalAssetsPage() {
       bemAssetSeeded: true,
     };
     acc.setData(() => next);
-    void acc.save(next);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- migrate once after initial load
   }, [acc.loading]);
 
@@ -138,41 +142,51 @@ export default function TotalAssetsPage() {
     rows: ExpandableHeadRow[],
     opts?: { persist?: boolean },
   ) => {
-    const base = normalizeCompanies(acc.data);
-    const next: TotalAssetsData = {
-      ...acc.data,
-      companies: { ...base, [key]: rows.map(headToSection) },
-      sections: [],
-    };
-    acc.setData(() => next);
-    if (opts?.persist) void acc.save(next);
+    let next: TotalAssetsData | null = null;
+    acc.setData(prev => {
+      const base = normalizeCompanies(prev);
+      next = {
+        ...prev,
+        companies: { ...base, [key]: rows.map(headToSection) },
+        sections: [],
+        bemInventoryHeadsSeeded: true,
+        bemAssetSeeded: true,
+      };
+      return next;
+    });
+    if (opts?.persist && next) void acc.save(next);
   };
 
   const addHeadToCompany = (key: AssetsCompanyKey) => {
-    const base = normalizeCompanies(acc.data);
-    const next: TotalAssetsData = {
-      ...acc.data,
-      companies: {
-        ...base,
-        [key]: [
-          ...base[key],
-          {
-            id: newRowId("s"),
-            title: "New Head",
-            heads: [],
-            total: 0,
-            filledAt: todayIso(),
-            subHeads: [
-              { id: newRowId("sub"), label: "Item 1", amount: 0, filledAt: todayIso() },
-            ],
-            notes: [],
-          },
-        ],
-      },
-      sections: [],
-    };
-    acc.setData(() => next);
-    void acc.save(next);
+    let next: TotalAssetsData | null = null;
+    acc.setData(prev => {
+      const base = normalizeCompanies(prev);
+      next = {
+        ...prev,
+        companies: {
+          ...base,
+          [key]: [
+            ...base[key],
+            {
+              id: newRowId("s"),
+              title: "New Head",
+              heads: [],
+              total: 0,
+              filledAt: todayIso(),
+              subHeads: [
+                { id: newRowId("sub"), label: "Item 1", amount: 0, filledAt: todayIso() },
+              ],
+              notes: [],
+            },
+          ],
+        },
+        sections: [],
+        bemInventoryHeadsSeeded: true,
+        bemAssetSeeded: true,
+      };
+      return next;
+    });
+    if (next) void acc.save(next);
   };
 
   return (

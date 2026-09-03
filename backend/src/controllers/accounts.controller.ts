@@ -44,6 +44,8 @@ import {
   type OpexHeadBucket,
 } from "../utils/incomeBudget";
 import { applyStaffPayrollToIncomeData } from "../utils/loadStaffPayroll";
+import { collapsePfNameBuckets, pfHasLongerCanonical } from "../utils/pfNameAlias";
+import { loadMergedNamePairs, resolveMergedName } from "../utils/employeeNameMerge";
 
 function todayIsoDate(): string {
   return new Date().toISOString().slice(0, 10);
@@ -902,8 +904,17 @@ export async function getIncomeBudgetActuals(req: AuthRequest, res: Response) {
   }
 }
 
-function normPfName(label: string): string {
-  return label.trim().toLowerCase().replace(/\s+/g, " ");
+export async function listEmployeeNameMerges(_req: AuthRequest, res: Response) {
+  try {
+    const pairs = await loadMergedNamePairs();
+    return res.json({
+      success: true,
+      merges: pairs.map(p => ({ from: p.from, to: p.to })),
+    });
+  } catch (err) {
+    console.log(err);
+    return res.status(500).json({ success: false, message: "Failed to load name merges." });
+  }
 }
 
 type PfHeadBucket = Record<string, { name: string; period: number; allTime: number }>;
@@ -918,14 +929,18 @@ export async function getProvidentFundBreakdown(req: AuthRequest, res: Response)
       select: { recordDate: true, data: true },
     });
 
+    const pairs = await loadMergedNamePairs();
     const byHead: Record<string, PfHeadBucket> = {};
     const bump = (head: string, name: string, amount: number, inPeriod: boolean) => {
       const n = Number(amount) || 0;
       const trimmed = name.trim();
       if (!trimmed || n === 0) return;
-      const key = normPfName(trimmed);
+      const resolved = resolveMergedName(trimmed, pairs);
+      const key = resolved.key;
+      if (!key) return;
       if (!byHead[head]) byHead[head] = {};
-      const prev = byHead[head]![key] ?? { name: trimmed, period: 0, allTime: 0 };
+      const prev = byHead[head]![key] ?? { name: resolved.name, period: 0, allTime: 0 };
+      prev.name = resolved.name;
       prev.allTime = Math.round((prev.allTime + n) * 100) / 100;
       if (inPeriod) prev.period = Math.round((prev.period + n) * 100) / 100;
       byHead[head]![key] = prev;
@@ -945,13 +960,27 @@ export async function getProvidentFundBreakdown(req: AuthRequest, res: Response)
       }>) ?? [];
       for (const head of heads) {
         const headLabel = (head.label || "Provident Fund").trim() || "Provident Fund";
-        for (const sub of head.subHeads ?? []) {
-          bump(headLabel, sub.label || "", Number(sub.amount) || 0, inPeriod);
+        const subs = head.subHeads ?? [];
+        const labels = subs.map(s => s.label || "");
+        for (const sub of subs) {
+          const name = sub.label || "";
+          if (pfHasLongerCanonical(name, labels)) continue;
+          bump(headLabel, name, Number(sub.amount) || 0, inPeriod);
         }
       }
     }
 
-    return res.json({ success: true, from: from || null, to: to || null, byHead });
+    for (const head of Object.keys(byHead)) {
+      byHead[head] = collapsePfNameBuckets(byHead[head]!);
+    }
+
+    return res.json({
+      success: true,
+      from: from || null,
+      to: to || null,
+      byHead,
+      nameMerges: pairs.map(p => ({ from: p.from, to: p.to })),
+    });
   } catch (err) {
     console.log(err);
     return res.status(500).json({ success: false, message: "Failed to load PF breakdown." });

@@ -569,6 +569,32 @@ model StaffEmployee {
   @@map("staff_employees")
 }
 
+/**
+ * Admin → Users → Previous & merged employees.
+ * Names that appeared on Accounts (Mar–Jul, before August HR full names)
+ * can be merged into a current employee so PF All time follows the new name.
+ */
+model EmployeeNameMerge {
+  id              String    @id @default(cuid()) @map("_id")
+  previousName    String
+  previousNameKey String    @unique
+  currentName     String?
+  currentNameKey  String?
+  currentStaffId  String?
+  currentUserId   String?
+  payrollHead     String?
+  firstSeen       String?
+  lastSeen        String?
+  status          String    @default("previous")
+  mergedAt        DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([status])
+  @@index([currentNameKey])
+  @@map("employee_name_merges")
+}
+
 /** Shared company-gate login (landing → BEM / GPS portals). Managed from Admin → Users. */
 model CompanyCredential {
   id        String   @id @default(cuid()) @map("_id")

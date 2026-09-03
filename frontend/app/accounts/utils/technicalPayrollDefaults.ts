@@ -89,3 +89,11 @@ export function normalizeTechnicalPayrollData(raw: unknown): TechnicalPayrollDat
 
   return { employees: employees.length ? employees : base.employees };
 }
+
+/** Seed / payroll codes for GPS technical slips when HR employeeId is empty. */
+export function technicalCodeForName(name: string): string {
+  const want = name.trim().toLowerCase().replace(/\s+/g, " ");
+  if (!want) return "";
+  const hit = TECH_SEED.find(p => p.name.trim().toLowerCase() === want);
+  return hit?.code ?? "";
+}
