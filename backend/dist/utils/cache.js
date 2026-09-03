@@ -39,6 +39,5 @@ function markThrottledHeal(csrId, ttlMs = 120000) {
 }
 /** Clear admin leads list + summary caches after any lead mutation */
 function flushAdminClientsCache() {
-    invalidateCache("admin:clients:summary", "admin:clients:tab-counts");
-    invalidatePattern("admin:clients:list:");
+    invalidatePattern("admin:clients:");
 }

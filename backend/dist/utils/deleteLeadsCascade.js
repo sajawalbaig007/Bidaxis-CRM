@@ -29,6 +29,7 @@ const PROJECT_DB_CLEAR = {
     deadlineTiming: null,
     hiddenOnTechnical: true,
     paidAmount: null,
+    uploadedFileId: null,
 };
 /** Strip all Project-DB fields so the row can never reappear in Admin Project DB. */
 async function stripProjectDbFields(ids) {

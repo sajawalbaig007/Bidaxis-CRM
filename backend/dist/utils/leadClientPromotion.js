@@ -224,7 +224,7 @@ async function healPipelineLeaksForCsr(csrId) {
         where: {
             assignedTo: csrId,
             ...(0, projectLeads_1.wonClientStatusWhere)(),
-            hiddenOnMain: false,
+            NOT: { hiddenOnMain: true },
         },
         data: { hiddenOnMain: true },
     });

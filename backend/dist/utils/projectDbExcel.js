@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.PROJECT_DB_EXCEL_HEADERS = exports.PROJECT_DB_EXCEL_PAYMENT_SLOTS = void 0;
+exports.PROJECT_DB_EXCEL_HEADERS = exports.PROJECT_DB_TEMPLATE_HEADERS = exports.PROJECT_DB_TEMPLATE_COLUMNS = exports.PROJECT_DB_EXCEL_PAYMENT_SLOTS = void 0;
 exports.buildProjectDbTemplateBuffer = buildProjectDbTemplateBuffer;
 exports.parseProjectDbExcel = parseProjectDbExcel;
 exports.excelRowToProjectBody = excelRowToProjectBody;
@@ -57,11 +57,50 @@ const PHASES = [
     "delivery_phase",
 ];
 const WORK_STATUSES = ["in_progress", "not_completed", "completed"];
-const TIMINGS = ["", "morning", "cob"];
+const TIMINGS = ["morning", "cob"];
 const PAYMENT_TYPES = ["Partial", "Full"];
 const CHANNELS = ["AH", "SN", "CHQ", "HM"];
 const CURRENCIES = ["USD", "CAD", "PKR"];
-/** Canonical headers — row 1 of Projects sheet. */
+/**
+ * Downloaded template columns — same fields as Admin Add New Project
+ * (client, project, quotation, bid instruction, payment entries).
+ * Extra technical columns are omitted from the file; the parser still
+ * accepts them if someone uploads an older camelCase sheet.
+ */
+exports.PROJECT_DB_TEMPLATE_COLUMNS = [
+    { header: "Client Name", key: "name" },
+    { header: "Company Name", key: "company" },
+    { header: "Owner Name", key: "ownerName" },
+    { header: "Phone", key: "phone" },
+    { header: "Email", key: "email" },
+    { header: "State", key: "state" },
+    { header: "CSR Code", key: "csrCode" },
+    { header: "Resource Name", key: "projectSource" },
+    { header: "Project Code", key: "projectCode" },
+    { header: "Project Title", key: "projectTitle" },
+    { header: "Service", key: "interestedService" },
+    { header: "Project Deadline", key: "projectDeadline" },
+    { header: "Emergency Submit", key: "deadlineTiming" },
+    { header: "Scope", key: "projectScope" },
+    { header: "Quotation / Budget", key: "projectBudget" },
+    { header: "Bid Instruction", key: "projectNotes" },
+    { header: "Date Added", key: "createdAt" },
+    ...Array.from({ length: exports.PROJECT_DB_EXCEL_PAYMENT_SLOTS }, (_, i) => {
+        const n = i + 1;
+        return [
+            { header: `Payment ${n} Type`, key: `payment${n}Type` },
+            { header: `Payment ${n} Amount`, key: `payment${n}Amount` },
+            { header: `Payment ${n} Status`, key: `payment${n}IsPaid` },
+            { header: `Payment ${n} Date`, key: `payment${n}PaidAt` },
+            { header: `Payment ${n} Channel`, key: `payment${n}Channel` },
+            { header: `Payment ${n} Currency`, key: `payment${n}Currency` },
+            { header: `Payment ${n} Accounts Month`, key: `payment${n}AccountsMonth` },
+            { header: `Payment ${n} Link`, key: `payment${n}Link` },
+        ];
+    }).flat(),
+];
+exports.PROJECT_DB_TEMPLATE_HEADERS = exports.PROJECT_DB_TEMPLATE_COLUMNS.map((c) => c.header);
+/** Canonical keys used when parsing a row (template labels + legacy camelCase). */
 exports.PROJECT_DB_EXCEL_HEADERS = [
     "name",
     "company",
@@ -138,6 +177,9 @@ const HEADER_ALIASES = (() => {
     for (const h of exports.PROJECT_DB_EXCEL_HEADERS) {
         map[normalizeHeader(h)] = h;
     }
+    for (const { header, key } of exports.PROJECT_DB_TEMPLATE_COLUMNS) {
+        map[normalizeHeader(header)] = key;
+    }
     const extras = [
         ["clientname", "name"],
         ["client", "name"],
@@ -150,18 +192,24 @@ const HEADER_ALIASES = (() => {
         ["division", "interestedService"],
         ["budget", "projectBudget"],
         ["quoted", "projectBudget"],
+        ["quotation", "projectBudget"],
+        ["quotationbudget", "projectBudget"],
         ["deadline", "projectDeadline"],
         ["clientdeadline", "projectDeadline"],
+        ["deadlinetiming", "deadlineTiming"],
+        ["emergencysubmit", "deadlineTiming"],
         ["phase", "projectPhase"],
         ["notes", "projectNotes"],
         ["bidinstruction", "projectNotes"],
         ["bidnotes", "projectNotes"],
         ["workstatus", "projectWorkStatus"],
         ["csr", "csrCode"],
+        ["cscode", "csrCode"],
         ["assignedcsr", "csrCode"],
         ["source", "projectSource"],
         ["external", "projectSource"],
         ["othersource", "projectSource"],
+        ["resourcename", "projectSource"],
         ["recorddate", "createdAt"],
         ["projectdate", "createdAt"],
         ["dateadded", "createdAt"],
@@ -171,33 +219,54 @@ const HEADER_ALIASES = (() => {
         if (!map[alias])
             map[alias] = key;
     }
+    for (let n = 1; n <= exports.PROJECT_DB_EXCEL_PAYMENT_SLOTS; n++) {
+        const paid = `payment${n}IsPaid`;
+        const paidAt = `payment${n}PaidAt`;
+        map[`payment${n}paid`] = paid;
+        map[`payment${n}status`] = paid;
+        map[`payment${n}date`] = paidAt;
+        map[`payment${n}paymentdate`] = paidAt;
+        map[`payment${n}link`] = `payment${n}Link`;
+    }
     return map;
 })();
 function parseBool(raw) {
     const v = raw.trim().toLowerCase();
     return v === "1" || v === "true" || v === "yes" || v === "y" || v === "paid";
 }
+function pad2(n) {
+    return String(n).padStart(2, "0");
+}
+function expandYear(y) {
+    if (y >= 100)
+        return y;
+    return y > 50 ? 1900 + y : 2000 + y;
+}
+/** Store as YYYY-MM-DD. Day/month/year when the value is D/M/Y (slash, dash, or dot). */
+function toIsoDate(year, month, day) {
+    const y = expandYear(year);
+    if (month < 1 || month > 12 || day < 1 || day > 31)
+        return "";
+    return `${y}-${pad2(month)}-${pad2(day)}`;
+}
 function normalizeDeadline(raw) {
     const s = cellStr(raw);
     if (!s)
         return "";
-    if (/^\d{4}-\d{2}-\d{2}/.test(s))
-        return s.slice(0, 10);
-    // DD/MM/YYYY or MM/DD/YYYY — prefer ISO-looking; if 4-digit year at end
-    const m = s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})$/);
-    if (m) {
-        const a = Number(m[1]);
-        const b = Number(m[2]);
-        const y = m[3];
-        // If first > 12 → DD/MM/YYYY else assume MM/DD/YYYY (US)
-        if (a > 12) {
-            return `${y}-${String(b).padStart(2, "0")}-${String(a).padStart(2, "0")}`;
-        }
-        return `${y}-${String(a).padStart(2, "0")}-${String(b).padStart(2, "0")}`;
+    // Year first: 2024-06-15, 2024/06/15, 2024.06.15
+    const ymd = s.match(/^(\d{4})[\/\-.](\d{1,2})[\/\-.](\d{1,2})(?:$|T|\s)/);
+    if (ymd) {
+        return toIsoDate(Number(ymd[1]), Number(ymd[2]), Number(ymd[3])) || s.slice(0, 10);
+    }
+    // Day/month/year: 15/06/2024, 15-06-2024, 15.06.24 — never US month/day
+    const dmy = s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})$/);
+    if (dmy) {
+        return toIsoDate(Number(dmy[3]), Number(dmy[2]), Number(dmy[1])) || s;
     }
     const d = new Date(s);
-    if (!Number.isNaN(d.getTime()))
-        return d.toISOString().slice(0, 10);
+    if (!Number.isNaN(d.getTime())) {
+        return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+    }
     return s;
 }
 function paymentsFromCells(get) {
@@ -239,60 +308,48 @@ function paymentsFromCells(get) {
     }
     return out;
 }
-function exampleRow() {
-    const row = {};
-    for (const h of exports.PROJECT_DB_EXCEL_HEADERS)
-        row[h] = "";
-    row.name = "John Smith";
-    row.company = "ABC Construction";
-    row.phone = "+1 555 0100";
-    row.email = "john@abc.com";
-    row.ownerName = "Jane Owner";
-    row.state = "TX";
-    row.timezone = "CST";
-    row.projectCode = "CSR001-01";
-    row.clientCode = "CSR001-01";
-    row.projectTitle = "Warehouse Takeoff";
-    row.projectScope = "Full takeoff + pricing";
-    row.interestedService = "Estimating";
-    row.projectBudget = "2500";
-    row.projectDeadline = "2024-06-15";
-    row.deadlineTiming = "";
-    row.projectPhase = "delivery_phase";
-    row.takeoffDeadline = "2024-05-01";
-    row.pricingDeadline = "2024-05-20";
-    row.qaDeadline = "2024-06-01";
-    row.projectNotes = "Bid notes / instructions";
-    row.projectWorkStatus = "completed";
-    row.status = "Close Client";
-    row.csrCode = "CSR001";
-    row.projectSource = "";
-    row.createdAt = "2024-04-01";
-    row.payment1Type = "Partial";
-    row.payment1Amount = "1000";
-    row.payment1IsPaid = "yes";
-    row.payment1PaidAt = "2024-04-10";
-    row.payment1Channel = "AH";
-    row.payment1Currency = "USD";
-    row.payment1AccountsMonth = "2024-04";
-    row.payment1Link = "";
-    row.payment1CreatedAt = "2024-04-10";
-    row.payment2Type = "Full";
-    row.payment2Amount = "1500";
-    row.payment2IsPaid = "yes";
-    row.payment2PaidAt = "2024-06-01";
-    row.payment2Channel = "SN";
-    row.payment2Currency = "USD";
-    row.payment2AccountsMonth = "2024-06";
-    return row;
+function exampleRowByKey() {
+    return {
+        name: "John Smith",
+        company: "ABC Construction",
+        ownerName: "Jane Owner",
+        phone: "+1 555 0100",
+        email: "john@abc.com",
+        state: "TX",
+        csrCode: "CSR001",
+        projectSource: "",
+        projectCode: "CSR001-01",
+        projectTitle: "Warehouse Takeoff",
+        interestedService: "Estimating",
+        projectDeadline: "15-06-2024",
+        deadlineTiming: "cob",
+        projectScope: "Full takeoff + pricing",
+        projectBudget: "2500",
+        projectNotes: "Bid notes / instructions",
+        createdAt: "01-04-2024",
+        payment1Type: "Partial",
+        payment1Amount: "1000",
+        payment1IsPaid: "Paid",
+        payment1PaidAt: "10-04-2024",
+        payment1Channel: "AH",
+        payment1Currency: "USD",
+        payment1AccountsMonth: "2024-04",
+        payment1Link: "",
+        payment2Type: "Full",
+        payment2Amount: "1500",
+        payment2IsPaid: "Paid",
+        payment2PaidAt: "01-06-2024",
+        payment2Channel: "SN",
+        payment2Currency: "USD",
+        payment2AccountsMonth: "2024-06",
+    };
 }
 /** Build .xlsx buffer: Projects sheet first (headers across columns), then Instructions. */
 function buildProjectDbTemplateBuffer() {
     const wb = XLSX.utils.book_new();
-    // Flat header list — each field = its own column (A, B, C, …)
-    const headers = exports.PROJECT_DB_EXCEL_HEADERS.map((h) => String(h));
-    const example = exampleRow();
-    const exampleValues = headers.map((h) => String(example[h] ?? ""));
+    const headers = exports.PROJECT_DB_TEMPLATE_HEADERS.map((h) => String(h));
+    const example = exampleRowByKey();
+    const exampleValues = exports.PROJECT_DB_TEMPLATE_COLUMNS.map((c) => String(example[c.key] ?? ""));
     const blankRow = headers.map(() => "");
     // Row1 = heads (separate columns), Row2 = blank for your data, Row3 = sample
     const projectsAoa = [headers, blankRow, exampleValues];
@@ -303,7 +360,7 @@ function buildProjectDbTemplateBuffer() {
         e: { r: projectsAoa.length - 1, c: headers.length - 1 },
     });
     wsProjects["!cols"] = headers.map((h) => ({
-        wch: Math.min(24, Math.max(14, h.length + 2)),
+        wch: Math.min(28, Math.max(16, h.length + 2)),
     }));
     // Freeze header row
     wsProjects["!freeze"] = { xSplit: 0, ySplit: 1 };
@@ -313,28 +370,35 @@ function buildProjectDbTemplateBuffer() {
         [""],
         ["HOW TO USE"],
         ["1. Open the Projects sheet (first tab)."],
-        ["2. Row 1 = column heads — do not delete or merge cells."],
-        ["3. Fill data starting at Row 2 (one project per row)."],
+        ["2. Row 1 = column heads — do not delete, rename, or merge cells."],
+        ["3. Fill data starting at Row 2 (one project per row). Same fields as Add New Project."],
         ["4. Row 3 is an example — delete it before upload if not needed."],
-        ["5. Each head is its own column (name | company | phone | …)."],
         [""],
-        ["REQUIRED COLUMNS", "name", "projectTitle", "interestedService", "projectDeadline"],
+        ["REQUIRED", "Client Name", "Project Title", "Service", "Project Deadline"],
+        [
+            "Also fill when adding a new project",
+            "Company Name",
+            "Phone",
+            "Email",
+            "State",
+            "Project Code",
+            "Scope",
+            "Quotation / Budget",
+            "Bid Instruction",
+        ],
         [""],
-        ["interestedService", ...SERVICES],
-        ["projectPhase", ...PHASES],
-        ["deadlineTiming", "(empty)", "morning", "cob"],
-        ["projectWorkStatus", ...WORK_STATUSES],
-        ["status", "Close Client", "completed"],
-        ["paymentNType", ...PAYMENT_TYPES],
-        ["paymentNChannel", ...CHANNELS],
-        ["paymentNCurrency", ...CURRENCIES],
-        ["paymentNIsPaid", "yes", "no", "true", "false", "1", "0"],
+        ["Service", ...SERVICES],
+        ["Emergency Submit", "(empty)", "morning", "cob"],
+        ["Payment N Type", ...PAYMENT_TYPES],
+        ["Payment N Status", "Paid", "Unpaid", "yes", "no"],
+        ["Payment N Channel", ...CHANNELS],
+        ["Payment N Currency", ...CURRENCIES],
         [""],
-        ["csrCode", "Active CSR code e.g. CSR001 — leave empty to assign to you"],
-        ["projectSource", "External resource name when not a CSR (leave csrCode empty)"],
-        ["createdAt", "Optional YYYY-MM-DD for historical month filters"],
-        ["Dates", "Use YYYY-MM-DD for deadlines / paidAt / createdAt"],
-        ["Payments", "Up to 5: payment1Type … payment5Link"],
+        ["CSR Code", "Active CSR code e.g. CSR001 — leave empty if unassigned"],
+        ["Resource Name", "External resource name when there is no CSR"],
+        ["Date Added", "Optional day/month/year (used for month filters)"],
+        ["Dates", "Day/month/year — 15-06-2024 or 15/06/2024 both become 15-06-2024 on the dashboard"],
+        ["Payments", "Up to 5 entries: Type, Amount, Status, Date, Channel, Currency, Accounts Month, Link"],
     ];
     const wsInfo = XLSX.utils.aoa_to_sheet(instructions);
     wsInfo["!cols"] = [
@@ -380,16 +444,16 @@ function parseProjectDbExcel(buffer) {
             colIndex.set(key, idx);
     });
     const required = [
-        "name",
-        "projectTitle",
-        "interestedService",
-        "projectDeadline",
+        { key: "name", label: "Client Name" },
+        { key: "projectTitle", label: "Project Title" },
+        { key: "interestedService", label: "Service" },
+        { key: "projectDeadline", label: "Project Deadline" },
     ];
     for (const r of required) {
-        if (!colIndex.has(r)) {
+        if (!colIndex.has(r.key)) {
             return {
                 rows: [],
-                errors: [{ row: 1, message: `Missing required column: ${r}` }],
+                errors: [{ row: 1, message: `Missing required column: ${r.label}` }],
             };
         }
     }
@@ -414,7 +478,7 @@ function parseProjectDbExcel(buffer) {
         if (!name || !projectTitle || !interestedService || !projectDeadline) {
             errors.push({
                 row: excelRow,
-                message: "name, projectTitle, interestedService, projectDeadline are required.",
+                message: "Client Name, Project Title, Service, and Project Deadline are required.",
             });
             continue;
         }

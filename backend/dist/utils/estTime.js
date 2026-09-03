@@ -9,12 +9,16 @@ exports.estDateYmd = estDateYmd;
 exports.addEstDays = addEstDays;
 exports.parseEstDateTimeLocal = parseEstDateTimeLocal;
 exports.formatEstDateTimeLocalInput = formatEstDateTimeLocalInput;
-/** CSR live check-in labels stay Eastern. Admin session reports display Pacific. */
+/** BEM Solutions dashboards — Eastern Time for clocks, dates, and session reports. */
 exports.CSR_REPORT_TIMEZONE = "America/New_York";
-exports.ADMIN_SESSION_TIMEZONE = "America/Los_Angeles";
-exports.ADMIN_SESSION_TZ_LABEL = "Pacific Time (PST/PDT)";
+exports.ADMIN_SESSION_TIMEZONE = "America/New_York";
+exports.ADMIN_SESSION_TZ_LABEL = "Eastern Time (ET)";
 function offsetFallback(timeZone) {
-    return timeZone === exports.ADMIN_SESSION_TIMEZONE ? "GMT-8" : "GMT-5";
+    if (timeZone === "Asia/Karachi")
+        return "GMT+5";
+    if (timeZone === "America/Los_Angeles")
+        return "GMT-8";
+    return "GMT-5";
 }
 function formatEstDateTime(value, timeZone = exports.CSR_REPORT_TIMEZONE) {
     if (!value)

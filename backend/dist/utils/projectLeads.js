@@ -8,11 +8,13 @@ exports.isDisplayableProjectLead = isDisplayableProjectLead;
 exports.PROJECT_LEAD_STATUSES = ["Close Client", "completed", "close client"];
 function wonClientStatusWhere() {
     return {
-        OR: [
-            { status: { equals: "Close Client", mode: "insensitive" } },
-            { status: { equals: "completed", mode: "insensitive" } },
-            { status: { equals: "closed", mode: "insensitive" } },
-        ],
+        status: {
+            in: [
+                "Close Client", "close client", "CLOSE CLIENT", "Close client",
+                "completed", "Completed", "COMPLETED",
+                "closed", "Closed", "CLOSED",
+            ],
+        },
     };
 }
 /** DB filter for Project DB / Technical Active Projects (matches isDisplayableProjectLead). */

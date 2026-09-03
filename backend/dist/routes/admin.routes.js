@@ -22,6 +22,7 @@ const leadDuplicateCheck_1 = require("../utils/leadDuplicateCheck");
 const uploadSourceSelect_1 = require("../utils/uploadSourceSelect");
 const phone_1 = require("../utils/phone");
 const adminClientQueries_1 = require("../utils/adminClientQueries");
+const masterFormatTrades_1 = require("../utils/masterFormatTrades");
 const adminIp_middleware_1 = require("../middleware/adminIp.middleware");
 const csrSessionTracking_1 = require("../utils/csrSessionTracking");
 const estTime_1 = require("../utils/estTime");
@@ -35,10 +36,30 @@ const previousMonthRatings_1 = require("../utils/previousMonthRatings");
 const paymentsSummary_1 = require("../utils/paymentsSummary");
 const technicalEstimators_1 = require("../utils/technicalEstimators");
 const projectDbExcel_1 = require("../utils/projectDbExcel");
+const csrDataExcelExport_1 = require("../utils/csrDataExcelExport");
 const upload_middleware_1 = require("../middleware/upload.middleware");
 const technicalNotifications_1 = require("../utils/technicalNotifications");
+const companyCredential_controller_1 = require("../controllers/companyCredential.controller");
 const router = express_1.default.Router();
 router.use(adminIp_middleware_1.enforceAdminIpAllowlist);
+async function resolveCsrAssignedTo(csrIdRaw, csrNameRaw) {
+    const csrId = csrIdRaw?.trim();
+    const csrName = csrNameRaw?.trim();
+    if (csrId && csrId !== "all")
+        return { csrId };
+    if (csrName && csrName !== "all") {
+        const u = await db_1.default.user.findFirst({
+            where: { role: "csr", name: csrName },
+            select: { id: true },
+        });
+        if (u)
+            return { csrId: u.id, csrName };
+    }
+    return {};
+}
+router.get("/company-credentials", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin"), companyCredential_controller_1.listCompanyCredentials);
+router.put("/company-credentials/:company", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin"), companyCredential_controller_1.upsertCompanyCredential);
+router.delete("/company-credentials/:company", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin"), companyCredential_controller_1.deleteCompanyCredential);
 function applyProjectPayload(updateData, body) {
     const scalars = [
         "name", "company", "phone", "email", "state", "ownerName", "timezone",
@@ -93,7 +114,7 @@ router.get("/dashboard", auth_middleware_1.verifyToken, (0, role_middleware_1.al
 /* ================= ADMIN MEETING + TECHNICAL NOTE NOTIFICATIONS ================= */
 router.get("/notifications", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager", "technical_manager"), async (req, res) => {
     try {
-        const today = new Date().toISOString().split("T")[0];
+        const today = (0, estTime_1.estDateYmd)();
         const csrId = typeof req.query.csrId === "string" ? req.query.csrId : undefined;
         const rawScheduled = await db_1.default.lead.findMany({
             where: {
@@ -207,6 +228,28 @@ router.get("/csrs", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRo
         return res.status(500).json({ success: false, message: "Failed to fetch CSRs" });
     }
 });
+/* ================= CSR FULL PAGE DATA EXCEL ================= */
+router.get("/csrs/:csrId/data-export", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager", "technical_manager"), async (req, res) => {
+    try {
+        const csrId = String(req.params.csrId ?? "").trim();
+        if (!csrId) {
+            return res.status(400).json({ success: false, message: "CSR is required" });
+        }
+        const { buffer, filename } = await (0, csrDataExcelExport_1.buildCsrPagesExcel)(csrId);
+        const asciiName = filename.replace(/[^\x20-\x7E]/g, "_");
+        res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+        res.setHeader("Content-Disposition", `attachment; filename="${asciiName}"; filename*=UTF-8''${encodeURIComponent(filename)}`);
+        res.setHeader("Content-Length", String(buffer.length));
+        res.setHeader("Cache-Control", "no-store");
+        return res.status(200).end(buffer);
+    }
+    catch (error) {
+        const status = Number(error?.status) || 500;
+        const message = status === 404 ? "CSR not found" : "Failed to export CSR data";
+        console.log(error);
+        return res.status(status).json({ success: false, message });
+    }
+});
 /* ================= CLIENT TAB COUNTS (leads page — lightweight) ================= */
 router.get("/clients/tab-counts", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager", "technical_manager"), async (req, res) => {
     try {
@@ -215,20 +258,20 @@ router.get("/clients/tab-counts", auth_middleware_1.verifyToken, (0, role_middle
         const phonePrefix = req.query.phone ? String(req.query.phone) : undefined;
         const scheduleDate = req.query.scheduleDate ? String(req.query.scheduleDate) : undefined;
         const csrName = req.query.csr ? String(req.query.csr) : undefined;
+        const csrIdRaw = req.query.csrId ? String(req.query.csrId) : undefined;
         const areaCodesRaw = req.query.areaCodes ? String(req.query.areaCodes) : "";
         const areaCodes = areaCodesRaw
             .split(",")
             .map(s => s.trim())
             .filter(Boolean);
-        const hasFilters = !!(search || state || phonePrefix || scheduleDate || areaCodes.length || (csrName && csrName !== "all"));
+        const assignee = await resolveCsrAssignedTo(csrIdRaw, csrName);
+        const hasFilters = !!(search || state || phonePrefix || scheduleDate || areaCodes.length || assignee.csrId);
         const CACHE_KEY = hasFilters
-            ? `admin:clients:tab-counts:${search ?? ""}:${state ?? ""}:${phonePrefix ?? ""}:${scheduleDate ?? ""}:${areaCodes.join(",")}:${csrName ?? "all"}`
-            : "admin:clients:tab-counts";
-        if (!hasFilters) {
-            const cached = (0, cache_1.getCache)(CACHE_KEY);
-            if (cached)
-                return res.json(cached);
-        }
+            ? `admin:clients:tab-counts:v8:${search ?? ""}:${state ?? ""}:${phonePrefix ?? ""}:${scheduleDate ?? ""}:${areaCodes.join(",")}:${assignee.csrId ?? "all"}`
+            : "admin:clients:tab-counts:v8";
+        const cached = (0, cache_1.getCache)(CACHE_KEY);
+        if (cached)
+            return res.json(cached);
         const payload = await (0, adminSummaryStats_1.buildAdminTabCountsPayload)(hasFilters
             ? {
                 search,
@@ -236,11 +279,11 @@ router.get("/clients/tab-counts", auth_middleware_1.verifyToken, (0, role_middle
                 phonePrefix,
                 areaCodes,
                 scheduleDate,
-                csrName: csrName && csrName !== "all" ? csrName : undefined,
+                csrName: assignee.csrName,
+                csrId: assignee.csrId,
             }
             : undefined);
-        if (!hasFilters)
-            (0, cache_1.setCache)(CACHE_KEY, payload, 60000);
+        (0, cache_1.setCache)(CACHE_KEY, payload, hasFilters ? 20000 : 60000);
         return res.json(payload);
     }
     catch (error) {
@@ -251,7 +294,7 @@ router.get("/clients/tab-counts", auth_middleware_1.verifyToken, (0, role_middle
 /* ================= CLIENT SUMMARY (fast — dashboard tiles & charts) ================= */
 router.get("/clients/summary", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager", "technical_manager"), async (_req, res) => {
     try {
-        const CACHE_KEY = "admin:clients:summary";
+        const CACHE_KEY = "admin:clients:summary:v5";
         const cached = (0, cache_1.getCache)(CACHE_KEY);
         if (cached)
             return res.json(cached);
@@ -271,6 +314,7 @@ router.get("/clients", auth_middleware_1.verifyToken, (0, role_middleware_1.allo
         const page = Math.max(1, parseInt(String(req.query.page || "1"), 10) || 1);
         const limit = Math.min(100, Math.max(1, parseInt(String(req.query.limit || "50"), 10) || 50));
         const csrName = req.query.csr ? String(req.query.csr) : undefined;
+        const csrIdRaw = req.query.csrId ? String(req.query.csrId) : undefined;
         const search = req.query.search ? String(req.query.search) : undefined;
         const scheduleDate = req.query.scheduleDate ? String(req.query.scheduleDate) : undefined;
         const state = req.query.state ? String(req.query.state) : undefined;
@@ -278,38 +322,131 @@ router.get("/clients", auth_middleware_1.verifyToken, (0, role_middleware_1.allo
         const areaCodes = req.query.areaCodes
             ? String(req.query.areaCodes).split(",").map(s => s.trim()).filter(Boolean)
             : [];
-        const cacheKey = `admin:clients:list:${view}:${page}:${limit}:${csrName ?? "all"}:${search ?? ""}:${scheduleDate ?? ""}:${state ?? ""}:${phonePrefix ?? ""}:${areaCodes.join(",")}`;
+        const sortRaw = String(req.query.sort || "notes").toLowerCase();
+        const sortBy = sortRaw === "clientcode" || sortRaw === "client_code" ? "clientCode" : "notes";
+        const sortDir = String(req.query.dir || "desc").toLowerCase() === "asc" ? "asc" : "desc";
+        const assignee = await resolveCsrAssignedTo(csrIdRaw, csrName);
+        const cacheKey = `admin:clients:list:v12:${view}:${page}:${limit}:${sortBy}:${sortDir}:${assignee.csrId ?? "all"}:${search ?? ""}:${scheduleDate ?? ""}:${state ?? ""}:${phonePrefix ?? ""}:${areaCodes.join(",")}`;
         const cached = (0, cache_1.getCache)(cacheKey);
         if (cached)
             return res.json(cached);
-        const where = (0, adminClientQueries_1.buildAdminClientListWhere)(view, csrName, search, scheduleDate, {
+        const fetchView = view === "important" || view === "schedule" ? "important_status" : view;
+        const where = (0, adminClientQueries_1.buildAdminClientListWhere)(fetchView, assignee.csrName, search, undefined, {
             state,
             phonePrefix,
             areaCodes,
+            csrId: assignee.csrId,
         });
-        // Fetch more than limit so we can deduplicate by phone before slicing the page
-        const FETCH_FACTOR = 4;
-        const rawLeads = await db_1.default.lead.findMany({
+        const identitySelect = {
+            id: true,
+            phone: true,
+            company: true,
+            clientCode: true,
+            projectCode: true,
+            interestedService: true,
+            nextSchedule: true,
+            updatedAt: true,
+            createdAt: true,
+        };
+        const identityRows = await db_1.default.lead.findMany({
             where,
-            select: adminClientQueries_1.ADMIN_LEAD_LIST_SELECT,
-            orderBy: { updatedAt: "desc" },
-            // Fetch enough rows to fill the requested page after dedup
-            skip: 0,
-            take: limit * FETCH_FACTOR * (page + 1),
+            select: identitySelect,
         });
-        // Deduplicate: for each phone keep only the most-recently-updated lead
-        const seenPhones = new Set();
-        const dedupedLeads = [];
-        for (const lead of rawLeads) {
-            const phone = lead.phone?.trim() || "";
-            const key = phone || lead.id; // if no phone, treat as unique
-            if (seenPhones.has(key))
-                continue;
-            seenPhones.add(key);
-            dedupedLeads.push(lead);
+        const viewRows = view === "important" ? identityRows.filter(l => !(0, adminClientQueries_1.leadHasMeetingDate)(l.nextSchedule))
+            : view === "schedule" ? identityRows.filter(l => {
+                if (!(0, adminClientQueries_1.leadHasMeetingDate)(l.nextSchedule))
+                    return false;
+                if (scheduleDate)
+                    return l.nextSchedule === scheduleDate;
+                return true;
+            })
+                : identityRows;
+        const preferClientCode = view === "closed";
+        const { unique, extraProjectCountById, extraProjectsById } = (0, adminClientQueries_1.dedupeAdminLeads)(viewRows, preferClientCode);
+        const codeKey = (code) => (code || "").trim();
+        const latestNoteMs = new Map();
+        if (sortBy === "notes" && viewRows.length) {
+            const noteIds = [...new Set(viewRows.map(l => l.id))];
+            for (let i = 0; i < noteIds.length; i += 800) {
+                const chunk = noteIds.slice(i, i + 800);
+                const grouped = await db_1.default.leadNote.groupBy({
+                    by: ["leadId"],
+                    where: { leadId: { in: chunk } },
+                    _max: { createdAt: true },
+                }).catch(async () => {
+                    const notes = await db_1.default.leadNote.findMany({
+                        where: { leadId: { in: chunk } },
+                        select: { leadId: true, createdAt: true },
+                    });
+                    return notes.map(n => ({
+                        leadId: n.leadId,
+                        _max: { createdAt: n.createdAt },
+                    }));
+                });
+                for (const row of grouped) {
+                    const t = row._max.createdAt?.getTime() ?? 0;
+                    if (t > (latestNoteMs.get(row.leadId) ?? 0))
+                        latestNoteMs.set(row.leadId, t);
+                }
+            }
         }
-        const total = dedupedLeads.length;
-        const leads = dedupedLeads.slice((page - 1) * limit, page * limit);
+        const groupNoteMs = new Map();
+        if (sortBy === "notes") {
+            for (const row of viewRows) {
+                const key = (0, adminClientQueries_1.adminLeadIdentityKey)(row, preferClientCode);
+                const t = latestNoteMs.get(row.id) ?? 0;
+                groupNoteMs.set(key, Math.max(groupNoteMs.get(key) ?? 0, t));
+            }
+        }
+        const uniqueRows = unique.sort((a, b) => {
+            if (sortBy === "clientCode") {
+                const sa = codeKey(a.clientCode);
+                const sb = codeKey(b.clientCode);
+                if (!sa && !sb)
+                    return b.updatedAt.getTime() - a.updatedAt.getTime();
+                if (!sa)
+                    return 1;
+                if (!sb)
+                    return -1;
+                const cmp = sa.localeCompare(sb, undefined, { numeric: true, sensitivity: "base" });
+                return sortDir === "asc" ? cmp : -cmp;
+            }
+            const ka = (0, adminClientQueries_1.adminLeadIdentityKey)(a, preferClientCode);
+            const kb = (0, adminClientQueries_1.adminLeadIdentityKey)(b, preferClientCode);
+            const na = groupNoteMs.get(ka) ?? 0;
+            const nb = groupNoteMs.get(kb) ?? 0;
+            if (na !== nb) {
+                if (na === 0)
+                    return 1;
+                if (nb === 0)
+                    return -1;
+                return sortDir === "asc" ? na - nb : nb - na;
+            }
+            return sortDir === "asc"
+                ? a.updatedAt.getTime() - b.updatedAt.getTime()
+                : b.updatedAt.getTime() - a.updatedAt.getTime();
+        });
+        const total = uniqueRows.length;
+        const pageIds = uniqueRows
+            .slice((page - 1) * limit, page * limit)
+            .map(l => l.id);
+        const rawLeads = pageIds.length
+            ? await db_1.default.lead.findMany({
+                where: { id: { in: pageIds } },
+                select: adminClientQueries_1.ADMIN_LEAD_LIST_SELECT,
+            })
+            : [];
+        const byId = new Map(rawLeads.map(l => [l.id, l]));
+        const leads = pageIds.map(id => {
+            const row = byId.get(id);
+            if (!row)
+                return null;
+            return {
+                ...row,
+                extraProjectCount: extraProjectCountById.get(id) ?? 0,
+                extraProjects: extraProjectsById.get(id) ?? [],
+            };
+        }).filter((l) => !!l);
         const payload = {
             success: true,
             leads,
@@ -318,9 +455,6 @@ router.get("/clients", auth_middleware_1.verifyToken, (0, role_middleware_1.allo
             limit,
             stats: {
                 totalClients: total,
-                activeClients: view === "all"
-                    ? await db_1.default.lead.count({ where: { status: "pending" } })
-                    : undefined,
             },
         };
         (0, cache_1.setCache)(cacheKey, payload, 60000);
@@ -470,7 +604,7 @@ router.delete("/project/:id", auth_middleware_1.verifyToken, (0, role_middleware
 router.put("/lead/:id", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager", "technical_manager"), async (req, res) => {
     try {
         const leadId = String(req.params.id);
-        const { name, phone, email, state, company, website } = req.body;
+        const { name, phone, email, state, company, website, interestedService, clientCode, nextSchedule, nextTime, timezone, status, isOldClient } = req.body;
         const existing = await db_1.default.lead.findFirst({ where: { id: leadId } });
         if (!existing)
             return res.status(404).json({ success: false, message: "Lead not found" });
@@ -487,6 +621,38 @@ router.put("/lead/:id", auth_middleware_1.verifyToken, (0, role_middleware_1.all
             updateData.company = company;
         if (website !== undefined)
             updateData.website = String(website ?? "").trim() || null;
+        if (interestedService !== undefined) {
+            updateData.interestedService = String(interestedService ?? "").trim() || null;
+        }
+        if (clientCode !== undefined) {
+            const code = String(clientCode ?? "").trim();
+            updateData.clientCode = code || null;
+        }
+        if (nextSchedule !== undefined)
+            updateData.nextSchedule = String(nextSchedule ?? "").trim() || null;
+        if (nextTime !== undefined)
+            updateData.nextTime = String(nextTime ?? "").trim() || null;
+        if (timezone !== undefined)
+            updateData.timezone = String(timezone ?? "").trim() || null;
+        if (typeof isOldClient === "boolean")
+            updateData.isOldClient = isOldClient;
+        if (status !== undefined) {
+            const raw = String(status).trim();
+            const n = raw.toLowerCase();
+            const canonical = n === "not interested" ? "Not Interested" :
+                n === "not picked" || n === "notpicked" ? "not picked" :
+                    n === "close client" || n === "closed" ? "Close Client" :
+                        n === "no owner available" ? "no owner available" :
+                            n === "not in service" ? "not in service" :
+                                n === "in house" ? "in house" :
+                                    n === "important" ? "important" :
+                                        n === "interested" ? "interested" :
+                                            n === "pending" ? "pending" :
+                                                raw;
+            updateData.status = canonical;
+            updateData.important = canonical === "important";
+            updateData.interested = canonical === "interested";
+        }
         const dup = await (0, leadDuplicateCheck_1.findDuplicateLead)(phone !== undefined ? String(phone) : existing.phone, email !== undefined ? String(email) : existing.email, leadId);
         if (dup && (phone !== undefined || email !== undefined)) {
             return res.status(409).json({ success: false, message: dup.message, field: dup.field });
@@ -719,7 +885,7 @@ router.post("/lead/:id/technical-notes", auth_middleware_1.verifyToken, (0, role
                 actorId: authUser?.id,
                 actorName: authorName || authUser?.name,
                 actorRole: role,
-                title: "Notes for Chief Estimation",
+                title: "Notes for Chief Estimator",
                 message: `${authorName || "Technical"} on ${label}: ${text.slice(0, 160)}`,
                 changes: ["Notes for Estimator"],
             });
@@ -1014,7 +1180,7 @@ router.get("/projects", auth_middleware_1.verifyToken, (0, role_middleware_1.all
         ]);
         let leads = rawLeads.filter(projectLeads_1.isDisplayableProjectLead);
         // Soft-hide from Technical only (do not use Prisma where — breaks Mongo when field unset).
-        // Completed projects always stay on Chief Estimation, even if previously hidden by mark-complete.
+        // Completed projects always stay on Chief Estimator, even if previously hidden by mark-complete.
         if (technicalView) {
             leads = leads.filter((l) => {
                 const row = l;
@@ -1034,8 +1200,8 @@ router.get("/projects", auth_middleware_1.verifyToken, (0, role_middleware_1.all
         if (from || to) {
             leads = leads.filter((l) => {
                 const dateStr = l.projectDeadline
-                    ? new Date(l.projectDeadline).toISOString().split("T")[0]
-                    : new Date(l.updatedAt).toISOString().split("T")[0];
+                    ? (0, estTime_1.estDateYmd)(new Date(l.projectDeadline))
+                    : (0, estTime_1.estDateYmd)(new Date(l.updatedAt));
                 if (from && dateStr < from)
                     return false;
                 if (to && dateStr > to)
@@ -1686,7 +1852,7 @@ router.put("/project/:id/hide-technical", auth_middleware_1.verifyToken, (0, rol
         return res.status(500).json({ success: false, message: "Failed to remove from technical" });
     }
 });
-/* ================= MARK COMPLETED (Admin: keep visible on Chief Estimation) ================= */
+/* ================= MARK COMPLETED (Admin: keep visible on Chief Estimator) ================= */
 router.put("/project/:id/mark-completed", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager"), async (req, res) => {
     try {
         const leadId = String(req.params.id);
@@ -1901,6 +2067,27 @@ router.get("/payments-summary", auth_middleware_1.verifyToken, (0, role_middlewa
     catch (err) {
         console.error("payments-summary error:", err);
         return res.status(500).json({ success: false, message: "Failed to load payments summary" });
+    }
+});
+router.post("/project/:id/discard-payment", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin"), async (req, res) => {
+    try {
+        const leadId = String(req.params.id);
+        const discarded = req.body?.discarded !== false;
+        const lead = await db_1.default.lead.findUnique({
+            where: { id: leadId },
+            select: { id: true, projectTitle: true },
+        });
+        if (!lead)
+            return res.status(404).json({ success: false, message: "Project not found." });
+        await db_1.default.lead.update({
+            where: { id: leadId },
+            data: { paymentDiscarded: discarded },
+        });
+        return res.json({ success: true, discarded, message: discarded ? "Marked: payment not expected." : "Discard cleared." });
+    }
+    catch (err) {
+        console.error("discard-payment error:", err);
+        return res.status(500).json({ success: false, message: "Failed to update payment status." });
     }
 });
 router.get("/technical-previous-month-ratings", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager", "technical_manager"), async (_req, res) => {
@@ -3045,7 +3232,7 @@ router.get("/upload-sources/:sourceId", auth_middleware_1.verifyToken, (0, role_
         return res.status(500).json({ success: false, message: "Failed to fetch source details" });
     }
 });
-/* ================= CSR / ESTIMATOR LOGIN / ACTIVITY REPORT (PST) ================= */
+/* ================= CSR / ESTIMATOR LOGIN / ACTIVITY REPORT (EST) ================= */
 router.get("/csr-session-report", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager", "technical_manager"), async (req, res) => {
     try {
         const csrId = typeof req.query.csrId === "string" && req.query.csrId !== "all"
@@ -3097,7 +3284,7 @@ router.put("/csr-work-session/:id", auth_middleware_1.verifyToken, (0, role_midd
         }
         const { checkInAt, checkOutAt, clearCheckOut, dashboardMs, awayMs, note, } = req.body ?? {};
         if (!checkInAt || typeof checkInAt !== "string") {
-            return res.status(400).json({ success: false, message: "checkInAt is required (PST datetime)." });
+            return res.status(400).json({ success: false, message: "checkInAt is required (EST datetime)." });
         }
         const checkInDate = (0, estTime_1.parseEstDateTimeLocal)(checkInAt, estTime_1.ADMIN_SESSION_TIMEZONE) ??
             (!Number.isNaN(Date.parse(checkInAt)) ? new Date(checkInAt) : null);
@@ -3226,6 +3413,7 @@ router.delete("/upload-sources/:sourceId", auth_middleware_1.verifyToken, (0, ro
 /* ================= TRADES ================= */
 router.get("/trades", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager", "technical_manager"), async (_req, res) => {
     try {
+        await (0, masterFormatTrades_1.ensureMasterFormatTrades)();
         const trades = await db_1.default.trade.findMany({ orderBy: { name: "asc" } });
         return res.json({ success: true, trades });
     }
@@ -3236,9 +3424,10 @@ router.get("/trades", auth_middleware_1.verifyToken, (0, role_middleware_1.allow
 });
 router.post("/trades", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager", "technical_manager"), async (req, res) => {
     try {
-        const name = req.body.name?.trim();
+        const name = (0, masterFormatTrades_1.canonicalTradeName)(req.body.name ?? "");
         if (!name)
             return res.status(400).json({ success: false, message: "Trade name required" });
+        await (0, masterFormatTrades_1.ensureMasterFormatTrades)();
         const existing = await db_1.default.trade.findUnique({ where: { name } });
         if (existing)
             return res.status(409).json({ success: false, message: "Trade already exists" });

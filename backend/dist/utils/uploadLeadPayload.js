@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.buildLeadFieldsFromUploadRow = buildLeadFieldsFromUploadRow;
+const masterFormatTrades_1 = require("./masterFormatTrades");
 /** Map parsed upload row → lead fields (upload type controls status + isOldClient). */
 function buildLeadFieldsFromUploadRow(r, uploadedFileId, hideOnMain) {
     const status = (r.status ?? "").toLowerCase();
@@ -23,5 +24,7 @@ function buildLeadFieldsFromUploadRow(r, uploadedFileId, hideOnMain) {
         uploadedFileId,
         hiddenOnMain: hideOnMain(r.status),
         inBin: false,
+        trade: (0, masterFormatTrades_1.parseTradeList)(r.trade).join(", ") || null,
+        subTrades: (0, masterFormatTrades_1.parseSubTradeList)(r.subTrades).join(", ") || null,
     };
 }

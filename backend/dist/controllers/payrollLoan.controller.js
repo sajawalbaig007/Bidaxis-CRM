@@ -9,7 +9,23 @@ exports.upsertPayrollLoan = upsertPayrollLoan;
 exports.deletePayrollLoan = deletePayrollLoan;
 const db_1 = __importDefault(require("../config/db"));
 function normName(n) {
-    return n.trim().toLowerCase();
+    return n.trim().toLowerCase().replace(/\s+/g, " ");
+}
+function matchLoanByName(loans, name, department) {
+    const q = normName(name);
+    if (!q)
+        return null;
+    const sameName = loans.filter(l => normName(l.employeeName) === q);
+    if (!sameName.length)
+        return null;
+    if (department) {
+        const dept = sameName.find(l => l.department === department);
+        if (dept)
+            return dept;
+        // One person in the ledger → allow (legacy rows without a team split)
+        return sameName.length === 1 ? sameName[0] : null;
+    }
+    return sameName[0];
 }
 async function listPayrollLoans(req, res) {
     try {
@@ -18,7 +34,7 @@ async function listPayrollLoans(req, res) {
         let loans = await db_1.default.payrollLoan.findMany({ orderBy: { updatedAt: "desc" } });
         if (name) {
             const q = normName(name);
-            loans = loans.filter(l => normName(l.employeeName).includes(q));
+            loans = loans.filter(l => normName(l.employeeName) === q);
         }
         if (department) {
             loans = loans.filter(l => l.department === department);
@@ -36,10 +52,10 @@ async function lookupPayrollLoan(req, res) {
         if (!name) {
             return res.status(400).json({ success: false, message: "Name required." });
         }
+        const department = String(req.query.department ?? "").trim();
         const loans = await db_1.default.payrollLoan.findMany({ orderBy: { updatedAt: "desc" } });
-        const match = loans.find(l => normName(l.employeeName) === normName(name))
-            ?? loans.find(l => normName(l.employeeName).includes(normName(name)));
-        return res.json({ success: true, loan: match ?? null });
+        const match = matchLoanByName(loans, name, department || undefined);
+        return res.json({ success: true, loan: match });
     }
     catch (err) {
         console.log(err);
@@ -66,8 +82,7 @@ async function upsertPayrollLoan(req, res) {
         }
         else {
             const all = await db_1.default.payrollLoan.findMany();
-            const existing = all.find(l => normName(l.employeeName) === normName(name)) ??
-                all.find(l => normName(l.employeeName).includes(normName(name)));
+            const existing = matchLoanByName(all, name, payload.department) ?? matchLoanByName(all, name);
             loan = existing
                 ? await db_1.default.payrollLoan.update({ where: { id: existing.id }, data: payload })
                 : await db_1.default.payrollLoan.create({ data: payload });

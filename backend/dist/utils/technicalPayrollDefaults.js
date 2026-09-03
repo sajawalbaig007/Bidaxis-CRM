@@ -56,6 +56,10 @@ function coerceEmployee(raw, fallbackIndex) {
         pfAuto: o.pfAuto !== false,
         pfOverride: o.pfOverride == null ? null : Number(o.pfOverride),
         remarks: String(o.remarks ?? ""),
+        employeeId: String(o.employeeId ?? o.code ?? ""),
+        address: String(o.address ?? ""),
+        phone: String(o.phone ?? ""),
+        cnic: String(o.cnic ?? ""),
     });
     const id = String(o.id ?? "").trim() || rid("tech", fallbackIndex + 1);
     const code = String(o.code ?? "").trim() || `TECH-${String(fallbackIndex + 1).padStart(2, "0")}`;
@@ -76,14 +80,27 @@ function normalizeTechnicalPayrollData(raw) {
     return { employees: employees.length > 0 ? employees : base.employees };
 }
 exports.TECHNICAL_TEAM_TITLE = "Technical Team Salaries";
+function isTechnicalManagerTeam(name) {
+    const t = name.trim().toLowerCase();
+    return t.includes("technical manager") || t.includes("tech manager") || t.includes("technical team lead");
+}
+/** Technical Team only — not Technical Manager / Team Lead (those use 09:00 late). */
 function isTechnicalTeam(name) {
     const t = name.trim().toLowerCase();
+    if (isTechnicalManagerTeam(t))
+        return false;
     return t.includes("technical") && t.includes("sal");
 }
+function strField(v) {
+    if (v == null)
+        return "";
+    const s = String(v).trim();
+    return s === "undefined" || s === "null" ? "" : String(v);
+}
 function salaryFromSub(sub) {
-    const s = sub.salary ?? {};
+    const s = (sub.salary ?? {});
     const amount = Number(sub.amount) || 0;
-    return (0, technicalPayrollFormula_1.emptyTechnicalSalary)({
+    const payroll = (0, technicalPayrollFormula_1.emptyTechnicalSalary)({
         basic: Number(s.basic) || amount,
         allowance: Number(s.allowance) || 0,
         weekdayOtHours: Number(s.weekdayOtHours) || 0,
@@ -104,7 +121,19 @@ function salaryFromSub(sub) {
         pfAuto: s.pfAuto !== false,
         pfOverride: s.pfOverride == null ? null : Number(s.pfOverride),
         remarks: String(s.remarks ?? ""),
+        employeeId: strField(s.employeeId) || strField(s.code),
+        address: strField(s.address),
+        phone: strField(s.phone),
+        cnic: strField(s.cnic),
     });
+    return {
+        ...s,
+        ...payroll,
+        employeeId: strField(s.employeeId) || strField(s.code),
+        address: strField(s.address),
+        phone: strField(s.phone),
+        cnic: strField(s.cnic),
+    };
 }
 /**
  * On income_statement load/save: recompute Technical Team person amounts

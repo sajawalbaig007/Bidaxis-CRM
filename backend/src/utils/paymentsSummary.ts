@@ -157,11 +157,12 @@ function calendarMonthEst(d: Date | string | null | undefined): string | null {
   return estDateYmd(dt).slice(0, 7);
 }
 
+/** Calendar month the money was collected — payment date only, never project createdAt. */
 function paymentDateMonth(entry: ProjectPaymentEntry): string | null {
   if (!entry.isPaid) return null;
   const paid = entry.paidAt?.trim();
   if (paid && /^\d{4}-\d{2}/.test(paid)) return paid.slice(0, 7);
-  return null;
+  return calendarMonthEst(paid || null);
 }
 
 function emptyChannelTotals(): ChannelCurrencyTotals {
@@ -280,21 +281,33 @@ export async function buildPaymentsSummary(month?: string | null): Promise<Payme
       }
     }
 
-    /* Collection stays on the project’s month. Footer = paid in this view-month on older projects. */
+    /**
+     * Month M collected = payment date in M AND project arrived in M.
+     * August project + September payment:
+     *   - September view → “Prev month collected” (not September collected)
+     *   - August view → not added (only money collected before August ended)
+     */
     for (const entry of allPayments) {
       if (!entry.isPaid) continue;
       const amt = parseMoney(entry.amount);
       if (amt <= 0) continue;
       const payMonth = paymentDateMonth(entry);
       collectedAllTime += amt;
-      if (createdMonth === thisMonthKey) collectedThisMonth += amt;
-      if (createdMonth === prevMonthKey) collectedOnPrevMonthProjects += amt;
-      if (payMonth === thisMonthKey && createdMonth && createdMonth < thisMonthKey) {
-        collectedPrevMonth += amt;
-      }
+
+      const sameMonthProjectAndPay =
+        Boolean(createdMonth && payMonth && createdMonth === payMonth);
+      if (sameMonthProjectAndPay && payMonth === thisMonthKey) collectedThisMonth += amt;
+      if (sameMonthProjectAndPay && payMonth === prevMonthKey) collectedOnPrevMonthProjects += amt;
+
+      const paidThisMonthOnOlderProject =
+        Boolean(payMonth === thisMonthKey && createdMonth && createdMonth < thisMonthKey);
+      if (paidThisMonthOnOlderProject) collectedPrevMonth += amt;
+
       if (createdMonth && createdMonth < thisMonthKey) collectedFromPending += amt;
 
-      const inCollectedView = !monthFilter || createdMonth === monthFilter;
+      const inCollectedView =
+        !monthFilter ||
+        (createdMonth === monthFilter && payMonth === monthFilter);
       if (!inCollectedView) continue;
 
       collectedEntries += 1;
@@ -329,7 +342,12 @@ export async function buildPaymentsSummary(month?: string | null): Promise<Payme
       else if (createdMonth === thisMonthKey) quotedProjects += 1;
     }
 
-    const rowPayments = allPayments
+    const monthPayments = monthFilter
+      ? allPayments.filter((e) => e.isPaid && paymentDateMonth(e) === monthFilter)
+      : allPayments;
+    const paidInMonth = monthPayments.reduce((s, e) => s + parseMoney(e.amount), 0);
+
+    const rowPayments = monthPayments
       .map(entrySummary)
       .sort((a, b) => {
         const ta = a.paidAt || a.createdAt || "";
@@ -344,7 +362,7 @@ export async function buildPaymentsSummary(month?: string | null): Promise<Payme
           ? "partial"
           : "unpaid";
 
-    const paidTotalDisplay = paidTotalAllTime;
+    const paidTotalDisplay = monthFilter ? paidInMonth : paidTotalAllTime;
 
     const row: ProjectPaymentSummaryRow = {
       leadId: lead.id,
@@ -364,7 +382,7 @@ export async function buildPaymentsSummary(month?: string | null): Promise<Payme
     };
 
     if (status === "full") {
-      if (paidTotalAllTime > 0) {
+      if (paidTotalDisplay > 0) {
         fullPaidCount += 1;
         fullPaidProjects.push({
           ...row,
@@ -373,7 +391,7 @@ export async function buildPaymentsSummary(month?: string | null): Promise<Payme
         });
       }
     } else if (status === "partial") {
-      if (paidTotalAllTime > 0) {
+      if (paidTotalDisplay > 0) {
         partialPaidCount += 1;
         partialPaidProjects.push({
           ...row,

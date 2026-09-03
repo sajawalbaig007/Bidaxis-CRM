@@ -15,6 +15,8 @@ exports.pauseAssignmentTimer = pauseAssignmentTimer;
 exports.startAssignmentTimer = startAssignmentTimer;
 exports.assignmentElapsedSeconds = assignmentElapsedSeconds;
 exports.canCompleteAfterTimer = canCompleteAfterTimer;
+exports.isAssignmentTimerStale = isAssignmentTimerStale;
+exports.pauseStaleTimersForEstimator = pauseStaleTimersForEstimator;
 exports.pauseTimersOnLeadIds = pauseTimersOnLeadIds;
 exports.pauseOtherRunningTimersForEstimator = pauseOtherRunningTimersForEstimator;
 exports.mergeAssignmentProgress = mergeAssignmentProgress;
@@ -27,6 +29,7 @@ exports.appendTechnicalNote = appendTechnicalNote;
 exports.updateTechnicalNote = updateTechnicalNote;
 exports.deleteTechnicalNote = deleteTechnicalNote;
 const db_1 = __importDefault(require("../config/db"));
+const estTime_1 = require("./estTime");
 /** Sync projectPhase from assignment complete / pricing flags. */
 function syncPhaseFromAssignments(list, currentPhase) {
     const phase = (currentPhase ?? "not_started").toLowerCase();
@@ -188,6 +191,52 @@ function assignmentElapsedSeconds(a, now = Date.now()) {
 exports.MIN_COMPLETE_TIMER_SECONDS = 30;
 function canCompleteAfterTimer(elapsedSeconds) {
     return Math.max(0, Math.floor(elapsedSeconds)) >= exports.MIN_COMPLETE_TIMER_SECONDS;
+}
+/**
+ * Running timer left overnight (or >12h continuous) must pause —
+ * never auto-complete; estimator resumes next day from timerSeconds.
+ */
+function isAssignmentTimerStale(timerStartedAt, now = new Date()) {
+    if (!timerStartedAt)
+        return false;
+    const started = new Date(timerStartedAt);
+    if (Number.isNaN(started.getTime()))
+        return false;
+    if ((0, estTime_1.estDateYmd)(started) !== (0, estTime_1.estDateYmd)(now))
+        return true;
+    return now.getTime() - started.getTime() > 12 * 60 * 60 * 1000;
+}
+/** Pause stale running timers for this estimator (overnight leave → resume later). */
+async function pauseStaleTimersForEstimator(user) {
+    const raw = await db_1.default.lead.findMany({
+        where: { technicalAssignments: { not: null } },
+        select: { id: true, technicalAssignments: true },
+        take: 500,
+    });
+    const now = Date.now();
+    let paused = 0;
+    for (const lead of raw) {
+        const list = parseTechnicalAssignments(lead.technicalAssignments);
+        let changed = false;
+        const next = list.map((a) => {
+            if (!assignmentBelongsToEstimator(a, user))
+                return a;
+            if (a.takeoffDone || !a.timerStartedAt)
+                return a;
+            if (!isAssignmentTimerStale(a.timerStartedAt, new Date(now)))
+                return a;
+            changed = true;
+            paused += 1;
+            return pauseAssignmentTimer(a, now);
+        });
+        if (!changed)
+            continue;
+        await db_1.default.lead.update({
+            where: { id: lead.id },
+            data: { technicalAssignments: serializeTechnicalAssignments(next) },
+        });
+    }
+    return paused;
 }
 /** Pause running timers for this estimator on specific leads (fast path). */
 async function pauseTimersOnLeadIds(user, leadIds) {

@@ -16,6 +16,8 @@ router.use(auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("acc
 router.get("/dashboard/summary", accounts_controller_1.getAccountsDashboardSummary);
 router.get("/fx-rates", accountsFx_controller_1.getLiveFxRates);
 router.get("/income-budget/actuals", accounts_controller_1.getIncomeBudgetActuals);
+router.get("/income-statement/pf-breakdown", accounts_controller_1.getProvidentFundBreakdown);
+router.get("/employee-name-merges", accounts_controller_1.listEmployeeNameMerges);
 router.get("/reports/monthly/saved", accountsReport_controller_1.listMonthlyAccountsReports);
 router.post("/reports/monthly/save", upload_middleware_1.uploadReportFile.single("file"), accountsReport_controller_1.saveMonthlyAccountsReport);
 router.get("/reports/monthly", accountsReport_controller_1.getMonthlyAccountsReport);

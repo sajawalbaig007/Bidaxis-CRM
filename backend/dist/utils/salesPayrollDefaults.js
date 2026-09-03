@@ -1,8 +1,16 @@
 "use strict";
 /** Sales team payroll defaults — Hammad (Team Lead) + Sales Team members */
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.PROJECT_SLABS = void 0;
 exports.defaultSalesPayrollData = defaultSalesPayrollData;
 exports.normalizeSalesPayrollData = normalizeSalesPayrollData;
+exports.PROJECT_SLABS = [
+    { key: "0-1000", label: "$0 – $1,000", rate: 0.03 },
+    { key: "1001-3000", label: "$1,001 – $3,000", rate: 0.035 },
+    { key: "3001-5000", label: "$3,001 – $5,000", rate: 0.04 },
+    { key: "5001-10000", label: "$5,001 – $10,000", rate: 0.045 },
+    { key: "10001+", label: "$10,001+", rate: 0.05 },
+];
 function rid(prefix, n) {
     return `${prefix}-${n}`;
 }

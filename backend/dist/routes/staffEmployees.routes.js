@@ -9,13 +9,14 @@ const auth_middleware_1 = require("../middleware/auth.middleware");
 const role_middleware_1 = require("../middleware/role.middleware");
 const staffPayrollSync_1 = require("../utils/staffPayrollSync");
 const cache_1 = require("../utils/cache");
+const employeeNameMerge_1 = require("../utils/employeeNameMerge");
 const router = express_1.default.Router();
 router.use(auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin"));
 const ROLE_LABEL = {
     admin: "CEO",
     csr: "CSR",
     manager: "Admin",
-    technical_manager: "Chief Estimation",
+    technical_manager: "Chief Estimator",
     accounts: "Accounts",
     estimator: "Estimator",
 };
@@ -70,6 +71,7 @@ async function listEnriched() {
                 currentAddress: true,
                 contactNo: true,
                 cnic: true,
+                cnicPdfUrl: true,
                 profilePic: true,
                 isActive: true,
                 isOnline: true,
@@ -96,6 +98,7 @@ async function listEnriched() {
                     currentAddress: u.currentAddress,
                     contactNo: u.contactNo,
                     cnic: u.cnic,
+                    cnicPdfUrl: u.cnicPdfUrl ?? null,
                     profilePic: u.profilePic,
                     csrCode: u.csrCode,
                     isActive: u.isActive,
@@ -121,6 +124,7 @@ async function listEnriched() {
                 currentAddress: r.currentAddress,
                 contactNo: r.contactNo,
                 cnic: r.cnic,
+                cnicPdfUrl: r.cnicPdfUrl ?? null,
                 profilePic: r.profilePic,
                 csrCode: null,
                 isActive: false,
@@ -146,6 +150,7 @@ async function listEnriched() {
             currentAddress: r.currentAddress,
             contactNo: r.contactNo,
             cnic: r.cnic,
+            cnicPdfUrl: r.cnicPdfUrl ?? null,
             profilePic: r.profilePic,
             csrCode: null,
             isActive: true,
@@ -166,6 +171,120 @@ router.get("/", async (_req, res) => {
     catch (err) {
         console.error("[staff-employees] GET", err);
         return res.status(500).json({ success: false, message: "Failed to load employees" });
+    }
+});
+router.get("/previous", async (_req, res) => {
+    try {
+        const previous = await (0, employeeNameMerge_1.listPreviousEmployeeRows)();
+        return res.json({ success: true, previous });
+    }
+    catch (err) {
+        console.error("[staff-employees] GET previous", err);
+        return res.status(500).json({ success: false, message: "Failed to load previous employees" });
+    }
+});
+router.post("/previous/scan", async (_req, res) => {
+    try {
+        const scan = await (0, employeeNameMerge_1.scanPreviousEmployees)();
+        const previous = await (0, employeeNameMerge_1.listPreviousEmployeeRows)();
+        return res.json({ success: true, previous, scan });
+    }
+    catch (err) {
+        console.error("[staff-employees] POST previous/scan", err);
+        return res.status(500).json({ success: false, message: "Failed to scan previous employees" });
+    }
+});
+router.post("/previous/merge-pair", async (req, res) => {
+    try {
+        const previousName = strOrNull(req.body?.previousName) || "";
+        const currentStaffId = strOrNull(req.body?.currentStaffId);
+        const currentUserId = strOrNull(req.body?.currentUserId);
+        let currentName = strOrNull(req.body?.currentName) || "";
+        if (currentStaffId) {
+            const employees = await listEnriched();
+            const hit = employees.find(e => e.id === currentStaffId);
+            if (!hit)
+                return res.status(404).json({ success: false, message: "Current employee not found." });
+            currentName = hit.name;
+        }
+        else if (currentUserId && !currentName) {
+            const u = await db_1.default.user.findUnique({ where: { id: currentUserId }, select: { name: true } });
+            if (!u)
+                return res.status(404).json({ success: false, message: "User not found." });
+            currentName = u.name;
+        }
+        if (!previousName) {
+            return res.status(400).json({ success: false, message: "Select a previous name." });
+        }
+        if (!currentName) {
+            return res.status(400).json({ success: false, message: "Select a current employee to merge into." });
+        }
+        const row = await (0, employeeNameMerge_1.mergePreviousByName)(previousName, {
+            currentName,
+            currentStaffId,
+            currentUserId,
+        });
+        if (!row)
+            return res.status(404).json({ success: false, message: "Previous employee not found." });
+        const previous = await (0, employeeNameMerge_1.listPreviousEmployeeRows)();
+        return res.json({ success: true, row, previous });
+    }
+    catch (err) {
+        const msg = err instanceof Error ? err.message : "Failed to merge employee";
+        console.error("[staff-employees] POST previous/merge-pair", err);
+        return res.status(400).json({ success: false, message: msg });
+    }
+});
+router.post("/previous/:id/merge", async (req, res) => {
+    try {
+        const id = String(req.params.id || "");
+        const currentStaffId = strOrNull(req.body?.currentStaffId);
+        const currentUserId = strOrNull(req.body?.currentUserId);
+        let currentName = strOrNull(req.body?.currentName) || "";
+        if (currentStaffId) {
+            const employees = await listEnriched();
+            const hit = employees.find(e => e.id === currentStaffId);
+            if (!hit)
+                return res.status(404).json({ success: false, message: "Current employee not found." });
+            currentName = hit.name;
+        }
+        else if (currentUserId && !currentName) {
+            const u = await db_1.default.user.findUnique({ where: { id: currentUserId }, select: { name: true } });
+            if (!u)
+                return res.status(404).json({ success: false, message: "User not found." });
+            currentName = u.name;
+        }
+        if (!currentName) {
+            return res.status(400).json({ success: false, message: "Select a current employee to merge into." });
+        }
+        const row = await (0, employeeNameMerge_1.mergePreviousEmployee)(id, {
+            currentName,
+            currentStaffId,
+            currentUserId,
+        });
+        if (!row)
+            return res.status(404).json({ success: false, message: "Previous employee not found." });
+        const previous = await (0, employeeNameMerge_1.listPreviousEmployeeRows)();
+        return res.json({ success: true, row, previous });
+    }
+    catch (err) {
+        const msg = err instanceof Error ? err.message : "Failed to merge employee";
+        console.error("[staff-employees] POST previous/merge", err);
+        return res.status(400).json({ success: false, message: msg });
+    }
+});
+router.post("/previous/:id/unmerge", async (req, res) => {
+    try {
+        const id = String(req.params.id || "");
+        const row = await (0, employeeNameMerge_1.unmergePreviousEmployee)(id);
+        if (!row)
+            return res.status(404).json({ success: false, message: "Previous employee not found." });
+        const previous = await (0, employeeNameMerge_1.listPreviousEmployeeRows)();
+        return res.json({ success: true, row, previous });
+    }
+    catch (err) {
+        console.error("[staff-employees] POST previous/unmerge", err);
+        return res.status(500).json({ success: false, message: "Failed to unmerge employee" });
     }
 });
 /** Add one or more dashboard users to the roster (checkbox pick). */
@@ -237,6 +356,7 @@ router.post("/", async (req, res) => {
                 currentAddress: strOrNull(req.body?.currentAddress),
                 contactNo: strOrNull(req.body?.contactNo),
                 cnic: strOrNull(req.body?.cnic),
+                cnicPdfUrl: strOrNull(req.body?.cnicPdfUrl),
                 profilePic: strOrNull(req.body?.profilePic),
                 notes: strOrNull(req.body?.notes),
                 payrollHead: normalizePayrollHead(req.body?.payrollHead),
@@ -264,6 +384,7 @@ router.put("/:id", async (req, res) => {
         const currentAddress = strOrNull(req.body?.currentAddress);
         const contactNo = strOrNull(req.body?.contactNo);
         const cnic = strOrNull(req.body?.cnic);
+        const cnicPdfUrl = req.body?.cnicPdfUrl !== undefined ? strOrNull(req.body.cnicPdfUrl) : undefined;
         const email = strOrNull(req.body?.email);
         const payrollPatch = req.body?.payrollHead !== undefined || req.body?.payrollStartMonth !== undefined
             ? {
@@ -293,6 +414,7 @@ router.put("/:id", async (req, res) => {
                     currentAddress,
                     contactNo,
                     cnic,
+                    ...(cnicPdfUrl !== undefined ? { cnicPdfUrl } : {}),
                     ...(req.body?.csrCode !== undefined
                         ? { csrCode: strOrNull(req.body.csrCode) }
                         : {}),
@@ -309,6 +431,7 @@ router.put("/:id", async (req, res) => {
                     currentAddress,
                     contactNo,
                     cnic,
+                    ...(cnicPdfUrl !== undefined ? { cnicPdfUrl } : {}),
                     ...payrollPatch,
                 },
             });
@@ -334,6 +457,7 @@ router.put("/:id", async (req, res) => {
                 currentAddress,
                 contactNo,
                 cnic,
+                ...(cnicPdfUrl !== undefined ? { cnicPdfUrl } : {}),
                 profilePic: strOrNull(req.body?.profilePic),
                 notes,
                 ...payrollPatch,

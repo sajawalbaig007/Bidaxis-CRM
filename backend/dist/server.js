@@ -15,6 +15,7 @@ const app_1 = __importDefault(require("./app"));
 const db_1 = __importDefault(require("./config/db"));
 const cloudinary_1 = __importDefault(require("./config/cloudinary"));
 const chatSocket_1 = require("./chat/chatSocket");
+const estTime_1 = require("./utils/estTime");
 const PORT = process.env.PORT || 5000;
 (0, env_1.validateEnv)();
 /* ═══════════════════════════════════════════════
@@ -55,21 +56,19 @@ setInterval(async () => {
 ═══════════════════════════════════════════════ */
 async function generateDailyReport() {
     try {
-        const now = new Date();
-        const yesterday = new Date(now);
-        yesterday.setDate(now.getDate() - 1);
-        yesterday.setHours(0, 0, 0, 0);
-        const endOfYesterday = new Date(yesterday);
-        endOfYesterday.setHours(23, 59, 59, 999);
+        const ymd = (0, estTime_1.addEstDays)((0, estTime_1.estDateYmd)(), -1);
+        const bounds = (0, estTime_1.estDayBoundsUtc)(ymd);
+        const yesterday = bounds?.start ?? new Date();
+        const endOfYesterday = bounds?.end ?? new Date();
         const leads = await db_1.default.lead.findMany({
             where: { createdAt: { gte: yesterday, lte: endOfYesterday } },
             include: { csr: true },
         });
         if (leads.length === 0) {
-            console.log(`[Auto Report] ${yesterday.toDateString()} — No leads, skipping`);
+            console.log(`[Auto Report] ${ymd} EST — No leads, skipping`);
             return;
         }
-        const dateLabel = yesterday.toISOString().split("T")[0];
+        const dateLabel = ymd;
         const csrMap = new Map();
         leads.forEach(l => {
             const key = l.assignedTo;
@@ -196,7 +195,7 @@ async function runWeeklyShuffle() {
         /* Save report */
         try {
             const admin = await db_1.default.user.findFirst({ where: { role: "admin" } });
-            const dateLabel = new Date().toISOString().split("T")[0];
+            const dateLabel = (0, estTime_1.estDateYmd)();
             const buf = Buffer.from(JSON.stringify({ type: "shuffle", date: dateLabel, shuffled, deleted, csrs: csrs.map(c => c.name) }, null, 2));
             const url = await new Promise((resolve, reject) => {
                 cloudinary_1.default.uploader
@@ -276,6 +275,10 @@ void deactivateInactiveUsers();
 /* ── START ── */
 const server = http_1.default.createServer(app_1.default);
 (0, chatSocket_1.initChatSocket)(server);
+/* Large Excel imports (50k+) need long-lived sockets — Render default can cut early */
+server.requestTimeout = 0;
+server.headersTimeout = 0;
+server.timeout = 0;
 server.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
 });

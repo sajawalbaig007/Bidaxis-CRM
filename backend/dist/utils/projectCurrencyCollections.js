@@ -14,14 +14,17 @@ exports.emptyDayCollections = emptyDayCollections;
 exports.paymentAccountsMonth = paymentAccountsMonth;
 exports.monthStartIso = monthStartIso;
 exports.yearMonthFromDate = yearMonthFromDate;
+exports.yearMonthsInclusive = yearMonthsInclusive;
 exports.paymentPaidDateIso = paymentPaidDateIso;
 exports.accumulatePaymentIntoDay = accumulatePaymentIntoDay;
 exports.paidDatesFromPayments = paidDatesFromPayments;
 exports.applyCollectionsToDashboardData = applyCollectionsToDashboardData;
+exports.listPaidCollectionsForMonth = listPaidCollectionsForMonth;
 exports.aggregateCollectionsForMonth = aggregateCollectionsForMonth;
 exports.aggregateCollectionsForDate = aggregateCollectionsForDate;
 exports.aggregateCollectionsForDates = aggregateCollectionsForDates;
 exports.aggregateCollectionsForMonths = aggregateCollectionsForMonths;
+exports.aggregateAllCollectionMonths = aggregateAllCollectionMonths;
 exports.syncAccountsCurrencyForDates = syncAccountsCurrencyForDates;
 const db_1 = __importDefault(require("../config/db"));
 const accountsDefaults_1 = require("./accountsDefaults");
@@ -35,23 +38,47 @@ function emptyDayCollections() {
         HM: { usdAmount: 0, cadAmount: 0, pkrAmount: 0 },
     };
 }
-/** YYYY-MM for Accounts bucketing */
+/** YYYY-MM for Accounts bucketing — payment date first, never falls back to “today”. */
 function paymentAccountsMonth(entry) {
     if (!entry.isPaid)
         return null;
-    const explicit = entry.accountsMonth?.trim();
-    if (explicit && /^\d{4}-\d{2}$/.test(explicit))
-        return explicit;
     const paid = entry.paidAt?.trim();
     if (paid && /^\d{4}-\d{2}/.test(paid))
         return paid.slice(0, 7);
-    return new Date().toISOString().slice(0, 7);
+    const explicit = entry.accountsMonth?.trim();
+    if (explicit && /^\d{4}-\d{2}$/.test(explicit))
+        return explicit;
+    const created = entry.createdAt?.trim();
+    if (created && /^\d{4}-\d{2}/.test(created))
+        return created.slice(0, 7);
+    return null;
 }
 function monthStartIso(yearMonth) {
     return `${yearMonth}-01`;
 }
 function yearMonthFromDate(isoDate) {
     return isoDate.slice(0, 7);
+}
+/** Inclusive YYYY-MM list covering [fromIso, toIso]. */
+function yearMonthsInclusive(fromIso, toIso) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(fromIso) || !/^\d{4}-\d{2}-\d{2}$/.test(toIso))
+        return [];
+    const start = fromIso <= toIso ? fromIso : toIso;
+    const end = fromIso <= toIso ? toIso : fromIso;
+    const out = [];
+    let y = Number(start.slice(0, 4));
+    let m = Number(start.slice(5, 7));
+    const endY = Number(end.slice(0, 4));
+    const endM = Number(end.slice(5, 7));
+    while (y < endY || (y === endY && m <= endM)) {
+        out.push(`${y}-${String(m).padStart(2, "0")}`);
+        m += 1;
+        if (m > 12) {
+            m = 1;
+            y += 1;
+        }
+    }
+    return out;
 }
 /** @deprecated use paymentAccountsMonth — kept for call sites expecting a day */
 function paymentPaidDateIso(entry) {
@@ -138,6 +165,56 @@ async function loadAllPaymentEntries() {
     }
     return out;
 }
+const CHANNEL_LABEL = {
+    AH: "Ahmed Hamza",
+    SN: "Sharjeel Nasir",
+    CHQ: "Cheque",
+    HM: "Habib Metro",
+};
+/** Every paid project payment that counts in this calendar month. */
+async function listPaidCollectionsForMonth(yearMonth) {
+    if (!/^\d{4}-\d{2}$/.test(yearMonth))
+        return [];
+    const leads = await db_1.default.lead.findMany({
+        where: { projectPayments: { not: null } },
+        select: {
+            name: true,
+            company: true,
+            projectTitle: true,
+            projectCode: true,
+            clientCode: true,
+            projectPayments: true,
+        },
+    });
+    const out = [];
+    for (const lead of leads) {
+        const client = String(lead.company || lead.name || lead.projectTitle || "—").trim() || "—";
+        const projectCode = String(lead.projectCode || lead.clientCode || "").trim();
+        for (const entry of (0, projectPayments_1.parseProjectPayments)(lead.projectPayments)) {
+            if (!entry.isPaid)
+                continue;
+            if (paymentAccountsMonth(entry) !== yearMonth)
+                continue;
+            if (!entry.paymentChannel || !entry.currency)
+                continue;
+            const amount = (0, projectPayments_1.parseMoney)(entry.amount);
+            if (amount <= 0)
+                continue;
+            out.push({
+                client,
+                projectCode,
+                channel: entry.paymentChannel,
+                channelLabel: CHANNEL_LABEL[entry.paymentChannel],
+                currency: entry.currency,
+                amount,
+                paidAt: String(entry.paidAt || entry.accountsMonth || ""),
+                type: String(entry.type || "").trim(),
+            });
+        }
+    }
+    out.sort((a, b) => a.paidAt.localeCompare(b.paidAt) || a.client.localeCompare(b.client));
+    return out;
+}
 /** All paid project payments that belong to this calendar month (YYYY-MM). */
 async function aggregateCollectionsForMonth(yearMonth) {
     const bucket = emptyDayCollections();
@@ -191,6 +268,20 @@ async function aggregateCollectionsForMonths(yearMonths) {
         const ym = paymentAccountsMonth(entry);
         if (!ym || !monthSet.has(ym))
             continue;
+        accumulatePaymentIntoDay(map.get(ym), entry);
+    }
+    return map;
+}
+/** Every calendar month that has at least one paid project collection. */
+async function aggregateAllCollectionMonths() {
+    const map = new Map();
+    const entries = await loadAllPaymentEntries();
+    for (const entry of entries) {
+        const ym = paymentAccountsMonth(entry);
+        if (!ym)
+            continue;
+        if (!map.has(ym))
+            map.set(ym, emptyDayCollections());
         accumulatePaymentIntoDay(map.get(ym), entry);
     }
     return map;

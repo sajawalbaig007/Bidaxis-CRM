@@ -131,7 +131,7 @@ const ROLE_DISPLAY = {
     admin: "CEO",
     csr: "CSR",
     manager: "Admin",
-    technical_manager: "Chief Estimation",
+    technical_manager: "Chief Estimator",
     estimator: "Estimator",
     accounts: "Accounts",
 };

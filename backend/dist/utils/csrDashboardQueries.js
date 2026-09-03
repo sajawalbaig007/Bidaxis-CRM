@@ -6,6 +6,8 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.buildCsrTabWhere = buildCsrTabWhere;
 exports.getCsrLeadStats = getCsrLeadStats;
 exports.mapDashboardLead = mapDashboardLead;
+exports.fetchLeadIdsByOldestNote = fetchLeadIdsByOldestNote;
+exports.reorderByIds = reorderByIds;
 exports.fetchCsrTabLeads = fetchCsrTabLeads;
 exports.fetchPotentialLeads = fetchPotentialLeads;
 const db_1 = __importDefault(require("../config/db"));
@@ -52,21 +54,32 @@ function buildCsrTabWhere(csrId, tab) {
             return base;
     }
 }
-async function getCsrLeadStats(csrId) {
+function withCreatedRange(where, from, to) {
+    if (!from && !to)
+        return where;
+    const createdAt = {};
+    if (from)
+        createdAt.gte = new Date(`${from}T00:00:00.000Z`);
+    if (to)
+        createdAt.lte = new Date(`${to}T23:59:59.999Z`);
+    return { AND: [where, { createdAt }] };
+}
+async function getCsrLeadStats(csrId, from, to) {
     const base = (0, binLeads_1.activeCsrLeadWhere)(csrId);
+    const range = (where) => withCreatedRange(where, from, to);
     const [pendingCount, importantOnlyCount, scheduledCount, interestedCount, projectWonCount, notInterestedCount, notPickedCount, noOwnerCount, notInServiceCount, inHouseCount, totalAssigned, mainPipelineCount,] = await Promise.all([
-        db_1.default.lead.count({ where: (0, binLeads_1.pendingLeadWhere)(csrId) }),
-        db_1.default.lead.count({ where: { ...base, ...(0, adminClientQueries_1.importantOnlyWhere)() } }),
-        db_1.default.lead.count({ where: { ...base, ...(0, adminClientQueries_1.scheduledCallWhere)() } }),
-        db_1.default.lead.count({ where: { ...base, ...(0, adminClientQueries_1.isInterestedStatusWhere)() } }),
-        db_1.default.lead.count({ where: { ...base, ...(0, projectLeads_1.wonClientStatusWhere)() } }),
-        db_1.default.lead.count({ where: buildCsrTabWhere(csrId, "notinterested") }),
-        db_1.default.lead.count({ where: buildCsrTabWhere(csrId, "notpicked") }),
-        db_1.default.lead.count({ where: buildCsrTabWhere(csrId, "noowner") }),
-        db_1.default.lead.count({ where: buildCsrTabWhere(csrId, "notinservice") }),
-        db_1.default.lead.count({ where: buildCsrTabWhere(csrId, "inhouse") }),
-        db_1.default.lead.count({ where: base }),
-        db_1.default.lead.count({ where: (0, binLeads_1.mainPipelineWhere)(csrId) }),
+        db_1.default.lead.count({ where: range((0, binLeads_1.pendingLeadWhere)(csrId)) }),
+        db_1.default.lead.count({ where: range({ ...base, ...(0, adminClientQueries_1.importantOnlyWhere)() }) }),
+        db_1.default.lead.count({ where: range({ ...base, ...(0, adminClientQueries_1.scheduledCallWhere)() }) }),
+        db_1.default.lead.count({ where: range({ ...base, ...(0, adminClientQueries_1.isInterestedStatusWhere)() }) }),
+        db_1.default.lead.count({ where: range({ ...base, ...(0, projectLeads_1.wonClientStatusWhere)() }) }),
+        db_1.default.lead.count({ where: range(buildCsrTabWhere(csrId, "notinterested")) }),
+        db_1.default.lead.count({ where: range(buildCsrTabWhere(csrId, "notpicked")) }),
+        db_1.default.lead.count({ where: range(buildCsrTabWhere(csrId, "noowner")) }),
+        db_1.default.lead.count({ where: range(buildCsrTabWhere(csrId, "notinservice")) }),
+        db_1.default.lead.count({ where: range(buildCsrTabWhere(csrId, "inhouse")) }),
+        db_1.default.lead.count({ where: range(base) }),
+        db_1.default.lead.count({ where: range((0, binLeads_1.mainPipelineWhere)(csrId)) }),
     ]);
     return {
         pendingCount,
@@ -110,6 +123,35 @@ const LEAD_LIST_SELECT = {
         select: { id: true, text: true, createdAt: true, parentId: true },
     },
 };
+function compareOldestNote(a, b) {
+    const ta = a.notes[0]?.createdAt?.getTime() ?? Number.POSITIVE_INFINITY;
+    const tb = b.notes[0]?.createdAt?.getTime() ?? Number.POSITIVE_INFINITY;
+    if (ta !== tb)
+        return ta - tb;
+    return a.createdAt.getTime() - b.createdAt.getTime();
+}
+async function fetchLeadIdsByOldestNote(where) {
+    const rows = await db_1.default.lead.findMany({
+        where,
+        select: {
+            id: true,
+            createdAt: true,
+            notes: { orderBy: { createdAt: "asc" }, take: 1, select: { createdAt: true } },
+        },
+    });
+    rows.sort(compareOldestNote);
+    return rows.map(r => r.id);
+}
+function reorderByIds(rows, ids) {
+    const map = new Map(rows.map(r => [r.id, r]));
+    const out = [];
+    for (const id of ids) {
+        const row = map.get(id);
+        if (row)
+            out.push(row);
+    }
+    return out;
+}
 async function fetchCsrTabLeads(opts) {
     const { csrId, tab, page, pageSize, from, to } = opts;
     const where = { ...buildCsrTabWhere(csrId, tab) };
@@ -121,18 +163,17 @@ async function fetchCsrTabLeads(opts) {
             createdAt.lte = new Date(`${to}T23:59:59.999Z`);
         where.createdAt = createdAt;
     }
-    const [total, rawLeads] = await Promise.all([
-        db_1.default.lead.count({ where }),
-        db_1.default.lead.findMany({
-            where,
+    const ids = await fetchLeadIdsByOldestNote(where);
+    const total = ids.length;
+    const pageIds = ids.slice((page - 1) * pageSize, page * pageSize);
+    const rawLeads = pageIds.length
+        ? await db_1.default.lead.findMany({
+            where: { id: { in: pageIds } },
             select: LEAD_LIST_SELECT,
-            orderBy: { updatedAt: "desc" },
-            skip: (page - 1) * pageSize,
-            take: pageSize,
-        }),
-    ]);
+        })
+        : [];
     return {
-        leads: rawLeads.map(mapDashboardLead),
+        leads: reorderByIds(rawLeads, pageIds).map(mapDashboardLead),
         total,
         page,
         pageSize,
@@ -141,15 +182,17 @@ async function fetchCsrTabLeads(opts) {
 }
 /** Potential clients — important / schedule / interested only */
 async function fetchPotentialLeads(csrId) {
-    const rawLeads = await db_1.default.lead.findMany({
-        where: {
-            ...(0, binLeads_1.activeCsrLeadWhere)(csrId),
-            OR: [(0, adminClientQueries_1.isImportantStatusWhere)(), (0, adminClientQueries_1.isInterestedStatusWhere)()],
-        },
-        select: LEAD_LIST_SELECT,
-        orderBy: { updatedAt: "desc" },
-    });
-    return rawLeads
-        .filter(potentialClientBuckets_1.isPotentialClientLead)
-        .map(mapDashboardLead);
+    const where = {
+        ...(0, binLeads_1.activeCsrLeadWhere)(csrId),
+        OR: [(0, adminClientQueries_1.isImportantStatusWhere)(), (0, adminClientQueries_1.isInterestedStatusWhere)()],
+    };
+    const [ids, rawLeads] = await Promise.all([
+        fetchLeadIdsByOldestNote(where),
+        db_1.default.lead.findMany({
+            where,
+            select: LEAD_LIST_SELECT,
+        }),
+    ]);
+    const ordered = reorderByIds(rawLeads, ids).filter(potentialClientBuckets_1.isPotentialClientLead);
+    return ordered.map(mapDashboardLead);
 }
