@@ -321,6 +321,10 @@ async function buildPaymentsSummary(month) {
     }
     quotedThisMonth = cashThisMonth + outstandingThisMonth;
     quotedPrevMonth = outstandingPrevMonthOnly;
+    /* Nothing collected on this month’s projects → this month’s quote is still outstanding. */
+    if (monthFilter && collectedThisMonth <= 0) {
+        outstandingThisMonth = quotedThisMonth;
+    }
     const collectedAmount = monthFilter
         ? collectedThisMonth + collectedPrevMonth
         : collectedAllTime;
