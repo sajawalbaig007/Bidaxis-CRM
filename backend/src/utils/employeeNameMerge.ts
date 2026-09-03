@@ -60,6 +60,7 @@ function subLabels(node: unknown): { name: string; amount: number }[] {
 }
 
 type HistHit = { name: string; head: string; date: string; pf: number };
+type LegacyInfo = { name: string; head: string; firstSeen: string; lastSeen: string };
 
 function collectFromIncomeData(data: unknown, date: string): HistHit[] {
   const rec = asRecord(data);
@@ -170,8 +171,7 @@ async function pfTotalsByNameKey(): Promise<Map<string, number>> {
   return totals;
 }
 
-/** Scan Mar–Jul income-statement names and upsert previous rows (does not un-merge). */
-export async function scanPreviousEmployees(): Promise<{ upserted: number; skippedCurrent: number }> {
+async function collectLegacyNameMap(): Promise<Map<string, LegacyInfo>> {
   const recs = await prisma.accountsRecord.findMany({
     where: {
       page: "income_statement",
@@ -180,11 +180,7 @@ export async function scanPreviousEmployees(): Promise<{ upserted: number; skipp
     select: { recordDate: true, data: true },
   });
 
-  const byKey = new Map<
-    string,
-    { name: string; head: string; firstSeen: string; lastSeen: string }
-  >();
-
+  const byKey = new Map<string, LegacyInfo>();
   for (const rec of recs) {
     for (const hit of collectFromIncomeData(rec.data, rec.recordDate)) {
       const key = pfNormName(hit.name);
@@ -205,7 +201,12 @@ export async function scanPreviousEmployees(): Promise<{ upserted: number; skipp
       if (hit.head) prev.head = hit.head;
     }
   }
+  return byKey;
+}
 
+/** Scan Mar–Jul income-statement names and upsert previous rows (does not un-merge). */
+export async function scanPreviousEmployees(): Promise<{ upserted: number; skippedCurrent: number }> {
+  const byKey = await collectLegacyNameMap();
   const current = await currentRosterNameKeys();
   let upserted = 0;
   let skippedCurrent = 0;
@@ -246,11 +247,41 @@ export async function scanPreviousEmployees(): Promise<{ upserted: number; skipp
   return { upserted, skippedCurrent };
 }
 
+type StoredMerge = Awaited<ReturnType<typeof prisma.employeeNameMerge.findMany>>[number];
+
+function mapStoredRow(
+  r: StoredMerge,
+  pfTotals: Map<string, number>,
+  staffName: Map<string, string>,
+): PreviousEmployeeRow {
+  const liveCurrent =
+    (r.currentStaffId && staffName.get(r.currentStaffId)) || r.currentName || null;
+  const fromKey = r.previousNameKey || pfNormName(r.previousName);
+  const toKey = liveCurrent ? pfNormName(liveCurrent) : r.currentNameKey;
+  return {
+    id: r.id,
+    previousName: r.previousName,
+    previousNameKey: fromKey,
+    currentName: liveCurrent,
+    currentNameKey: toKey || null,
+    currentStaffId: r.currentStaffId,
+    currentUserId: r.currentUserId,
+    payrollHead: r.payrollHead,
+    firstSeen: r.firstSeen,
+    lastSeen: r.lastSeen,
+    status: r.status === "merged" ? "merged" : "previous",
+    pfAllTime: pfTotals.get(fromKey) ?? 0,
+    mergedAt: r.mergedAt ? r.mergedAt.toISOString() : null,
+  };
+}
+
 export async function listPreviousEmployeeRows(): Promise<PreviousEmployeeRow[]> {
-  const [rows, pfTotals, staff] = await Promise.all([
+  const [stored, pfTotals, staff, legacy, current] = await Promise.all([
     prisma.employeeNameMerge.findMany({ orderBy: { previousName: "asc" } }),
     pfTotalsByNameKey(),
     prisma.staffEmployee.findMany({ select: { id: true, name: true, userId: true } }),
+    collectLegacyNameMap(),
+    currentRosterNameKeys(),
   ]);
 
   const staffUserIds = staff.map(s => s.userId).filter((id): id is string => !!id);
@@ -266,32 +297,56 @@ export async function listPreviousEmployeeRows(): Promise<PreviousEmployeeRow[]>
     staff.map(s => [s.id, (s.userId && userName.get(s.userId)) || s.name || ""]),
   );
 
-  const current = await currentRosterNameKeys();
+  const storedByKey = new Map(stored.map(r => [r.previousNameKey || pfNormName(r.previousName), r]));
+  const out: PreviousEmployeeRow[] = [];
+  const used = new Set<string>();
 
-  return rows
-    .filter(r => r.status === "merged" || !current.has(r.previousNameKey || pfNormName(r.previousName)))
-    .map(r => {
-    const liveCurrent =
-      (r.currentStaffId && staffName.get(r.currentStaffId)) || r.currentName || null;
-    const fromKey = r.previousNameKey || pfNormName(r.previousName);
-    const toKey = liveCurrent ? pfNormName(liveCurrent) : r.currentNameKey;
-    const pf = pfTotals.get(fromKey) ?? 0;
-    return {
-      id: r.id,
-      previousName: r.previousName,
-      previousNameKey: fromKey,
-      currentName: liveCurrent,
-      currentNameKey: toKey || null,
-      currentStaffId: r.currentStaffId,
-      currentUserId: r.currentUserId,
-      payrollHead: r.payrollHead,
-      firstSeen: r.firstSeen,
-      lastSeen: r.lastSeen,
-      status: r.status === "merged" ? "merged" : "previous",
-      pfAllTime: pf,
-      mergedAt: r.mergedAt ? r.mergedAt.toISOString() : null,
-    };
+  for (const r of stored) {
+    if (r.status !== "merged") continue;
+    const row = mapStoredRow(r, pfTotals, staffName);
+    out.push(row);
+    used.add(row.previousNameKey);
+  }
+
+  for (const [key, info] of legacy) {
+    if (used.has(key) || current.has(key)) continue;
+    const storedRow = storedByKey.get(key);
+    if (storedRow?.status === "merged") continue;
+    used.add(key);
+    if (storedRow) {
+      out.push(mapStoredRow(storedRow, pfTotals, staffName));
+      continue;
+    }
+    out.push({
+      id: `live:${key}`,
+      previousName: info.name,
+      previousNameKey: key,
+      currentName: null,
+      currentNameKey: null,
+      currentStaffId: null,
+      currentUserId: null,
+      payrollHead: info.head,
+      firstSeen: info.firstSeen,
+      lastSeen: info.lastSeen,
+      status: "previous",
+      pfAllTime: pfTotals.get(key) ?? 0,
+      mergedAt: null,
+    });
+  }
+
+  for (const r of stored) {
+    if (r.status === "merged") continue;
+    const key = r.previousNameKey || pfNormName(r.previousName);
+    if (used.has(key) || current.has(key)) continue;
+    used.add(key);
+    out.push(mapStoredRow(r, pfTotals, staffName));
+  }
+
+  out.sort((a, b) => {
+    if (a.status !== b.status) return a.status === "merged" ? 1 : -1;
+    return a.previousName.localeCompare(b.previousName);
   });
+  return out;
 }
 
 export async function mergePreviousEmployee(
@@ -321,6 +376,33 @@ export async function mergePreviousEmployee(
   });
   const list = await listPreviousEmployeeRows();
   return list.find(r => r.id === id) ?? null;
+}
+
+export async function mergePreviousByName(
+  previousName: string,
+  target: { currentName: string; currentStaffId?: string | null; currentUserId?: string | null },
+): Promise<PreviousEmployeeRow | null> {
+  const name = previousName.trim();
+  const key = pfNormName(name);
+  if (!name || !key) {
+    throw new Error("Select a previous name.");
+  }
+  let existing = await prisma.employeeNameMerge.findUnique({ where: { previousNameKey: key } });
+  if (!existing) {
+    const legacy = await collectLegacyNameMap();
+    const info = legacy.get(key);
+    existing = await prisma.employeeNameMerge.create({
+      data: {
+        previousName: info?.name || name,
+        previousNameKey: key,
+        payrollHead: info?.head || null,
+        firstSeen: info?.firstSeen || null,
+        lastSeen: info?.lastSeen || null,
+        status: "previous",
+      },
+    });
+  }
+  return mergePreviousEmployee(existing.id, target);
 }
 
 export async function unmergePreviousEmployee(id: string): Promise<PreviousEmployeeRow | null> {
