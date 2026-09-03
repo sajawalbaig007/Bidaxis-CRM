@@ -142,6 +142,14 @@ function calendarMonthEst(d: Date | string | null | undefined): string | null {
   return estDateYmd(dt).slice(0, 7);
 }
 
+/** Payment-link date month (YYYY-MM). Collected KPIs use this, not receive month. */
+function paymentDateMonth(entry: ProjectPaymentEntry): string | null {
+  if (!entry.isPaid) return null;
+  const paid = entry.paidAt?.trim();
+  if (paid && /^\d{4}-\d{2}/.test(paid)) return paid.slice(0, 7);
+  return null;
+}
+
 function emptyChannelTotals(): ChannelCurrencyTotals {
   return { USD: 0, CAD: 0, PKR: 0 };
 }
@@ -170,7 +178,7 @@ function entrySummary(e: ProjectPaymentEntry): PaymentEntrySummary {
 function matchesMonth(entry: ProjectPaymentEntry, month: string | null): boolean {
   if (!entry.isPaid) return false;
   if (!month) return true;
-  return paymentAccountsMonth(entry) === month;
+  return paymentDateMonth(entry) === month;
 }
 
 /** Admin/Manager payment dashboard — KPIs, sources, partial/full projects. */
@@ -230,6 +238,7 @@ export async function buildPaymentsSummary(month?: string | null): Promise<Payme
   let unpaidWithQuoteCount = 0;
   let quotedAllTime = 0;
   let collectedAllTime = 0;
+  let outstandingAllTime = 0;
   let quotedThisMonth = 0;
   let quotedPrevMonth = 0;
   let collectedThisMonth = 0;
@@ -255,23 +264,25 @@ export async function buildPaymentsSummary(month?: string | null): Promise<Payme
     const unpaidQuotedThisMonth =
       quoted > 0 && paidTotalAllTime <= 0 && createdMonth === monthFilter;
 
-    /* KPIs from every project — not only the month-filtered list. */
+    /* Quoted = projects that arrived this month. Outstanding = still pending on those projects. */
     if (quoted > 0) {
       quotedAllTime += quoted;
       if (!monthFilter || createdMonth === monthFilter) quotedProjects += 1;
       if (createdMonth === thisMonthKey) quotedThisMonth += quoted;
       else if (createdMonth === prevMonthKey) quotedPrevMonth += quoted;
       if (!discarded && remainingDue > 0) {
+        outstandingAllTime += remainingDue;
         if (createdMonth === thisMonthKey) outstandingThisMonth += remainingDue;
-        else if (createdMonth && createdMonth < thisMonthKey) outstandingPrevMonths += remainingDue;
+        else if (createdMonth === prevMonthKey) outstandingPrevMonths += remainingDue;
       }
     }
 
+    /* Collected = paid amount on the payment-link date. */
     for (const entry of allPayments) {
       if (!entry.isPaid) continue;
       const amt = parseMoney(entry.amount);
       if (amt <= 0) continue;
-      const payMonth = paymentAccountsMonth(entry);
+      const payMonth = paymentDateMonth(entry);
       collectedAllTime += amt;
       if (payMonth === thisMonthKey) collectedThisMonth += amt;
       else if (payMonth === prevMonthKey) collectedPrevMonth += amt;
@@ -385,7 +396,7 @@ export async function buildPaymentsSummary(month?: string | null): Promise<Payme
 
   const quotedAmount = monthFilter ? quotedThisMonth : quotedAllTime;
   const collectedAmount = monthFilter ? collectedThisMonth : collectedAllTime;
-  const outstandingAmount = outstandingThisMonth + outstandingPrevMonths;
+  const outstandingAmount = monthFilter ? outstandingThisMonth : outstandingAllTime;
 
   fullPaidProjects.sort((a, b) => b.paidTotal - a.paidTotal);
   partialPaidProjects.sort((a, b) => b.percent - a.percent || b.paidTotal - a.paidTotal);
