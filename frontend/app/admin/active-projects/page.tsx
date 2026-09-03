@@ -1429,7 +1429,9 @@ export default function AdminProjectsPage() {
                 >
                   <option value="">All payments</option>
                   {PAYMENT_TYPE_FILTER_OPTIONS.map((t) => (
-                    <option key={t} value={t}>{t === "Full" ? "Full payment" : "Partial"}</option>
+                    <option key={t} value={t}>
+                      {t === "Full" ? "Full payment" : t === "Unpaid" ? "Unpaid amounts" : "Partial"}
+                    </option>
                   ))}
                 </select>
                 <ChevronDown size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />

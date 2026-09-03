@@ -41,10 +41,11 @@ export const PAYMENT_TYPE_OPTIONS = [
   "Full",
 ] as const;
 
-/** Project DB filters — Partial (<100%) or Full (100% collected) */
+/** Project DB filters — Partial (<100%), Full (100%), or Unpaid (nothing collected) */
 export const PAYMENT_TYPE_FILTER_OPTIONS = [
   "Partial",
   "Full",
+  "Unpaid",
 ] as const;
 
 /** Display label: force Full when quote is fully collected. */
@@ -70,6 +71,7 @@ export function matchesPaymentCollectionFilter(
   const pct = paymentPercent(payments, budget);
   if (f === "full") return pct >= 100;
   if (f === "partial") return pct > 0 && pct < 100;
+  if (f === "unpaid") return parseMoney(budget) > 0 && pct <= 0;
   return true;
 }
 
