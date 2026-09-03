@@ -252,7 +252,7 @@ export default function DashboardPage() {
                   <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Activity</p>
                   <h2 className="font-bold text-[#0F172A] dark:text-crm-text text-base sm:text-lg tracking-tight">Performance Overview</h2>
                   <p className="text-xs text-gray-500 dark:text-crm-text-muted mt-0.5">
-                    CSR call volume · day resets 4:00 AM (PKT)
+                    CSR call volume · day resets 12:00 AM (EST)
                   </p>
                 </div>
                 {(overviewLoaded || loadingOverview) && (

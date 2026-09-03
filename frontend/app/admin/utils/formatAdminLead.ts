@@ -1,5 +1,6 @@
 /** Map API lead row → admin leads table Client shape */
 
+import { estNowYmd, formatEstDate } from "@/lib/estTime";
 import { buildNoteHistory } from "@/app/csr/utils/noteHistory";
 import { collectLeadEmails } from "@/app/csr/utils/parseEmails";
 import { collectLeadPhones } from "@/app/csr/utils/parsePhones";
@@ -98,11 +99,7 @@ export function formatAdminLead(lead: {
   let createdLabel = "";
   if (lead.createdAt) {
     try {
-      createdLabel = new Date(lead.createdAt).toLocaleDateString("en-US", {
-        year: "numeric",
-        month: "short",
-        day: "numeric",
-      });
+      createdLabel = formatEstDate(lead.createdAt);
     } catch {
       createdLabel = lead.createdAt.split("T")[0] || "";
     }
@@ -132,7 +129,7 @@ export function formatAdminLead(lead: {
     parentCompany: lead.uploadFile?.companyName || lead.company || "N/A",
     scope: lead.interestedService?.trim() || "N/A",
     lastEmail: "",
-    lastCall: lead.updatedAt?.split("T")[0] || "",
+    lastCall: lead.updatedAt ? estNowYmd(new Date(lead.updatedAt)) : "",
     lastComment: latestNoteText || "No comments",
     rawStatus: raw,
     status: adminLeadStatusLabel(raw, nextFollowup),

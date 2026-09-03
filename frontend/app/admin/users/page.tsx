@@ -12,6 +12,7 @@ import {
 import DashboardSidebar from "../components/layout/Sidebar";
 import DashboardNavbar  from "../components/layout/Navbar";
 import API, { getApiBase } from "@/lib/api";
+import { formatEstDate, formatEstDateTime } from "@/lib/estTime";
 import { invalidateAuthMeCache } from "@/lib/authMeCache";
 import { logoutSession } from "@/lib/session";
 import RequiredMark, { ReqLabel } from "@/app/components/form/RequiredMark";
@@ -266,7 +267,7 @@ const formatLastActive = (iso: string | null): string => {
   if (mins  < 1)  return `${secs}s ago`;
   if (mins  < 60) return `${mins}m ago`;
   if (hours < 24) return `${hours}h ago`;
-  return new Date(iso).toLocaleDateString();
+  return formatEstDate(iso);
 };
 
 const formatOpenedAt = (iso: string | null): string => {
@@ -1499,7 +1500,7 @@ export default function UsersPage() {
                   {detailUser.temporaryAccessIp && (
                     <p className="text-xs text-amber-700 mt-2">
                       Temporary IP: {detailUser.temporaryAccessIp}{" "}
-                      {detailUser.temporaryAccessUntil ? `(expires ${new Date(detailUser.temporaryAccessUntil).toLocaleString()})` : ""}
+                      {detailUser.temporaryAccessUntil ? `(expires ${formatEstDateTime(detailUser.temporaryAccessUntil)})` : ""}
                     </p>
                   )}
                 </div>
@@ -1546,9 +1547,7 @@ export default function UsersPage() {
                               {accessHistory.map(row => (
                                 <tr key={row.id} className="border-b border-gray-100 last:border-0">
                                   <td className="py-2 pr-2 text-gray-600 whitespace-nowrap">
-                                    {new Date(row.createdAt).toLocaleString("en-GB", {
-                                      day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit",
-                                    })}
+                                    {formatEstDateTime(row.createdAt)}
                                   </td>
                                   <td className="py-2 pr-2 font-medium text-gray-700 capitalize">{row.event}</td>
                                   <td className="py-2 pr-2 font-mono text-gray-600">{row.ip ?? "—"}</td>
@@ -2009,7 +2008,7 @@ export default function UsersPage() {
                   </div>
                   {editingUser?.temporaryAccessUntil && (
                     <p className="text-[11px] text-amber-700 mt-2">
-                      Current expiry: {new Date(editingUser.temporaryAccessUntil).toLocaleString()}
+                      Current expiry: {formatEstDateTime(editingUser.temporaryAccessUntil)}
                     </p>
                   )}
                 </div>
@@ -2044,7 +2043,7 @@ export default function UsersPage() {
                               {accessHistory.map(row => (
                                 <tr key={row.id} className="border-b border-gray-50 last:border-0">
                                   <td className="py-1.5 pr-2 text-gray-600 whitespace-nowrap">
-                                    {new Date(row.createdAt).toLocaleString("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
+                                    {formatEstDateTime(row.createdAt)}
                                   </td>
                                   <td className="py-1.5 pr-2 font-mono">{row.ip ?? "—"}</td>
                                   <td className="py-1.5 truncate">{row.browser ?? "—"}</td>

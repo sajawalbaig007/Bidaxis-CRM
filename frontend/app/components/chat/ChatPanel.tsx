@@ -12,6 +12,7 @@ import {
   Archive, ArchiveRestore,
 } from "lucide-react";
 import API from "@/lib/api";
+import { formatEstChatDaySep, formatEstChatTime, formatEstTime } from "@/lib/estTime";
 import { getAuthMe } from "@/lib/authMeCache";
 import { useChatEnabled } from "@/lib/useChatEnabled";
 import {
@@ -70,23 +71,13 @@ function messageCanEdit(msg: Message) {
 }
 function initials(name: string) { return name.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase(); }
 function fmtConvTime(iso: string) {
-  try {
-    const d = new Date(iso), now = new Date();
-    if (d.toDateString() === now.toDateString()) return d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
-    if (d.toDateString() === new Date(Date.now() - 86400000).toDateString()) return "Yesterday";
-    return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-  } catch { return ""; }
+  return formatEstChatTime(iso);
 }
 function fmtMsgTime(iso: string) {
-  try { return new Date(iso).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }); } catch { return ""; }
+  return formatEstTime(iso);
 }
 function fmtDateSep(iso: string) {
-  try {
-    const d = new Date(iso), now = new Date();
-    if (d.toDateString() === now.toDateString()) return "Today";
-    if (d.toDateString() === new Date(Date.now() - 86400000).toDateString()) return "Yesterday";
-    return d.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" });
-  } catch { return ""; }
+  return formatEstChatDaySep(iso);
 }
 function fmtAudio(secs: number) { const s = Math.floor(secs), m = Math.floor(s / 60); return `${m}:${String(s % 60).padStart(2, "0")}`; }
 function fmtSize(bytes: number) {

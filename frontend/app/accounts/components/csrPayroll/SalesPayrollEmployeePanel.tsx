@@ -221,7 +221,7 @@ export default function SalesPayrollEmployeePanel({ employee, variant, defaultOp
 
           <SectionCard
             title="Late Arrival Deduction"
-            subtitle="Sales shift 6:00 PM PKT · (Basic + Allowance) ÷ 30 = per day salary"
+            subtitle="Sales shift 6:00 PM EST · (Basic + Allowance) ÷ 30 = per day salary"
             accent="amber"
           >
             <div className="rounded-lg bg-amber-50/80 border border-amber-100 p-2.5 text-[10px] text-amber-900 leading-relaxed space-y-0.5">
@@ -232,7 +232,7 @@ export default function SalesPayrollEmployeePanel({ employee, variant, defaultOp
               <p><strong>08:00 onwards</strong> → Half day salary deducted</p>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              <MockInput label="Check-in Time (PKT)" value={employee.checkIn} type="time" />
+              <MockInput label="Check-in Time (EST)" value={employee.checkIn} type="time" />
               <MockReadout label="Per Day Salary" value={fmt(day)} />
               <MockReadout label="Late Deduction" value={fmt(employee.lateDeduction)} accent="text-amber-800" />
               <MockInput label="Manual Override (optional)" value={0} hint="Leave 0 for auto formula" />

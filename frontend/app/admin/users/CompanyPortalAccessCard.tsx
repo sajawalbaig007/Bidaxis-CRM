@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { Eye, EyeOff, KeyRound, Pencil, Plus, Trash2 } from "lucide-react";
 import API, { apiErrorMessage } from "@/lib/api";
+import { formatEstDate } from "@/lib/estTime";
 import type { PortalCompany } from "@/lib/companyGate";
 import { COMPANY_META } from "@/lib/companyGate";
 
@@ -144,7 +145,7 @@ export default function CompanyPortalAccessCard({ company }: { company: PortalCo
             <p className="text-sm font-bold text-[#0F172A] truncate">{row.username}</p>
           </div>
           <p className="ml-auto text-[11px] text-gray-400 hidden sm:block">
-            Password hidden · last updated {new Date(row.updatedAt).toLocaleDateString()}
+            Password hidden · last updated {formatEstDate(row.updatedAt)}
           </p>
         </div>
       ) : (

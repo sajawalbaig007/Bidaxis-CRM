@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import API, { apiErrorMessage } from "@/lib/api";
+import { EST_TZ_ABBR, EST_TZ_LABEL, estNowYmd, formatEstDateTimeLocalInput } from "@/lib/estTime";
 import { ChevronDown, Clock, Download, LogIn, LogOut, Monitor, Pencil, Users, X } from "lucide-react";
 
 type CsrOption = { id: string; name: string; csrCode?: string | null };
@@ -45,36 +46,15 @@ type ReportResponse = {
   summary: SummaryRow[];
 };
 
-const ADMIN_SESSION_TZ = "Asia/Karachi";
-const ADMIN_SESSION_TZ_LABEL = "Pakistan Time (PKT)";
-const ADMIN_SESSION_TZ_ABBR = "PKT";
+const ADMIN_SESSION_TZ_LABEL = EST_TZ_LABEL;
+const ADMIN_SESSION_TZ_ABBR = EST_TZ_ABBR;
 
 function pktTodayYmd(): string {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: ADMIN_SESSION_TZ,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(new Date());
+  return estNowYmd();
 }
 
-/** ISO → YYYY-MM-DDTHH:mm in Asia/Karachi for datetime-local. */
 function toPktLocalInput(iso: string | null | undefined): string {
-  if (!iso) return "";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "";
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: ADMIN_SESSION_TZ,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  }).formatToParts(d);
-  const get = (t: string) => parts.find(p => p.type === t)?.value ?? "";
-  const hour = get("hour") === "24" ? "00" : get("hour");
-  return `${get("year")}-${get("month")}-${get("day")}T${hour}:${get("minute")}`;
+  return formatEstDateTimeLocalInput(iso);
 }
 
 function pktWeekStart(ymd: string): string {

@@ -19,6 +19,7 @@ import { isWonClientStatus } from "../constants/leadStatuses";
 import { useLeadsData, mapClientLead, ClientLead, SubContact, NoteEntry, type RawClientLead, splitWonClientsByIdentity } from "../hooks/useLeadsData";
 import { useClientPhoneLookup } from "../hooks/useClientPhoneLookup";
 import API from "@/lib/api";
+import { formatEstDateTime } from "@/lib/estTime";
 import CapsuleTabs from "@/app/components/CapsuleTabs";
 import { invalidateAllCsrListCaches } from "@/lib/csrApiCache";
 import PhoneWithTzCell from "../components/shared/PhoneWithTzCell";
@@ -67,12 +68,7 @@ const emptyContact = { name: "", designation: "", phone: "", email: "" };
 
 /* ─── Helpers ────────────────────────────────────────────── */
 function fmtFull(iso: string) {
-  try {
-    return new Date(iso).toLocaleString("en-US", {
-      month: "short", day: "numeric", year: "numeric",
-      hour: "2-digit", minute: "2-digit",
-    });
-  } catch { return iso; }
+  return formatEstDateTime(iso);
 }
 
 /* ─── Page ──────────────────────────────────────────────── */

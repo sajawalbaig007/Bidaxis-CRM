@@ -10,6 +10,7 @@ import {
   LogOut, ChevronDown, MessageSquare, Bell, Phone, Clock, X, StickyNote, Wallet,
 } from "lucide-react";
 import API from "@/lib/api";
+import { estNowYmd, formatEstScheduleLabel } from "@/lib/estTime";
 import { dismissNotification, getDismissedNotificationIds, clearDismissedNotifications } from "@/lib/notificationDismiss";
 import { logoutSession } from "@/lib/session";
 import { getAuthMe, peekAuthMe, type AuthUser } from "@/lib/authMeCache";
@@ -62,7 +63,7 @@ type TechnicalNoteAlert = {
   createdAt: string;
 };
 
-const TODAY = new Date().toISOString().split("T")[0];
+const TODAY = estNowYmd();
 
 let _cachedScheduledCalls: ScheduledCall[] = [];
 let _cachedTechNotes: TechnicalNoteAlert[] = [];
@@ -75,10 +76,7 @@ function filterDismissedCalls(all: ScheduledCall[]) {
 }
 
 function labelDate(d: string) {
-  const tmr = new Date(Date.now() + 86_400_000).toISOString().split("T")[0];
-  if (d === TODAY) return "Today";
-  if (d === tmr) return "Tomorrow";
-  return new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short" });
+  return formatEstScheduleLabel(d);
 }
 
 export default function DashboardSidebar() {

@@ -1,13 +1,12 @@
 /**
- * Business calendar — day rolls at 4:00 AM (default Asia/Karachi).
- * Example: activity at 2:30 AM Tue counts toward Monday's business day.
+ * Business calendar — day rolls at 12:00 AM (midnight) Eastern (BEM Solutions).
  */
 
 export const BUSINESS_TIMEZONE =
-  process.env.BUSINESS_TIMEZONE?.trim() || "Asia/Karachi";
+  process.env.BUSINESS_TIMEZONE?.trim() || "America/New_York";
 
 export const BUSINESS_DAY_START_HOUR = Number(
-  process.env.BUSINESS_DAY_START_HOUR ?? 4,
+  process.env.BUSINESS_DAY_START_HOUR ?? 0,
 );
 
 function hourInTz(date: Date): number {

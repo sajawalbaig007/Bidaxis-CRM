@@ -168,7 +168,7 @@ router.get("/dashboard", verifyToken, allowRoles("admin"), (req, res) => {
 /* ================= ADMIN MEETING + TECHNICAL NOTE NOTIFICATIONS ================= */
 router.get("/notifications", verifyToken, allowRoles("admin", "manager", "technical_manager"), async (req, res) => {
   try {
-    const today = new Date().toISOString().split("T")[0];
+    const today = estDateYmd();
     const csrId = typeof req.query.csrId === "string" ? req.query.csrId : undefined;
 
     const rawScheduled = await prisma.lead.findMany({
@@ -1368,8 +1368,8 @@ router.get("/projects", verifyToken, allowRoles("admin", "manager", "technical_m
     if (from || to) {
       leads = leads.filter((l) => {
         const dateStr = l.projectDeadline
-          ? new Date(l.projectDeadline).toISOString().split("T")[0]
-          : new Date(l.updatedAt).toISOString().split("T")[0];
+          ? estDateYmd(new Date(l.projectDeadline))
+          : estDateYmd(new Date(l.updatedAt));
         if (from && dateStr < from) return false;
         if (to && dateStr > to) return false;
         return true;
@@ -3756,7 +3756,7 @@ router.get("/upload-sources/:sourceId", verifyToken, allowRoles("admin", "manage
   }
 });
 
-/* ================= CSR / ESTIMATOR LOGIN / ACTIVITY REPORT (PKT) ================= */
+/* ================= CSR / ESTIMATOR LOGIN / ACTIVITY REPORT (EST) ================= */
 router.get(
   "/csr-session-report",
   verifyToken,
@@ -3806,7 +3806,7 @@ router.get(
   },
 );
 
-/* Admin can correct check-in / check-out times (PKT). */
+/* Admin can correct check-in / check-out times (EST). */
 router.put(
   "/csr-work-session/:id",
   verifyToken,
@@ -3827,7 +3827,7 @@ router.put(
       } = req.body ?? {};
 
       if (!checkInAt || typeof checkInAt !== "string") {
-        return res.status(400).json({ success: false, message: "checkInAt is required (PKT datetime)." });
+        return res.status(400).json({ success: false, message: "checkInAt is required (EST datetime)." });
       }
 
       const checkInDate =

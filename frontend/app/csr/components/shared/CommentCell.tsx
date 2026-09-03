@@ -19,6 +19,7 @@ import API from "@/lib/api";
 import { getAuthMe, peekAuthMe } from "@/lib/authMeCache";
 import { buildNoteHistory, countNotesDeep, nestNoteReplies } from "../../utils/noteHistory";
 import { NoteComposer, NoteRichText } from "@/lib/noteRichText";
+import { formatEstDateTime } from "@/lib/estTime";
 
 interface CommentCellProps {
   id: string;
@@ -66,17 +67,8 @@ function roleOwnsNote(noteRole?: string | null, myRole?: string | null): boolean
 
 function fmtTime(iso: string): string {
   if (!iso) return "";
-  try {
-    return new Date(iso).toLocaleString("en-US", {
-      month: "short",
-      day: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
-      hour12: true,
-    });
-  } catch {
-    return "";
-  }
+  const label = formatEstDateTime(iso);
+  return label === "—" ? "" : label;
 }
 
 function plainNotePreview(text: string): string {

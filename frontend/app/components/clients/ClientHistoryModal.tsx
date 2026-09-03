@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { X, Briefcase, DollarSign, History, Loader2, Pencil, Plus } from "lucide-react";
 import toast from "react-hot-toast";
 import API, { apiErrorMessage } from "@/lib/api";
+import { formatEstDate } from "@/lib/estTime";
 import ProjectWorkbenchModal from "@/app/components/projects/ProjectWorkbenchModal";
 import {
   ProjectWorkbenchData,
@@ -63,11 +64,8 @@ interface ClientHistoryModalProps {
 
 function fmtDate(iso?: string | null) {
   if (!iso) return "";
-  try {
-    return new Date(iso).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
-  } catch {
-    return "";
-  }
+  const label = formatEstDate(iso);
+  return label === "—" ? "" : label;
 }
 
 function projectToWorkbench(p: ProjectRow): ProjectWorkbenchData {

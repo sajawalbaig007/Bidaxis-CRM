@@ -8,6 +8,7 @@
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import type { SalarySlipCompany } from "./salarySlipCompanies";
+import { formatEstDateShort } from "@/lib/estTime";
 import {
   BEM_NAVY,
   BEM_RED,
@@ -129,11 +130,7 @@ function slipRef(payload: SalarySlipPayload): string {
 }
 
 function issuedOn(): string {
-  return new Date().toLocaleDateString("en-GB", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  });
+  return formatEstDateShort(new Date());
 }
 
 function drawWatermark(doc: JsPdfWithAutoTable, theme: SlipTheme) {

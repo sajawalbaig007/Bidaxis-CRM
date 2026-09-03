@@ -11,6 +11,7 @@ import {
 import DashboardSidebar from "../components/layout/Sidebar";
 import DashboardNavbar  from "../components/layout/Navbar";
 import API, { getApiBase } from "@/lib/api";
+import { formatEstDateShort, formatEstDateTime } from "@/lib/estTime";
 import { logoutSession } from "@/lib/session";
 import { setAuthMeCache, invalidateAuthMeCache } from "@/lib/authMeCache";
 
@@ -198,7 +199,7 @@ export default function AdminSettingsPage() {
 
   const initial    = profile?.name?.charAt(0)?.toUpperCase() ?? "A";
   const joinedDate = profile?.createdAt
-    ? new Date(profile.createdAt).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })
+    ? formatEstDateShort(profile.createdAt)
     : "—";
 
   return (
@@ -619,7 +620,7 @@ export default function AdminSettingsPage() {
                   {auditLogs.map((log, i) => (
                     <div key={i} className="text-xs text-gray-600 flex justify-between gap-2 border-b border-gray-50 pb-1.5">
                       <span className="font-medium capitalize">{log.action.replace(/_/g, " ")}</span>
-                      <span className="text-gray-400 shrink-0">{new Date(log.createdAt).toLocaleString()}</span>
+                      <span className="text-gray-400 shrink-0">{formatEstDateTime(log.createdAt)}</span>
                     </div>
                   ))}
                 </div>

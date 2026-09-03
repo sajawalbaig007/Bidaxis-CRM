@@ -5,6 +5,7 @@ import {
   CalendarDays, Filter, Save, Upload, Plus, Loader2, FileText, ExternalLink,
 } from "lucide-react";
 import type { AccountsUpload } from "../types";
+import { todayIso } from "../types";
 import {
   formatPeriodSummary,
   PERIOD_PRESET_LABELS,
@@ -284,7 +285,7 @@ export default function AccountsPageShell({
 
           {activePreset === "all_time" && (
             <p className="text-[11px] text-crm-text-muted">
-              Showing totals through <span className="font-semibold text-crm-text-secondary">{new Date().toISOString().slice(0, 10)}</span>
+              Showing totals through <span className="font-semibold text-crm-text-secondary">{todayIso()}</span>
               {" "}(all saved days up to today — no date chips).
             </p>
           )}

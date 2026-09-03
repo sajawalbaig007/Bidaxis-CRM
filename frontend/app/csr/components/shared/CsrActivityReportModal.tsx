@@ -8,6 +8,7 @@ import {
   statusBadgeColor,
 } from "../../constants/notificationRoutes";
 import { formatStatusTimestamp } from "@/lib/formatStatusTimestamp";
+import { estNowYmd } from "@/lib/estTime";
 
 type Period = "day" | "week" | "month";
 
@@ -33,7 +34,7 @@ const PERIOD_OPTIONS: { key: Period; label: string }[] = [
 
 export default function CsrActivityReportModal({ open, onClose }: Props) {
   const [period, setPeriod]     = useState<Period>("day");
-  const [date, setDate]         = useState(() => new Date().toISOString().split("T")[0]);
+  const [date, setDate]         = useState(() => estNowYmd());
   const [report, setReport]     = useState<ReportData | null>(null);
   const [loading, setLoading]   = useState(false);
 
