@@ -12,6 +12,8 @@ import {
   ChevronDown,
   DollarSign,
   ExternalLink,
+  Eye,
+  Loader2,
   Percent,
   RefreshCw,
   TrendingUp,
@@ -20,7 +22,15 @@ import {
 import { Cell, Pie, PieChart, Bar, BarChart, CartesianGrid, Tooltip, XAxis, YAxis } from "recharts";
 import API, { apiErrorMessage } from "@/lib/api";
 import { peekAuthMe } from "@/lib/authMeCache";
-import { formatPaymentDateOnly, paymentCalendarDay } from "@/lib/projectFields";
+import ProjectWorkbenchModal from "@/app/components/projects/ProjectWorkbenchModal";
+import {
+  CSR_ASSIGN_OTHER,
+  emptyWorkbench,
+  formatPaymentDateOnly,
+  parsePayments,
+  paymentCalendarDay,
+  type ProjectWorkbenchData,
+} from "@/lib/projectFields";
 import { StaffSidebar } from "@/app/hooks/useStaffSidebar";
 import DashboardNavbar from "@/app/admin/components/layout/Navbar";
 import RechartsBox from "@/app/components/charts/RechartsBox";
@@ -75,6 +85,66 @@ function filterRowsByPaymentDate(
     const payments = row.payments.filter((p) => paidAtInRange(p.paidAt, from, to));
     return payments.length > 0 ? [{ ...row, payments }] : [];
   });
+}
+
+type LeadForWorkbench = {
+  id: string;
+  name?: string | null;
+  company?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  ownerName?: string | null;
+  state?: string | null;
+  projectCode?: string | null;
+  clientCode?: string | null;
+  projectTitle?: string | null;
+  projectScope?: string | null;
+  interestedService?: string | null;
+  projectBudget?: string | null;
+  projectDeadline?: string | null;
+  deadlineTiming?: string | null;
+  projectPhase?: string | null;
+  takeoffDeadline?: string | null;
+  pricingDeadline?: string | null;
+  qaDeadline?: string | null;
+  projectPayments?: unknown;
+  projectSource?: string | null;
+  createdAt?: string | null;
+  assignedTo?: string | null;
+  csr?: { id: string; name?: string; csrCode?: string | null } | null;
+};
+
+function leadToWorkbench(lead: LeadForWorkbench): ProjectWorkbenchData {
+  const isOther = !!lead.projectSource?.trim();
+  return {
+    id: lead.id,
+    name: lead.name ?? "",
+    company: lead.company ?? "",
+    phone: lead.phone ?? "",
+    email: lead.email ?? "",
+    ownerName: lead.ownerName ?? "",
+    state: lead.state ?? "",
+    projectCode: lead.projectCode || lead.clientCode || "",
+    projectTitle: lead.projectTitle ?? "",
+    projectScope: lead.projectScope ?? "",
+    interestedService: lead.interestedService ?? "",
+    projectBudget: lead.projectBudget ?? "",
+    projectDeadline: (lead.projectDeadline ?? "").split("T")[0] ?? "",
+    deadlineTiming:
+      lead.deadlineTiming === "morning" || lead.deadlineTiming === "cob"
+        ? lead.deadlineTiming
+        : "",
+    projectPhase: lead.projectPhase ?? "not_started",
+    takeoffDeadline: lead.takeoffDeadline ?? "",
+    pricingDeadline: lead.pricingDeadline ?? "",
+    qaDeadline: lead.qaDeadline ?? "",
+    projectPayments: parsePayments(lead.projectPayments),
+    assignedTo: isOther ? CSR_ASSIGN_OTHER : (lead.csr?.id ?? lead.assignedTo ?? ""),
+    projectSource: lead.projectSource ?? "",
+    csrName: lead.csr?.name,
+    csrCode: isOther ? null : lead.csr?.csrCode,
+    projectCreatedAt: lead.createdAt ?? "",
+  };
 }
 
 /** Accounts receive month (YYYY-MM) — separate from payment paidAt. */
@@ -257,6 +327,8 @@ function ProjectList({
   perRowStatus = false,
   canDiscard = false,
   onDiscard,
+  onView,
+  viewingLeadId,
 }: {
   title: string;
   subtitle: string;
@@ -266,6 +338,8 @@ function ProjectList({
   perRowStatus?: boolean;
   canDiscard?: boolean;
   onDiscard?: (leadId: string, discarded: boolean) => void;
+  onView?: (leadId: string) => void;
+  viewingLeadId?: string | null;
 }) {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const tableSum = rows.reduce((s, r) => {
@@ -409,6 +483,22 @@ function ProjectList({
                       >
                         +{p.payments.length - 1}
                       </span>
+                    ) : null}
+                    {onView ? (
+                      <button
+                        type="button"
+                        onClick={() => onView(p.leadId)}
+                        disabled={viewingLeadId === p.leadId}
+                        className="h-8 w-8 rounded-xl border border-crm-border bg-crm-surface text-crm-text-muted hover:text-[#B8112D] hover:border-[#B8112D]/40 inline-flex items-center justify-center disabled:opacity-50"
+                        title="View / edit payment details"
+                        aria-label="View payment details"
+                      >
+                        {viewingLeadId === p.leadId ? (
+                          <Loader2 size={14} className="animate-spin" />
+                        ) : (
+                          <Eye size={14} />
+                        )}
+                      </button>
                     ) : null}
                     {canDiscard && p.status === "unpaid" && !p.unpaidFromPartial ? (
                       <button
@@ -585,6 +675,10 @@ export default function AdminPaymentsPage() {
   const [dateTo, setDateTo] = useState("");
   const [data, setData] = useState<PaymentsSummaryPayload | null>(null);
   const [loading, setLoading] = useState(true);
+  const [workbench, setWorkbench] = useState<ProjectWorkbenchData | null>(null);
+  const [workbenchSaving, setWorkbenchSaving] = useState(false);
+  const [viewingLeadId, setViewingLeadId] = useState<string | null>(null);
+  const [csrs, setCsrs] = useState<{ id: string; name: string; csrCode?: string | null }[]>([]);
   const dateRangeActive = Boolean(dateFrom || dateTo);
 
   const load = useCallback(async () => {
@@ -603,6 +697,62 @@ export default function AdminPaymentsPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  const openProjectEdit = async (leadId: string) => {
+    setViewingLeadId(leadId);
+    try {
+      const [leadRes, csrRes] = await Promise.all([
+        API.get(`/admin/lead/${leadId}`),
+        csrs.length
+          ? Promise.resolve({ data: { csrs } })
+          : API.get("/admin/csrs").catch(() => ({ data: { csrs: [] } })),
+      ]);
+      const lead = leadRes.data?.lead as LeadForWorkbench | undefined;
+      if (!lead?.id) throw new Error("not found");
+      if (!csrs.length) setCsrs((csrRes.data?.csrs ?? []) as typeof csrs);
+      setWorkbench(leadToWorkbench(lead));
+    } catch {
+      toast.error("Could not load project payment details.");
+    } finally {
+      setViewingLeadId(null);
+    }
+  };
+
+  const saveWorkbench = async (form: ProjectWorkbenchData) => {
+    setWorkbenchSaving(true);
+    try {
+      const isOther = form.assignedTo === CSR_ASSIGN_OTHER;
+      await API.put(`/admin/project/${form.id}`, {
+        name: form.name,
+        company: form.company,
+        phone: form.phone,
+        email: form.email,
+        ownerName: form.ownerName,
+        state: form.state,
+        projectCode: form.projectCode,
+        projectTitle: form.projectTitle,
+        projectScope: form.projectScope,
+        interestedService: form.interestedService,
+        projectBudget: form.projectBudget,
+        projectDeadline: form.projectDeadline,
+        deadlineTiming: form.deadlineTiming || "",
+        projectPhase: form.projectPhase,
+        takeoffDeadline: form.takeoffDeadline,
+        pricingDeadline: form.pricingDeadline,
+        qaDeadline: form.qaDeadline,
+        projectPayments: form.projectPayments,
+        assignedTo: isOther ? undefined : form.assignedTo,
+        projectSource: isOther ? form.projectSource : "",
+      });
+      setWorkbench(form);
+      toast.success("Payment details updated");
+      void load();
+    } catch (err) {
+      toast.error(apiErrorMessage(err, "Failed to save payment details"));
+    } finally {
+      setWorkbenchSaving(false);
+    }
+  };
 
   const handleDiscard = async (leadId: string, discarded: boolean) => {
     try {
@@ -1080,6 +1230,8 @@ export default function AdminPaymentsPage() {
                   : "No collected projects in this period."
               }
               perRowStatus
+              onView={(leadId) => void openProjectEdit(leadId)}
+              viewingLeadId={viewingLeadId}
             />
             <ProjectList
               key={`unpaid-${data?.month ?? "all"}-${dateFrom}-${dateTo}`}
@@ -1098,10 +1250,22 @@ export default function AdminPaymentsPage() {
               }
               canDiscard={canDiscard}
               onDiscard={(leadId, discarded) => void handleDiscard(leadId, discarded)}
+              onView={(leadId) => void openProjectEdit(leadId)}
+              viewingLeadId={viewingLeadId}
             />
           </div>
         </div>
       </main>
+      <ProjectWorkbenchModal
+        open={!!workbench}
+        onClose={() => setWorkbench(null)}
+        initial={workbench ?? emptyWorkbench()}
+        mode="admin"
+        initialSection="payment"
+        csrs={csrs}
+        saving={workbenchSaving}
+        onSave={saveWorkbench}
+      />
     </div>
   );
 }

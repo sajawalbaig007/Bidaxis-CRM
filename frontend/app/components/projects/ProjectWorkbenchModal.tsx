@@ -62,6 +62,8 @@ type Props = {
   phoneLookup?: PhoneLookupProps;
   /** Technical portal — hide Client / Quoted / Payment / CSR sections */
   hideClientFinanceSections?: boolean;
+  /** Accordion to open first (e.g. "payment" from Admin Payments). */
+  initialSection?: string;
 };
 
 const inputCls =
@@ -129,11 +131,11 @@ export default function ProjectWorkbenchModal({
   onAddTechnicalNote,
   phoneLookup,
   hideClientFinanceSections = false,
+  initialSection,
 }: Props) {
+  const startSection = initialSection || (hideClientFinanceSections ? "project" : "client");
   const [data, setData] = useState<ProjectWorkbenchData>(initial);
-  const [openSection, setOpenSection] = useState<string>(
-    hideClientFinanceSections ? "project" : "client",
-  );
+  const [openSection, setOpenSection] = useState<string>(startSection);
   const [deleting, setDeleting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const wasOpenRef = useRef(false);
@@ -152,11 +154,11 @@ export default function ProjectWorkbenchModal({
     wasOpenRef.current = true;
     if (justOpened || projectChanged) {
       setData(initial);
-      setOpenSection(hideClientFinanceSections ? "project" : "client");
+      setOpenSection(initialSection || (hideClientFinanceSections ? "project" : "client"));
       setConfirmDelete(false);
       loadedIdRef.current = initial.id;
     }
-  }, [open, initial, hideClientFinanceSections]);
+  }, [open, initial, hideClientFinanceSections, initialSection]);
 
   if (!open) return null;
 
