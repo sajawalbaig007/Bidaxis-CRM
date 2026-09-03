@@ -137,32 +137,43 @@ function shiftMonth(yyyyMm: string, delta: number): string {
   return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, "0")}`;
 }
 
+/** Date-only YYYY-MM / YYYY-MM-DD stay as written. Timestamps use Eastern. */
 function calendarMonthEst(d: Date | string | null | undefined): string | null {
   if (!d) return null;
   if (typeof d === "string") {
-    const m = d.trim().match(/^(\d{4}-\d{2})/);
-    if (m) return m[1];
+    const t = d.trim();
+    if (/^\d{4}-\d{2}(-\d{2})?$/.test(t)) return t.slice(0, 7);
+    const dt = new Date(t);
+    if (Number.isNaN(dt.getTime())) return null;
+    return estDateYmd(dt).slice(0, 7);
   }
-  const dt = d instanceof Date ? d : new Date(d);
-  if (Number.isNaN(dt.getTime())) return null;
-  /* Date-only UTC midnight must not roll back to the previous EST calendar month. */
-  if (
-    dt.getUTCHours() === 0 &&
-    dt.getUTCMinutes() === 0 &&
-    dt.getUTCSeconds() === 0 &&
-    dt.getUTCMilliseconds() === 0
-  ) {
-    return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, "0")}`;
-  }
-  return estDateYmd(dt).slice(0, 7);
+  if (Number.isNaN(d.getTime())) return null;
+  return estDateYmd(d).slice(0, 7);
 }
 
-/** Calendar month the money was collected — payment date only, never project createdAt. */
+/** Calendar month the money was collected — payment date only. */
 function paymentDateMonth(entry: ProjectPaymentEntry): string | null {
   if (!entry.isPaid) return null;
-  const paid = entry.paidAt?.trim();
-  if (paid && /^\d{4}-\d{2}/.test(paid)) return paid.slice(0, 7);
-  return calendarMonthEst(paid || null);
+  return calendarMonthEst(entry.paidAt ?? null);
+}
+
+/**
+ * Business month of a project: earlier of CRM created month and first payment month.
+ * Late-entered jobs (created in September, first paid in August) stay in August.
+ */
+function projectBusinessMonth(
+  createdAt: Date | string | null | undefined,
+  payments: ProjectPaymentEntry[],
+): string | null {
+  const created = calendarMonthEst(createdAt);
+  let earliestPay: string | null = null;
+  for (const e of payments) {
+    if (!e.isPaid) continue;
+    const pm = paymentDateMonth(e);
+    if (pm && (!earliestPay || pm < earliestPay)) earliestPay = pm;
+  }
+  if (created && earliestPay) return created < earliestPay ? created : earliestPay;
+  return created ?? earliestPay;
 }
 
 function emptyChannelTotals(): ChannelCurrencyTotals {
@@ -252,7 +263,10 @@ export async function buildPaymentsSummary(month?: string | null): Promise<Payme
   let collectedThisMonth = 0;
   let collectedPrevMonth = 0;
   let collectedOnPrevMonthProjects = 0;
+  let cashThisMonth = 0;
+  let cashPrevMonth = 0;
   let collectedFromPending = 0;
+  const viewingClosedMonth = Boolean(monthFilter && monthFilter < currentMonthEst());
   let outstandingThisMonth = 0;
   let outstandingPrevMonthOnly = 0;
   let outstandingPrevMonths = 0;
@@ -268,24 +282,24 @@ export async function buildPaymentsSummary(month?: string | null): Promise<Payme
     const remainingDue = quoted > 0 ? Math.max(0, quoted - paidTotalAllTime) : 0;
     const discarded = Boolean(lead.paymentDiscarded);
 
-    const createdMonth = calendarMonthEst(lead.createdAt);
+    const projectMonth = projectBusinessMonth(lead.createdAt, allPayments);
 
     if (quoted > 0) {
       if (!discarded && remainingDue > 0) {
         outstandingAllTime += remainingDue;
-        if (createdMonth === thisMonthKey) outstandingThisMonth += remainingDue;
-        else if (createdMonth && createdMonth < thisMonthKey) {
+        if (projectMonth === thisMonthKey) outstandingThisMonth += remainingDue;
+        else if (projectMonth && projectMonth < thisMonthKey) {
           outstandingPrevMonths += remainingDue;
-          if (createdMonth === prevMonthKey) outstandingPrevMonthOnly += remainingDue;
+          if (projectMonth === prevMonthKey) outstandingPrevMonthOnly += remainingDue;
         }
       }
     }
 
     /**
-     * Month M collected = payment date in M AND project arrived in M.
-     * August project + September payment:
-     *   - September view → “Prev month collected” (not September collected)
-     *   - August view → not added (only money collected before August ended)
+     * Payment date decides when cash landed.
+     * Closed month (e.g. August): Collected = all cash dated that month.
+     * Current month (September): Collected = only this month’s projects;
+     *   cash on older projects → “Prev month collected”, not the big card.
      */
     for (const entry of allPayments) {
       if (!entry.isPaid) continue;
@@ -294,20 +308,25 @@ export async function buildPaymentsSummary(month?: string | null): Promise<Payme
       const payMonth = paymentDateMonth(entry);
       collectedAllTime += amt;
 
-      const sameMonthProjectAndPay =
-        Boolean(createdMonth && payMonth && createdMonth === payMonth);
-      if (sameMonthProjectAndPay && payMonth === thisMonthKey) collectedThisMonth += amt;
-      if (sameMonthProjectAndPay && payMonth === prevMonthKey) collectedOnPrevMonthProjects += amt;
+      if (payMonth === thisMonthKey && projectMonth && projectMonth <= thisMonthKey) {
+        cashThisMonth += amt;
+      }
+      if (payMonth === prevMonthKey && projectMonth && projectMonth <= prevMonthKey) {
+        cashPrevMonth += amt;
+      }
+      if (payMonth === thisMonthKey && projectMonth === thisMonthKey) collectedThisMonth += amt;
+      if (payMonth === prevMonthKey && projectMonth === prevMonthKey) collectedOnPrevMonthProjects += amt;
+      if (payMonth === thisMonthKey && projectMonth && projectMonth < thisMonthKey) {
+        collectedPrevMonth += amt;
+      }
 
-      const paidThisMonthOnOlderProject =
-        Boolean(payMonth === thisMonthKey && createdMonth && createdMonth < thisMonthKey);
-      if (paidThisMonthOnOlderProject) collectedPrevMonth += amt;
+      if (projectMonth && projectMonth < thisMonthKey) collectedFromPending += amt;
 
-      if (createdMonth && createdMonth < thisMonthKey) collectedFromPending += amt;
-
-      const inCollectedView =
-        !monthFilter ||
-        (createdMonth === monthFilter && payMonth === monthFilter);
+      const inCollectedView = !monthFilter
+        ? true
+        : viewingClosedMonth
+          ? payMonth === monthFilter && Boolean(projectMonth && projectMonth <= monthFilter)
+          : payMonth === monthFilter && projectMonth === monthFilter;
       if (!inCollectedView) continue;
 
       collectedEntries += 1;
@@ -327,9 +346,9 @@ export async function buildPaymentsSummary(month?: string | null): Promise<Payme
       }
     }
 
-    /** Month view = only projects that arrived that month. */
+    /** Month view = projects that belong to that business month. */
     if (monthFilter) {
-      if (createdMonth !== monthFilter) continue;
+      if (projectMonth !== monthFilter) continue;
     } else if (quoted <= 0 && allPayments.length === 0) {
       continue;
     }
@@ -339,7 +358,7 @@ export async function buildPaymentsSummary(month?: string | null): Promise<Payme
     if (quoted > 0 && !quotedListedIds.has(lead.id)) {
       quotedListedIds.add(lead.id);
       if (!monthFilter) quotedProjects += 1;
-      else if (createdMonth === thisMonthKey) quotedProjects += 1;
+      else if (projectMonth === thisMonthKey) quotedProjects += 1;
     }
 
     const monthPayments = monthFilter
@@ -419,11 +438,17 @@ export async function buildPaymentsSummary(month?: string | null): Promise<Payme
     }
   }
 
-  const collectedAmount = monthFilter ? collectedThisMonth : collectedAllTime;
+  const collectedAmount = monthFilter
+    ? viewingClosedMonth
+      ? cashThisMonth
+      : collectedThisMonth
+    : collectedAllTime;
   const outstandingAmount = monthFilter ? outstandingThisMonth : outstandingAllTime;
-  const quotedAmount = collectedAmount + outstandingAmount;
-  quotedThisMonth = collectedThisMonth + outstandingThisMonth;
-  quotedPrevMonth = collectedOnPrevMonthProjects + outstandingPrevMonthOnly;
+  const quotedAmount = monthFilter
+    ? cashThisMonth + outstandingThisMonth
+    : collectedAllTime + outstandingAllTime;
+  quotedThisMonth = cashThisMonth + outstandingThisMonth;
+  quotedPrevMonth = cashPrevMonth + outstandingPrevMonthOnly;
 
   fullPaidProjects.sort((a, b) => b.paidTotal - a.paidTotal);
   partialPaidProjects.sort((a, b) => b.percent - a.percent || b.paidTotal - a.paidTotal);
