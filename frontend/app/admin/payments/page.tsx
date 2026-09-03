@@ -7,6 +7,7 @@ import toast, { Toaster } from "react-hot-toast";
 import {
   AlertCircle,
   Ban,
+  Calendar,
   CheckCircle2,
   ChevronDown,
   DollarSign,
@@ -19,7 +20,7 @@ import {
 import { Cell, Pie, PieChart, Bar, BarChart, CartesianGrid, Tooltip, XAxis, YAxis } from "recharts";
 import API, { apiErrorMessage } from "@/lib/api";
 import { peekAuthMe } from "@/lib/authMeCache";
-import { formatPaymentDateOnly } from "@/lib/projectFields";
+import { formatPaymentDateOnly, paymentCalendarDay } from "@/lib/projectFields";
 import { StaffSidebar } from "@/app/hooks/useStaffSidebar";
 import DashboardNavbar from "@/app/admin/components/layout/Navbar";
 import RechartsBox from "@/app/components/charts/RechartsBox";
@@ -48,6 +49,32 @@ const CURRENCY_ORDER = ["USD", "CAD", "PKR"] as const;
 
 function formatPaymentDate(iso: string | null | undefined): string {
   return formatPaymentDateOnly(iso ?? undefined);
+}
+
+function normalizeDateRange(from: string, to: string): { from: string; to: string } {
+  if (from && to && from > to) return { from: to, to: from };
+  return { from, to };
+}
+
+function paidAtInRange(paidAt: string | null | undefined, from: string, to: string): boolean {
+  const day = paymentCalendarDay(paidAt);
+  if (!day) return false;
+  const range = normalizeDateRange(from, to);
+  if (range.from && day < range.from) return false;
+  if (range.to && day > range.to) return false;
+  return true;
+}
+
+function filterRowsByPaymentDate(
+  rows: ProjectPaymentSummaryRow[],
+  from: string,
+  to: string,
+): ProjectPaymentSummaryRow[] {
+  if (!from && !to) return rows;
+  return rows.flatMap((row) => {
+    const payments = row.payments.filter((p) => paidAtInRange(p.paidAt, from, to));
+    return payments.length > 0 ? [{ ...row, payments }] : [];
+  });
 }
 
 /** Accounts receive month (YYYY-MM) — separate from payment paidAt. */
@@ -554,8 +581,11 @@ export default function AdminPaymentsPage() {
   const canDiscard = peekAuthMe()?.role === "admin";
 
   const [month, setMonth] = useState<string>("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [data, setData] = useState<PaymentsSummaryPayload | null>(null);
   const [loading, setLoading] = useState(true);
+  const dateRangeActive = Boolean(dateFrom || dateTo);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -595,6 +625,29 @@ export default function AdminPaymentsPage() {
   const t = data?.totals;
   const status = data?.statusBreakdown;
   const channels = data?.channels ?? [];
+
+  const collectedRows = useMemo(() => {
+    const rows = [
+      ...(data?.fullPaidProjects ?? []),
+      ...(data?.partialPaidProjects ?? []),
+    ].sort((a, b) => b.percent - a.percent || b.paidTotal - a.paidTotal);
+    return filterRowsByPaymentDate(rows, dateFrom, dateTo);
+  }, [data, dateFrom, dateTo]);
+
+  const unpaidRows = useMemo(() => {
+    const rows = data?.unpaidProjects ?? [];
+    if (!dateRangeActive) return rows;
+    return filterRowsByPaymentDate(rows, dateFrom, dateTo);
+  }, [data, dateFrom, dateTo, dateRangeActive]);
+
+  const paymentDateLabel = useMemo(() => {
+    if (!dateFrom && !dateTo) return "";
+    const { from, to } = normalizeDateRange(dateFrom, dateTo);
+    if (from && to && from === to) return from;
+    if (from && to) return `${from} → ${to}`;
+    if (from) return `from ${from}`;
+    return `through ${to}`;
+  }, [dateFrom, dateTo]);
 
   const statusPie = useMemo(() => {
     if (!status) return [];
@@ -704,9 +757,56 @@ export default function AdminPaymentsPage() {
                 className="outline-none bg-transparent text-sm font-semibold text-crm-text"
               />
             </label>
+            <label className="flex items-center gap-2 h-10 px-3 rounded-xl border border-crm-border bg-crm-input text-sm font-semibold text-crm-text-secondary">
+              <Calendar size={13} className="text-crm-text-faint shrink-0" />
+              <span className="text-[11px] text-crm-text-faint uppercase">From</span>
+              <input
+                type="date"
+                value={dateFrom}
+                max={dateTo || undefined}
+                onChange={(e) => {
+                  setDateFrom(e.target.value);
+                  if (e.target.value) setMonth("");
+                }}
+                className="outline-none bg-transparent text-sm font-semibold text-crm-text"
+              />
+            </label>
+            <label className="flex items-center gap-2 h-10 px-3 rounded-xl border border-crm-border bg-crm-input text-sm font-semibold text-crm-text-secondary">
+              <span className="text-[11px] text-crm-text-faint uppercase">To</span>
+              <input
+                type="date"
+                value={dateTo}
+                min={dateFrom || undefined}
+                onChange={(e) => {
+                  setDateTo(e.target.value);
+                  if (e.target.value) setMonth("");
+                }}
+                className="outline-none bg-transparent text-sm font-semibold text-crm-text"
+              />
+            </label>
+            {dateRangeActive ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setDateFrom("");
+                  setDateTo("");
+                }}
+                className="h-10 px-3 rounded-xl border border-crm-border bg-crm-surface text-xs font-bold text-crm-text-muted hover:text-crm-text hover:border-[#B8112D]/40"
+              >
+                Clear dates
+              </button>
+            ) : null}
             <p className="text-xs text-crm-text-muted sm:ml-auto">
               Showing <span className="font-bold text-crm-text">{data?.monthLabel ?? "All time"}</span>
+              {paymentDateLabel ? (
+                <>
+                  {" "}
+                  · Payment date{" "}
+                  <span className="font-bold text-crm-text">{paymentDateLabel}</span>
+                </>
+              ) : null}
               {t ? ` · ${t.projectCount} projects` : ""}
+              {dateRangeActive ? ` · ${collectedRows.length} with payment in range` : ""}
             </p>
           </section>
 
@@ -965,24 +1065,37 @@ export default function AdminPaymentsPage() {
           {/* Project lists — collected (full+partial) + unpaid */}
           <div className="space-y-4">
             <ProjectList
-              key={`collected-${data?.month ?? "all"}`}
+              key={`collected-${data?.month ?? "all"}-${dateFrom}-${dateTo}`}
               title="Collected"
-              subtitle="Paid amount — full paid projects and the collected portion of partial pays"
-              rows={[
-                ...(data?.fullPaidProjects ?? []),
-                ...(data?.partialPaidProjects ?? []),
-              ].sort((a, b) => b.percent - a.percent || b.paidTotal - a.paidTotal)}
+              subtitle={
+                dateRangeActive
+                  ? `Projects with a payment date ${paymentDateLabel} — expand a row to see matching payments`
+                  : "Paid amount — full paid projects and the collected portion of partial pays"
+              }
+              rows={collectedRows}
               tone="emerald"
-              emptyText="No collected projects in this period."
+              emptyText={
+                dateRangeActive
+                  ? "No projects with a payment date in this range."
+                  : "No collected projects in this period."
+              }
               perRowStatus
             />
             <ProjectList
-              key={`unpaid-${data?.month ?? "all"}`}
+              key={`unpaid-${data?.month ?? "all"}-${dateFrom}-${dateTo}`}
               title="Unpaid (with quote)"
-              subtitle="Fully unpaid quotes plus remaining balance on partial pays"
-              rows={data?.unpaidProjects ?? []}
+              subtitle={
+                dateRangeActive
+                  ? `Partial remaining that also has a payment date ${paymentDateLabel}`
+                  : "Fully unpaid quotes plus remaining balance on partial pays"
+              }
+              rows={unpaidRows}
               tone="red"
-              emptyText="No unpaid quoted projects."
+              emptyText={
+                dateRangeActive
+                  ? "No unpaid / remaining rows with a payment date in this range."
+                  : "No unpaid quoted projects."
+              }
               canDiscard={canDiscard}
               onDiscard={(leadId, discarded) => void handleDiscard(leadId, discarded)}
             />
