@@ -18,8 +18,8 @@ import {
 } from "lucide-react";
 import { Cell, Pie, PieChart, Bar, BarChart, CartesianGrid, Tooltip, XAxis, YAxis } from "recharts";
 import API, { apiErrorMessage } from "@/lib/api";
-import { formatEstDateShort } from "@/lib/estTime";
 import { peekAuthMe } from "@/lib/authMeCache";
+import { formatPaymentDateOnly } from "@/lib/projectFields";
 import { StaffSidebar } from "@/app/hooks/useStaffSidebar";
 import DashboardNavbar from "@/app/admin/components/layout/Navbar";
 import RechartsBox from "@/app/components/charts/RechartsBox";
@@ -47,10 +47,7 @@ const STATUS_COLORS = {
 const CURRENCY_ORDER = ["USD", "CAD", "PKR"] as const;
 
 function formatPaymentDate(iso: string | null | undefined): string {
-  if (!iso) return "—";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso.slice(0, 10);
-  return formatEstDateShort(d);
+  return formatPaymentDateOnly(iso ?? undefined);
 }
 
 /** Accounts receive month (YYYY-MM) — separate from payment paidAt. */
