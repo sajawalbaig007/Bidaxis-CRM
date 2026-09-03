@@ -79,9 +79,7 @@ function extrasFromGroup(group: ClientLead[]): { code: string; scope: string }[]
   const seen = new Set<string>();
   const extras: { code: string; scope: string }[] = [];
   for (const lead of group) {
-    const project = (lead.projectCode || "").trim();
-    const client = (lead.clientCode || "").trim();
-    const raw = project || (/-\d+$/.test(client) ? client : "");
+    const raw = (lead.projectCode || lead.clientCode || "").trim();
     if (!raw) continue;
     const key = raw.toLowerCase();
     if (seen.has(key)) continue;
@@ -99,10 +97,84 @@ function extrasFromGroup(group: ClientLead[]): { code: string; scope: string }[]
   return extras;
 }
 
-/** Group key for same client across multiple won projects (phone, then company). */
-export function clientIdentityKey(l: Pick<ClientLead, "id" | "phone" | "rawCompany">): string {
-  const digits = (l.phone ?? "").replace(/\D/g, "");
-  if (digits.length >= 7) return `phone:${digits}`;
+function normalizeClientName(name?: string | null): string | null {
+  const n = (name ?? "").trim().toLowerCase().replace(/\s+/g, " ");
+  if (!n || n === "unknown" || n === "n/a" || n === "na" || n === "-" || n === "none") return null;
+  return n;
+}
+
+function leadPhoneKey(phone?: string | null): string | null {
+  const digits = (phone ?? "").replace(/\D/g, "");
+  return digits.length >= 7 ? digits : null;
+}
+
+function leadHasCode(lead: ClientLead): boolean {
+  return !!(lead.clientCode || lead.projectCode || "").trim();
+}
+
+function pickRepresentative(group: ClientLead[]): ClientLead {
+  const dated = [...group].sort(
+    (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+  );
+  return dated.find(leadHasCode) ?? dated[0]!;
+}
+
+/** Same phone, same client name, or same company when name is missing. */
+function clusterWonClients(wonLeads: ClientLead[]): ClientLead[][] {
+  const parent = wonLeads.map((_, i) => i);
+  const find = (i: number): number => {
+    if (parent[i] !== i) parent[i] = find(parent[i]!);
+    return parent[i]!;
+  };
+  const union = (a: number, b: number) => {
+    const pa = find(a);
+    const pb = find(b);
+    if (pa !== pb) parent[pa] = pb;
+  };
+
+  const byPhone = new Map<string, number>();
+  const byName = new Map<string, number>();
+  const byCompany = new Map<string, number>();
+
+  wonLeads.forEach((lead, i) => {
+    const phone = leadPhoneKey(lead.phone);
+    if (phone) {
+      const prev = byPhone.get(phone);
+      if (prev !== undefined) union(prev, i);
+      else byPhone.set(phone, i);
+    }
+
+    const name = normalizeClientName(lead.name);
+    if (name) {
+      const prev = byName.get(name);
+      if (prev !== undefined) union(prev, i);
+      else byName.set(name, i);
+    } else {
+      const co = lead.rawCompany?.trim().toLowerCase();
+      if (co) {
+        const prev = byCompany.get(co);
+        if (prev !== undefined) union(prev, i);
+        else byCompany.set(co, i);
+      }
+    }
+  });
+
+  const clusters = new Map<number, ClientLead[]>();
+  wonLeads.forEach((lead, i) => {
+    const root = find(i);
+    const bucket = clusters.get(root);
+    if (bucket) bucket.push(lead);
+    else clusters.set(root, [lead]);
+  });
+  return [...clusters.values()];
+}
+
+/** Group key for same client across multiple won projects (name, phone, then company). */
+export function clientIdentityKey(l: Pick<ClientLead, "id" | "name" | "phone" | "rawCompany">): string {
+  const name = normalizeClientName(l.name);
+  if (name) return `name:${name}`;
+  const digits = leadPhoneKey(l.phone);
+  if (digits) return `phone:${digits}`;
   const co = l.rawCompany?.trim().toLowerCase();
   if (co) return `company:${co}`;
   return `id:${l.id}`;
@@ -114,26 +186,17 @@ export function splitWonClientsByIdentity(wonLeads: ClientLead[]): {
   oldLeads: ClientLead[];
   repeatKeys: Set<string>;
 } {
-  const groups = new Map<string, ClientLead[]>();
-  for (const l of wonLeads) {
-    const k = clientIdentityKey(l);
-    if (!groups.has(k)) groups.set(k, []);
-    groups.get(k)!.push(l);
-  }
-
   const newLeads: ClientLead[] = [];
   const oldLeads: ClientLead[] = [];
   const repeatKeys = new Set<string>();
   const byDate = (a: ClientLead, b: ClientLead) =>
     new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
 
-  for (const [key, group] of groups) {
+  for (const group of clusterWonClients(wonLeads)) {
     group.sort(byDate);
+    const key = clientIdentityKey(group[0]!);
     if (group.length >= 2) repeatKeys.add(key);
-    /* Prefer oldest row so extra projects stay in Active Projects, not Clients */
-    const representative = [...group].sort(
-      (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
-    )[0]!;
+    const representative = pickRepresentative(group);
     const isOld = group.length >= 2 || group.some(l => l.isOldClient);
     const withExtras = { ...representative, extraProjects: extrasFromGroup(group) };
     if (isOld) oldLeads.push({ ...withExtras, isOldClient: true });
