@@ -84,8 +84,10 @@ export type PaymentsSummaryPayload = {
     quotedPrevMonth?: number;
     collectedThisMonth?: number;
     collectedPrevMonth?: number;
+    collectedFromPending?: number;
     outstandingThisMonth?: number;
     outstandingPrevMonths?: number;
+    outstandingPrevMonthOnly?: number;
   };
   statusBreakdown: {
     paid: number;
