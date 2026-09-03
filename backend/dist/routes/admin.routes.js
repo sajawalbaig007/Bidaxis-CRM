@@ -267,8 +267,8 @@ router.get("/clients/tab-counts", auth_middleware_1.verifyToken, (0, role_middle
         const assignee = await resolveCsrAssignedTo(csrIdRaw, csrName);
         const hasFilters = !!(search || state || phonePrefix || scheduleDate || areaCodes.length || assignee.csrId);
         const CACHE_KEY = hasFilters
-            ? `admin:clients:tab-counts:v9:${search ?? ""}:${state ?? ""}:${phonePrefix ?? ""}:${scheduleDate ?? ""}:${areaCodes.join(",")}:${assignee.csrId ?? "all"}`
-            : "admin:clients:tab-counts:v9";
+            ? `admin:clients:tab-counts:v10:${search ?? ""}:${state ?? ""}:${phonePrefix ?? ""}:${scheduleDate ?? ""}:${areaCodes.join(",")}:${assignee.csrId ?? "all"}`
+            : "admin:clients:tab-counts:v10";
         const cached = (0, cache_1.getCache)(CACHE_KEY);
         if (cached)
             return res.json(cached);
@@ -326,7 +326,7 @@ router.get("/clients", auth_middleware_1.verifyToken, (0, role_middleware_1.allo
         const sortBy = sortRaw === "clientcode" || sortRaw === "client_code" ? "clientCode" : "notes";
         const sortDir = String(req.query.dir || "desc").toLowerCase() === "asc" ? "asc" : "desc";
         const assignee = await resolveCsrAssignedTo(csrIdRaw, csrName);
-        const cacheKey = `admin:clients:list:v13:${view}:${page}:${limit}:${sortBy}:${sortDir}:${assignee.csrId ?? "all"}:${search ?? ""}:${scheduleDate ?? ""}:${state ?? ""}:${phonePrefix ?? ""}:${areaCodes.join(",")}`;
+        const cacheKey = `admin:clients:list:v14:${view}:${page}:${limit}:${sortBy}:${sortDir}:${assignee.csrId ?? "all"}:${search ?? ""}:${scheduleDate ?? ""}:${state ?? ""}:${phonePrefix ?? ""}:${areaCodes.join(",")}`;
         const cached = (0, cache_1.getCache)(cacheKey);
         if (cached)
             return res.json(cached);
@@ -487,13 +487,11 @@ router.post("/lead", auth_middleware_1.verifyToken, (0, role_middleware_1.allowR
         }
         const trimmedPhone = phone?.trim() || null;
         const existingLeads = trimmedPhone ? await (0, leadPhoneLookup_1.findLeadsByPhone)(trimmedPhone) : [];
-        const rawStatus = String(status ?? "pending").trim();
+        const rawStatus = String(status ?? "Close Client").trim();
         const n = rawStatus.toLowerCase();
-        const canonical = n === "close client" || n === "closed" ? "Close Client" :
-            n === "interested" ? "interested" :
-                n === "important" ? "important" :
-                    n === "pending" || n === "active" ? "pending" :
-                        rawStatus || "pending";
+        const canonical = n === "interested" ? "interested" :
+            n === "important" ? "important" :
+                "Close Client";
         const lead = await db_1.default.lead.create({
             data: {
                 name: name.trim(),

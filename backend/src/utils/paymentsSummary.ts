@@ -341,7 +341,10 @@ export async function buildPaymentsSummary(month?: string | null): Promise<Payme
       }
     }
 
-    const showCollected = !monthFilter || projectMonth === monthFilter;
+    const hasCashInViewMonth = monthFilter
+      ? allPayments.some((e) => e.isPaid && parseMoney(e.amount) > 0 && paymentDateMonth(e) === monthFilter)
+      : paidTotalAllTime > 0;
+    const showCollected = !monthFilter || hasCashInViewMonth;
     const showUnpaidInvoice = quoted > 0 && remainingDue > 0;
 
     if (monthFilter) {

@@ -83,7 +83,15 @@ function filterRowsByPaymentDate(
   if (!from && !to) return rows;
   return rows.flatMap((row) => {
     const payments = row.payments.filter((p) => paidAtInRange(p.paidAt, from, to));
-    return payments.length > 0 ? [{ ...row, payments }] : [];
+    if (payments.length === 0) return [];
+    const paid = payments.reduce((s, p) => s + (p.amountNum ?? 0), 0);
+    return [{
+      ...row,
+      payments,
+      paidTotal: paid,
+      paidLabel: paid > 0 ? `$${paid.toLocaleString()}` : "—",
+      sumAmount: paid,
+    }];
   });
 }
 

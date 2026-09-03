@@ -228,7 +228,10 @@ async function buildPaymentsSummary(month) {
                 ch.activeCurrencies.push(entry.currency);
             }
         }
-        const showCollected = !monthFilter || projectMonth === monthFilter;
+        const hasCashInViewMonth = monthFilter
+            ? allPayments.some((e) => e.isPaid && (0, projectPayments_1.parseMoney)(e.amount) > 0 && paymentDateMonth(e) === monthFilter)
+            : paidTotalAllTime > 0;
+        const showCollected = !monthFilter || hasCashInViewMonth;
         const showUnpaidInvoice = quoted > 0 && remainingDue > 0;
         if (monthFilter) {
             if (!showCollected && !showUnpaidInvoice)
