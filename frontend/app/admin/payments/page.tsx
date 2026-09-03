@@ -1002,7 +1002,11 @@ export default function AdminPaymentsPage() {
             <KpiCard
               title="Collected"
               value={loading && !data ? "…" : formatMoneyAlways(t?.collectedAmount ?? 0)}
-              hint={`${t?.collectedEntries ?? 0} payments by payment date`}
+              hint={
+                month
+                  ? `${t?.collectedEntries ?? 0} payments on this month’s projects`
+                  : `${t?.collectedEntries ?? 0} payments`
+              }
               accent="#059669"
               icon={TrendingUp}
             >
@@ -1021,7 +1025,7 @@ export default function AdminPaymentsPage() {
               value={loading && !data ? "…" : formatMoneyAlways(t?.outstandingAmount ?? 0)}
               hint={
                 month
-                  ? `Pending on this month’s projects · ${t?.unpaidWithQuoteCount ?? 0} unpaid · ${t?.partialPaidCount ?? 0} partial`
+                  ? `Unpaid on this month’s projects · ${t?.unpaidWithQuoteCount ?? 0} unpaid · ${t?.partialPaidCount ?? 0} partial`
                   : `${t?.unpaidWithQuoteCount ?? 0} unpaid · ${t?.partialPaidCount ?? 0} partial`
               }
               accent="#DC2626"
