@@ -10,6 +10,7 @@ import {
   LogOut, ChevronDown, MessageSquare, Bell, X, Wallet,
 } from "lucide-react";
 import API from "@/lib/api";
+import { estNowYmd } from "@/lib/estTime";
 import { dismissNotification, getDismissedNotificationIds } from "@/lib/notificationDismiss";
 import { logoutSession } from "@/lib/session";
 import { getAuthMe, peekAuthMe, type AuthUser } from "@/lib/authMeCache";
@@ -49,7 +50,7 @@ type ScheduledCall = {
   csrId: string;
 };
 
-const TODAY = new Date().toISOString().split("T")[0];
+const TODAY = estNowYmd();
 
 let _cachedScheduledCalls: ScheduledCall[] = [];
 let _lastNotifFetch = 0;

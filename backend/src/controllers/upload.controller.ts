@@ -15,6 +15,7 @@ import { ADMIN_UPLOAD_SOURCE_SELECT } from "../utils/uploadSourceSelect";
 import { findLeadsByPhonesBulk } from "../utils/leadPhoneLookup";
 import { parseSubContactsCell, parseTradeList, insertMissingTrades } from "../utils/masterFormatTrades";
 import type { ParsedLeadRow } from "../utils/uploadExcelParse";
+import { estDateYmd } from "../utils/estTime";
 
 const CHUNK_INSERT = 500;
 const BATCH_UPDATE = 30;
@@ -269,7 +270,7 @@ export const uploadLeads = async (req: Request, res: Response) => {
       });
 
       if (callDataLeads.length > 0) {
-        const snapshotDate = new Date().toISOString().split("T")[0];
+        const snapshotDate = estDateYmd();
         const csrSnap: Record<string, { name: string; total: number }> = {};
 
         callDataLeads.forEach(l => {

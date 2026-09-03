@@ -207,7 +207,7 @@ export function calcSalesLateDeduction(
   const t1900 = 19 * 60;
   const t2000 = 20 * 60;
 
-  if (inMin <= t1815) return { amount: 0, rule: "On time (≤ 18:15 PKT)" };
+  if (inMin <= t1815) return { amount: 0, rule: "On time (≤ 18:15 EST)" };
   if (inMin < t1830) return { amount: daySalary / 5, rule: "18:15–18:30 → ⅕ day" };
   if (inMin < t1900) return { amount: daySalary / 4, rule: "18:30–19:00 → ¼ day" };
   if (inMin < t2000) return { amount: daySalary / 3, rule: "19:00–20:00 → ⅓ day" };

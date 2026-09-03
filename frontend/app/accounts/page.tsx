@@ -38,6 +38,7 @@ import {
   YAxis,
 } from "recharts";
 import API, { apiErrorMessage } from "@/lib/api";
+import { formatEstDateTime } from "@/lib/estTime";
 import AccountsSidebar from "./components/layout/Sidebar";
 import { ACCOUNTS_MAIN_OFFSET } from "./components/layout/headerOffset";
 import AccountsPageShell from "./components/AccountsPageShell";
@@ -658,7 +659,7 @@ export default function AccountsDashboardPage() {
                     <p className="text-[10px] text-crm-text-faint text-right">
                       Source: {fxRates.source === "google" ? "Google Finance" : fxRates.source}
                       {" · "}
-                      {new Date(fxRates.fetchedAt).toLocaleString()}
+                      {formatEstDateTime(fxRates.fetchedAt)}
                     </p>
                   </div>
                 ) : null}

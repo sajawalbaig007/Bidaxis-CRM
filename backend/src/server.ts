@@ -10,6 +10,7 @@ import app          from "./app";
 import prisma       from "./config/db";
 import cloudinary   from "./config/cloudinary";
 import { initChatSocket } from "./chat/chatSocket";
+import { addEstDays, estDateYmd, estDayBoundsUtc } from "./utils/estTime";
 
 const PORT = process.env.PORT || 5000;
 
@@ -53,12 +54,10 @@ setInterval(async () => {
 ═══════════════════════════════════════════════ */
 async function generateDailyReport() {
   try {
-    const now       = new Date();
-    const yesterday = new Date(now);
-    yesterday.setDate(now.getDate() - 1);
-    yesterday.setHours(0, 0, 0, 0);
-    const endOfYesterday = new Date(yesterday);
-    endOfYesterday.setHours(23, 59, 59, 999);
+    const ymd = addEstDays(estDateYmd(), -1);
+    const bounds = estDayBoundsUtc(ymd);
+    const yesterday = bounds?.start ?? new Date();
+    const endOfYesterday = bounds?.end ?? new Date();
 
     const leads = await prisma.lead.findMany({
       where:   { createdAt: { gte: yesterday, lte: endOfYesterday } },
@@ -66,11 +65,11 @@ async function generateDailyReport() {
     });
 
     if (leads.length === 0) {
-      console.log(`[Auto Report] ${yesterday.toDateString()} — No leads, skipping`);
+      console.log(`[Auto Report] ${ymd} EST — No leads, skipping`);
       return;
     }
 
-    const dateLabel = yesterday.toISOString().split("T")[0];
+    const dateLabel = ymd;
     const csrMap    = new Map<string, { name: string; total: number; completed: number; pending: number }>();
 
     leads.forEach(l => {
@@ -215,7 +214,7 @@ export async function runWeeklyShuffle() {
     /* Save report */
     try {
       const admin     = await prisma.user.findFirst({ where: { role: "admin" } });
-      const dateLabel = new Date().toISOString().split("T")[0];
+      const dateLabel = estDateYmd();
       const buf       = Buffer.from(JSON.stringify({ type:"shuffle", date:dateLabel, shuffled, deleted, csrs: csrs.map(c => c.name) }, null, 2));
 
       const url = await new Promise<string>((resolve, reject) => {

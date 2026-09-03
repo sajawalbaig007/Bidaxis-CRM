@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { LogIn, LogOut, Loader2, Pause, Play } from "lucide-react";
 import toast from "react-hot-toast";
 import API, { apiErrorMessage, getApiBase, getClientAuthToken } from "@/lib/api";
+import { formatEstCheckInLabel } from "@/lib/estTime";
 
 type WorkSession = {
   id: string;
@@ -40,25 +41,7 @@ function formatDurationMs(ms: number): string {
 }
 
 function formatCheckInLabel(iso: string): string {
-  try {
-    const d = new Date(iso);
-    const now = new Date();
-    const sameDay =
-      d.getFullYear() === now.getFullYear() &&
-      d.getMonth() === now.getMonth() &&
-      d.getDate() === now.getDate();
-    if (sameDay) {
-      return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-    }
-    return d.toLocaleString([], {
-      month: "short",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  } catch {
-    return "";
-  }
+  return formatEstCheckInLabel(iso);
 }
 
 function postKeepalive(path: "/csr/pause" | "/csr/resume") {

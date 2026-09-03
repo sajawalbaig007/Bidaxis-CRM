@@ -1,7 +1,7 @@
-/** CSR live check-in labels stay Eastern. Admin session reports display Pakistan time. */
+/** BEM Solutions dashboards — Eastern Time for clocks, dates, and session reports. */
 export const CSR_REPORT_TIMEZONE = "America/New_York";
-export const ADMIN_SESSION_TIMEZONE = "Asia/Karachi";
-export const ADMIN_SESSION_TZ_LABEL = "Pakistan Time (PKT)";
+export const ADMIN_SESSION_TIMEZONE = "America/New_York";
+export const ADMIN_SESSION_TZ_LABEL = "Eastern Time (ET)";
 
 function offsetFallback(timeZone: string) {
   if (timeZone === "Asia/Karachi") return "GMT+5";

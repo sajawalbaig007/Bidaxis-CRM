@@ -11,6 +11,7 @@ import toast, { Toaster } from "react-hot-toast";
 import { StaffSidebar } from "@/app/hooks/useStaffSidebar";
 import DashboardNavbar from "../components/layout/Navbar";
 import API from "@/lib/api";
+import { formatEstDayMonth } from "@/lib/estTime";
 import { binCategory, binReasonLabel } from "@/app/csr/hooks/useBinData";
 import { CSR_THEAD } from "@/app/csr/components/shared/csrTableStyles";
 import StateFilterDropdown from "@/app/csr/components/shared/StateFilterDropdown";
@@ -275,7 +276,7 @@ export default function AdminBinPage() {
                       </td>
                       <td className="py-3.5 px-2">
                         <span className="text-xs text-gray-400">
-                          {lead.updatedAt ? new Date(lead.updatedAt).toLocaleDateString("en-GB", { day:"2-digit", month:"short" }) : "—"}
+                          {lead.updatedAt ? formatEstDayMonth(lead.updatedAt) : "—"}
                         </span>
                       </td>
                       <td className="py-3.5 px-2">

@@ -19,6 +19,7 @@ import { matchesStateLocationFilter, matchesPhoneAreaCodeFilter } from "@/lib/st
 import SubContactsCell from "@/app/components/clients/SubContactsCell";
 import CapsuleTabs, { type CapsuleTabItem } from "@/app/components/CapsuleTabs";
 import API from "@/lib/api";
+import { formatEstDayMonth } from "@/lib/estTime";
 
 const PAGE_SIZE = 30;
 type TabKey = "all" | "notpicked" | "notinterested" | "deleted" | "inhouse" | "noowner" | "notinservice";
@@ -260,7 +261,7 @@ export default function CSRBinPage() {
                     <td className="py-4 px-2">
                       <span className="text-xs text-gray-400">
                         {lead.updatedAt
-                          ? new Date(lead.updatedAt).toLocaleDateString("en-GB", { day:"2-digit", month:"short" })
+                          ? formatEstDayMonth(lead.updatedAt)
                           : "—"}
                       </span>
                     </td>

@@ -46,9 +46,10 @@ import {
 import { applyStaffPayrollToIncomeData } from "../utils/loadStaffPayroll";
 import { collapsePfNameBuckets, pfHasLongerCanonical } from "../utils/pfNameAlias";
 import { loadMergedNamePairs, resolveMergedName } from "../utils/employeeNameMerge";
+import { estDateYmd } from "../utils/estTime";
 
 function todayIsoDate(): string {
-  return new Date().toISOString().slice(0, 10);
+  return estDateYmd();
 }
 
 /** Full income-statement pipeline: sales-lead split → technical sync → executive commission. */

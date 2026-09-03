@@ -1,3 +1,5 @@
+import { estCurrentMonthValue, estCurrentYear, estNowYmd } from "@/lib/estTime";
+
 export type AccountsPeriodPreset =
   | "all_time"
   | "daily"
@@ -21,12 +23,11 @@ export const PERIOD_PRESET_LABELS: Record<"all_time" | "daily" | "month" | "date
 export const QUICK_PERIOD_PRESETS = ["all_time", "daily", "month", "date_range"] as const;
 
 export function currentYear(): number {
-  return new Date().getFullYear();
+  return estCurrentYear();
 }
 
 export function currentMonthValue(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  return estCurrentMonthValue();
 }
 
 function lastDayOfMonth(year: number, month: number): number {
@@ -80,7 +81,7 @@ export function formatPeriodSummary(
 ): string {
   const normalized = normalizePeriodPreset(preset);
   if (normalized === "all_time") {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = estNowYmd();
     return `All Time · through ${today}`;
   }
   if (normalized === "daily") {

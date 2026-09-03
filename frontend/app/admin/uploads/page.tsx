@@ -16,6 +16,7 @@ import UploadFilePreview, { type PreviewRow, type PreviewSummary } from "../comp
 import UploadActionBento from "../components/uploads/UploadActionBento";
 import UploadAnalyticsBento from "../components/uploads/UploadAnalyticsBento";
 import API, { apiErrorMessage } from "@/lib/api";
+import { formatEstDate, formatEstDateTime } from "@/lib/estTime";
 import { CSR_THEAD } from "@/app/csr/components/shared/csrTableStyles";
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Legend,
@@ -2066,7 +2067,7 @@ export default function UploadPage() {
                               )}
                               {u.companyName && <span>· {u.companyName}</span>}
                               <span>· {u.linkedLeads} contacts in DB</span>
-                              <span>· {new Date(u.createdAt).toLocaleString()}</span>
+                              <span>· {formatEstDateTime(u.createdAt)}</span>
                             </div>
                           </div>
                         </div>
@@ -2539,7 +2540,7 @@ export default function UploadPage() {
                       <div key={u.id} className="flex items-center justify-between text-xs bg-[#FAFAFA] rounded-xl px-3 py-2">
                         <span className="font-medium text-gray-700 truncate flex-1">{u.fileName}</span>
                         <span className="text-gray-400 shrink-0 ml-2">{u.totalLeads} leads</span>
-                        <span className="text-gray-300 shrink-0 ml-2">{new Date(u.createdAt).toLocaleDateString()}</span>
+                        <span className="text-gray-300 shrink-0 ml-2">{formatEstDate(u.createdAt)}</span>
                       </div>
                     ))}
                   </div>

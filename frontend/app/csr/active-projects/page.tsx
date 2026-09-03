@@ -36,6 +36,7 @@ import { useProjectsData, Project, parseBudget, isDeadlinePast } from "../hooks/
 import { NoteEntry } from "../hooks/useLeadsData";
 import { useClientPhoneLookup } from "../hooks/useClientPhoneLookup";
 import API from "@/lib/api";
+import { estNowYmd } from "@/lib/estTime";
 
 import { ProjectWorkbenchData, emptyWorkbench } from "@/lib/projectFields";
 
@@ -198,7 +199,7 @@ export default function CSRProjectsPage() {
   const totalPages     = Math.max(1, Math.ceil(filteredProjects.length / PAGE_SIZE));
   const paginated      = filteredProjects.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
   const allTimeSales   = useMemo(() => projects.reduce((s, p) => s + p.budgetNum, 0), [projects]);
-  const todayStr       = new Date().toISOString().split("T")[0];
+  const todayStr       = estNowYmd();
   const todaySales     = useMemo(() => projects.filter(p => p.closedAt === todayStr).reduce((s, p) => s + p.budgetNum, 0), [projects, todayStr]);
   const inProgressCnt  = useMemo(() => projects.filter(p => p.status === "In Progress").length, [projects]);
   const completedCnt   = useMemo(() => projects.filter(p => p.status === "Completed").length,   [projects]);
@@ -368,7 +369,7 @@ export default function CSRProjectsPage() {
         service:       addForm.service,
         timezone:      "N/A",
         phone:         addForm.clientPhone.trim() || "N/A",
-        closedAt:      new Date().toISOString().split("T")[0],
+        closedAt:      estNowYmd(),
         clientCode:    null,
         noteHistory:   [],
       };

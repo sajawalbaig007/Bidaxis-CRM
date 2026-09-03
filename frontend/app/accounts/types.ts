@@ -1,5 +1,6 @@
 import type { EmployeeSalaryDetail } from "./utils/payrollFormula";
 import type { SalesPayrollEmployee } from "./utils/salesPayrollFormula";
+import { estMonthStartYmd, estNowYmd } from "@/lib/estTime";
 
 export type AccountsPageKey =
   | "dashboard"
@@ -234,12 +235,11 @@ export function isLocalPaymentTab(tab: CurrencyTabKey): boolean {
 }
 
 export function todayIso(): string {
-  return new Date().toISOString().slice(0, 10);
+  return estNowYmd();
 }
 
 export function monthStartIso(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
+  return estMonthStartYmd();
 }
 
 export function newRowId(prefix = "row"): string {

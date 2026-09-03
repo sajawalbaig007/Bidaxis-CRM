@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { csrProjectsApi } from "@/lib/csrApiCache";
+import { estNowYmd } from "@/lib/estTime";
 import { useOnCsrDataReset } from "./useOnCsrDataReset";
 import { parsePayments, paidTotal, paymentPercent } from "@/lib/projectFields";
 import type { ProjectPayment } from "@/lib/projectFields";
@@ -98,7 +99,7 @@ export const parseBudget = (raw: string | number | null | undefined): number => 
 
 export const isDeadlinePast = (deadline: string): boolean => {
   if (!deadline || deadline === "N/A") return false;
-  return deadline < new Date().toISOString().split("T")[0];
+  return deadline < estNowYmd();
 };
 
 function mapProject(lead: RawLead): Project {

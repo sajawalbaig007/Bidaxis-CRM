@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { Cell, Pie, PieChart, Bar, BarChart, CartesianGrid, Tooltip, XAxis, YAxis } from "recharts";
 import API, { apiErrorMessage } from "@/lib/api";
+import { formatEstDateShort } from "@/lib/estTime";
 import { peekAuthMe } from "@/lib/authMeCache";
 import { StaffSidebar } from "@/app/hooks/useStaffSidebar";
 import DashboardNavbar from "@/app/admin/components/layout/Navbar";
@@ -49,7 +50,7 @@ function formatPaymentDate(iso: string | null | undefined): string {
   if (!iso) return "—";
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso.slice(0, 10);
-  return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+  return formatEstDateShort(d);
 }
 
 /** Accounts receive month (YYYY-MM) — separate from payment paidAt. */

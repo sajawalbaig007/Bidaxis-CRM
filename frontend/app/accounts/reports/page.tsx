@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import API, { apiErrorMessage } from "@/lib/api";
+import { estCurrentMonthValue, formatEstDateTime } from "@/lib/estTime";
 import AccountsSidebar from "../components/layout/Sidebar";
 import { ACCOUNTS_MAIN_OFFSET } from "../components/layout/headerOffset";
 import AccountsChartCard, { CHART_COLORS } from "../components/AccountsChartCard";
@@ -165,7 +166,7 @@ type SavedMonthlyReport = {
 };
 
 function currentMonthIso(): string {
-  return new Date().toISOString().slice(0, 7);
+  return estCurrentMonthValue();
 }
 
 function monthLabel(m: string): string {
@@ -303,7 +304,7 @@ function buildWordHtml(report: MonthlyReport): string {
       </td>
     </tr>`;
   };
-// Financial performance bars
+// Financial performance bar
   const maxNet = Math.max(...report.history.map(h => Math.abs(h.net)), 1);
   const netTrendBars = report.history
     .map(h =>
@@ -501,7 +502,7 @@ function buildWordHtml(report: MonthlyReport): string {
     })
     .join("");
 
-  const generatedAt = new Date().toLocaleString("en-GB");
+  const generatedAt = formatEstDateTime(new Date());
   const bc = report.budgetCompare;
   const budgetRowHtml = (bc?.rows ?? [])
     .map(r => {
@@ -1195,7 +1196,7 @@ export default function AccountsReportsPage() {
                         <div className="min-w-0">
                           <p className="text-xs font-bold text-crm-text truncate">{s.fileName}</p>
                           <p className="text-[10px] text-crm-text-faint">
-                            {new Date(s.createdAt).toLocaleString()}
+                            {formatEstDateTime(s.createdAt)}
                             {s.sourceDate ? ` · through ${s.sourceDate}` : ""}
                           </p>
                         </div>

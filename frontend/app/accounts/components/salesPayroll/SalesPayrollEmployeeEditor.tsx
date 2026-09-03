@@ -474,7 +474,7 @@ export default function SalesPayrollEmployeeEditor({
 
           {/* Late */}
           <div className="rounded-xl border border-amber-100 bg-amber-50/40 p-3 space-y-2">
-            <p className="text-[11px] font-extrabold uppercase text-amber-900">Late Arrival (6 PM PKT)</p>
+            <p className="text-[11px] font-extrabold uppercase text-amber-900">Late Arrival (6 PM EST)</p>
             <div className="text-[10px] text-amber-800 space-y-0.5">
               <p>≤18:15 none · 18:15–18:30 ⅕ day · 18:30–19:00 ¼ · 19:00–20:00 ⅓ · 20:00+ half</p>
             </div>

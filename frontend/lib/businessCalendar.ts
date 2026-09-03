@@ -1,7 +1,7 @@
-/** Mirrors backend business day — rolls at 4:00 AM Asia/Karachi */
+/** Mirrors backend business day — rolls at 12:00 AM (midnight) Eastern (BEM Solutions). */
 
-export const BUSINESS_TIMEZONE = "Asia/Karachi";
-export const BUSINESS_DAY_START_HOUR = 4;
+export const BUSINESS_TIMEZONE = "America/New_York";
+export const BUSINESS_DAY_START_HOUR = 0;
 
 function hourInTz(date: Date): number {
   return Number(

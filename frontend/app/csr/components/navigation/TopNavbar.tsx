@@ -22,6 +22,7 @@ import {
   X,
 } from "lucide-react";
 import API from "@/lib/api";
+import { estNowYmd, formatEstScheduleLabel } from "@/lib/estTime";
 import { dismissNotification, getDismissedNotificationIds, clearDismissedNotifications } from "@/lib/notificationDismiss";
 import { logoutSession } from "@/lib/session";
 import { getAuthMe, peekAuthMe } from "@/lib/authMeCache";
@@ -82,7 +83,7 @@ type NotificationsPayload = {
   dailyStats: DailyStats;
 };
 
-const TODAY = new Date().toISOString().split("T")[0];
+const TODAY = estNowYmd();
 
 let _cachedUser: UserInfo | null = null;
 let _cachedNotifications: NotificationsPayload = {
@@ -93,13 +94,7 @@ let _lastFetch = 0;
 const NAV_CACHE_TTL = 60_000;
 
 function labelDate(d: string) {
-  const tmr = new Date(Date.now() + 86_400_000).toISOString().split("T")[0];
-  if (d === TODAY) return "Today";
-  if (d === tmr) return "Tomorrow";
-  return new Date(d).toLocaleDateString("en-GB", {
-    day: "2-digit",
-    month: "short",
-  });
+  return formatEstScheduleLabel(d);
 }
 
 export default function TopNavbar() {

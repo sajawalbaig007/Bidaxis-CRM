@@ -6,7 +6,7 @@ import { userBrowserMap, detectBrowser } from "../utils/sessions";
 import { recordHeartbeatAccess } from "../utils/accessHistory";
 import { tickCsrWorkSession, checkInCsrWorkSession, checkOutCsrWorkSession, getCsrWorkSessionStatus, pauseCsrWorkSession, resumeCsrWorkSession } from "../utils/csrSessionTracking";
 import { getClientIp, getUserAgent } from "../utils/requestMeta";
-import { formatEstDateTime } from "../utils/estTime";
+import { estDateYmd, formatEstDateTime } from "../utils/estTime";
 import { getCache, setCache, invalidateCache, flushAdminClientsCache, shouldSkipThrottledHeal, markThrottledHeal } from "../utils/cache";
 import { invalidateCsrLeadCaches } from "../utils/csrCache";
 import { normalizePhone } from "../utils/phone";
@@ -118,7 +118,7 @@ router.get("/activity-report", verifyToken, allowRoles("csr"), async (req: any, 
   try {
     const csrId  = req.user.id;
     const period = String(req.query.period ?? "day");
-    const date   = String(req.query.date   ?? new Date().toISOString().split("T")[0]);
+    const date   = String(req.query.date   ?? estDateYmd());
 
     if (!["day", "week", "month"].includes(period)) {
       return res.status(400).json({ success: false, message: "Invalid period. Use day, week, or month." });
@@ -169,7 +169,7 @@ router.get("/notifications", verifyToken, allowRoles("csr"), async (req: any, re
   try {
     const csrId = req.user.id;
     const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
-    const today = new Date().toISOString().split("T")[0];
+    const today = estDateYmd();
 
     const [scheduledLeads, grouped] = await Promise.all([
       prisma.lead.findMany({

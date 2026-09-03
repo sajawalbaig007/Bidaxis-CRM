@@ -485,7 +485,7 @@ export async function buildAdminClientSummaryPayload() {
     })),
     chartSeries,
     businessDay: {
-      timezone: process.env.BUSINESS_TIMEZONE?.trim() || "Asia/Karachi",
+      timezone: process.env.BUSINESS_TIMEZONE?.trim() || "America/New_York",
       startHour: Number(process.env.BUSINESS_DAY_START_HOUR ?? 4),
       currentBusinessDate: currentBusinessYmd(),
     },

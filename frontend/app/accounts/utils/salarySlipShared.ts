@@ -68,7 +68,7 @@ export function formatSlipSignedAt(iso?: string): string {
   const d = iso ? new Date(iso) : new Date();
   if (Number.isNaN(d.getTime())) return "";
   return d.toLocaleString("en-GB", {
-    timeZone: "Asia/Karachi",
+    timeZone: "America/New_York",
     day: "2-digit",
     month: "short",
     year: "numeric",
