@@ -2,7 +2,6 @@ import { Dispatch, SetStateAction } from "react";
 import API from "@/lib/api";
 import { invalidateAllCsrListCaches } from "@/lib/csrApiCache";
 import { invalidateCsrTabCaches } from "@/lib/csrTabApiCache";
-import { bumpToFront } from "@/lib/bumpToFront";
 import { Lead } from "../types/lead";
 import { NoteEntry } from "./useLeadsData";
 import { normStatus } from "../constants/leadStatuses";
@@ -101,7 +100,8 @@ export function useLeadActions(setLeads: Dispatch<SetStateAction<Lead[]>>) {
       createdAt: new Date().toISOString(),
       parentId: parentId || null,
     };
-    setLeads(prev => bumpToFront(prev, id, (l) => {
+    setLeads(prev => prev.map(l => {
+      if (l.id !== id) return l;
       const hist = l.noteHistory ?? [];
       let nextHistory: NoteEntry[];
       if (parentId) {
@@ -134,7 +134,8 @@ export function useLeadActions(setLeads: Dispatch<SetStateAction<Lead[]>>) {
           }
         : { id: Date.now().toString(), text, createdAt: new Date().toISOString(), parentId: parentId || null };
 
-      setLeads(prev => bumpToFront(prev, id, (l) => {
+      setLeads(prev => prev.map(l => {
+        if (l.id !== id) return l;
         const hist = l.noteHistory ?? [];
         if (parentId) {
           return {
@@ -232,7 +233,8 @@ export function useLeadActions(setLeads: Dispatch<SetStateAction<Lead[]>>) {
   ) => {
     const at = createdAt ?? new Date().toISOString();
     setLeads((prev) =>
-      bumpToFront(prev, leadId, (l) => {
+      prev.map((l) => {
+        if (l.id !== leadId) return l;
         const patchDeep = (notes: NoteEntry[]): NoteEntry[] =>
           notes.map((n) => {
             if (n.id === noteId) return { ...n, text, createdAt: at };
