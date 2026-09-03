@@ -256,6 +256,7 @@ function ClientsPageContent() {
   };
 
   const [newClient, setNewClient] = useState<Client>(emptyClient);
+  const [addCsrId, setAddCsrId] = useState("");
 
   const [tabCounts, setTabCounts] = useState({
     all: 0, important: 0, schedule: 0, interested: 0, closed: 0,
@@ -497,16 +498,35 @@ function ClientsPageContent() {
       toast.success("Client updated successfully.");
     } else {
       try {
+        const uiStatus = (newClient.status || "Pending").toLowerCase();
+        const status =
+          uiStatus === "closed" ? "Close Client" :
+          uiStatus === "interested" ? "interested" :
+          uiStatus === "active" ? "pending" :
+          "pending";
+        const matchedCsr = addCsrId || csrOptions.find(
+          c => c.name.trim().toLowerCase() === newClient.csr.trim().toLowerCase(),
+        )?.id;
         const res = await API.post("/admin/lead", {
           name:    newClient.clientName.trim(),
           email:   newClient.email.trim(),
           phone:   newClient.contact.trim() || undefined,
           company: newClient.company.trim(),
-          status:  "pending",
+          status,
+          csrId: matchedCsr || undefined,
+          interestedService: newClient.scope.trim() || undefined,
+          comments: newClient.lastComment.trim() || undefined,
         });
         const created = formatAdminLead(res.data.lead);
         setClients((prev) => [created, ...prev]);
         toast.success("Client added successfully.");
+        if (status === "Close Client") {
+          setView("closed");
+          router.replace(`${staffBase}/leads?tab=closed`);
+        } else if (status === "interested") {
+          setView("interested");
+          router.replace(`${staffBase}/leads?tab=interested`);
+        }
         setRefreshToken(t => t + 1);
       } catch (err) {
         toast.error(apiErrorMessage(err, "Failed to add client."));
@@ -516,6 +536,7 @@ function ClientsPageContent() {
     setShowAddModal(false);
     setIsEditing(false);
     setNewClient(emptyClient);
+    setAddCsrId("");
   };
 
   const handleDeleteClient = async () => {
@@ -724,6 +745,7 @@ function ClientsPageContent() {
                   setShowAddModal(true);
                   setIsEditing(false);
                   setNewClient(emptyClient);
+                  setAddCsrId("");
                 }}
                 className="w-full lg:w-auto flex items-center justify-center gap-2 bg-[#B8112D] text-white px-4 sm:px-5 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl text-sm font-medium shadow-sm hover:bg-[#a30f27] transition-all"
               >
@@ -1381,7 +1403,6 @@ function ClientsPageContent() {
                 {[
                   { label: "Email Address", key: "email", type: "email", placeholder: "Email address", req: true },
                   { label: "Contact Number", key: "contact", type: "tel", placeholder: "Phone number", req: false },
-                  { label: "CSR", key: "csr", type: "text", placeholder: "CSR name", req: false },
                 ].map((f) => (
                   <div key={f.key}>
                     <label className="text-xs sm:text-sm text-gray-500 mb-1.5 sm:mb-2 block">
@@ -1399,6 +1420,25 @@ function ClientsPageContent() {
                     />
                   </div>
                 ))}
+
+                <div>
+                  <label className="text-xs sm:text-sm text-gray-500 mb-1.5 sm:mb-2 block">CSR</label>
+                  <select
+                    value={addCsrId}
+                    onChange={e => {
+                      const id = e.target.value;
+                      setAddCsrId(id);
+                      const name = csrOptions.find(c => c.id === id)?.name ?? "";
+                      setNewClient({ ...newClient, csr: name });
+                    }}
+                    className="w-full border border-gray-200 rounded-xl sm:rounded-2xl px-3 sm:px-4 py-2.5 sm:py-3 text-sm outline-none focus:border-[#B8112D] bg-white"
+                  >
+                    <option value="">Unassigned</option>
+                    {csrOptions.map(c => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+                </div>
 
                 <div>
                   <label className="text-xs sm:text-sm text-gray-500 mb-1.5 sm:mb-2 block">Status</label>

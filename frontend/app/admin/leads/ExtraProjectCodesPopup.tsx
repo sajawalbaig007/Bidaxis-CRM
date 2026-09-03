@@ -11,8 +11,10 @@ export type ExtraProjectItem = {
 
 export default function ExtraProjectCodesPopup({
   extras,
+  title = "Other projects",
 }: {
   extras: ExtraProjectItem[];
+  title?: string;
 }) {
   const { open, toggle, setOpen, anchorRef, panelRef, style } = useFixedPopover(280, 280);
 
@@ -43,7 +45,7 @@ export default function ExtraProjectCodesPopup({
           >
             <div className="flex items-center justify-between px-3 py-2 border-b border-gray-100">
               <p className="text-[11px] font-bold text-gray-700 uppercase tracking-wide">
-                Other projects ({extras.length})
+                {title} ({extras.length})
               </p>
               <button type="button" onClick={() => setOpen(false)} className="text-gray-400 hover:text-gray-700">
                 <X size={14} />

@@ -194,27 +194,18 @@ async function reconcileClientOldFlagsForCsr(csrId) {
         groups.get(key).push(lead);
     }
     for (const group of groups.values()) {
+        const shouldBeOld = group.length >= 2 ||
+            group.some(l => l.isOldClient) ||
+            group.some(l => l.uploadFile?.uploadCategory === "old-client");
         for (const lead of group) {
             const locked = uploadCategoryOldFlag(lead.uploadFile?.uploadCategory);
-            if (locked !== undefined && lead.isOldClient !== locked) {
+            const next = group.length >= 2 ? true : locked !== undefined ? locked : shouldBeOld;
+            if (lead.isOldClient !== next) {
                 await db_1.default.lead.update({
                     where: { id: lead.id },
-                    data: { isOldClient: locked },
+                    data: { isOldClient: next },
                 });
             }
-        }
-        const unlocked = group.filter(l => uploadCategoryOldFlag(l.uploadFile?.uploadCategory) === undefined);
-        if (unlocked.length === 0)
-            continue;
-        /* Extra projects for the same client must NOT auto-promote New → Old */
-        const shouldBeOld = group.some(l => l.isOldClient) ||
-            group.some(l => l.uploadFile?.uploadCategory === "old-client");
-        const ids = unlocked.filter(l => l.isOldClient !== shouldBeOld).map(l => l.id);
-        if (ids.length > 0) {
-            await db_1.default.lead.updateMany({
-                where: { id: { in: ids } },
-                data: { isOldClient: shouldBeOld },
-            });
         }
     }
 }

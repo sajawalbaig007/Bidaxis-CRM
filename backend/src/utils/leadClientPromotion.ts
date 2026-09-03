@@ -224,30 +224,20 @@ export async function reconcileClientOldFlagsForCsr(csrId: string): Promise<void
   }
 
   for (const group of groups.values()) {
-    for (const lead of group) {
-      const locked = uploadCategoryOldFlag(lead.uploadFile?.uploadCategory);
-      if (locked !== undefined && lead.isOldClient !== locked) {
-        await prisma.lead.update({
-          where: { id: lead.id },
-          data:  { isOldClient: locked },
-        });
-      }
-    }
-
-    const unlocked = group.filter(l => uploadCategoryOldFlag(l.uploadFile?.uploadCategory) === undefined);
-    if (unlocked.length === 0) continue;
-
-    /* Extra projects for the same client must NOT auto-promote New → Old */
     const shouldBeOld =
+      group.length >= 2 ||
       group.some(l => l.isOldClient) ||
       group.some(l => l.uploadFile?.uploadCategory === "old-client");
 
-    const ids = unlocked.filter(l => l.isOldClient !== shouldBeOld).map(l => l.id);
-    if (ids.length > 0) {
-      await prisma.lead.updateMany({
-        where: { id: { in: ids } },
-        data:  { isOldClient: shouldBeOld },
-      });
+    for (const lead of group) {
+      const locked = uploadCategoryOldFlag(lead.uploadFile?.uploadCategory);
+      const next = group.length >= 2 ? true : locked !== undefined ? locked : shouldBeOld;
+      if (lead.isOldClient !== next) {
+        await prisma.lead.update({
+          where: { id: lead.id },
+          data: { isOldClient: next },
+        });
+      }
     }
   }
 }
