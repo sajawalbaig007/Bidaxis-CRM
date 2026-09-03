@@ -6,6 +6,7 @@ import { isAccountsPayrollHead } from "../utils/staffPayrollSync";
 import { invalidatePattern } from "../utils/cache";
 import {
   listPreviousEmployeeRows,
+  mergePreviousByName,
   mergePreviousEmployee,
   scanPreviousEmployees,
   unmergePreviousEmployee,
@@ -181,15 +182,10 @@ router.get("/", async (_req, res) => {
   }
 });
 
-router.get("/previous", async (req, res) => {
+router.get("/previous", async (_req, res) => {
   try {
-    const doScan = String(req.query.scan ?? "") === "1" || String(req.query.scan ?? "") === "true";
-    let scan: { upserted: number; skippedCurrent: number } | undefined;
-    if (doScan) {
-      scan = await scanPreviousEmployees();
-    }
     const previous = await listPreviousEmployeeRows();
-    return res.json({ success: true, previous, scan: scan ?? null });
+    return res.json({ success: true, previous });
   } catch (err) {
     console.error("[staff-employees] GET previous", err);
     return res.status(500).json({ success: false, message: "Failed to load previous employees" });
@@ -204,6 +200,46 @@ router.post("/previous/scan", async (_req, res) => {
   } catch (err) {
     console.error("[staff-employees] POST previous/scan", err);
     return res.status(500).json({ success: false, message: "Failed to scan previous employees" });
+  }
+});
+
+router.post("/previous/merge-pair", async (req: AuthRequest, res) => {
+  try {
+    const previousName = strOrNull(req.body?.previousName) || "";
+    const currentStaffId = strOrNull(req.body?.currentStaffId);
+    const currentUserId = strOrNull(req.body?.currentUserId);
+    let currentName = strOrNull(req.body?.currentName) || "";
+
+    if (currentStaffId) {
+      const employees = await listEnriched();
+      const hit = employees.find(e => e.id === currentStaffId);
+      if (!hit) return res.status(404).json({ success: false, message: "Current employee not found." });
+      currentName = hit.name;
+    } else if (currentUserId && !currentName) {
+      const u = await prisma.user.findUnique({ where: { id: currentUserId }, select: { name: true } });
+      if (!u) return res.status(404).json({ success: false, message: "User not found." });
+      currentName = u.name;
+    }
+
+    if (!previousName) {
+      return res.status(400).json({ success: false, message: "Select a previous name." });
+    }
+    if (!currentName) {
+      return res.status(400).json({ success: false, message: "Select a current employee to merge into." });
+    }
+
+    const row = await mergePreviousByName(previousName, {
+      currentName,
+      currentStaffId,
+      currentUserId,
+    });
+    if (!row) return res.status(404).json({ success: false, message: "Previous employee not found." });
+    const previous = await listPreviousEmployeeRows();
+    return res.json({ success: true, row, previous });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Failed to merge employee";
+    console.error("[staff-employees] POST previous/merge-pair", err);
+    return res.status(400).json({ success: false, message: msg });
   }
 });
 
