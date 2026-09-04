@@ -522,8 +522,7 @@ export default function AccountsDashboardPage() {
           subtitle="Live totals · filter by period · currency formula uses each month’s final rates."
           inlineTitle
           hideFileActions
-        >
-          <div className="flex justify-end mb-3">
+          headerActions={
             <button
               type="button"
               onClick={() => setFormulaBookOpen(true)}
@@ -533,8 +532,8 @@ export default function AccountsDashboardPage() {
               <Sigma size={15} className="text-[#B8112D]" />
               All Formulas
             </button>
-          </div>
-
+          }
+        >
           <section className="rounded-2xl border border-gray-100 dark:border-crm-border bg-crm-surface p-4 sm:p-5">
             <div className="flex flex-col lg:flex-row lg:items-end gap-4 lg:gap-8">
               <div className="min-w-0 flex-1">
