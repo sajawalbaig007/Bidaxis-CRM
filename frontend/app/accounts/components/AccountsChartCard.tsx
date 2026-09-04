@@ -23,14 +23,14 @@ export default function AccountsChartCard({
 }: AccountsChartCardProps) {
   return (
     <div
-      className={`relative overflow-hidden ${BENTO_CARD} ${className}`}
+      className={`relative overflow-hidden flex flex-col ${BENTO_CARD} ${className}`}
     >
       <div
         className="absolute inset-x-0 top-0 h-1 opacity-90"
         style={{ background: `linear-gradient(90deg, ${accent}, ${accent}55, transparent)` }}
       />
       <div className="absolute -right-10 -top-10 w-36 h-36 rounded-full opacity-[0.07] dark:opacity-[0.12]" style={{ background: accent }} />
-      <div className="relative px-4 sm:px-5 pt-4 pb-2 flex items-start gap-2.5">
+      <div className="relative px-4 sm:px-5 pt-4 pb-2 flex items-start gap-2.5 shrink-0">
         {icon && (
           <span
             className="w-9 h-9 rounded-xl inline-flex items-center justify-center shrink-0"
@@ -44,7 +44,7 @@ export default function AccountsChartCard({
           {subtitle && <p className="text-[11px] text-crm-text-faint mt-0.5 leading-snug">{subtitle}</p>}
         </div>
       </div>
-      <div className="relative px-2 sm:px-3 pb-4">{children}</div>
+      <div className="relative px-2 sm:px-3 pb-4 flex-1 min-h-0">{children}</div>
     </div>
   );
 }

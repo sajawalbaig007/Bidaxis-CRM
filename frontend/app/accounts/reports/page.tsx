@@ -362,11 +362,8 @@ function buildWordHtml(report: MonthlyReport): string {
 
   const RED = "#B8112D";
   const NAVY = "#0B1220";
-  const GREEN = "#059669";
-  const GREEN_D = "#027A48";
-  const RED_TXT = "#DC2626";
+  const RED_TXT = "#B8112D";
   const BLUE = "#0B84F3";
-  const VIOLET = "#0B1220";
   const SLATE = "#334155";
 
   const th = `style="background:${NAVY};color:#fff;padding:6px 8px;font-size:10px;"`;
@@ -384,23 +381,34 @@ function buildWordHtml(report: MonthlyReport): string {
     `<td style="padding:4px 8px;border:1px solid #E2E8F0;text-align:center;background:${bg};"><b style="color:${color};font-size:8.5px;letter-spacing:0.5px;">${text.toUpperCase()}</b></td>`;
 
   const profitCell = (v: number) =>
-    v >= 0 ? statusCell("Profit", "#D1FADF", GREEN_D) : statusCell("Loss", "#FEE4E2", RED_TXT);
+    v >= 0 ? statusCell("Profit", "#EFF6FF", BLUE) : statusCell("Loss", "#FFF1F3", RED);
 
   const trendArrow = (v: number | null, goodWhenUp: boolean) => {
     if (v == null) return `<span style="color:#94A3B8;font-size:9px;">—</span>`;
     const up = v >= 0;
     const good = goodWhenUp ? up : !up;
-    const color = good ? GREEN_D : RED_TXT;
+    const color = good ? BLUE : RED;
     return `<span style="color:${color};font-size:9px;font-weight:bold;">${up ? "▲" : "▼"} ${signed(v)}</span>`;
   };
 
-  const card = (title: string, value: string, subTxt: string, bg: string, width = "20%") =>
-    `<td width="${width}" style="padding:6px;">
-      <table width="100%" cellpadding="0" cellspacing="0" style="background:${bg};border-radius:8px;">
+  const card = (title: string, value: string, subTxt: string, bg = "#FFFFFF", width = "20%") =>
+    `<td width="${width}" style="padding:5px;">
+      <table width="100%" cellpadding="0" cellspacing="0" style="background:${bg};border:1px solid #E5E7EB;border-radius:10px;">
         <tr><td style="padding:12px 14px;">
-          <p style="margin:0;font-size:9px;color:#64748B;text-transform:uppercase;letter-spacing:0.5px;font-weight:bold;">${title}</p>
-          <p style="margin:4px 0 2px;font-size:22px;font-weight:bold;color:#0F172A;">${value}</p>
+          <p style="margin:0;font-size:9px;color:${RED};text-transform:uppercase;letter-spacing:0.5px;font-weight:bold;">${title}</p>
+          <p style="margin:4px 0 2px;font-size:18px;font-weight:bold;color:${NAVY};">${value}</p>
           <p style="margin:0;font-size:9px;color:#64748B;">${subTxt}</p>
+        </td></tr>
+      </table>
+    </td>`;
+
+  const darkCard = (title: string, value: string, subTxt: string, bg: string) =>
+    `<td width="20%" style="padding:5px;">
+      <table width="100%" cellpadding="0" cellspacing="0" style="background:${bg};border-radius:10px;">
+        <tr><td style="padding:12px 14px;">
+          <p style="margin:0;font-size:9px;color:#FFFFFF;text-transform:uppercase;letter-spacing:0.5px;font-weight:bold;">${title}</p>
+          <p style="margin:4px 0 2px;font-size:16px;font-weight:bold;color:#FFFFFF;">${value}</p>
+          <p style="margin:0;font-size:8px;color:#FFFFFF;">${subTxt}</p>
         </td></tr>
       </table>
     </td>`;
@@ -418,29 +426,6 @@ function buildWordHtml(report: MonthlyReport): string {
       </td>
     </tr>`;
   };
-// Financial performance bar
-  const maxNet = Math.max(...report.history.map(h => Math.abs(h.net)), 1);
-  const netTrendBars = report.history
-    .map(h =>
-      barRow(
-        monthShort(h.month) + (h.month === report.month ? " ●" : ""),
-        h.net,
-        maxNet,
-        h.net >= 0 ? GREEN : "#EF4444",
-        signed(h.net),
-      ),
-    )
-    .join("");
-
-  const maxRevCost = Math.max(...report.history.flatMap(h => [h.revenue, h.cost]), 1);
-  const revCostBars = report.history
-    .map(
-      h =>
-        barRow(`${monthShort(h.month)} rev`, h.revenue, maxRevCost, BLUE) +
-        barRow(`${monthShort(h.month)} cost`, h.cost, maxRevCost, "#F97066"),
-    )
-    .join("");
-
   const historyRows = report.history
     .map((h, i) => {
       const prev = i > 0 ? report.history[i - 1] : null;
@@ -449,7 +434,7 @@ function buildWordHtml(report: MonthlyReport): string {
         <td ${td}><b>${monthShort(h.month)}</b>${isThis ? ` <span style="color:${RED};font-size:8px;">● THIS</span>` : ""}</td>
         <td ${tdR}>${currency(h.revenue)}<br/>${trendArrow(prev ? h.revenue - prev.revenue : null, true)}</td>
         <td ${tdR}>${currency(h.cost)}<br/>${trendArrow(prev ? h.cost - prev.cost : null, false)}</td>
-        <td ${tdR}><b style="color:${h.net >= 0 ? GREEN_D : RED_TXT};">${signed(h.net)}</b></td>
+        <td ${tdR}><b style="color:${h.net >= 0 ? BLUE : RED_TXT};">${signed(h.net)}</b></td>
         ${profitCell(h.net)}
       </tr>`;
     })
@@ -468,7 +453,7 @@ function buildWordHtml(report: MonthlyReport): string {
         <td ${td}><b>${monthShort(h.month)}</b>${isThis ? ` <span style="color:${RED};font-size:8px;">● THIS</span>` : ""}</td>
         <td ${tdR}>${currency(h.revenue)}<br/>${trendArrow(prev ? h.revenue - prev.revenue : null, true)}</td>
         <td ${tdR}>${currency(h.cost)}<br/>${trendArrow(prev ? h.cost - prev.cost : null, false)}</td>
-        <td ${tdR}><b style="color:${h.net >= 0 ? GREEN_D : RED_TXT};">${signed(h.net)}</b></td>
+        <td ${tdR}><b style="color:${h.net >= 0 ? BLUE : RED_TXT};">${signed(h.net)}</b></td>
         ${profitCell(h.net)}
       </tr>`;
     })
@@ -480,7 +465,7 @@ function buildWordHtml(report: MonthlyReport): string {
 
   const csrStatusHtml = (status: string) => {
     if (status === "Top Performer") {
-      return `<td style="padding:5px 8px;border:1px solid #E2E8F0;text-align:center;"><b style="color:${GREEN_D};font-size:10px;">Top Performer</b></td>`;
+      return `<td style="padding:5px 8px;border:1px solid #E2E8F0;text-align:center;"><b style="color:${BLUE};font-size:10px;">Top Performer</b></td>`;
     }
     if (status === "Below Expectation") {
       return `<td style="padding:5px 8px;border:1px solid #E2E8F0;text-align:center;"><b style="color:${RED_TXT};font-size:10px;">Below Expectation</b></td>`;
@@ -498,7 +483,7 @@ function buildWordHtml(report: MonthlyReport): string {
     .join("");
   const csrBarMax = Math.max(...report.csr.rows.map(r => r.projects), 1);
   const csrBars = report.csr.rows
-    .map(r => barRow(r.name, r.projects, csrBarMax, r.projects > 0 ? GREEN : "#F97066", String(r.projects)))
+    .map(r => barRow(r.name, r.projects, csrBarMax, r.projects > 0 ? BLUE : RED, String(r.projects)))
     .join("");
 
   const salaryTableHtml = (tables: SalaryFieldTable[]) =>
@@ -518,7 +503,7 @@ function buildWordHtml(report: MonthlyReport): string {
             return `<tr>${tds}</tr>`;
           })
           .join("");
-        return `<h3 style="color:${NAVY};font-size:12px;margin:14px 0 6px;">${t.name}</h3>
+        return `<h2>${t.name} (${pkr(t.total)})</h2>
     <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
       <tr>${head}</tr>
       ${body || tdEmpty(t.columns.length, "No employees.")}
@@ -580,14 +565,45 @@ function buildWordHtml(report: MonthlyReport): string {
         <td ${td}><b>${r.name}</b></td>
         <td ${tdR}>${currency(r.budget)}</td>
         <td ${tdR}>${currency(r.actual)}</td>
-        <td ${tdR}><b style="color:${over ? RED_TXT : GREEN_D};">${signed(r.variance)}</b></td>
-        <td style="padding:4px 8px;border:1px solid #E2E8F0;text-align:center;font-size:9px;font-weight:bold;color:${over ? RED_TXT : GREEN_D};">${over ? "OVER" : r.variance < 0 ? "UNDER" : "ON PLAN"}</td>
+        <td ${tdR}><b style="color:${over ? RED_TXT : BLUE};">${signed(r.variance)}</b></td>
+        <td style="padding:4px 8px;border:1px solid #E2E8F0;text-align:center;font-size:9px;font-weight:bold;color:${over ? RED_TXT : BLUE};">${over ? "OVER" : r.variance < 0 ? "UNDER" : "ON PLAN"}</td>
       </tr>`;
     })
     .join("");
   const budgetMax = Math.max(...(bc?.rows ?? []).flatMap(r => [r.budget, r.actual]), 1);
   const budgetBars = (bc?.rows ?? [])
-    .map(r => barRow(`${r.name} plan`, r.budget, budgetMax, VIOLET) + barRow(`${r.name} actual`, r.actual, budgetMax, BLUE))
+    .map(r => barRow(`${r.name} plan`, r.budget, budgetMax, NAVY) + barRow(`${r.name} actual`, r.actual, budgetMax, BLUE))
+    .join("");
+  const chRecv = cashChannelReceived(report);
+  const mixTotal = Math.max(PIE_LEGEND.reduce((a, l) => a + chRecv[l.key], 0), 1);
+  const companyBalanceHtml = PIE_LEGEND.map(l => {
+    const v = chRecv[l.key];
+    const pct = Math.max(0, Math.min(100, Math.round((v / mixTotal) * 100)));
+    return `<tr>
+      <td style="padding:5px 6px;font-size:10px;width:18px;"><table cellpadding="0" cellspacing="0"><tr><td width="10" height="10" bgcolor="${PIE_COLORS[l.key]}" style="font-size:1px;">&nbsp;</td></tr></table></td>
+      <td style="padding:5px 6px;font-size:10px;color:${NAVY};"><b>${l.key}</b> · ${l.name}</td>
+      <td style="padding:5px 6px;font-size:10px;text-align:right;font-weight:bold;color:${NAVY};">${pkr(v)}</td>
+    </tr>
+    <tr>
+      <td colspan="3" style="padding:0 6px 8px;">
+        <table width="100%" cellpadding="0" cellspacing="0"><tr>
+          <td width="${pct}%" bgcolor="${PIE_COLORS[l.key]}" style="height:9px;font-size:1px;">&nbsp;</td>
+          <td width="${100 - pct}%" bgcolor="#F1F5F9" style="height:9px;font-size:1px;">&nbsp;</td>
+        </tr></table>
+      </td>
+    </tr>`;
+  }).join("");
+  const hist3NetMax = Math.max(...hist3.map(h => Math.abs(h.net)), 1);
+  const hist3Bars = hist3
+    .map(h =>
+      barRow(monthShort(h.month) + (h.month === report.month ? " ●" : ""), h.net, hist3NetMax, h.net >= 0 ? BLUE : RED, signed(h.net)),
+    )
+    .join("");
+  const hist6NetMax = Math.max(...report.history.map(h => Math.abs(h.net)), 1);
+  const hist6Bars = report.history
+    .map(h =>
+      barRow(monthShort(h.month) + (h.month === report.month ? " ●" : ""), h.net, hist6NetMax, h.net >= 0 ? BLUE : RED, signed(h.net)),
+    )
     .join("");
 
   return `<!DOCTYPE html>
@@ -605,12 +621,65 @@ function buildWordHtml(report: MonthlyReport): string {
   <p class="meta">Accounts Team · ${label} · Generated ${generatedAt} · BEM Solutions CRM</p>
 
   <table width="100%" cellpadding="0" cellspacing="0"><tr>
-    ${card("Targeted Revenue", pkr(bc?.totals.budgetRevenue ?? 0), bc?.hasBudget ? "Income Statement budget" : "No budget plan saved", "#F5F3FF")}
-    ${card("Actual Revenue", pkr(report.totals.revenue), ins.revenueVsPrev != null ? `${signed(ins.revenueVsPrev)} vs prev month` : "Month collections", "#EFF6FF")}
-    ${card("Total cost", pkr(report.totals.totalCost), report.sourceDate ? `Matches IS Total Expense · ${report.sourceDate}` : ins.costVsPrev != null ? `${signed(ins.costVsPrev)} vs prev month` : `Payroll ${pkr(report.totals.payroll)}`, "#FFF1F3")}
-    ${card("Profit / Loss", signed(net), ins.profitNote, net >= 0 ? "#ECFDF5" : "#FFF7ED")}
-    ${card("Net balance", pkr(report.cash.closingNet), report.cash.asOf ? `As of ${report.cash.asOf}` : "Closing cash position", "#F0FDFA")}
+    ${card("Targeted Revenue", pkr(bc?.totals.budgetRevenue ?? 0), bc?.hasBudget ? "Income Statement budget" : "No budget plan saved")}
+    ${card("Actual Revenue", pkr(report.totals.revenue), ins.revenueVsPrev != null ? `${signed(ins.revenueVsPrev)} vs prev month` : "Month collections")}
+    ${card("Total cost", pkr(report.totals.totalCost), report.sourceDate ? `Matches IS Total Expense · ${report.sourceDate}` : ins.costVsPrev != null ? `${signed(ins.costVsPrev)} vs prev month` : `Payroll ${pkr(report.totals.payroll)}`)}
+    ${card("Profit / Loss", signed(net), ins.profitNote)}
+    ${card("Net balance", pkr(report.cash.closingNet), report.cash.asOf ? `As of ${report.cash.asOf}` : "Closing cash position")}
   </tr></table>
+
+  <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:14px;">
+    <tr>
+      <td width="48%" valign="top" style="padding-right:8px;">
+        <h2 style="margin-top:0;">Company Balance</h2>
+        <p style="margin:0 0 8px;font-size:9px;color:#64748B;">Cash flow received — AH · SN · Qasim Habib Metro · Habib Metro</p>
+        <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">${companyBalanceHtml}</table>
+      </td>
+      <td width="52%" valign="top" style="padding-left:8px;">
+        <h2 style="margin-top:0;">Budget plan vs actual — ${label}</h2>
+        <p style="margin:0 0 8px;font-size:9px;color:#64748B;">As of this month · black planned · blue actual</p>
+        ${
+          !bc?.hasBudget
+            ? `<p style="font-size:10px;color:#64748B;">No Income Statement budget saved for this month.</p>`
+            : `<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">${budgetBars || tdEmpty(3, "No budget / actual lines.")}</table>
+        <p style="margin:6px 0 0;font-size:9px;color:#64748B;"><b style="color:${NAVY};">■</b> Planned &nbsp; <b style="color:${BLUE};">■</b> Actual</p>`
+        }
+      </td>
+    </tr>
+  </table>
+
+  <h2>Financial performance</h2>
+  <h3 style="color:${RED};font-size:11px;margin:8px 0 6px;letter-spacing:0.4px;">LAST 3 MONTHS</h3>
+  <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
+    <tr>
+      <td ${th}>Month</td><td ${thR}>Revenue (PKR)</td><td ${thR}>Total Cost (PKR)</td><td ${thR}>Net P/L (PKR)</td><td ${thC}>Status</td>
+    </tr>
+    ${historyRows3 || tdEmpty(5, "No income statement records yet.")}
+    <tr style="background:#F8FAFC;">
+      <td ${td}><b>TOTAL</b></td>
+      <td ${tdR}><b>${currency(hist3Total.revenue)}</b></td>
+      <td ${tdR}><b>${currency(hist3Total.cost)}</b></td>
+      <td ${tdR}><b style="color:${hist3Total.net >= 0 ? BLUE : RED};">${signed(hist3Total.net)}</b></td>
+      ${profitCell(hist3Total.net)}
+    </tr>
+  </table>
+  <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin-top:8px;">${hist3Bars || tdEmpty(3, "No history data.")}</table>
+  <h3 style="color:${RED};font-size:11px;margin:16px 0 6px;letter-spacing:0.4px;">LAST 6 MONTHS</h3>
+  <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
+    <tr>
+      <td ${th}>Month</td><td ${thR}>Revenue (PKR)</td><td ${thR}>Total Cost (PKR)</td><td ${thR}>Net P/L (PKR)</td><td ${thC}>Status</td>
+    </tr>
+    ${historyRows || tdEmpty(5, "No income statement records yet.")}
+    <tr style="background:#F8FAFC;">
+      <td ${td}><b>TOTAL</b></td>
+      <td ${tdR}><b>${currency(histTotal.revenue)}</b></td>
+      <td ${tdR}><b>${currency(histTotal.cost)}</b></td>
+      <td ${tdR}><b style="color:${histTotal.net >= 0 ? BLUE : RED};">${signed(histTotal.net)}</b></td>
+      ${profitCell(histTotal.net)}
+    </tr>
+  </table>
+  <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin-top:8px;">${hist6Bars || tdEmpty(3, "No history data.")}</table>
+  <p style="margin:6px 0 0;font-size:9px;color:#64748B;"><b style="color:${BLUE};">■</b> Profit &nbsp; <b style="color:${RED};">■</b> Loss</p>
 
   <h2>Company position — ${label}</h2>
   ${buildPositionSummary(report).map(p => `<p style="font-size:11px;line-height:1.55;color:#334155;margin:0 0 8px;">${p}</p>`).join("")}
@@ -634,13 +703,7 @@ function buildWordHtml(report: MonthlyReport): string {
   ${
     !bc?.hasBudget
       ? `<p style="font-size:10px;color:#64748B;">No Income Statement budget saved for this month. Set a plan on the Income Statement budget planner first.</p>`
-      : `<table width="100%" cellpadding="0" cellspacing="0"><tr>
-    ${card("Planned revenue", pkr(bc.totals.budgetRevenue), "Income Statement budget", "#F5F3FF", "25%")}
-    ${card("Actual revenue", pkr(bc.totals.actualRevenue), "Collections this month", "#EFF6FF", "25%")}
-    ${card("Planned expense", pkr(bc.totals.budgetExpense), "Payroll + OPEX plan", "#FFF7ED", "25%")}
-    ${card("Actual expense", pkr(bc.totals.actualExpense), `Spent vs plan ${signed(bc.totals.variance)}`, bc.totals.variance > 0 ? "#FFF1F3" : "#ECFDF5", "25%")}
-  </tr></table>
-  <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin-top:10px;">
+      : `<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
     <tr>
       <td ${th}>Head</td><td ${thR}>Planned budget (PKR)</td><td ${thR}>Actual spent (PKR)</td><td ${thR}>Variance</td><td ${thC}>Status</td>
     </tr>
@@ -649,60 +712,19 @@ function buildWordHtml(report: MonthlyReport): string {
       <td ${td}><b>EXPENSE TOTAL</b></td>
       <td ${tdR}><b>${currency(bc.totals.budgetExpense)}</b></td>
       <td ${tdR}><b>${currency(bc.totals.actualExpense)}</b></td>
-      <td ${tdR}><b style="color:${bc.totals.variance > 0 ? RED_TXT : GREEN_D};">${signed(bc.totals.variance)}</b></td>
-      <td style="padding:4px 8px;border:1px solid #E2E8F0;text-align:center;font-size:9px;font-weight:bold;">${bc.totals.variance > 0 ? "OVER" : bc.totals.variance < 0 ? "UNDER" : "ON PLAN"}</td>
+      <td ${tdR}><b style="color:${bc.totals.variance > 0 ? RED : BLUE};">${signed(bc.totals.variance)}</b></td>
+      <td style="padding:4px 8px;border:1px solid #E2E8F0;text-align:center;font-size:9px;font-weight:bold;color:${bc.totals.variance > 0 ? RED : BLUE};">${bc.totals.variance > 0 ? "OVER" : bc.totals.variance < 0 ? "UNDER" : "ON PLAN"}</td>
     </tr>
-  </table>
-  ${budgetBars ? `<p style="margin:12px 0 6px;font-size:11px;font-weight:bold;color:${NAVY};">Plan vs spent by head</p>
-  <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">${budgetBars}</table>
-  <p style="margin:6px 0 0;font-size:9px;color:#64748B;"><b style="color:${VIOLET};">■</b> Planned &nbsp; <b style="color:${BLUE};">■</b> Actual</p>` : ""}`
+  </table>`
   }
-
-  <h2>Financial performance</h2>
-  <h3 style="color:${NAVY};font-size:12px;margin:8px 0 6px;">Last 3 months</h3>
-  <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
-    <tr>
-      <td ${th}>Month</td><td ${thR}>Revenue (PKR)</td><td ${thR}>Total Cost (PKR)</td><td ${thR}>Net P/L (PKR)</td><td ${thC}>Status</td>
-    </tr>
-    ${historyRows3 || tdEmpty(5, "No income statement records yet.")}
-    <tr style="background:#F8FAFC;">
-      <td ${td}><b>TOTAL</b></td>
-      <td ${tdR}><b>${currency(hist3Total.revenue)}</b></td>
-      <td ${tdR}><b>${currency(hist3Total.cost)}</b></td>
-      <td ${tdR}><b style="color:${hist3Total.net >= 0 ? GREEN_D : RED_TXT};">${signed(hist3Total.net)}</b></td>
-      ${profitCell(hist3Total.net)}
-    </tr>
-  </table>
-  <h3 style="color:${NAVY};font-size:12px;margin:16px 0 6px;">Last 6 months</h3>
-  <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
-    <tr>
-      <td ${th}>Month</td><td ${thR}>Revenue (PKR)</td><td ${thR}>Total Cost (PKR)</td><td ${thR}>Net P/L (PKR)</td><td ${thC}>Status</td>
-    </tr>
-    ${historyRows || tdEmpty(5, "No income statement records yet.")}
-    <tr style="background:#F8FAFC;">
-      <td ${td}><b>TOTAL</b></td>
-      <td ${tdR}><b>${currency(histTotal.revenue)}</b></td>
-      <td ${tdR}><b>${currency(histTotal.cost)}</b></td>
-      <td ${tdR}><b style="color:${histTotal.net >= 0 ? GREEN_D : RED_TXT};">${signed(histTotal.net)}</b></td>
-      ${profitCell(histTotal.net)}
-    </tr>
-  </table>
-
-  <h2>Net profit / loss trend</h2>
-  <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">${netTrendBars || tdEmpty(3, "No history data.")}</table>
-  <p style="margin:6px 0 0;font-size:9px;color:#64748B;"><b style="color:${GREEN};">■</b> Profit &nbsp; <b style="color:#EF4444;">■</b> Loss &nbsp;·&nbsp; ● = this report month</p>
-
-  <h2>Revenue vs total cost</h2>
-  <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">${revCostBars || tdEmpty(3, "No history data.")}</table>
-  <p style="margin:6px 0 0;font-size:9px;color:#64748B;"><b style="color:${BLUE};">■</b> Revenue &nbsp; <b style="color:#F97066;">■</b> Total Cost</p>
 
   <h2>Cash flow statement${report.cash.asOf ? ` — as of ${report.cash.asOf}` : ""}</h2>
   <table width="100%" cellpadding="0" cellspacing="0"><tr>
-    ${card("Net Cash Flow", pkr(report.cash.monthNet), `${report.cash.monthEntries ?? 0} entries · ${label}`, "#FFF1F3")}
-    ${card("AH", pkr(cashChannelReceived(report).AH), "Ahmed Hamza · received", "#FFF1F3")}
-    ${card("SN", pkr(cashChannelReceived(report).SN), "Sharjeel Nasir · received", "#EFF6FF")}
-    ${card("Qasim Habib Metro", pkr(cashChannelReceived(report).QHM), "Qasim Habib Metro · received", "#F8FAFC")}
-    ${card("Habib Metro", pkr(cashChannelReceived(report).HM), "CO. Habib Metro · received", "#F1F5F9")}
+    ${darkCard("Net Cash Flow", currency(report.cash.monthNet), `${report.cash.monthEntries ?? 0} entries · ${label}`, RED)}
+    ${darkCard("AH", pkr(chRecv.AH), "Ahmed Hamza · received", RED)}
+    ${darkCard("SN", pkr(chRecv.SN), "Sharjeel Nasir · received", BLUE)}
+    ${darkCard("Qasim Habib Metro", pkr(chRecv.QHM), "Qasim Habib Metro · received", NAVY)}
+    ${darkCard("Habib Metro", pkr(chRecv.HM), "CO. Habib Metro · received", SLATE)}
   </tr></table>
 
   <h2>CSR team performance — ${label}</h2>
@@ -732,12 +754,25 @@ function buildWordHtml(report: MonthlyReport): string {
     </td>
   </tr></table>
 
-  <h2>Team salaries — ${pkr(report.totals.payroll)}</h2>
-  ${salaryTableHtml(report.salaryTables ?? []) || `<p style="font-size:10px;color:#94A3B8;">No team salaries on the latest Income Statement for this month.</p>`}
+  ${
+    (report.salaryTables ?? []).length === 0
+      ? `<h2>Team salaries (${pkr(report.totals.payroll)})</h2>
+  <p style="font-size:10px;color:#94A3B8;">No employees on the latest Income Statement for this month.</p>`
+      : salaryTableHtml(report.salaryTables ?? [])
+  }
 
   ${opexTableHtml(`Operating expenses (${pkr(report.totals.opex)})`, report.opexTables ?? [], report.totals.opex)}
-  ${opexTableHtml(`Loans (${pkr(report.totals.loans)})`, report.loanTables ?? [], report.totals.loans)}
-  ${opexTableHtml(`Provident fund (${pkr(report.totals.pf)})`, report.pfTables ?? [], report.totals.pf)}
+
+  <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:4px;">
+    <tr>
+      <td width="49%" valign="top" style="padding-right:8px;">
+        ${opexTableHtml(`Loans (${pkr(report.totals.loans)})`, report.loanTables ?? [], report.totals.loans)}
+      </td>
+      <td width="49%" valign="top" style="padding-left:8px;">
+        ${opexTableHtml(`Provident fund (${pkr(report.totals.pf)})`, report.pfTables ?? [], report.totals.pf)}
+      </td>
+    </tr>
+  </table>
 
   <p style="margin-top:24px;font-size:9px;color:#94A3B8;">Auto-generated from CRM accounts daily records, cash flow &amp; payroll. ${report.daysRecorded} income-statement day${report.daysRecorded === 1 ? "" : "s"} in ${label}.</p>
 </body></html>`;
@@ -794,7 +829,7 @@ function TrendArrow({ v, goodWhenUp }: { v: number | null; goodWhenUp: boolean }
 
 function SectionCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className={`${BENTO_CARD} overflow-hidden`}>
+    <div className={`${BENTO_CARD} overflow-hidden h-full`}>
       <div className="px-4 sm:px-5 pt-4 pb-2">
         <h2 className="font-extrabold text-[#0B1220] dark:text-crm-text text-sm tracking-tight border-b-2 border-[#B8112D] pb-2">
           {title}
@@ -953,8 +988,8 @@ function BudgetVsActualBars({
     );
   }
   return (
-    <div className="px-1 sm:px-2" id={chartId}>
-      <RechartsBox height={Math.max(280, data.rows.length * 32)}>
+    <div className="px-1 sm:px-2 h-full" id={chartId}>
+      <RechartsBox height={Math.max(320, data.rows.length * 28)}>
         <BarChart
           data={data.rows.map(r => ({
             name: r.name.replace(/\s*\(incl\.[^)]*\)/gi, "").slice(0, 22),
@@ -1332,7 +1367,7 @@ export default function AccountsReportsPage() {
             </div>
           ) : (
             <>
-              <section className="rounded-2xl border border-[#0B1220]/10 bg-white px-4 py-3 text-[11px] text-crm-text-secondary leading-relaxed">
+              <section className={`${BENTO_CARD} px-4 py-3 text-[11px] text-crm-text-secondary leading-relaxed`}>
                 <b className="text-crm-text">Month compile:</b> Revenue is that month&apos;s project collections
                 (once). Total cost, team salaries, OPEX, loans and PF match the latest Income Statement
                 day in the month{report.sourceDate ? ` (${report.sourceDate})` : ""} — same Total Expense as
@@ -1373,9 +1408,9 @@ export default function AccountsReportsPage() {
                 </section>
               )}
 
-              <section className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-2.5 sm:gap-3">
+              <section className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-3.5">
                 {kpis.map(k => (
-                  <div key={k.label} className="bg-white border border-[#0B1220]/10 rounded-xl sm:rounded-2xl p-3 sm:p-4">
+                  <div key={k.label} className={`${BENTO_CARD} h-full p-3.5 sm:p-4`}>
                     <p className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-[#B8112D] leading-snug">{k.label}</p>
                     <p className="text-lg sm:text-xl font-extrabold mt-1.5 tabular-nums tracking-tight text-[#0B1220]">{k.value}</p>
                     <p className="text-[9px] sm:text-[10px] text-[#64748B] mt-1 font-medium leading-snug">{k.note}</p>
@@ -1383,22 +1418,23 @@ export default function AccountsReportsPage() {
                 ))}
               </section>
 
-              <section className="grid grid-cols-1 xl:grid-cols-2 gap-4 items-start">
+              <section className="grid grid-cols-1 xl:grid-cols-2 gap-3.5 items-stretch">
                 <AccountsChartCard
+                  className="h-full min-h-[28rem]"
                   title="Company Balance"
                   subtitle="Cash flow received — AH · SN · Qasim Habib Metro · Habib Metro"
                   accent="#B8112D"
                   icon={<PieIcon size={16} />}
                 >
-                  <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-2 items-center">
-                    <RechartsBox height={280}>
+                  <div className="h-full min-h-[22rem] grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-3 items-center">
+                    <RechartsBox height={360}>
                       <PieChart>
                         <Pie
                           data={pieHasData ? pieSlices : pieSlices.map(s => ({ ...s, value: 1 }))}
                           dataKey="value"
                           nameKey="name"
-                          innerRadius={52}
-                          outerRadius={96}
+                          innerRadius={68}
+                          outerRadius={124}
                           paddingAngle={3}
                           stroke="#fff"
                           strokeWidth={3}
@@ -1419,7 +1455,7 @@ export default function AccountsReportsPage() {
                         />
                       </PieChart>
                     </RechartsBox>
-                    <ul className="space-y-2 px-2 pb-2">
+                    <ul className="flex flex-col justify-center gap-3 px-2 py-2 h-full">
                       {PIE_LEGEND.map(l => {
                         const slice = pieSlices.find(s => s.name === l.key);
                         return (
@@ -1441,6 +1477,7 @@ export default function AccountsReportsPage() {
                 </AccountsChartCard>
 
                 <AccountsChartCard
+                  className="h-full min-h-[28rem]"
                   title={`Budget plan vs actual — ${label}`}
                   subtitle="As of this month · black planned · blue actual"
                   accent="#0B84F3"
@@ -1476,7 +1513,7 @@ export default function AccountsReportsPage() {
                 </div>
               </SectionCard>
 
-              <section className="rounded-2xl border border-[#0B1220]/10 bg-white p-4 sm:p-5">
+              <section className={`${BENTO_CARD} p-4 sm:p-5`}>
                 <div className="flex items-start gap-3">
                   <span
                     className={`w-9 h-9 rounded-xl inline-flex items-center justify-center text-white shrink-0 ${
@@ -1551,8 +1588,8 @@ export default function AccountsReportsPage() {
 
               <SectionCard title={`Cash flow statement${report.cash.asOf ? ` — as of ${report.cash.asOf}` : ""}`}>
                 <div className="p-4">
-                  <section className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-2.5">
-                    <div className="rounded-xl p-3 text-white bg-[#B8112D] min-w-0">
+                  <section className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-3.5">
+                    <div className="rounded-2xl p-3.5 text-white bg-[#B8112D] min-w-0 h-full">
                       <div className="flex items-center gap-1.5">
                         <Wallet size={14} className="text-white/80 shrink-0" />
                         <p className="text-[10px] font-bold uppercase tracking-wider text-white/75 truncate">Net Cash Flow</p>
@@ -1563,7 +1600,7 @@ export default function AccountsReportsPage() {
                       </p>
                     </div>
                     {CF_CARDS.map(c => (
-                      <div key={c.key} className={`rounded-xl p-3 text-white ${c.bg} min-w-0`}>
+                      <div key={c.key} className={`rounded-2xl p-3.5 text-white ${c.bg} min-w-0 h-full`}>
                         <p className="text-[10px] font-bold uppercase tracking-wider text-white/80 truncate">{c.label}</p>
                         <p className="text-lg sm:text-xl font-extrabold tabular-nums mt-1 truncate">PKR {currency(received[c.key])}</p>
                         <p className="text-[9px] text-white/60 font-medium mt-0.5 truncate">{c.hint}</p>
@@ -1573,7 +1610,7 @@ export default function AccountsReportsPage() {
                 </div>
               </SectionCard>
 
-              <div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
+              <div className="grid grid-cols-1 xl:grid-cols-12 gap-3.5 items-stretch">
                 <div className="xl:col-span-7">
                   <SectionCard title={`CSR team performance — ${label}`}>
                     <div className="overflow-x-auto">
@@ -1672,7 +1709,7 @@ export default function AccountsReportsPage() {
                 <OpexFieldTableView tables={report.opexTables ?? []} total={report.totals.opex} />
               </SectionCard>
 
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-3.5 items-stretch">
                 <SectionCard title={`Loans (${pkr(report.totals.loans)})`}>
                   <OpexFieldTableView tables={report.loanTables ?? []} total={report.totals.loans} />
                 </SectionCard>
