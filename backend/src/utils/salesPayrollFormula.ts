@@ -57,7 +57,7 @@ export function fixRowProjectCount(p: Pick<FixClientProject, "projectCount">): n
   if (p.projectCount != null && Number.isFinite(Number(p.projectCount))) {
     return Math.max(0, Number(p.projectCount));
   }
-  return 1;
+  return 0;
 }
 
 function projectFxRate(p: FixClientProject, opts?: SalesPayrollCalcOpts): number {

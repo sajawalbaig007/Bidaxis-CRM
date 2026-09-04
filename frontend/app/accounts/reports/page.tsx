@@ -1,18 +1,17 @@
 "use client";
 
-import { Fragment, useEffect, useState } from "react";
-import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Legend, Pie, PieChart, Tooltip, XAxis, YAxis } from "recharts";
+import { useEffect, useState } from "react";
+import { Bar, BarChart, CartesianGrid, Cell, Legend, Pie, PieChart, ReferenceLine, Tooltip, XAxis, YAxis } from "recharts";
 import {
   ArrowDownRight, ArrowUpRight, CalendarDays, Cloud, ExternalLink, Loader2,
-  Sparkles, TrendingUp, Wallet, Building2, Activity, PieChart as PieIcon,
+  Sparkles, TrendingUp, Wallet, PieChart as PieIcon,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import API, { apiErrorMessage } from "@/lib/api";
 import { estCurrentMonthValue, formatEstDateTime } from "@/lib/estTime";
 import AccountsSidebar from "../components/layout/Sidebar";
 import { ACCOUNTS_MAIN_OFFSET } from "../components/layout/headerOffset";
-import AccountsChartCard, { CHART_COLORS } from "../components/AccountsChartCard";
-import { bankColor } from "../components/accountsTheme";
+import AccountsChartCard from "../components/AccountsChartCard";
 import RechartsBox from "@/app/components/charts/RechartsBox";
 import { currency } from "../types";
 import { useScrollToHash } from "../hooks/useScrollToHash";
@@ -236,46 +235,53 @@ function buildInsights(report: MonthlyReport) {
   };
 }
 
-const PIE_COLORS: Record<string, string> = {
-  AH: "#E11D48",
+type CashChannel = "AH" | "SN" | "QHM" | "HM";
+
+const PIE_COLORS: Record<CashChannel, string> = {
+  AH: "#B8112D",
   SN: "#0B84F3",
-  CO: "#0D9488",
-  QH: "#F59E0B",
+  QHM: "#0B1220",
+  HM: "#334155",
 };
 
-function pieKeyForBank(bank: string): "AH" | "SN" | "CO" | "QH" | null {
+const PIE_LEGEND: { key: CashChannel; name: string }[] = [
+  { key: "AH", name: "Ahmed Hamza" },
+  { key: "SN", name: "Sharjeel Nasir" },
+  { key: "QHM", name: "Qasim Habib Metro" },
+  { key: "HM", name: "CO. Habib Metro" },
+];
+
+const CF_CARDS: { key: CashChannel; label: string; hint: string; bg: string }[] = [
+  { key: "AH", label: "AH", hint: "Ahmed Hamza · received", bg: "bg-[#B8112D]" },
+  { key: "SN", label: "SN", hint: "Sharjeel Nasir · received", bg: "bg-[#0B84F3]" },
+  { key: "QHM", label: "Qasim Habib Metro", hint: "Qasim Habib Metro · received", bg: "bg-[#0B1220]" },
+  { key: "HM", label: "Habib Metro", hint: "CO. Habib Metro · received", bg: "bg-[#334155]" },
+];
+
+function channelForBank(bank: string): CashChannel | null {
   const t = bank.trim().toLowerCase();
-  if (t.includes("qasim") || t.includes("cheque") || t.includes("chq") || t.includes("qhm")) return "QH";
+  if (t.includes("qasim") || t.includes("qhm")) return "QHM";
   if (/\bah\b/.test(t) || t.includes("ahmed") || t.includes("ah paypal")) return "AH";
   if (/\bsn\b/.test(t) || t.includes("sharjeel")) return "SN";
-  if (t.includes("habib") || t.includes("metro")) return "CO";
+  if (t.includes("habib") || t.includes("metro")) return "HM";
   return null;
 }
 
-function reportPieSlices(report: MonthlyReport): { name: string; value: number; color: string }[] {
-  const fromBanks: Record<"AH" | "SN" | "CO" | "QH", number> = { AH: 0, SN: 0, CO: 0, QH: 0 };
+function cashChannelReceived(report: MonthlyReport): Record<CashChannel, number> {
+  const sums: Record<CashChannel, number> = { AH: 0, SN: 0, QHM: 0, HM: 0 };
   for (const b of report.cash.banks ?? []) {
-    const key = pieKeyForBank(b.bank);
+    const key = channelForBank(b.bank);
     if (!key) continue;
-    fromBanks[key] += Number(b.debit) || Math.max(0, Number(b.balance) || 0);
+    sums[key] += Number(b.debit) || 0;
   }
-  if (Object.values(fromBanks).some(v => v > 0)) {
-    return (["AH", "SN", "CO", "QH"] as const).map(name => ({
-      name,
-      value: fromBanks[name],
-      color: PIE_COLORS[name],
-    }));
-  }
-  const fromRev: Record<"AH" | "SN" | "CO" | "QH", number> = { AH: 0, SN: 0, CO: 0, QH: 0 };
-  for (const c of report.revenueChannels ?? []) {
-    if (c.key === "AH") fromRev.AH += c.netPkr;
-    else if (c.key === "SN") fromRev.SN += c.netPkr;
-    else if (c.key === "HM") fromRev.CO += c.netPkr;
-    else fromRev.QH += c.netPkr;
-  }
-  return (["AH", "SN", "CO", "QH"] as const).map(name => ({
+  return sums;
+}
+
+function reportPieSlices(report: MonthlyReport): { name: CashChannel; value: number; color: string }[] {
+  const sums = cashChannelReceived(report);
+  return (["AH", "SN", "QHM", "HM"] as const).map(name => ({
     name,
-    value: fromRev[name],
+    value: sums[name],
     color: PIE_COLORS[name],
   }));
 }
@@ -308,8 +314,8 @@ function buildPositionSummary(report: MonthlyReport): string[] {
   const mixNames: Record<string, string> = {
     AH: "Ahmed Hamza",
     SN: "Sharjeel Nasir",
-    CO: "CO. Habib Metro",
-    QH: "Qasim Habib Metro",
+    HM: "CO. Habib Metro",
+    QHM: "Qasim Habib Metro",
   };
 
   const p1 = [
@@ -360,8 +366,7 @@ function buildWordHtml(report: MonthlyReport): string {
   const GREEN_D = "#027A48";
   const RED_TXT = "#DC2626";
   const BLUE = "#0B84F3";
-  const VIOLET = "#7C3AED";
-  const TEAL = "#0D9488";
+  const VIOLET = "#0B1220";
   const SLATE = "#334155";
 
   const th = `style="background:${NAVY};color:#fff;padding:6px 8px;font-size:10px;"`;
@@ -434,23 +439,6 @@ function buildWordHtml(report: MonthlyReport): string {
         barRow(`${monthShort(h.month)} rev`, h.revenue, maxRevCost, BLUE) +
         barRow(`${monthShort(h.month)} cost`, h.cost, maxRevCost, "#F97066"),
     )
-    .join("");
-
-  const cashBanks = report.cash.banks;
-  const cashDcMax = Math.max(...cashBanks.flatMap(b => [b.debit ?? 0, b.credit ?? 0]), 1);
-  const cashNetMax = Math.max(...cashBanks.map(b => Math.abs(b.balance)), 1);
-  const cashDrCrBars = cashBanks
-    .flatMap(b => [
-      barRow(`${b.bank} Dr`, b.debit ?? 0, cashDcMax, BLUE),
-      barRow(`${b.bank} Cr`, b.credit ?? 0, cashDcMax, RED),
-    ])
-    .join("");
-  const cashNetBars = cashBanks
-    .map(b => barRow(b.bank, b.balance, cashNetMax, b.balance >= 0 ? GREEN : RED, signed(b.balance)))
-    .join("");
-  const sectionMax = Math.max(...(report.cash.sections ?? []).map(s => Math.abs(s.net)), 1);
-  const sectionBars = (report.cash.sections ?? [])
-    .map(s => barRow(s.name, s.net, sectionMax, s.net >= 0 ? GREEN : RED, signed(s.net)))
     .join("");
 
   const historyRows = report.history
@@ -571,33 +559,6 @@ function buildWordHtml(report: MonthlyReport): string {
       <tr style="background:#FFF1F3;"><td ${td} colspan="4"><b>TOTAL</b></td><td ${tdR}><b style="color:${RED};">${currency(total)}</b></td></tr>
     </table>`;
 
-  const execRows = report.executives
-    .map(
-      e => `<tr>
-        <td ${td}><b>${e.name}</b></td>
-        <td ${tdR}>${currency(e.basic)}</td>
-        <td ${tdR}><b style="color:${VIOLET};">${e.commissionPct}%</b></td>
-        <td ${tdR}><span style="color:${GREEN_D};">${currency(e.commission)}</span></td>
-        <td ${tdR}><b style="color:${RED};">${currency(e.total)}</b></td>
-        <td ${tdR}>${currency(e.loanPositive)}</td>
-        <td ${tdR}><span style="color:${RED_TXT};">${currency(e.loanNegative)}</span></td>
-        <td ${td}>${e.remarks || "—"}</td>
-      </tr>`,
-    )
-    .join("");
-  const execTotal = report.executives.reduce((s, e) => s + e.total, 0);
-
-  const cashRows = cashBanks
-    .map(
-      b => `<tr>
-        <td ${td}><b>${b.bank}</b></td>
-        <td ${tdR}>${currency(b.debit ?? 0)}</td>
-        <td ${tdR}>${currency(b.credit ?? 0)}</td>
-        <td ${tdR}><b style="color:${b.balance >= 0 ? GREEN_D : RED_TXT};">${signed(b.balance)}</b></td>
-      </tr>`,
-    )
-    .join("");
-
   const channelRows = (report.revenueChannels ?? [])
     .map(
       c => `<tr>
@@ -608,26 +569,6 @@ function buildWordHtml(report: MonthlyReport): string {
         <td ${tdR}><b>${currency(c.netPkr)}</b></td>
       </tr>`,
     )
-    .join("");
-
-  const ledgerHeads = cashBanks.map(b => b.bank);
-  const ledgerColSpan = 3 + ledgerHeads.length * 2 + 1;
-  const ledgerRows = (report.cash.ledger ?? [])
-    .map(r => {
-      const byBank = new Map(r.banks.map(b => [b.bank, b]));
-      return `<tr>
-        <td ${td}>${r.date || "—"}</td>
-        <td ${td}>${r.section}</td>
-        <td ${td}>${r.description}</td>
-        ${ledgerHeads
-          .map(b => {
-            const x = byBank.get(b);
-            return `<td ${tdR}>${currency(x?.debit ?? 0)}</td><td ${tdR}>${currency(x?.credit ?? 0)}</td>`;
-          })
-          .join("")}
-        <td ${tdR}><b style="color:${r.net >= 0 ? GREEN_D : RED_TXT};">${signed(r.net)}</b></td>
-      </tr>`;
-    })
     .join("");
 
   const generatedAt = formatEstDateTime(new Date());
@@ -756,75 +697,13 @@ function buildWordHtml(report: MonthlyReport): string {
   <p style="margin:6px 0 0;font-size:9px;color:#64748B;"><b style="color:${BLUE};">■</b> Revenue &nbsp; <b style="color:#F97066;">■</b> Total Cost</p>
 
   <h2>Cash flow statement${report.cash.asOf ? ` — as of ${report.cash.asOf}` : ""}</h2>
-  <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:10px;">
-    <tr>
-      <td width="40%" style="padding:6px;">
-        <table width="100%" cellpadding="0" cellspacing="0" style="background:${RED};border-radius:8px;">
-          <tr><td style="padding:14px 16px;">
-            <p style="margin:0;font-size:9px;color:#FECACA;text-transform:uppercase;letter-spacing:0.5px;font-weight:bold;">Net cash flow</p>
-            <p style="margin:6px 0 4px;font-size:22px;font-weight:bold;color:#FFFFFF;">${currency(report.cash.monthNet)}</p>
-            <p style="margin:0;font-size:9px;color:#FECACA;">${report.cash.monthEntries ?? 0} entries in ${label} · closing ${pkr(report.cash.closingNet)}</p>
-          </td></tr>
-        </table>
-      </td>
-      <td width="60%" style="padding:6px;">
-        <table width="100%" cellpadding="0" cellspacing="0" style="background:#FFF1F3;border-radius:8px;">
-          <tr><td style="padding:12px 14px;">
-            <p style="margin:0 0 8px;font-size:9px;color:#64748B;text-transform:uppercase;letter-spacing:0.5px;font-weight:bold;">Bank accounts</p>
-            ${
-              cashBanks.length
-                ? cashBanks
-                    .map(
-                      (b, i) =>
-                        `<span style="display:inline-block;background:${["#0B84F3", "#B8112D", "#12B76A", "#F59E0B", "#0D9488", "#EA580C"][i % 6]};color:#fff;font-size:9px;font-weight:bold;padding:3px 8px;margin:0 4px 4px 0;">${b.bank}</span>`,
-                    )
-                    .join("")
-                : `<span style="font-size:10px;color:#94A3B8;">No bank heads recorded</span>`
-            }
-          </td></tr>
-        </table>
-      </td>
-    </tr>
-  </table>
-
-  ${sectionBars ? `<p style="margin:12px 0 6px;font-size:11px;font-weight:bold;color:${NAVY};">Net by section</p>
-  <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">${sectionBars}</table>` : ""}
-
-  <p style="margin:12px 0 6px;font-size:11px;font-weight:bold;color:${NAVY};">Bank debit vs credit</p>
-  <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">${cashDrCrBars || tdEmpty(3, "No bank activity this month.")}</table>
-  <p style="margin:6px 0 0;font-size:9px;color:#64748B;"><b style="color:${BLUE};">■</b> Debit &nbsp; <b style="color:${RED};">■</b> Credit</p>
-
-  <p style="margin:12px 0 6px;font-size:11px;font-weight:bold;color:${NAVY};">Bank net (debit − credit)</p>
-  <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">${cashNetBars || tdEmpty(3, "No bank activity this month.")}</table>
-
-  <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin-top:10px;">
-    <tr><td ${th}>Bank</td><td ${thR}>Debit (PKR)</td><td ${thR}>Credit (PKR)</td><td ${thR}>Net (PKR)</td></tr>
-    ${cashRows || tdEmpty(4, "No cash flow entries recorded.")}
-    <tr style="background:#FFF1F3;">
-      <td ${td}><b>MONTH NET</b></td>
-      <td ${tdR}><b>${currency(cashBanks.reduce((a, b) => a + (b.debit ?? 0), 0))}</b></td>
-      <td ${tdR}><b>${currency(cashBanks.reduce((a, b) => a + (b.credit ?? 0), 0))}</b></td>
-      <td ${tdR}><b style="color:${report.cash.monthNet >= 0 ? GREEN_D : RED_TXT};">${signed(report.cash.monthNet)}</b></td>
-    </tr>
-    <tr style="background:#F8FAFC;">
-      <td ${td} colspan="3"><b>CLOSING CASH (NET)</b></td>
-      <td ${tdR}><b style="color:${TEAL};">${currency(report.cash.closingNet)}</b></td>
-    </tr>
-  </table>
-
-  <p style="margin:12px 0 6px;font-size:11px;font-weight:bold;color:${NAVY};">Cash flow ledger — each entry</p>
-  <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
-    <tr>
-      <td ${th}>Date</td><td ${th}>Section</td><td ${th}>Description</td>
-      ${ledgerHeads.map(b => `<td ${thR}>${b} Dr</td><td ${thR}>${b} Cr</td>`).join("")}
-      <td ${thR}>Net</td>
-    </tr>
-    ${ledgerRows || tdEmpty(ledgerColSpan, "No cash flow rows dated in this month.")}
-    <tr style="background:#FFF1F3;">
-      <td ${td} colspan="${3 + ledgerHeads.length * 2}"><b>MONTH NET (${report.cash.monthEntries ?? 0} entries)</b></td>
-      <td ${tdR}><b style="color:${report.cash.monthNet >= 0 ? GREEN_D : RED_TXT};">${signed(report.cash.monthNet)}</b></td>
-    </tr>
-  </table>
+  <table width="100%" cellpadding="0" cellspacing="0"><tr>
+    ${card("Net Cash Flow", pkr(report.cash.monthNet), `${report.cash.monthEntries ?? 0} entries · ${label}`, "#FFF1F3")}
+    ${card("AH", pkr(cashChannelReceived(report).AH), "Ahmed Hamza · received", "#FFF1F3")}
+    ${card("SN", pkr(cashChannelReceived(report).SN), "Sharjeel Nasir · received", "#EFF6FF")}
+    ${card("Qasim Habib Metro", pkr(cashChannelReceived(report).QHM), "Qasim Habib Metro · received", "#F8FAFC")}
+    ${card("Habib Metro", pkr(cashChannelReceived(report).HM), "CO. Habib Metro · received", "#F1F5F9")}
+  </tr></table>
 
   <h2>CSR team performance — ${label}</h2>
   <table width="100%" cellpadding="0" cellspacing="0"><tr>
@@ -859,16 +738,6 @@ function buildWordHtml(report: MonthlyReport): string {
   ${opexTableHtml(`Operating expenses (${pkr(report.totals.opex)})`, report.opexTables ?? [], report.totals.opex)}
   ${opexTableHtml(`Loans (${pkr(report.totals.loans)})`, report.loanTables ?? [], report.totals.loans)}
   ${opexTableHtml(`Provident fund (${pkr(report.totals.pf)})`, report.pfTables ?? [], report.totals.pf)}
-
-  <h2>Executive salaries — ${label}</h2>
-  <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
-    <tr>
-      <td ${th}>Executive</td><td ${thR}>Basic (PKR)</td><td ${thR}>Comm. %</td><td ${thR}>Commission (PKR)</td>
-      <td ${thR}>Total (PKR)</td><td ${thR}>Loan +ve</td><td ${thR}>Loan −ve</td><td ${th}>Remarks</td>
-    </tr>
-    ${execRows || tdEmpty(8, "No executive salary entries this month.")}
-    ${execRows ? `<tr style="background:#F8FAFC;"><td ${td}><b>TOTAL SALARY</b></td><td ${td} colspan="3"></td><td ${tdR}><b style="color:${RED};">${currency(execTotal)}</b></td><td ${td} colspan="3"></td></tr>` : ""}
-  </table>
 
   <p style="margin-top:24px;font-size:9px;color:#94A3B8;">Auto-generated from CRM accounts daily records, cash flow &amp; payroll. ${report.daysRecorded} income-statement day${report.daysRecorded === 1 ? "" : "s"} in ${label}.</p>
 </body></html>`;
@@ -916,7 +785,7 @@ function TrendArrow({ v, goodWhenUp }: { v: number | null; goodWhenUp: boolean }
   const good = goodWhenUp ? up : !up;
   const Icon = up ? ArrowUpRight : ArrowDownRight;
   return (
-    <span className={`inline-flex items-center gap-0.5 text-[9px] font-bold ${good ? "text-emerald-600" : "text-red-500"}`}>
+    <span className={`inline-flex items-center gap-0.5 text-[9px] font-bold ${good ? "text-[#0B84F3]" : "text-[#B8112D]"}`}>
       <Icon size={10} className="shrink-0" />
       {signed(v)}
     </span>
@@ -935,13 +804,6 @@ function SectionCard({ title, children }: { title: string; children: React.React
     </div>
   );
 }
-
-const PIE_LEGEND: { key: "AH" | "SN" | "CO" | "QH"; name: string }[] = [
-  { key: "AH", name: "Ahmed Hamza" },
-  { key: "SN", name: "Sharjeel Nasir" },
-  { key: "CO", name: "CO. Habib Metro" },
-  { key: "QH", name: "Qasim Habib Metro" },
-];
 
 function HistoryPerformanceHalf({
   title,
@@ -1010,13 +872,13 @@ function HistoryPerformanceHalf({
                         <TrendArrow v={prev ? h.cost - prev.cost : null} goodWhenUp={false} />
                       </div>
                     </td>
-                    <td className={`${tdCls} text-right font-bold tabular-nums ${h.net >= 0 ? "text-emerald-600" : "text-red-600"}`}>
+                    <td className={`${tdCls} text-right font-bold tabular-nums ${h.net >= 0 ? "text-[#0B84F3]" : "text-[#B8112D]"}`}>
                       {signed(h.net)}
                     </td>
                     <td className={`${tdCls} text-center`}>
                       <span
                         className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                          h.net >= 0 ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-600"
+                          h.net >= 0 ? "bg-[#EFF6FF] text-[#0B84F3]" : "bg-[#FFF1F3] text-[#B8112D]"
                         }`}
                       >
                         {h.net >= 0 ? "Profit" : "Loss"}
@@ -1033,13 +895,13 @@ function HistoryPerformanceHalf({
                 <td className="px-3 py-2.5 font-extrabold text-crm-text text-xs">TOTAL</td>
                 <td className="px-3 py-2.5 text-right font-extrabold tabular-nums text-xs">{currency(totals.revenue)}</td>
                 <td className="px-3 py-2.5 text-right font-extrabold tabular-nums text-xs">{currency(totals.cost)}</td>
-                <td className={`px-3 py-2.5 text-right font-extrabold tabular-nums text-xs ${totals.net >= 0 ? "text-emerald-600" : "text-red-600"}`}>
+                <td className={`px-3 py-2.5 text-right font-extrabold tabular-nums text-xs ${totals.net >= 0 ? "text-[#0B84F3]" : "text-[#B8112D]"}`}>
                   {signed(totals.net)}
                 </td>
                 <td className="px-3 py-2.5 text-center">
                   <span
                     className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                      totals.net >= 0 ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-600"
+                      totals.net >= 0 ? "bg-[#EFF6FF] text-[#0B84F3]" : "bg-[#FFF1F3] text-[#B8112D]"
                     }`}
                   >
                     {totals.net >= 0 ? "Profit" : "Loss"}
@@ -1052,17 +914,22 @@ function HistoryPerformanceHalf({
       </div>
       {rows.length > 0 && (
         <div className="px-3 pb-3 pt-1" id={chartId}>
-          <RechartsBox height={140}>
-            <BarChart data={rows.map(h => ({ name: monthShort(h.month), net: h.net }))} barSize={22}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-              <XAxis dataKey="name" tick={{ fontSize: 10, fontWeight: 600 }} />
-              <YAxis tick={{ fontSize: 10 }} />
+          <RechartsBox height={168}>
+            <BarChart
+              data={rows.map(h => ({
+                name: monthShort(h.month),
+                profit: h.net > 0 ? h.net : null,
+                loss: h.net < 0 ? h.net : null,
+              }))}
+              barSize={22}
+            >
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
+              <XAxis dataKey="name" tick={{ fontSize: 10, fontWeight: 600, fill: "#0B1220" }} />
+              <YAxis tick={{ fontSize: 10, fill: "#64748B" }} />
+              <ReferenceLine y={0} stroke="#0B1220" strokeWidth={1} />
               <Tooltip formatter={v => pkr(Number(v ?? 0))} />
-              <Bar dataKey="net" name="Net P/L" radius={[8, 8, 0, 0]}>
-                {rows.map(h => (
-                  <Cell key={h.month} fill={h.net >= 0 ? "#12B76A" : "#EF4444"} />
-                ))}
-              </Bar>
+              <Bar dataKey="profit" name="Profit" fill="#0B84F3" radius={[6, 6, 0, 0]} maxBarSize={28} />
+              <Bar dataKey="loss" name="Loss" fill="#B8112D" radius={[0, 0, 6, 6]} maxBarSize={28} />
             </BarChart>
           </RechartsBox>
         </div>
@@ -1103,12 +970,12 @@ function BudgetVsActualBars({
           <YAxis type="category" dataKey="name" width={118} tick={{ fontSize: 10, fontWeight: 600 }} />
           <Tooltip formatter={v => pkr(Number(v ?? 0))} />
           <Legend wrapperStyle={{ fontSize: 11, fontWeight: 600 }} />
-          <Bar dataKey="Planned" fill="#7C3AED" radius={[0, 6, 6, 0]} />
+          <Bar dataKey="Planned" fill="#0B1220" radius={[0, 6, 6, 0]} />
           <Bar dataKey="Actual" fill="#0B84F3" radius={[0, 6, 6, 0]} />
         </BarChart>
       </RechartsBox>
       <p className="text-[11px] text-crm-text-muted mt-1 px-2">
-        Purple = Planned. Blue = Actual — latest IS day for {label}.
+        Black = Planned. Blue = Actual — latest IS day for {label}.
       </p>
     </div>
   );
@@ -1233,10 +1100,10 @@ function BudgetComparePanel({
       {showMinis && (
       <div className="px-4 pb-3 grid grid-cols-2 xl:grid-cols-4 gap-2.5">
         {[
-          { label: "Planned revenue", value: data.totals.budgetRevenue, note: "IS budget", cls: "text-violet-700" },
-          { label: "Actual revenue", value: data.totals.actualRevenue, note: "Collections", cls: "text-sky-700" },
-          { label: "Planned expense", value: data.totals.budgetExpense, note: "Payroll + OPEX plan", cls: "text-amber-700" },
-          { label: "Actual expense", value: data.totals.actualExpense, note: `Vs plan ${signed(data.totals.variance)}`, cls: data.totals.variance > 0 ? "text-red-600" : "text-emerald-700" },
+          { label: "Planned revenue", value: data.totals.budgetRevenue, note: "IS budget", cls: "text-[#0B1220]" },
+          { label: "Actual revenue", value: data.totals.actualRevenue, note: "Collections", cls: "text-[#0B84F3]" },
+          { label: "Planned expense", value: data.totals.budgetExpense, note: "Payroll + OPEX plan", cls: "text-[#0B1220]" },
+          { label: "Actual expense", value: data.totals.actualExpense, note: `Vs plan ${signed(data.totals.variance)}`, cls: data.totals.variance > 0 ? "text-[#B8112D]" : "text-[#0B84F3]" },
         ].map(c => (
           <div key={c.label} className="rounded-xl border border-crm-border-subtle bg-[#FAFBFC] px-3 py-2.5">
             <p className="text-[9px] font-bold uppercase tracking-wider text-crm-text-faint">{c.label}</p>
@@ -1272,12 +1139,12 @@ function BudgetComparePanel({
                     <td className={`${tdCls} font-bold text-crm-text`}>{r.name}</td>
                     <td className={`${tdCls} text-right tabular-nums`}>{currency(r.budget)}</td>
                     <td className={`${tdCls} text-right tabular-nums`}>{currency(r.actual)}</td>
-                    <td className={`${tdCls} text-right font-bold tabular-nums ${over ? "text-red-600" : "text-emerald-600"}`}>
+                    <td className={`${tdCls} text-right font-bold tabular-nums ${over ? "text-[#B8112D]" : "text-[#0B84F3]"}`}>
                       {signed(r.variance)}
                     </td>
                     <td className={`${tdCls} text-center`}>
                       <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                        over ? "bg-red-50 text-red-600" : r.variance < 0 ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-600"
+                        over ? "bg-[#FFF1F3] text-[#B8112D]" : r.variance < 0 ? "bg-[#EFF6FF] text-[#0B84F3]" : "bg-[#F8FAFC] text-[#0B1220]"
                       }`}>
                         {over ? "Over" : r.variance < 0 ? "Under" : "On plan"}
                       </span>
@@ -1289,16 +1156,16 @@ function BudgetComparePanel({
           </tbody>
           {data.rows.length > 0 && (
             <tfoot>
-              <tr className="border-t-2 border-violet-200 bg-violet-50/40">
+              <tr className="border-t-2 border-[#0B1220]/10 bg-[#F8FAFC]">
                 <td className="px-3 py-2.5 font-extrabold text-crm-text text-xs">EXPENSE TOTAL</td>
                 <td className="px-3 py-2.5 text-right font-extrabold tabular-nums text-xs">{currency(data.totals.budgetExpense)}</td>
                 <td className="px-3 py-2.5 text-right font-extrabold tabular-nums text-xs">{currency(data.totals.actualExpense)}</td>
-                <td className={`px-3 py-2.5 text-right font-extrabold tabular-nums text-xs ${data.totals.variance > 0 ? "text-red-600" : "text-emerald-600"}`}>
+                <td className={`px-3 py-2.5 text-right font-extrabold tabular-nums text-xs ${data.totals.variance > 0 ? "text-[#B8112D]" : "text-[#0B84F3]"}`}>
                   {signed(data.totals.variance)}
                 </td>
                 <td className="px-3 py-2.5 text-center">
                   <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                    data.totals.variance > 0 ? "bg-red-50 text-red-600" : "bg-emerald-50 text-emerald-700"
+                    data.totals.variance > 0 ? "bg-[#FFF1F3] text-[#B8112D]" : "bg-[#EFF6FF] text-[#0B84F3]"
                   }`}>
                     {data.totals.variance > 0 ? "Over" : data.totals.variance < 0 ? "Under" : "On plan"}
                   </span>
@@ -1377,19 +1244,19 @@ export default function AccountsReportsPage() {
   const pieHasData = pieSlices.some(s => s.value > 0);
   const positionSummary = report ? buildPositionSummary(report) : [];
 
+  const received = report ? cashChannelReceived(report) : { AH: 0, SN: 0, QHM: 0, HM: 0 };
+
   const kpis = report
     ? [
         {
           label: "Targeted Revenue",
           value: pkr(report.budgetCompare?.totals.budgetRevenue ?? 0),
           note: report.budgetCompare?.hasBudget ? "Income Statement budget" : "No budget plan saved",
-          bg: "bg-[#F5F3FF]",
         },
         {
           label: "Actual Revenue",
           value: pkr(report.totals.revenue),
           note: ins?.revenueVsPrev != null ? `${signed(ins.revenueVsPrev)} vs prev month` : "Month collections",
-          bg: "bg-[#EFF6FF]",
         },
         {
           label: "Total cost",
@@ -1400,38 +1267,19 @@ export default function AccountsReportsPage() {
               : ins?.costVsPrev != null
                 ? `${signed(ins.costVsPrev)} vs prev month`
                 : `Payroll ${pkr(report.totals.payroll)}`,
-          bg: "bg-[#FFF1F3]",
         },
         {
           label: "Profit / Loss",
           value: signed(report.totals.netProfit),
           note: ins?.profitNote ?? "",
-          bg: report.totals.netProfit >= 0 ? "bg-[#ECFDF5]" : "bg-[#FFF7ED]",
         },
         {
           label: "Net balance",
           value: pkr(report.cash.closingNet),
           note: report.cash.asOf ? `As of ${report.cash.asOf}` : "Closing cash position",
-          bg: "bg-[#F0FDFA]",
         },
       ]
     : [];
-
-  const bankChart = (report?.cash.banks ?? [])
-    .map((b, i) => ({
-      name: b.bank.length > 14 ? `${b.bank.slice(0, 12)}…` : b.bank,
-      full: b.bank,
-      net: b.balance,
-      debit: b.debit ?? 0,
-      credit: b.credit ?? 0,
-      color: bankColor(i),
-    }))
-    .filter(b => b.debit !== 0 || b.credit !== 0 || b.net !== 0);
-
-  const sectionChart = (report?.cash.sections ?? []).map(s => ({
-    name: s.name.slice(0, 12),
-    net: s.net,
-  }));
 
   return (
     <div className="flex min-h-screen accounts-page-bg">
@@ -1484,7 +1332,7 @@ export default function AccountsReportsPage() {
             </div>
           ) : (
             <>
-              <section className="rounded-2xl border border-emerald-100 bg-emerald-50/40 px-4 py-3 text-[11px] text-crm-text-secondary leading-relaxed">
+              <section className="rounded-2xl border border-[#0B1220]/10 bg-white px-4 py-3 text-[11px] text-crm-text-secondary leading-relaxed">
                 <b className="text-crm-text">Month compile:</b> Revenue is that month&apos;s project collections
                 (once). Total cost, team salaries, OPEX, loans and PF match the latest Income Statement
                 day in the month{report.sourceDate ? ` (${report.sourceDate})` : ""} — same Total Expense as
@@ -1527,9 +1375,9 @@ export default function AccountsReportsPage() {
 
               <section className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-2.5 sm:gap-3">
                 {kpis.map(k => (
-                  <div key={k.label} className={`${k.bg} rounded-xl sm:rounded-2xl p-3 sm:p-4`}>
-                    <p className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-[#64748B] leading-snug">{k.label}</p>
-                    <p className="text-lg sm:text-xl font-extrabold mt-1.5 tabular-nums tracking-tight text-[#0F172A]">{k.value}</p>
+                  <div key={k.label} className="bg-white border border-[#0B1220]/10 rounded-xl sm:rounded-2xl p-3 sm:p-4">
+                    <p className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-[#B8112D] leading-snug">{k.label}</p>
+                    <p className="text-lg sm:text-xl font-extrabold mt-1.5 tabular-nums tracking-tight text-[#0B1220]">{k.value}</p>
                     <p className="text-[9px] sm:text-[10px] text-[#64748B] mt-1 font-medium leading-snug">{k.note}</p>
                   </div>
                 ))}
@@ -1537,8 +1385,8 @@ export default function AccountsReportsPage() {
 
               <section className="grid grid-cols-1 xl:grid-cols-2 gap-4 items-start">
                 <AccountsChartCard
-                  title="Revenue mix"
-                  subtitle="AH · SN · CO · QH collections this month"
+                  title="Company Balance"
+                  subtitle="Cash flow received — AH · SN · Qasim Habib Metro · Habib Metro"
                   accent="#B8112D"
                   icon={<PieIcon size={16} />}
                 >
@@ -1549,9 +1397,9 @@ export default function AccountsReportsPage() {
                           data={pieHasData ? pieSlices : pieSlices.map(s => ({ ...s, value: 1 }))}
                           dataKey="value"
                           nameKey="name"
-                          innerRadius={0}
-                          outerRadius={108}
-                          paddingAngle={1}
+                          innerRadius={52}
+                          outerRadius={96}
+                          paddingAngle={3}
                           stroke="#fff"
                           strokeWidth={3}
                           label={({ name, percent }) =>
@@ -1588,14 +1436,14 @@ export default function AccountsReportsPage() {
                     </ul>
                   </div>
                   {!pieHasData && (
-                    <p className="px-3 text-[11px] text-crm-text-faint">No AH / SN / CO / QH collections recorded for {label}.</p>
+                    <p className="px-3 text-[11px] text-crm-text-faint">No cash-flow received amounts for {label}.</p>
                   )}
                 </AccountsChartCard>
 
                 <AccountsChartCard
                   title={`Budget plan vs actual — ${label}`}
-                  subtitle="As of this month · purple planned · blue actual"
-                  accent="#7C3AED"
+                  subtitle="As of this month · black planned · blue actual"
+                  accent="#0B84F3"
                   icon={<TrendingUp size={16} />}
                 >
                   {report.budgetCompare && report.budgetCompare.hasBudget ? (
@@ -1628,17 +1476,11 @@ export default function AccountsReportsPage() {
                 </div>
               </SectionCard>
 
-              <section
-                className={`rounded-2xl border p-4 sm:p-5 ${
-                  report.totals.netProfit >= 0
-                    ? "bg-emerald-50/50 border-emerald-100"
-                    : "bg-amber-50/50 border-amber-100"
-                }`}
-              >
+              <section className="rounded-2xl border border-[#0B1220]/10 bg-white p-4 sm:p-5">
                 <div className="flex items-start gap-3">
                   <span
                     className={`w-9 h-9 rounded-xl inline-flex items-center justify-center text-white shrink-0 ${
-                      report.totals.netProfit >= 0 ? "bg-emerald-500" : "bg-amber-500"
+                      report.totals.netProfit >= 0 ? "bg-[#0B84F3]" : "bg-[#B8112D]"
                     }`}
                   >
                     <Sparkles size={16} />
@@ -1708,233 +1550,26 @@ export default function AccountsReportsPage() {
               </SectionCard>
 
               <SectionCard title={`Cash flow statement${report.cash.asOf ? ` — as of ${report.cash.asOf}` : ""}`}>
-                <div className="p-4 space-y-4">
-                  <section className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-                    <div className="lg:col-span-4 rounded-2xl border-2 border-[#B8112D]/20 p-5 text-white bg-gradient-to-br from-[#B8112D] to-[#8b0d22] shadow-lg">
-                      <div className="flex items-center gap-2 mb-2">
-                        <Wallet size={18} className="text-white/80" />
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-white/75">Net Cash Flow</p>
+                <div className="p-4">
+                  <section className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-2.5">
+                    <div className="rounded-xl p-3 text-white bg-[#B8112D] min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <Wallet size={14} className="text-white/80 shrink-0" />
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-white/75 truncate">Net Cash Flow</p>
                       </div>
-                      <p className="text-3xl font-extrabold tabular-nums">{currency(report.cash.monthNet)}</p>
-                      <p className="text-[11px] text-white/60 mt-2">
-                        {report.cash.monthEntries ?? 0} entries in {label} · closing {currency(report.cash.closingNet)}
+                      <p className="text-lg sm:text-xl font-extrabold tabular-nums mt-1 truncate">{currency(report.cash.monthNet)}</p>
+                      <p className="text-[9px] text-white/60 font-medium mt-0.5 truncate">
+                        {report.cash.monthEntries ?? 0} entries · {label}
                       </p>
                     </div>
-                    <div className="lg:col-span-8 bg-crm-surface rounded-2xl border-2 border-[#B8112D]/20 p-4 sm:p-5">
-                      <div className="flex items-center gap-2 mb-3">
-                        <Building2 size={16} className="text-[#B8112D]" />
-                        <h3 className="font-bold text-sm text-crm-text">Bank Accounts</h3>
+                    {CF_CARDS.map(c => (
+                      <div key={c.key} className={`rounded-xl p-3 text-white ${c.bg} min-w-0`}>
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-white/80 truncate">{c.label}</p>
+                        <p className="text-lg sm:text-xl font-extrabold tabular-nums mt-1 truncate">PKR {currency(received[c.key])}</p>
+                        <p className="text-[9px] text-white/60 font-medium mt-0.5 truncate">{c.hint}</p>
                       </div>
-                      <div className="flex flex-wrap gap-2">
-                        {report.cash.banks.length === 0 ? (
-                          <p className="text-xs text-crm-text-faint">No bank heads recorded this month.</p>
-                        ) : (
-                          report.cash.banks.map((b, i) => (
-                            <span
-                              key={b.bank}
-                              className="px-2.5 py-1 rounded-lg text-[11px] font-bold text-white"
-                              style={{ backgroundColor: bankColor(i) }}
-                            >
-                              {b.bank}
-                            </span>
-                          ))
-                        )}
-                      </div>
-                    </div>
+                    ))}
                   </section>
-
-                  <section className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-                    <AccountsChartCard
-                      title="Net by Section"
-                      subtitle="Cash movement across month sections"
-                      accent="#B8112D"
-                      icon={<Activity size={16} />}
-                    >
-                      <RechartsBox height={230}>
-                        <AreaChart data={sectionChart.length ? sectionChart : [{ name: "—", net: 0 }]}>
-                          <defs>
-                            <linearGradient id="reportCfArea" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="0%" stopColor="#B8112D" stopOpacity={0.4} />
-                              <stop offset="100%" stopColor="#B8112D" stopOpacity={0.02} />
-                            </linearGradient>
-                          </defs>
-                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                          <XAxis dataKey="name" tick={{ fontSize: 10, fontWeight: 600 }} />
-                          <YAxis tick={{ fontSize: 10 }} />
-                          <Tooltip formatter={v => currency(Number(v ?? 0))} />
-                          <Area type="monotone" dataKey="net" stroke="#B8112D" fill="url(#reportCfArea)" strokeWidth={2.5} />
-                        </AreaChart>
-                      </RechartsBox>
-                    </AccountsChartCard>
-
-                    <AccountsChartCard
-                      title="Bank Activity"
-                      subtitle="Volume share per bank"
-                      accent="#0B84F3"
-                      icon={<PieIcon size={16} />}
-                    >
-                      <RechartsBox height={230}>
-                        {bankChart.length > 0 ? (
-                          <PieChart>
-                            <Pie
-                              data={bankChart.map(b => ({
-                                name: b.name,
-                                value: Math.abs(b.net) || Math.abs(b.debit) + Math.abs(b.credit) || 1,
-                                color: b.color,
-                              }))}
-                              dataKey="value"
-                              nameKey="name"
-                              innerRadius={55}
-                              outerRadius={88}
-                              paddingAngle={3}
-                              stroke="#fff"
-                              strokeWidth={2}
-                            >
-                              {bankChart.map((b, i) => (
-                                <Cell key={b.full} fill={b.color || CHART_COLORS[i % CHART_COLORS.length]} />
-                              ))}
-                            </Pie>
-                            <Tooltip formatter={v => currency(Number(v ?? 0))} />
-                          </PieChart>
-                        ) : (
-                          <BarChart data={[{ name: "No activity", value: 0 }]}>
-                            <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-                            <YAxis tick={{ fontSize: 10 }} />
-                            <Bar dataKey="value" fill="#E2E8F0" radius={[8, 8, 0, 0]} />
-                          </BarChart>
-                        )}
-                      </RechartsBox>
-                    </AccountsChartCard>
-                  </section>
-
-                  {bankChart.length > 0 && (
-                    <AccountsChartCard
-                      title="Bank Debit vs Credit"
-                      subtitle="Side-by-side activity"
-                      accent="#12B76A"
-                      icon={<Wallet size={16} />}
-                    >
-                      <RechartsBox height={220}>
-                        <BarChart data={bankChart} barGap={4}>
-                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                          <XAxis dataKey="name" tick={{ fontSize: 10, fontWeight: 600 }} />
-                          <YAxis tick={{ fontSize: 10 }} />
-                          <Tooltip formatter={v => currency(Number(v ?? 0))} />
-                          <Bar dataKey="debit" name="Debit" fill="#0B84F3" radius={[8, 8, 0, 0]} />
-                          <Bar dataKey="credit" name="Credit" fill="#B8112D" radius={[8, 8, 0, 0]} />
-                        </BarChart>
-                      </RechartsBox>
-                    </AccountsChartCard>
-                  )}
-
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm min-w-140">
-                      <thead className="bg-[#0B1220]">
-                        <tr>
-                          <th className={`${thCls} text-left`}>Bank</th>
-                          <th className={`${thCls} text-right`}>Debit (PKR)</th>
-                          <th className={`${thCls} text-right`}>Credit (PKR)</th>
-                          <th className={`${thCls} text-right`}>Net (PKR)</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {report.cash.banks.length === 0 ? (
-                          <tr><td colSpan={4} className="px-3 py-6 text-center text-crm-text-faint text-xs">No cash flow entries recorded.</td></tr>
-                        ) : (
-                          report.cash.banks.map(b => (
-                            <tr key={b.bank} className="border-b border-crm-border-subtle">
-                              <td className={`${tdCls} font-semibold text-crm-text-secondary`}>{b.bank}</td>
-                              <td className={`${tdCls} text-right tabular-nums`}>{currency(b.debit ?? 0)}</td>
-                              <td className={`${tdCls} text-right tabular-nums`}>{currency(b.credit ?? 0)}</td>
-                              <td className={`${tdCls} text-right tabular-nums font-bold ${b.balance >= 0 ? "text-emerald-600" : "text-red-600"}`}>
-                                {signed(b.balance)}
-                              </td>
-                            </tr>
-                          ))
-                        )}
-                      </tbody>
-                      <tfoot>
-                        <tr className="border-t-2 border-[#B8112D]/20 bg-[#FFF1F3]">
-                          <td className="px-3 py-2.5 font-extrabold text-crm-text text-xs">MONTH NET</td>
-                          <td className="px-3 py-2.5 text-right font-extrabold tabular-nums text-xs">
-                            {currency(report.cash.banks.reduce((a, b) => a + (b.debit ?? 0), 0))}
-                          </td>
-                          <td className="px-3 py-2.5 text-right font-extrabold tabular-nums text-xs">
-                            {currency(report.cash.banks.reduce((a, b) => a + (b.credit ?? 0), 0))}
-                          </td>
-                          <td className={`px-3 py-2.5 text-right font-extrabold tabular-nums text-xs ${report.cash.monthNet >= 0 ? "text-emerald-600" : "text-red-600"}`}>
-                            {signed(report.cash.monthNet)}
-                          </td>
-                        </tr>
-                        <tr className="bg-[#F8FAFC]">
-                          <td className="px-3 py-2.5 font-extrabold text-crm-text text-xs" colSpan={3}>CLOSING CASH (NET)</td>
-                          <td className="px-3 py-2.5 text-right font-extrabold tabular-nums text-[#0D9488] text-xs">{currency(report.cash.closingNet)}</td>
-                        </tr>
-                      </tfoot>
-                    </table>
-                  </div>
-
-                  <div className="overflow-x-auto">
-                    <p className="text-[11px] font-bold text-[#0B1220] mb-2">Cash flow ledger — each entry</p>
-                    <table className="w-full text-sm" style={{ minWidth: `${520 + report.cash.banks.length * 140}px` }}>
-                      <thead className="bg-[#0B1220]">
-                        <tr>
-                          <th className={`${thCls} text-left`}>Date</th>
-                          <th className={`${thCls} text-left`}>Section</th>
-                          <th className={`${thCls} text-left`}>Description</th>
-                          {report.cash.banks.map((b, i) => (
-                            <th key={b.bank} colSpan={2} className={`${thCls} text-center`} style={{ borderBottom: `3px solid ${bankColor(i)}` }}>
-                              {b.bank}
-                              <span className="block text-[9px] font-semibold text-white/70 normal-case tracking-normal">Dr / Cr</span>
-                            </th>
-                          ))}
-                          <th className={`${thCls} text-right`}>Net</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {(report.cash.ledger ?? []).length === 0 ? (
-                          <tr>
-                            <td colSpan={4 + report.cash.banks.length * 2} className="px-3 py-6 text-center text-crm-text-faint text-xs">
-                              No cash flow rows dated in this month.
-                            </td>
-                          </tr>
-                        ) : (
-                          (report.cash.ledger ?? []).map((r, i) => {
-                            const byBank = new Map(r.banks.map(b => [b.bank, b]));
-                            return (
-                              <tr key={`${r.date}-${r.description}-${i}`} className="border-b border-crm-border-subtle">
-                                <td className={`${tdCls} text-crm-text-secondary whitespace-nowrap`}>{r.date || "—"}</td>
-                                <td className={`${tdCls} text-crm-text-muted`}>{r.section}</td>
-                                <td className={`${tdCls} font-semibold text-crm-text`}>{r.description}</td>
-                                {report.cash.banks.map(b => {
-                                  const x = byBank.get(b.bank);
-                                  return (
-                                    <Fragment key={b.bank}>
-                                      <td className={`${tdCls} text-right tabular-nums`}>{currency(x?.debit ?? 0)}</td>
-                                      <td className={`${tdCls} text-right tabular-nums`}>{currency(x?.credit ?? 0)}</td>
-                                    </Fragment>
-                                  );
-                                })}
-                                <td className={`${tdCls} text-right tabular-nums font-bold ${r.net >= 0 ? "text-emerald-600" : "text-red-600"}`}>
-                                  {signed(r.net)}
-                                </td>
-                              </tr>
-                            );
-                          })
-                        )}
-                      </tbody>
-                      <tfoot>
-                        <tr className="border-t-2 border-[#B8112D]/20 bg-[#FFF1F3]">
-                          <td className="px-3 py-2.5 font-extrabold text-crm-text text-xs" colSpan={3 + report.cash.banks.length * 2}>
-                            MONTH NET ({report.cash.monthEntries ?? 0} entries)
-                          </td>
-                          <td className={`px-3 py-2.5 text-right font-extrabold tabular-nums text-xs ${report.cash.monthNet >= 0 ? "text-emerald-600" : "text-red-600"}`}>
-                            {signed(report.cash.monthNet)}
-                          </td>
-                        </tr>
-                      </tfoot>
-                    </table>
-                  </div>
                 </div>
               </SectionCard>
 
@@ -1970,7 +1605,7 @@ export default function AccountsReportsPage() {
                                   <td className={`${tdCls} text-center`}>
                                     <span className={`text-[11px] font-bold ${
                                       status === "Top Performer"
-                                        ? "text-emerald-600"
+                                        ? "text-[#0B84F3]"
                                         : status === "Below Expectation"
                                           ? "text-red-600"
                                           : "text-crm-text"
@@ -2045,55 +1680,6 @@ export default function AccountsReportsPage() {
                   <OpexFieldTableView tables={report.pfTables ?? []} total={report.totals.pf} />
                 </SectionCard>
               </div>
-
-              <SectionCard title={`Executive salaries — ${label}`}>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm min-w-200">
-                    <thead className="bg-[#0B1220]">
-                      <tr className="border-b border-crm-border/80">
-                        <th className={`${thCls} text-left`}>Executive</th>
-                        <th className={`${thCls} text-right`}>Basic (PKR)</th>
-                        <th className={`${thCls} text-right`}>Comm. %</th>
-                        <th className={`${thCls} text-right`}>Commission (PKR)</th>
-                        <th className={`${thCls} text-right`}>Total (PKR)</th>
-                        <th className={`${thCls} text-right`}>Loan +ve</th>
-                        <th className={`${thCls} text-right`}>Loan −ve</th>
-                        <th className={`${thCls} text-left`}>Remarks</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {report.executives.length === 0 ? (
-                        <tr><td colSpan={8} className="px-3 py-6 text-center text-crm-text-faint text-xs">No executive salary entries this month.</td></tr>
-                      ) : (
-                        report.executives.map(e => (
-                          <tr key={e.name} className="border-b border-crm-border-subtle">
-                            <td className={`${tdCls} font-semibold text-crm-text-secondary`}>{e.name}</td>
-                            <td className={`${tdCls} text-right tabular-nums`}>{currency(e.basic)}</td>
-                            <td className={`${tdCls} text-right tabular-nums text-indigo-600 font-bold`}>{e.commissionPct}%</td>
-                            <td className={`${tdCls} text-right tabular-nums text-emerald-700`}>{currency(e.commission)}</td>
-                            <td className={`${tdCls} text-right tabular-nums font-bold text-[#B8112D]`}>{currency(e.total)}</td>
-                            <td className={`${tdCls} text-right tabular-nums`}>{currency(e.loanPositive)}</td>
-                            <td className={`${tdCls} text-right tabular-nums text-red-600`}>{currency(e.loanNegative)}</td>
-                            <td className={`${tdCls} text-crm-text-muted max-w-45 truncate`} title={e.remarks || undefined}>{e.remarks || "—"}</td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                    {report.executives.length > 0 && (
-                      <tfoot>
-                        <tr className="border-t-2 border-[#B8112D]/20 bg-[#B8112D]/5">
-                          <td className="px-3 py-2.5 font-extrabold text-crm-text text-xs">TOTAL SALARY</td>
-                          <td className="px-3 py-2.5 text-right font-extrabold tabular-nums text-xs">{currency(report.executives.reduce((s, e) => s + e.basic, 0))}</td>
-                          <td />
-                          <td className="px-3 py-2.5 text-right font-extrabold tabular-nums text-xs text-emerald-700">{currency(report.executives.reduce((s, e) => s + e.commission, 0))}</td>
-                          <td className="px-3 py-2.5 text-right font-extrabold tabular-nums text-xs text-[#B8112D]">{currency(report.executives.reduce((s, e) => s + e.total, 0))}</td>
-                          <td colSpan={3} />
-                        </tr>
-                      </tfoot>
-                    )}
-                  </table>
-                </div>
-              </SectionCard>
 
               <p className="text-center text-[10px] text-[#94A3B8] pb-6">
                 Auto-generated from CRM accounts daily records, cash flow & payroll · {label}

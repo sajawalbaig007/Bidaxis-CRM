@@ -76,7 +76,7 @@ function fixRowProjectCount(p) {
     if (p.projectCount != null && Number.isFinite(Number(p.projectCount))) {
         return Math.max(0, Number(p.projectCount));
     }
-    return 1;
+    return 0;
 }
 function projectFxRate(p, opts) {
     const stored = Number(p.fxRate);
