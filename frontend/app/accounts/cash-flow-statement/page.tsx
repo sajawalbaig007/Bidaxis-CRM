@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef } from "react";
 import {
   Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Legend, Line, LineChart, Pie, PieChart, Tooltip, XAxis, YAxis,
 } from "recharts";
-import { Landmark, Wallet, Building2, Activity, PieChart as PieIcon, TrendingUp } from "lucide-react";
+import { Landmark, Wallet, Activity, PieChart as PieIcon, TrendingUp } from "lucide-react";
 import AccountsSidebar from "../components/layout/Sidebar";
 import { ACCOUNTS_MAIN_OFFSET } from "../components/layout/headerOffset";
 import AccountsPageShell from "../components/AccountsPageShell";
@@ -216,36 +216,6 @@ export default function CashFlowStatementPage() {
                 <p className="text-[9px] text-white/60 font-medium mt-0.5 truncate">{c.hint}</p>
               </div>
             ))}
-          </section>
-
-          <section className={`mt-4 bg-crm-surface rounded-2xl border-2 p-4 sm:p-5 ${theme.card}`}>
-            <div className="flex items-center gap-2 mb-3">
-              <Building2 size={16} className="text-[#B8112D]" />
-              <h2 className="font-bold text-sm text-crm-text">Bank Accounts</h2>
-            </div>
-            <label className="text-xs font-semibold text-crm-text-secondary block">
-              Bank heads (comma separated)
-              <input
-                value={bankHeads.join(", ")}
-                onChange={e => {
-                  const heads = e.target.value.split(",").map(s => s.trim()).filter(Boolean);
-                  acc.setData(prev => ({ ...prev, bankHeads: heads }));
-                  persistSoon();
-                }}
-                className={`mt-1.5 h-10 w-full rounded-xl border border-crm-border px-3 text-sm outline-none focus:ring-2 ${theme.input}`}
-              />
-            </label>
-            <div className="flex flex-wrap gap-2 mt-3">
-              {bankHeads.map((bank, i) => (
-                <span
-                  key={bank}
-                  className="px-2.5 py-1 rounded-lg text-[11px] font-bold text-white"
-                  style={{ backgroundColor: bankColor(i) }}
-                >
-                  {bank}
-                </span>
-              ))}
-            </div>
           </section>
 
           <section className="grid grid-cols-1 xl:grid-cols-2 gap-4 mt-5">
