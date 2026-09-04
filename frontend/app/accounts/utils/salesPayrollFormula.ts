@@ -148,7 +148,7 @@ export function fixRowProjectCount(p: Pick<FixClientProject, "projectCount">): n
   if (p.projectCount != null && Number.isFinite(Number(p.projectCount))) {
     return Math.max(0, Number(p.projectCount));
   }
-  return 1;
+  return 0;
 }
 
 function projectFxRate(p: FixClientProject, opts?: SalesPayrollCalcOpts): number {
@@ -322,7 +322,7 @@ export function newFixClientProject(init?: Partial<FixClientProject>): FixClient
     currency: init?.currency === "CAD" ? "CAD" : "USD",
     fxRate: Number(init?.fxRate) || 0,
     slabKey: init?.slabKey ?? "0-1000",
-    projectCount: init?.projectCount ?? 1,
+    projectCount: init?.projectCount ?? 0,
   };
 }
 

@@ -39,29 +39,34 @@ function normName(label: string): string {
   return label.trim().toLowerCase().replace(/\s+/g, " ");
 }
 
-/** Pending loan on the Loans table / cards.
- *  Fully paid → 0 (deducted). Otherwise remaining = Total − Paid − This month.
+/** Loan shown on the Loans table / monthly report.
+ *  This-month amount is kept as-is even after salary deduction.
+ *  If nothing moved this month, remaining outstanding is shown.
  */
 export function loanAmountFromSub(sub: SubHeadEntry, kind: PayrollKind): number {
   if (kind === "sales" || kind === "sales_lead") {
     const sp = sub.salesPayroll;
     if (!sp) return 0;
+    const thisMonth = Math.max(0, Number(sp.loanThisMonth) || 0);
+    if (thisMonth > 0) return thisMonth;
     const total = Math.max(0, Number(sp.loanTotal) || 0);
     const paid = Math.max(0, Number(sp.loanPaid) || 0);
-    const thisMonth = Math.max(0, Number(sp.loanThisMonth) || 0);
-    return Math.max(0, total - paid - thisMonth);
+    return Math.max(0, total - paid);
   }
 
   const sal = emptySalaryDetail(sub.salary ?? { basic: Number(sub.amount) || 0 });
   if (kind === "executive") {
-    // Outstanding they still owe the company
-    return Math.max(0, Number(sal.loanNegative) || 0);
+    const given = Math.max(0, Number(sal.loanPositive) || 0);
+    const recover = Math.max(0, Number(sal.loanNegative) || 0);
+    if (given > 0) return given;
+    return recover;
   }
 
+  const thisMonth = Math.max(0, Number(sal.loanThisMonth) || 0);
+  if (thisMonth > 0) return thisMonth;
   const total = Math.max(0, Number(sal.loanTotal) || 0);
   const paid = Math.max(0, Number(sal.loanPaid) || 0);
-  const thisMonth = Math.max(0, Number(sal.loanThisMonth) || 0);
-  return Math.max(0, total - paid - thisMonth);
+  return Math.max(0, total - paid);
 }
 
 function hasLoanActivity(sub: SubHeadEntry, kind: PayrollKind): boolean {

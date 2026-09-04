@@ -125,7 +125,7 @@ export default function SalesPayrollEmployeeEditor({
             currency: "USD",
             fxRate: Number(calcOpts?.usdToPkr) || 0,
             slabKey: "0-1000",
-            projectCount: 1,
+            projectCount: 0,
           }),
         ],
       },
@@ -262,7 +262,7 @@ export default function SalesPayrollEmployeeEditor({
                       </label>
                       <Num
                         label="No. of projects"
-                        value={p.projectCount ?? 1}
+                        value={p.projectCount ?? 0}
                         onChange={v => patch({ projectCount: v, slabKey: p.slabKey ?? inferSlabKey(p.projectPay) })}
                       />
                       <Num
@@ -353,7 +353,7 @@ export default function SalesPayrollEmployeeEditor({
                     currency: "USD",
                     fxRate: Number(calcOpts?.usdToPkr) || 0,
                     slabKey: "0-1000",
-                    projectCount: 1,
+                    projectCount: 0,
                   }),
                 ],
               })}

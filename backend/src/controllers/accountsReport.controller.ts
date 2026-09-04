@@ -766,6 +766,54 @@ function buildOpexTables(data: Record<string, unknown>, key: "opexHeads" | "loan
   }));
 }
 
+function loanIssuedThisMonth(s: SubHead): number {
+  const thisMonth = Number(s.salesPayroll?.loanThisMonth ?? s.salary?.loanThisMonth) || 0;
+  if (thisMonth > 0) return money(thisMonth);
+  const given = Number(s.salary?.loanPositive) || 0;
+  if (given > 0) return money(given);
+  const recover = Number(s.salary?.loanNegative) || 0;
+  if (recover > 0) return money(recover);
+  return 0;
+}
+
+function loanHeadForTeam(teamTitle: string): string {
+  const t = teamTitle.trim().toLowerCase();
+  if (t.includes("executive")) return "Executive Loans";
+  if (t.includes("admin")) return "Administration Loans";
+  if (t.includes("technical")) return "Technical Team Loans";
+  if (t.includes("sales")) return "Sales Team Loans";
+  return "Other Loans";
+}
+
+/** Report loans = this-month issued amount, even after salary deduction. */
+function buildLoanTablesFromPayroll(data: Record<string, unknown>): OpexFieldTable[] {
+  const groups = new Map<string, OpexFieldTable>();
+  for (const team of (data.teamSalaries as HeadRow[]) ?? []) {
+    const head = loanHeadForTeam(String(team.team ?? ""));
+    for (const s of team.subHeads ?? []) {
+      const amount = loanIssuedThisMonth(s);
+      if (amount <= 0) continue;
+      const name = String(s.label || s.salesPayroll?.name || "—").trim() || "—";
+      const g = groups.get(head) ?? {
+        name: head,
+        amount: 0,
+        filledAt: String(team.filledAt ?? ""),
+        notes: "This month loan — shown as issued, even if already deducted",
+        lines: [],
+      };
+      g.lines.push({
+        label: name,
+        amount,
+        filledAt: String(s.filledAt ?? team.filledAt ?? ""),
+        proofName: "",
+      });
+      g.amount = money(g.amount + amount);
+      groups.set(head, g);
+    }
+  }
+  return [...groups.values()];
+}
+
 /**
  * CSR Team Performance — every Sales Team + Sales Team Lead person as their own row,
  * with separate columns for each project / commission field.
@@ -918,12 +966,12 @@ export async function getMonthlyAccountsReport(req: AuthRequest, res: Response) 
     const pfHeads = aggregateCategory(monthRecords, "providentFundHeads", "label");
     const executives = aggregateExecutives(monthRecords);
     const opexTables = monthSnap ? buildOpexTables(snapshot, "opexHeads") : [];
-    const loanTables = monthSnap ? buildOpexTables(snapshot, "loanHeads") : [];
+    const loanTables = monthSnap ? buildLoanTablesFromPayroll(snapshot) : [];
     const pfTables = monthSnap ? buildOpexTables(snapshot, "providentFundHeads") : [];
 
     const payroll = monthSnap ? categorySum(snapshot, "teamSalaries") : 0;
     const opex = monthSnap ? categorySum(snapshot, "opexHeads") : 0;
-    const loans = monthSnap ? categorySum(snapshot, "loanHeads") : 0;
+    const loans = loanTables.reduce((a, t) => a + t.amount, 0);
     const pf = monthSnap ? categorySum(snapshot, "providentFundHeads") : 0;
     const totalCost = payroll + opex;
     const netProfit = revenue - totalCost;
