@@ -8,9 +8,9 @@ import {
   Boxes,
   Building2,
   CheckCircle2,
+  ChevronDown,
   Cpu,
   Eye,
-  LayoutDashboard,
   Layers3,
   PieChart as PieIcon,
   RefreshCw,
@@ -266,6 +266,8 @@ export default function AccountsDashboardPage() {
   const [viewTab, setViewTab] = useState<ViewTab>("AH");
   const [formulaOpen, setFormulaOpen] = useState(false);
   const [formulaBookOpen, setFormulaBookOpen] = useState(false);
+  const [fxExpanded, setFxExpanded] = useState(true);
+  const [formulaExpanded, setFormulaExpanded] = useState(true);
   const [fxRates, setFxRates] = useState<LiveFxRates | null>(null);
   const [fxError, setFxError] = useState("");
   const [fxVersion, setFxVersion] = useState(0);
@@ -355,26 +357,6 @@ export default function AccountsDashboardPage() {
       }
     : { ...activeCalc, pkrAmount: activeCalc.pkrNet };
 
-  const paymentSummary =
-    viewTab === "ALL"
-      ? [
-          { name: "Ahmed", amount: ahCalc.total, color: "#B8112D" },
-          { name: "Sharjeel", amount: snCalc.total, color: "#0B84F3" },
-          { name: "Cheque", amount: chqCalc.total, color: "#F59E0B" },
-          { name: "Habib", amount: hmCalc.total, color: "#0D9488" },
-        ]
-      : isLocalPaymentTab(viewTab)
-        ? [
-            { name: "Gross", amount: activeCalc.pkrGross, color: "#64748B" },
-            { name: "Tax", amount: activeCalc.pkrTax, color: "#EF4444" },
-            { name: "Net", amount: activeCalc.pkrNet, color: "#12B76A" },
-          ]
-        : [
-            { name: "USD", amount: displayCalc.usdInPkr, color: "#0B84F3" },
-            { name: "CAD", amount: displayCalc.cadInPkr, color: "#0D9488" },
-            { name: "PKR", amount: displayCalc.pkrAmount, color: "#12B76A" },
-          ];
-
   const bsAssets = summaries.balanceSheetTotalAssets ?? 0;
   const bsEquityLiab = summaries.balanceSheetEquityLiabilities
     ?? ((summaries.balanceSheetTotalEquity ?? 0) + (summaries.balanceSheetTotalLiabilities ?? 0));
@@ -401,6 +383,7 @@ export default function AccountsDashboardPage() {
     : (summaries.incomeTotalRevenue ?? combinedTotal);
   const isExp = summaries.incomeTotalExpense ?? 0;
   const isProfit = summaries.incomeNetProfit ?? 0;
+  const netCashFlow = summaries.cashFlowNet ?? 0;
   const bsLiab = summaries.balanceSheetTotalLiabilities ?? 0;
   const bsEquity = summaries.balanceSheetTotalEquity ?? 0;
   const totalAssetsVal = summaries.totalAssetsRegister ?? bsAssets;
@@ -409,6 +392,7 @@ export default function AccountsDashboardPage() {
     { label: "Revenue", value: currencyCardTotal, color: "#6D28D9", hint: "Income Statement total revenue", href: "/accounts/income-statement", icon: <TrendingUp size={14} /> },
     { label: "Total expenses", value: isExp, color: "#B8112D", hint: "Payroll + OPEX", href: "/accounts/income-statement", icon: <Layers3 size={14} /> },
     { label: "Profit / Loss", value: isProfit, color: isProfit >= 0 ? "#027A48" : "#B8112D", hint: isProfit >= 0 ? "Net profit" : "Net loss", href: "/accounts/income-statement", icon: <TrendingUp size={14} /> },
+    { label: "Net Balance", value: netCashFlow, color: "#8b0d22", hint: "Cash Flow net amount", href: "/accounts/cash-flow-statement", icon: <Waves size={14} /> },
     { label: "Total Assets", value: totalAssetsVal, color: "#0F766E", hint: "Total Assets register", href: "/accounts/total-assets", icon: <Building2 size={14} /> },
     { label: "Total Liabilities", value: bsLiab, color: "#0369A1", hint: "Balance Sheet", href: "/accounts/balance-sheet", icon: <Scale size={14} /> },
     { label: "Total Equity", value: bsEquity, color: "#0D9488", hint: "Balance Sheet", href: "/accounts/balance-sheet", icon: <Wallet size={14} /> },
@@ -430,6 +414,18 @@ export default function AccountsDashboardPage() {
     { key: "CHQ" as const, label: "Cheque", fx: fxFor("CHQ"), dot: "#FBBF24" },
     { key: "HM" as const, label: "Habib Metro", fx: fxFor("HM"), dot: "#2DD4BF" },
   ];
+
+  const paymentSplit = channelChips.map(c => ({
+    name: c.key === "AH" ? "Ahmed" : c.key === "SN" ? "Sharjeel" : c.key === "CHQ" ? "Cheque" : "Habib",
+    USD: c.fx.usdAmount,
+    CAD: c.fx.cadAmount,
+    PKR: c.fx.pkrAmount,
+    amount: c.fx.usdAmount + c.fx.cadAmount + c.fx.pkrAmount,
+    color: c.dot,
+  }));
+  const paymentSplitPie = paymentSplit.filter(r => r.amount > 0).concat(
+    paymentSplit.every(r => r.amount <= 0) ? [{ name: "Empty", USD: 0, CAD: 0, PKR: 0, amount: 1, color: "#E2E8F0" }] : [],
+  );
 
   const isPayroll = summaries.incomePayroll ?? 0;
   const isOpex = summaries.incomeOpex ?? 0;
@@ -606,7 +602,7 @@ export default function AccountsDashboardPage() {
             </div>
           </section>
 
-          <section className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3 mt-4">
+          <section className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-7 gap-3 mt-4">
             {kpiCards.map(m => (
               <Link
                 key={m.label}
@@ -631,17 +627,28 @@ export default function AccountsDashboardPage() {
           <section className="mt-5 w-full space-y-4">
             <div id="live-fx" className={`w-full ${BENTO_CARD} overflow-hidden scroll-mt-[80px]`}>
               <div className="px-4 sm:px-5 py-3 border-b border-crm-border-subtle bg-gradient-to-r from-[#EFF8FF] to-white flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                <div>
-                  <h2 className="font-extrabold text-crm-text text-sm tracking-tight">Live FX Rates — USD & CAD → PKR</h2>
-                  <p className="text-[11px] text-crm-text-faint mt-0.5">
-                    Fetched from Google Finance · live USD and CAD to PKR for review against your formula
-                  </p>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => setFxExpanded(v => !v)}
+                  className="min-w-0 flex-1 text-left flex items-start gap-2"
+                  aria-expanded={fxExpanded}
+                >
+                  <ChevronDown
+                    size={16}
+                    className={`mt-0.5 shrink-0 text-[#0B84F3] transition-transform ${fxExpanded ? "" : "-rotate-90"}`}
+                  />
+                  <div className="min-w-0">
+                    <h2 className="font-extrabold text-crm-text text-sm tracking-tight">Live FX Rates — USD & CAD → PKR</h2>
+                    <p className="text-[11px] text-crm-text-faint mt-0.5">
+                      Fetched from Google Finance · live USD and CAD to PKR for review against your formula
+                    </p>
+                  </div>
+                </button>
                 <button
                   type="button"
                   disabled={fxLoading}
                   onClick={() => setFxVersion(v => v + 1)}
-                  className="h-9 px-3 rounded-xl bg-[#EAF5FF] border border-[#D6EBFF] text-[#0B84F3] text-[11px] font-bold inline-flex items-center gap-1.5 hover:bg-[#D6EBFF] disabled:opacity-50"
+                  className="h-9 px-3 rounded-xl bg-[#EAF5FF] border border-[#D6EBFF] text-[#0B84F3] text-[11px] font-bold inline-flex items-center gap-1.5 hover:bg-[#D6EBFF] disabled:opacity-50 shrink-0"
                   title="Fetch rates again"
                 >
                   <RefreshCw size={13} className={fxLoading ? "animate-spin" : ""} />
@@ -649,6 +656,7 @@ export default function AccountsDashboardPage() {
                 </button>
               </div>
 
+              {fxExpanded && (
               <div className="p-4 sm:p-5">
                 {fxLoading && !fxRates ? (
                   <p className="text-xs text-crm-text-faint font-medium flex items-center gap-2">
@@ -693,14 +701,26 @@ export default function AccountsDashboardPage() {
                   </div>
                 ) : null}
               </div>
+              )}
             </div>
 
             <div id="currency-formula" className={`w-full ${BENTO_CARD} overflow-hidden scroll-mt-[80px]`}>
               <div className="px-4 sm:px-5 py-3 border-b border-crm-border-subtle bg-gradient-to-r from-[#FFF8F9] to-white flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                <div>
-                  <h2 className="font-extrabold text-crm-text text-sm tracking-tight">Currency Payment Formula</h2>
-                  <p className="text-[11px] text-crm-text-faint mt-0.5">Collected from project payments (by month) · eye for rates · {acc.recordDate}</p>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => setFormulaExpanded(v => !v)}
+                  className="min-w-0 flex-1 text-left flex items-start gap-2"
+                  aria-expanded={formulaExpanded}
+                >
+                  <ChevronDown
+                    size={16}
+                    className={`mt-0.5 shrink-0 text-[#B8112D] transition-transform ${formulaExpanded ? "" : "-rotate-90"}`}
+                  />
+                  <div className="min-w-0">
+                    <h2 className="font-extrabold text-crm-text text-sm tracking-tight">Currency Payment Formula</h2>
+                    <p className="text-[11px] text-crm-text-faint mt-0.5">Collected from project payments (by month) · eye for rates · {acc.recordDate}</p>
+                  </div>
+                </button>
                 <div className="flex items-center gap-2 shrink-0">
                   {viewTab !== "ALL" && (
                     <button
@@ -738,6 +758,8 @@ export default function AccountsDashboardPage() {
                 </div>
               </div>
 
+              {formulaExpanded && (
+              <>
               <p className="px-4 sm:px-5 pt-2.5 text-[11px] text-crm-text-muted leading-snug">{formulaNote}</p>
 
               {viewTab === "ALL" ? (
@@ -844,82 +866,51 @@ export default function AccountsDashboardPage() {
                   </>
                 )}
               </div>
+              </>
+              )}
             </div>
 
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 w-full">
+            <div className="w-full">
               <AccountsChartCard
-                title={`Payment Split — ${viewTab !== "ALL" ? CURRENCY_TAB_LABELS[viewTab] : "All"}`}
-                subtitle={viewTab === "ALL" ? "All channels" : isLocalPaymentTab(viewTab) ? "Gross · Tax · Net" : "USD · CAD · PKR"}
+                title="Payment Split"
+                subtitle="Ahmed Hamza · Sharjeel Nasir · Cheque · Habib Metro · USD / CAD / PKR"
                 accent="#B8112D"
                 icon={<PieIcon size={16} />}
               >
-                <div className="grid grid-cols-2 gap-1 items-center">
-                  <RechartsBox height={180}>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-2 items-center">
+                  <RechartsBox height={240}>
                     <PieChart>
                       <Pie
-                        data={paymentSummary.filter(r => r.amount > 0).concat(
-                          paymentSummary.every(r => r.amount <= 0) ? [{ name: "Empty", amount: 1, color: "#E2E8F0" }] : [],
-                        )}
+                        data={paymentSplitPie}
                         dataKey="amount"
                         nameKey="name"
-                        innerRadius={40}
-                        outerRadius={68}
+                        innerRadius={52}
+                        outerRadius={88}
                         paddingAngle={3}
                         stroke="#fff"
                         strokeWidth={2}
                       >
-                        {paymentSummary.map(row => (
+                        {paymentSplitPie.map(row => (
                           <Cell key={row.name} fill={row.color} />
                         ))}
-                        {paymentSummary.every(r => r.amount <= 0) && <Cell fill="#E2E8F0" />}
                       </Pie>
                       <Tooltip formatter={v => currency(Number(v ?? 0))} />
+                      <Legend wrapperStyle={{ fontSize: 11, fontWeight: 700 }} />
                     </PieChart>
                   </RechartsBox>
-                  <RechartsBox height={180}>
-                    <BarChart data={paymentSummary} barSize={26} margin={{ left: -8, right: 4 }}>
+                  <RechartsBox height={240}>
+                    <BarChart data={paymentSplit} barSize={18} margin={{ left: -8, right: 8, top: 8 }}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                      <XAxis dataKey="name" tick={{ fontSize: 10, fontWeight: 700 }} />
-                      <YAxis tick={{ fontSize: 9 }} width={36} />
+                      <XAxis dataKey="name" tick={{ fontSize: 11, fontWeight: 700 }} />
+                      <YAxis tick={{ fontSize: 9 }} width={44} tickFormatter={compactPkr} />
                       <Tooltip formatter={v => currency(Number(v ?? 0))} />
-                      <Bar dataKey="amount" radius={[8, 8, 0, 0]}>
-                        {paymentSummary.map(row => (
-                          <Cell key={row.name} fill={row.color} />
-                        ))}
-                      </Bar>
+                      <Legend wrapperStyle={{ fontSize: 11, fontWeight: 700 }} />
+                      <Bar dataKey="USD" fill="#0B84F3" radius={[6, 6, 0, 0]} />
+                      <Bar dataKey="CAD" fill="#0D9488" radius={[6, 6, 0, 0]} />
+                      <Bar dataKey="PKR" fill="#B8112D" radius={[6, 6, 0, 0]} />
                     </BarChart>
                   </RechartsBox>
                 </div>
-              </AccountsChartCard>
-
-              <AccountsChartCard
-                title="Pages Snapshot"
-                subtitle={usesPeriodSummary ? periodHint : `As of ${acc.recordDate}`}
-                accent="#0F172A"
-                icon={<LayoutDashboard size={16} />}
-              >
-                <RechartsBox height={180}>
-                  <BarChart
-                    data={[
-                      { name: "BS", value: summaries.balanceSheetTotalAssets ?? 0 },
-                      { name: "Income", value: summaries.incomeNetProfit ?? 0 },
-                      { name: "Cash", value: summaries.cashFlowNet ?? 0 },
-                      { name: "Assets", value: summaries.totalAssetsRegister ?? 0 },
-                    ]}
-                    barSize={32}
-                    margin={{ left: -4, right: 4 }}
-                  >
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                    <XAxis dataKey="name" tick={{ fontSize: 10, fontWeight: 700 }} />
-                    <YAxis tick={{ fontSize: 9 }} width={40} tickFormatter={compactPkr} />
-                    <Tooltip formatter={v => currency(Number(v ?? 0))} />
-                    <Bar dataKey="value" radius={[8, 8, 0, 0]}>
-                      {["#0B84F3", "#12B76A", "#B8112D", "#0D9488"].map((c, i) => (
-                        <Cell key={i} fill={c} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </RechartsBox>
               </AccountsChartCard>
             </div>
 
