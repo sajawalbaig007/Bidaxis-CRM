@@ -236,6 +236,115 @@ function buildInsights(report: MonthlyReport) {
   };
 }
 
+const PIE_COLORS: Record<string, string> = {
+  AH: "#E11D48",
+  SN: "#0B84F3",
+  CO: "#0D9488",
+  QH: "#F59E0B",
+};
+
+function pieKeyForBank(bank: string): "AH" | "SN" | "CO" | "QH" | null {
+  const t = bank.trim().toLowerCase();
+  if (t.includes("qasim") || t.includes("cheque") || t.includes("chq") || t.includes("qhm")) return "QH";
+  if (/\bah\b/.test(t) || t.includes("ahmed") || t.includes("ah paypal")) return "AH";
+  if (/\bsn\b/.test(t) || t.includes("sharjeel")) return "SN";
+  if (t.includes("habib") || t.includes("metro")) return "CO";
+  return null;
+}
+
+function reportPieSlices(report: MonthlyReport): { name: string; value: number; color: string }[] {
+  const fromBanks: Record<"AH" | "SN" | "CO" | "QH", number> = { AH: 0, SN: 0, CO: 0, QH: 0 };
+  for (const b of report.cash.banks ?? []) {
+    const key = pieKeyForBank(b.bank);
+    if (!key) continue;
+    fromBanks[key] += Number(b.debit) || Math.max(0, Number(b.balance) || 0);
+  }
+  if (Object.values(fromBanks).some(v => v > 0)) {
+    return (["AH", "SN", "CO", "QH"] as const).map(name => ({
+      name,
+      value: fromBanks[name],
+      color: PIE_COLORS[name],
+    }));
+  }
+  const fromRev: Record<"AH" | "SN" | "CO" | "QH", number> = { AH: 0, SN: 0, CO: 0, QH: 0 };
+  for (const c of report.revenueChannels ?? []) {
+    if (c.key === "AH") fromRev.AH += c.netPkr;
+    else if (c.key === "SN") fromRev.SN += c.netPkr;
+    else if (c.key === "HM") fromRev.CO += c.netPkr;
+    else fromRev.QH += c.netPkr;
+  }
+  return (["AH", "SN", "CO", "QH"] as const).map(name => ({
+    name,
+    value: fromRev[name],
+    color: PIE_COLORS[name],
+  }));
+}
+
+/** Plain-language month position from the full report (KPIs, budget, cash, history). */
+function buildPositionSummary(report: MonthlyReport): string[] {
+  const label = monthLabel(report.month);
+  const ins = buildInsights(report);
+  const t = report.totals;
+  const bc = report.budgetCompare;
+  const hist3 = report.history.slice(-3);
+  const hist6 = report.history;
+  const sum = (rows: MonthlyReport["history"]) =>
+    rows.reduce((a, h) => ({ revenue: a.revenue + h.revenue, cost: a.cost + h.cost, net: a.net + h.net }), {
+      revenue: 0,
+      cost: 0,
+      net: 0,
+    });
+  const s3 = sum(hist3);
+  const s6 = sum(hist6);
+  const targetRev = bc?.totals.budgetRevenue ?? 0;
+  const planExp = bc?.totals.budgetExpense ?? 0;
+  const revVsTarget = targetRev > 0 ? t.revenue - targetRev : null;
+  const expVsPlan = planExp > 0 ? t.totalCost - planExp : null;
+  const topOver = [...(bc?.rows ?? [])]
+    .filter(r => r.actual > 0 || r.budget > 0)
+    .sort((a, b) => b.variance - a.variance)[0];
+  const slices = reportPieSlices(report).filter(s => s.value > 0);
+  const mixLead = [...slices].sort((a, b) => b.value - a.value)[0];
+  const mixNames: Record<string, string> = {
+    AH: "Ahmed Hamza",
+    SN: "Sharjeel Nasir",
+    CO: "CO. Habib Metro",
+    QH: "Qasim Habib Metro",
+  };
+
+  const p1 = [
+    `${label} closed with ${t.netProfit >= 0 ? "a profit" : "a loss"} of ${signed(t.netProfit)} (${ins.profitNote.toLowerCase()}).`,
+    `Actual revenue was ${pkr(t.revenue)}${
+      revVsTarget != null
+        ? ` against a target of ${pkr(targetRev)} (${revVsTarget >= 0 ? "ahead" : "short"} ${signed(revVsTarget)})`
+        : ""
+    }.`,
+    `Total cost was ${pkr(t.totalCost)} (payroll ${pkr(t.payroll)} · OPEX ${pkr(t.opex)})${
+      expVsPlan != null
+        ? `, ${expVsPlan > 0 ? "over" : expVsPlan < 0 ? "under" : "on"} the expense plan by ${signed(expVsPlan)}`
+        : ""
+    }.`,
+  ].join(" ");
+
+  const p2 = [
+    `Net cash stands at ${pkr(report.cash.closingNet)}${report.cash.asOf ? ` as of ${report.cash.asOf}` : ""}, with ${signed(report.cash.monthNet)} movement this month.`,
+    mixLead
+      ? ` Collections are led by ${mixNames[mixLead.name] ?? mixLead.name} (${pkr(mixLead.value)}).`
+      : "",
+    topOver && topOver.variance > 0
+      ? ` Largest plan overrun is ${topOver.name} (${signed(topOver.variance)} over budget).`
+      : topOver && topOver.variance < 0
+        ? ` Spend is running under plan on ${topOver.name} (${signed(topOver.variance)}).`
+        : "",
+  ].join("");
+
+  const p3 = `Last 3 months combined: ${pkr(s3.revenue)} revenue, ${pkr(s3.cost)} cost, net ${signed(s3.net)}. Last 6 months combined: ${pkr(s6.revenue)} revenue, ${pkr(s6.cost)} cost, net ${signed(s6.net)}.${
+    ins.revenueVsPrev != null ? ` Versus the prior month, revenue moved ${signed(ins.revenueVsPrev)} and cost moved ${signed(ins.costVsPrev ?? 0)}.` : ""
+  }`;
+
+  return [p1, p2.trim(), p3];
+}
+
 /**
  * Word-compatible HTML — same light template as Technical Team monthly report:
  * red h1, grey meta, pastel KPI cards, navy table headers, nested-table bars.
@@ -280,8 +389,8 @@ function buildWordHtml(report: MonthlyReport): string {
     return `<span style="color:${color};font-size:9px;font-weight:bold;">${up ? "▲" : "▼"} ${signed(v)}</span>`;
   };
 
-  const card = (title: string, value: string, subTxt: string, bg: string) =>
-    `<td width="25%" style="padding:6px;">
+  const card = (title: string, value: string, subTxt: string, bg: string, width = "20%") =>
+    `<td width="${width}" style="padding:6px;">
       <table width="100%" cellpadding="0" cellspacing="0" style="background:${bg};border-radius:8px;">
         <tr><td style="padding:12px 14px;">
           <p style="margin:0;font-size:9px;color:#64748B;text-transform:uppercase;letter-spacing:0.5px;font-weight:bold;">${title}</p>
@@ -358,6 +467,25 @@ function buildWordHtml(report: MonthlyReport): string {
     })
     .join("");
   const histTotal = report.history.reduce(
+    (a, h) => ({ revenue: a.revenue + h.revenue, cost: a.cost + h.cost, net: a.net + h.net }),
+    { revenue: 0, cost: 0, net: 0 },
+  );
+  const hist3 = report.history.slice(-3);
+  const historyRows3 = hist3
+    .map(h => {
+      const idx = report.history.findIndex(x => x.month === h.month);
+      const prev = idx > 0 ? report.history[idx - 1] : null;
+      const isThis = h.month === report.month;
+      return `<tr style="background:${isThis ? "#FFF1F3" : "#FFFFFF"};">
+        <td ${td}><b>${monthShort(h.month)}</b>${isThis ? ` <span style="color:${RED};font-size:8px;">● THIS</span>` : ""}</td>
+        <td ${tdR}>${currency(h.revenue)}<br/>${trendArrow(prev ? h.revenue - prev.revenue : null, true)}</td>
+        <td ${tdR}>${currency(h.cost)}<br/>${trendArrow(prev ? h.cost - prev.cost : null, false)}</td>
+        <td ${tdR}><b style="color:${h.net >= 0 ? GREEN_D : RED_TXT};">${signed(h.net)}</b></td>
+        ${profitCell(h.net)}
+      </tr>`;
+    })
+    .join("");
+  const hist3Total = hist3.reduce(
     (a, h) => ({ revenue: a.revenue + h.revenue, cost: a.cost + h.cost, net: a.net + h.net }),
     { revenue: 0, cost: 0, net: 0 },
   );
@@ -532,15 +660,19 @@ function buildWordHtml(report: MonthlyReport): string {
   p.meta { color: #64748B; font-size: 10px; margin: 0 0 16px; }
 </style></head>
 <body>
-  <h1>Accounts Team — Monthly Report</h1>
-  <p class="meta">${label} · Generated ${generatedAt} · BEM Solutions CRM</p>
+  <h1>Executive Summary</h1>
+  <p class="meta">Accounts Team · ${label} · Generated ${generatedAt} · BEM Solutions CRM</p>
 
   <table width="100%" cellpadding="0" cellspacing="0"><tr>
-    ${card("Revenue", pkr(report.totals.revenue), ins.revenueVsPrev != null ? `${signed(ins.revenueVsPrev)} vs prev month` : "Month collections", "#EFF6FF")}
+    ${card("Targeted Revenue", pkr(bc?.totals.budgetRevenue ?? 0), bc?.hasBudget ? "Income Statement budget" : "No budget plan saved", "#F5F3FF")}
+    ${card("Actual Revenue", pkr(report.totals.revenue), ins.revenueVsPrev != null ? `${signed(ins.revenueVsPrev)} vs prev month` : "Month collections", "#EFF6FF")}
     ${card("Total cost", pkr(report.totals.totalCost), report.sourceDate ? `Matches IS Total Expense · ${report.sourceDate}` : ins.costVsPrev != null ? `${signed(ins.costVsPrev)} vs prev month` : `Payroll ${pkr(report.totals.payroll)}`, "#FFF1F3")}
-    ${card("Net profit", signed(net), ins.profitNote, net >= 0 ? "#ECFDF5" : "#FFF7ED")}
-    ${card("Cash (net)", pkr(report.cash.closingNet), report.cash.asOf ? `As of ${report.cash.asOf}` : "Closing position", "#F5F3FF")}
+    ${card("Profit / Loss", signed(net), ins.profitNote, net >= 0 ? "#ECFDF5" : "#FFF7ED")}
+    ${card("Net balance", pkr(report.cash.closingNet), report.cash.asOf ? `As of ${report.cash.asOf}` : "Closing cash position", "#F0FDFA")}
   </tr></table>
+
+  <h2>Company position — ${label}</h2>
+  ${buildPositionSummary(report).map(p => `<p style="font-size:11px;line-height:1.55;color:#334155;margin:0 0 8px;">${p}</p>`).join("")}
 
   <h2>Revenue — currency channels</h2>
   <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
@@ -562,10 +694,10 @@ function buildWordHtml(report: MonthlyReport): string {
     !bc?.hasBudget
       ? `<p style="font-size:10px;color:#64748B;">No Income Statement budget saved for this month. Set a plan on the Income Statement budget planner first.</p>`
       : `<table width="100%" cellpadding="0" cellspacing="0"><tr>
-    ${card("Planned revenue", pkr(bc.totals.budgetRevenue), "Income Statement budget", "#F5F3FF")}
-    ${card("Actual revenue", pkr(bc.totals.actualRevenue), "Collections this month", "#EFF6FF")}
-    ${card("Planned expense", pkr(bc.totals.budgetExpense), "Payroll + OPEX plan", "#FFF7ED")}
-    ${card("Actual expense", pkr(bc.totals.actualExpense), `Spent vs plan ${signed(bc.totals.variance)}`, bc.totals.variance > 0 ? "#FFF1F3" : "#ECFDF5")}
+    ${card("Planned revenue", pkr(bc.totals.budgetRevenue), "Income Statement budget", "#F5F3FF", "25%")}
+    ${card("Actual revenue", pkr(bc.totals.actualRevenue), "Collections this month", "#EFF6FF", "25%")}
+    ${card("Planned expense", pkr(bc.totals.budgetExpense), "Payroll + OPEX plan", "#FFF7ED", "25%")}
+    ${card("Actual expense", pkr(bc.totals.actualExpense), `Spent vs plan ${signed(bc.totals.variance)}`, bc.totals.variance > 0 ? "#FFF1F3" : "#ECFDF5", "25%")}
   </tr></table>
   <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin-top:10px;">
     <tr>
@@ -585,7 +717,22 @@ function buildWordHtml(report: MonthlyReport): string {
   <p style="margin:6px 0 0;font-size:9px;color:#64748B;"><b style="color:${VIOLET};">■</b> Planned &nbsp; <b style="color:${BLUE};">■</b> Actual</p>` : ""}`
   }
 
-  <h2>Financial performance — ${label} and previous 5 months</h2>
+  <h2>Financial performance</h2>
+  <h3 style="color:${NAVY};font-size:12px;margin:8px 0 6px;">Last 3 months</h3>
+  <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
+    <tr>
+      <td ${th}>Month</td><td ${thR}>Revenue (PKR)</td><td ${thR}>Total Cost (PKR)</td><td ${thR}>Net P/L (PKR)</td><td ${thC}>Status</td>
+    </tr>
+    ${historyRows3 || tdEmpty(5, "No income statement records yet.")}
+    <tr style="background:#F8FAFC;">
+      <td ${td}><b>TOTAL</b></td>
+      <td ${tdR}><b>${currency(hist3Total.revenue)}</b></td>
+      <td ${tdR}><b>${currency(hist3Total.cost)}</b></td>
+      <td ${tdR}><b style="color:${hist3Total.net >= 0 ? GREEN_D : RED_TXT};">${signed(hist3Total.net)}</b></td>
+      ${profitCell(hist3Total.net)}
+    </tr>
+  </table>
+  <h3 style="color:${NAVY};font-size:12px;margin:16px 0 6px;">Last 6 months</h3>
   <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
     <tr>
       <td ${th}>Month</td><td ${thR}>Revenue (PKR)</td><td ${thR}>Total Cost (PKR)</td><td ${thR}>Net P/L (PKR)</td><td ${thC}>Status</td>
@@ -789,6 +936,184 @@ function SectionCard({ title, children }: { title: string; children: React.React
   );
 }
 
+const PIE_LEGEND: { key: "AH" | "SN" | "CO" | "QH"; name: string }[] = [
+  { key: "AH", name: "Ahmed Hamza" },
+  { key: "SN", name: "Sharjeel Nasir" },
+  { key: "CO", name: "CO. Habib Metro" },
+  { key: "QH", name: "Qasim Habib Metro" },
+];
+
+function HistoryPerformanceHalf({
+  title,
+  rows,
+  allHistory,
+  currentMonth,
+  chartId,
+}: {
+  title: string;
+  rows: MonthlyReport["history"];
+  allHistory: MonthlyReport["history"];
+  currentMonth: string;
+  chartId: string;
+}) {
+  const totals = rows.reduce(
+    (a, h) => ({ revenue: a.revenue + h.revenue, cost: a.cost + h.cost, net: a.net + h.net }),
+    { revenue: 0, cost: 0, net: 0 },
+  );
+  return (
+    <div>
+      <div className="px-4 sm:px-5 pt-3 pb-1">
+        <h3 className="text-[11px] font-extrabold uppercase tracking-wider text-[#B8112D]">{title}</h3>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm min-w-160">
+          <thead className="bg-[#0B1220]">
+            <tr>
+              <th className={`${thCls} text-left`}>Month</th>
+              <th className={`${thCls} text-right`}>Revenue (PKR)</th>
+              <th className={`${thCls} text-right`}>Total Cost (PKR)</th>
+              <th className={`${thCls} text-right`}>Net P/L (PKR)</th>
+              <th className={`${thCls} text-center w-24`}>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.length === 0 ? (
+              <tr>
+                <td colSpan={5} className="px-3 py-8 text-center text-crm-text-faint text-xs">
+                  No income statement records yet.
+                </td>
+              </tr>
+            ) : (
+              rows.map(h => {
+                const idx = allHistory.findIndex(x => x.month === h.month);
+                const prev = idx > 0 ? allHistory[idx - 1] : null;
+                return (
+                  <tr
+                    key={h.month}
+                    className={`border-b border-crm-border-subtle ${h.month === currentMonth ? "bg-[#FFF6F8]" : "bg-crm-surface"}`}
+                  >
+                    <td className={`${tdCls} font-bold text-crm-text`}>
+                      {monthShort(h.month)}
+                      {h.month === currentMonth && (
+                        <span className="ml-2 text-[9px] font-bold text-[#B8112D] uppercase">This report</span>
+                      )}
+                    </td>
+                    <td className={`${tdCls} text-right tabular-nums`}>
+                      {currency(h.revenue)}
+                      <div>
+                        <TrendArrow v={prev ? h.revenue - prev.revenue : null} goodWhenUp />
+                      </div>
+                    </td>
+                    <td className={`${tdCls} text-right tabular-nums`}>
+                      {currency(h.cost)}
+                      <div>
+                        <TrendArrow v={prev ? h.cost - prev.cost : null} goodWhenUp={false} />
+                      </div>
+                    </td>
+                    <td className={`${tdCls} text-right font-bold tabular-nums ${h.net >= 0 ? "text-emerald-600" : "text-red-600"}`}>
+                      {signed(h.net)}
+                    </td>
+                    <td className={`${tdCls} text-center`}>
+                      <span
+                        className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                          h.net >= 0 ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-600"
+                        }`}
+                      >
+                        {h.net >= 0 ? "Profit" : "Loss"}
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
+          {rows.length > 0 && (
+            <tfoot>
+              <tr className="border-t-2 border-crm-border bg-[#FAFBFC]">
+                <td className="px-3 py-2.5 font-extrabold text-crm-text text-xs">TOTAL</td>
+                <td className="px-3 py-2.5 text-right font-extrabold tabular-nums text-xs">{currency(totals.revenue)}</td>
+                <td className="px-3 py-2.5 text-right font-extrabold tabular-nums text-xs">{currency(totals.cost)}</td>
+                <td className={`px-3 py-2.5 text-right font-extrabold tabular-nums text-xs ${totals.net >= 0 ? "text-emerald-600" : "text-red-600"}`}>
+                  {signed(totals.net)}
+                </td>
+                <td className="px-3 py-2.5 text-center">
+                  <span
+                    className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                      totals.net >= 0 ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-600"
+                    }`}
+                  >
+                    {totals.net >= 0 ? "Profit" : "Loss"}
+                  </span>
+                </td>
+              </tr>
+            </tfoot>
+          )}
+        </table>
+      </div>
+      {rows.length > 0 && (
+        <div className="px-3 pb-3 pt-1" id={chartId}>
+          <RechartsBox height={140}>
+            <BarChart data={rows.map(h => ({ name: monthShort(h.month), net: h.net }))} barSize={22}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+              <XAxis dataKey="name" tick={{ fontSize: 10, fontWeight: 600 }} />
+              <YAxis tick={{ fontSize: 10 }} />
+              <Tooltip formatter={v => pkr(Number(v ?? 0))} />
+              <Bar dataKey="net" name="Net P/L" radius={[8, 8, 0, 0]}>
+                {rows.map(h => (
+                  <Cell key={h.month} fill={h.net >= 0 ? "#12B76A" : "#EF4444"} />
+                ))}
+              </Bar>
+            </BarChart>
+          </RechartsBox>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function BudgetVsActualBars({
+  data,
+  label,
+  chartId = "report-chart-budget",
+}: {
+  data: NonNullable<MonthlyReport["budgetCompare"]>;
+  label: string;
+  chartId?: string;
+}) {
+  if (data.rows.length === 0) {
+    return (
+      <p className="px-3 py-8 text-center text-xs text-crm-text-faint">No budget / actual lines for this month.</p>
+    );
+  }
+  return (
+    <div className="px-1 sm:px-2" id={chartId}>
+      <RechartsBox height={Math.max(280, data.rows.length * 32)}>
+        <BarChart
+          data={data.rows.map(r => ({
+            name: r.name.replace(/\s*\(incl\.[^)]*\)/gi, "").slice(0, 22),
+            Planned: r.budget,
+            Actual: r.actual,
+          }))}
+          layout="vertical"
+          barSize={10}
+          margin={{ left: 4, right: 12, top: 4, bottom: 4 }}
+        >
+          <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
+          <XAxis type="number" tick={{ fontSize: 10 }} />
+          <YAxis type="category" dataKey="name" width={118} tick={{ fontSize: 10, fontWeight: 600 }} />
+          <Tooltip formatter={v => pkr(Number(v ?? 0))} />
+          <Legend wrapperStyle={{ fontSize: 11, fontWeight: 600 }} />
+          <Bar dataKey="Planned" fill="#7C3AED" radius={[0, 6, 6, 0]} />
+          <Bar dataKey="Actual" fill="#0B84F3" radius={[0, 6, 6, 0]} />
+        </BarChart>
+      </RechartsBox>
+      <p className="text-[11px] text-crm-text-muted mt-1 px-2">
+        Purple = Planned. Blue = Actual — latest IS day for {label}.
+      </p>
+    </div>
+  );
+}
+
 const thCls = "px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-white";
 const tdCls = "px-3 py-2 text-xs";
 
@@ -895,12 +1220,17 @@ function OpexFieldTableView({ tables, total }: { tables: OpexFieldTable[]; total
 function BudgetComparePanel({
   data,
   label,
+  showChart = true,
+  showMinis = true,
 }: {
   data: NonNullable<MonthlyReport["budgetCompare"]>;
   label: string;
+  showChart?: boolean;
+  showMinis?: boolean;
 }) {
   return (
     <>
+      {showMinis && (
       <div className="px-4 pb-3 grid grid-cols-2 xl:grid-cols-4 gap-2.5">
         {[
           { label: "Planned revenue", value: data.totals.budgetRevenue, note: "IS budget", cls: "text-violet-700" },
@@ -915,6 +1245,7 @@ function BudgetComparePanel({
           </div>
         ))}
       </div>
+      )}
       <div className="overflow-x-auto">
         <table className="w-full text-sm min-w-160">
           <thead className="bg-[#0B1220]">
@@ -977,33 +1308,7 @@ function BudgetComparePanel({
           )}
         </table>
       </div>
-      {data.rows.length > 0 && (
-        <div className="p-4" id="report-chart-budget">
-          <RechartsBox height={Math.max(220, data.rows.length * 28)}>
-            <BarChart
-              data={data.rows.map(r => ({
-                name: r.name.replace(/\s*\(incl\.[^)]*\)/gi, "").slice(0, 22),
-                budget: r.budget,
-                actual: r.actual,
-              }))}
-              layout="vertical"
-              barSize={10}
-              margin={{ left: 8, right: 12 }}
-            >
-              <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
-              <XAxis type="number" tick={{ fontSize: 10 }} />
-              <YAxis type="category" dataKey="name" width={118} tick={{ fontSize: 10, fontWeight: 600 }} />
-              <Tooltip formatter={v => pkr(Number(v ?? 0))} />
-              <Legend wrapperStyle={{ fontSize: 11, fontWeight: 600 }} />
-              <Bar dataKey="budget" name="Planned" fill="#7C3AED" radius={[0, 6, 6, 0]} />
-              <Bar dataKey="actual" name="Actual" fill="#0B84F3" radius={[0, 6, 6, 0]} />
-            </BarChart>
-          </RechartsBox>
-          <p className="text-[11px] text-crm-text-muted mt-2">
-            Purple = Income Statement budget plan. Blue = actual spent on the latest IS day for {label}.
-          </p>
-        </div>
-      )}
+      {showChart && <BudgetVsActualBars data={data} label={label} />}
     </>
   );
 }
@@ -1068,15 +1373,20 @@ export default function AccountsReportsPage() {
   const ins = report ? buildInsights(report) : null;
   const label = monthLabel(month);
 
-  const histTotals = (report?.history ?? []).reduce(
-    (a, h) => ({ revenue: a.revenue + h.revenue, cost: a.cost + h.cost, net: a.net + h.net }),
-    { revenue: 0, cost: 0, net: 0 },
-  );
+  const pieSlices = report ? reportPieSlices(report) : [];
+  const pieHasData = pieSlices.some(s => s.value > 0);
+  const positionSummary = report ? buildPositionSummary(report) : [];
 
   const kpis = report
     ? [
         {
-          label: "Revenue",
+          label: "Targeted Revenue",
+          value: pkr(report.budgetCompare?.totals.budgetRevenue ?? 0),
+          note: report.budgetCompare?.hasBudget ? "Income Statement budget" : "No budget plan saved",
+          bg: "bg-[#F5F3FF]",
+        },
+        {
+          label: "Actual Revenue",
           value: pkr(report.totals.revenue),
           note: ins?.revenueVsPrev != null ? `${signed(ins.revenueVsPrev)} vs prev month` : "Month collections",
           bg: "bg-[#EFF6FF]",
@@ -1093,16 +1403,16 @@ export default function AccountsReportsPage() {
           bg: "bg-[#FFF1F3]",
         },
         {
-          label: "Net profit",
+          label: "Profit / Loss",
           value: signed(report.totals.netProfit),
           note: ins?.profitNote ?? "",
           bg: report.totals.netProfit >= 0 ? "bg-[#ECFDF5]" : "bg-[#FFF7ED]",
         },
         {
-          label: "Cash (net)",
+          label: "Net balance",
           value: pkr(report.cash.closingNet),
-          note: report.cash.asOf ? `As of ${report.cash.asOf}` : "Closing position",
-          bg: "bg-[#F5F3FF]",
+          note: report.cash.asOf ? `As of ${report.cash.asOf}` : "Closing cash position",
+          bg: "bg-[#F0FDFA]",
         },
       ]
     : [];
@@ -1131,10 +1441,10 @@ export default function AccountsReportsPage() {
           <div className={`${BENTO_CARD} px-4 sm:px-5 py-4 sm:py-5 flex flex-col sm:flex-row sm:items-end gap-3`}>
             <div className="min-w-0 flex-1">
               <h1 className="font-bold text-[#B8112D] text-xl sm:text-2xl tracking-tight leading-none">
-                Accounts Team — Monthly Report
+                Executive Summary
               </h1>
               <p className="text-[11px] sm:text-xs text-[#64748B] mt-2">
-                {label}
+                Accounts Team · {label}
                 {report?.daysRecorded != null ? ` · ${report.daysRecorded} day(s) recorded` : ""}
                 {report?.sourceDate ? ` · last ${report.sourceDate}` : ""} · BEM Solutions CRM
               </p>
@@ -1179,7 +1489,8 @@ export default function AccountsReportsPage() {
                 (once). Total cost, team salaries, OPEX, loans and PF match the latest Income Statement
                 day in the month{report.sourceDate ? ` (${report.sourceDate})` : ""} — same Total Expense as
                 that IS card. Budget plan vs actual uses the Income Statement budget planner for this month.
-                Financial performance shows the selected month plus the previous 5 months.{" "}
+                Financial performance splits last 3 months and last 6 months in one block. The position box
+                reads this month&apos;s full report automatically.{" "}
                 <b>Save Report</b> downloads a Word file and archives it to Cloudinary.
               </section>
 
@@ -1214,7 +1525,7 @@ export default function AccountsReportsPage() {
                 </section>
               )}
 
-              <section className="grid grid-cols-2 xl:grid-cols-4 gap-2.5 sm:gap-3">
+              <section className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-2.5 sm:gap-3">
                 {kpis.map(k => (
                   <div key={k.label} className={`${k.bg} rounded-xl sm:rounded-2xl p-3 sm:p-4`}>
                     <p className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-[#64748B] leading-snug">{k.label}</p>
@@ -1224,29 +1535,125 @@ export default function AccountsReportsPage() {
                 ))}
               </section>
 
+              <section className="grid grid-cols-1 xl:grid-cols-2 gap-4 items-start">
+                <AccountsChartCard
+                  title="Revenue mix"
+                  subtitle="AH · SN · CO · QH collections this month"
+                  accent="#B8112D"
+                  icon={<PieIcon size={16} />}
+                >
+                  <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-2 items-center">
+                    <RechartsBox height={280}>
+                      <PieChart>
+                        <Pie
+                          data={pieHasData ? pieSlices : pieSlices.map(s => ({ ...s, value: 1 }))}
+                          dataKey="value"
+                          nameKey="name"
+                          innerRadius={0}
+                          outerRadius={108}
+                          paddingAngle={1}
+                          stroke="#fff"
+                          strokeWidth={3}
+                          label={({ name, percent }) =>
+                            (percent ?? 0) >= 0.06 ? String(name) : ""
+                          }
+                          labelLine={false}
+                        >
+                          {pieSlices.map(s => (
+                            <Cell key={s.name} fill={s.color} />
+                          ))}
+                        </Pie>
+                        <Tooltip
+                          formatter={(v, name) => [
+                            pieHasData ? pkr(Number(v ?? 0)) : "No collections",
+                            PIE_LEGEND.find(l => l.key === name)?.name ?? String(name ?? ""),
+                          ]}
+                        />
+                      </PieChart>
+                    </RechartsBox>
+                    <ul className="space-y-2 px-2 pb-2">
+                      {PIE_LEGEND.map(l => {
+                        const slice = pieSlices.find(s => s.name === l.key);
+                        return (
+                          <li key={l.key} className="flex items-center gap-2 min-w-36">
+                            <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: PIE_COLORS[l.key] }} />
+                            <div className="min-w-0">
+                              <p className="text-[11px] font-extrabold text-crm-text leading-none">{l.key}</p>
+                              <p className="text-[10px] text-crm-text-muted truncate">{l.name}</p>
+                              <p className="text-[10px] font-bold tabular-nums text-crm-text">{pkr(slice?.value ?? 0)}</p>
+                            </div>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </div>
+                  {!pieHasData && (
+                    <p className="px-3 text-[11px] text-crm-text-faint">No AH / SN / CO / QH collections recorded for {label}.</p>
+                  )}
+                </AccountsChartCard>
+
+                <AccountsChartCard
+                  title={`Budget plan vs actual — ${label}`}
+                  subtitle="As of this month · purple planned · blue actual"
+                  accent="#7C3AED"
+                  icon={<TrendingUp size={16} />}
+                >
+                  {report.budgetCompare && report.budgetCompare.hasBudget ? (
+                    <BudgetVsActualBars data={report.budgetCompare} label={label} />
+                  ) : (
+                    <p className="px-3 py-8 text-xs text-crm-text-muted text-center">
+                      Is month ka Income Statement budget plan save nahi hai. Pehle Income Statement page par budget planner
+                      mein plan set karein.
+                    </p>
+                  )}
+                </AccountsChartCard>
+              </section>
+
+              <SectionCard title="Financial performance">
+                <HistoryPerformanceHalf
+                  title="Last 3 months"
+                  rows={report.history.slice(-3)}
+                  allHistory={report.history}
+                  currentMonth={report.month}
+                  chartId="report-chart-net3"
+                />
+                <div className="border-t-2 border-[#B8112D]/15">
+                  <HistoryPerformanceHalf
+                    title="Last 6 months"
+                    rows={report.history}
+                    allHistory={report.history}
+                    currentMonth={report.month}
+                    chartId="report-chart-net6"
+                  />
+                </div>
+              </SectionCard>
+
               <section
-                className={`rounded-2xl border p-3.5 sm:p-4 flex items-start gap-3 ${
+                className={`rounded-2xl border p-4 sm:p-5 ${
                   report.totals.netProfit >= 0
-                    ? "bg-emerald-50/60 border-emerald-100"
-                    : "bg-amber-50/60 border-amber-100"
+                    ? "bg-emerald-50/50 border-emerald-100"
+                    : "bg-amber-50/50 border-amber-100"
                 }`}
               >
-                <span
-                  className={`w-8 h-8 rounded-xl inline-flex items-center justify-center text-white shrink-0 ${
-                    report.totals.netProfit >= 0 ? "bg-emerald-500" : "bg-amber-500"
-                  }`}
-                >
-                  <Sparkles size={15} />
-                </span>
-                <p className="text-xs text-crm-text-secondary leading-relaxed">
-                  <b className="text-crm-text">{label}</b> posted a net {report.totals.netProfit >= 0 ? "profit" : "loss"} of{" "}
-                  <b className={report.totals.netProfit >= 0 ? "text-emerald-700" : "text-red-600"}>{signed(report.totals.netProfit)}</b>{" "}
-                  ({ins?.profitNote.toLowerCase()}).
-                  {ins?.revenueVsPrev != null && <> Revenue moved <b>{signed(ins.revenueVsPrev)}</b> vs previous month</>}
-                  {ins?.costVsPrev != null && <> while total cost moved <b>{signed(ins.costVsPrev)}</b>.</>}
-                  {" "}Net cash stands at <b className="text-teal-700">{pkr(report.cash.closingNet)}</b>
-                  {report.cash.asOf ? ` as of ${report.cash.asOf}` : ""} with {signed(report.cash.monthNet)} movement during the month.
-                </p>
+                <div className="flex items-start gap-3">
+                  <span
+                    className={`w-9 h-9 rounded-xl inline-flex items-center justify-center text-white shrink-0 ${
+                      report.totals.netProfit >= 0 ? "bg-emerald-500" : "bg-amber-500"
+                    }`}
+                  >
+                    <Sparkles size={16} />
+                  </span>
+                  <div className="min-w-0 space-y-2">
+                    <h2 className="font-extrabold text-crm-text text-sm tracking-tight">
+                      Company position — {label}
+                    </h2>
+                    {positionSummary.map((p, i) => (
+                      <p key={i} className="text-xs text-crm-text-secondary leading-relaxed">
+                        {p}
+                      </p>
+                    ))}
+                  </div>
+                </div>
               </section>
 
               <SectionCard title="Revenue — currency channels">
@@ -1291,7 +1698,7 @@ export default function AccountsReportsPage() {
 
               <SectionCard title={`Budget plan vs actual — ${label}`}>
                 {report.budgetCompare && report.budgetCompare.hasBudget ? (
-                  <BudgetComparePanel data={report.budgetCompare} label={label} />
+                  <BudgetComparePanel data={report.budgetCompare} label={label} showChart={false} showMinis={false} />
                 ) : (
                   <p className="px-4 pb-4 text-xs text-crm-text-muted">
                     Is month ka Income Statement budget plan save nahi hai. Pehle Income Statement page par budget planner
@@ -1299,119 +1706,6 @@ export default function AccountsReportsPage() {
                   </p>
                 )}
               </SectionCard>
-
-              <SectionCard title={`Financial performance — ${label} + previous 5 months`}>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm min-w-160">
-                    <thead className="bg-[#0B1220]">
-                      <tr className="border-b border-crm-border/80">
-                        <th className={`${thCls} text-left`}>Month</th>
-                        <th className={`${thCls} text-right`}>Revenue (PKR)</th>
-                        <th className={`${thCls} text-right`}>Total Cost (PKR)</th>
-                        <th className={`${thCls} text-right`}>Net P/L (PKR)</th>
-                        <th className={`${thCls} text-center w-24`}>Status</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {report.history.length === 0 ? (
-                        <tr><td colSpan={5} className="px-3 py-8 text-center text-crm-text-faint text-xs">No income statement records yet.</td></tr>
-                      ) : (
-                        report.history.map((h, i) => {
-                          const prev = i > 0 ? report.history[i - 1] : null;
-                          return (
-                            <tr
-                              key={h.month}
-                              className={`border-b border-crm-border-subtle ${h.month === report.month ? "bg-[#FFF6F8]" : "bg-crm-surface"}`}
-                            >
-                              <td className={`${tdCls} font-bold text-crm-text`}>
-                                {monthShort(h.month)}
-                                {h.month === report.month && <span className="ml-2 text-[9px] font-bold text-[#B8112D] uppercase">This report</span>}
-                              </td>
-                              <td className={`${tdCls} text-right tabular-nums`}>
-                                {currency(h.revenue)}
-                                <div><TrendArrow v={prev ? h.revenue - prev.revenue : null} goodWhenUp /></div>
-                              </td>
-                              <td className={`${tdCls} text-right tabular-nums`}>
-                                {currency(h.cost)}
-                                <div><TrendArrow v={prev ? h.cost - prev.cost : null} goodWhenUp={false} /></div>
-                              </td>
-                              <td className={`${tdCls} text-right font-bold tabular-nums ${h.net >= 0 ? "text-emerald-600" : "text-red-600"}`}>{signed(h.net)}</td>
-                              <td className={`${tdCls} text-center`}>
-                                <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold ${h.net >= 0 ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-600"}`}>
-                                  {h.net >= 0 ? "Profit" : "Loss"}
-                                </span>
-                              </td>
-                            </tr>
-                          );
-                        })
-                      )}
-                    </tbody>
-                    {report.history.length > 0 && (
-                      <tfoot>
-                        <tr className="border-t-2 border-crm-border bg-[#FAFBFC]">
-                          <td className="px-3 py-2.5 font-extrabold text-crm-text text-xs">TOTAL</td>
-                          <td className="px-3 py-2.5 text-right font-extrabold tabular-nums text-xs">{currency(histTotals.revenue)}</td>
-                          <td className="px-3 py-2.5 text-right font-extrabold tabular-nums text-xs">{currency(histTotals.cost)}</td>
-                          <td className={`px-3 py-2.5 text-right font-extrabold tabular-nums text-xs ${histTotals.net >= 0 ? "text-emerald-600" : "text-red-600"}`}>{signed(histTotals.net)}</td>
-                          <td className="px-3 py-2.5 text-center">
-                            <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold ${histTotals.net >= 0 ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-600"}`}>
-                              {histTotals.net >= 0 ? "Profit" : "Loss"}
-                            </span>
-                          </td>
-                        </tr>
-                      </tfoot>
-                    )}
-                  </table>
-                </div>
-              </SectionCard>
-
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                <SectionCard title="Net profit / loss trend">
-                  <div className="p-4" id="report-chart-net">
-                    <RechartsBox height={230}>
-                      <BarChart data={report.history.map(h => ({ name: monthShort(h.month), net: h.net }))} barSize={26}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                        <XAxis dataKey="name" tick={{ fontSize: 10, fontWeight: 600 }} />
-                        <YAxis tick={{ fontSize: 10 }} />
-                        <Tooltip formatter={v => pkr(Number(v ?? 0))} />
-                        <Bar dataKey="net" name="Net P/L" radius={[8, 8, 0, 0]}>
-                          {report.history.map(h => (
-                            <Cell key={h.month} fill={h.net >= 0 ? "#12B76A" : "#EF4444"} />
-                          ))}
-                        </Bar>
-                      </BarChart>
-                    </RechartsBox>
-                    <p className="text-[11px] text-crm-text-muted mt-2 flex items-center gap-1.5">
-                      <TrendingUp size={13} className="text-[#B8112D] shrink-0" />
-                      {label}: {signed(report.totals.netProfit)} net — {ins?.profitNote}.
-                      {ins?.netVsPrev != null && ` Swing vs previous month: ${signed(ins.netVsPrev)}.`}
-                    </p>
-                  </div>
-                </SectionCard>
-
-                <SectionCard title="Revenue vs total cost">
-                  <div className="p-4" id="report-chart-revcost">
-                    <RechartsBox height={230}>
-                      <BarChart
-                        data={report.history.map(h => ({ name: monthShort(h.month), revenue: h.revenue, cost: h.cost }))}
-                        barSize={12}
-                      >
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                        <XAxis dataKey="name" tick={{ fontSize: 10, fontWeight: 600 }} />
-                        <YAxis tick={{ fontSize: 10 }} />
-                        <Tooltip formatter={v => pkr(Number(v ?? 0))} />
-                        <Legend wrapperStyle={{ fontSize: 11, fontWeight: 600 }} />
-                        <Bar dataKey="revenue" name="Revenue" fill="#0B84F3" radius={[6, 6, 0, 0]} />
-                        <Bar dataKey="cost" name="Total Cost" fill="#F97066" radius={[6, 6, 0, 0]} />
-                      </BarChart>
-                    </RechartsBox>
-                    <p className="text-[11px] text-crm-text-muted mt-2">
-                      When the blue bar is above coral — profit month. {monthShort(report.month)}:{" "}
-                      {pkr(report.totals.revenue)} revenue vs {pkr(report.totals.totalCost)} cost.
-                    </p>
-                  </div>
-                </SectionCard>
-              </div>
 
               <SectionCard title={`Cash flow statement${report.cash.asOf ? ` — as of ${report.cash.asOf}` : ""}`}>
                 <div className="p-4 space-y-4">

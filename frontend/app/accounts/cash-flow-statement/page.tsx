@@ -25,18 +25,18 @@ function defaultData(): CashFlowData {
   };
 }
 
-type ChannelKey = "AH" | "SN" | "CHQ" | "HM";
+type ChannelKey = "AH" | "SN" | "QHM" | "HM";
 
 const CHANNEL_CARDS: { key: ChannelKey; label: string; hint: string; grad: string }[] = [
   { key: "AH", label: "AH", hint: "Ahmed Hamza · received", grad: "from-[#E11D48] to-[#9F1239]" },
   { key: "SN", label: "SN", hint: "Sharjeel Nasir · received", grad: "from-[#0B84F3] to-[#0369A1]" },
-  { key: "CHQ", label: "Cheque", hint: "Cheque · received", grad: "from-[#F59E0B] to-[#B45309]" },
-  { key: "HM", label: "Habib Metro", hint: "Habib Metro · received", grad: "from-[#0D9488] to-[#0F766E]" },
+  { key: "QHM", label: "Qasim Habib Metro", hint: "Qasim Habib Metro · received", grad: "from-[#F59E0B] to-[#B45309]" },
+  { key: "HM", label: "Habib Metro", hint: "CO. Habib Metro · received", grad: "from-[#0D9488] to-[#0F766E]" },
 ];
 
 function channelForBank(name: string): ChannelKey | null {
   const t = name.trim().toLowerCase();
-  if (t.includes("cheque") || t.includes("chq") || /\bcheck\b/.test(t)) return "CHQ";
+  if (t.includes("qasim")) return "QHM";
   if (/\bah\b/.test(t) || t.includes("ahmed") || t.includes("ah paypal")) return "AH";
   if (/\bsn\b/.test(t) || t.includes("sharjeel")) return "SN";
   if (t.includes("habib") || t.includes("metro")) return "HM";
@@ -81,7 +81,7 @@ export default function CashFlowStatementPage() {
   const totalNet = useMemo(() => allRows.reduce((a, r) => a + computedNet(r), 0), [allRows]);
 
   const channelReceived = useMemo(() => {
-    const sums: Record<ChannelKey, number> = { AH: 0, SN: 0, CHQ: 0, HM: 0 };
+    const sums: Record<ChannelKey, number> = { AH: 0, SN: 0, QHM: 0, HM: 0 };
     for (const bank of bankHeads) {
       const ch = channelForBank(bank);
       if (!ch) continue;
