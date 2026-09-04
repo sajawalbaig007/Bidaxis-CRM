@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
-import { Loader2, PiggyBank, RefreshCw, Save, Sparkles, X } from "lucide-react";
+import { Copy, Loader2, PiggyBank, RefreshCw, Save, Sparkles, X } from "lucide-react";
 import toast from "react-hot-toast";
 import API, { apiErrorMessage } from "@/lib/api";
 import { currency } from "../types";
@@ -147,6 +147,30 @@ export default function IncomeBudgetModal({ open, onClose }: Props) {
     toast.success("Monthly budgets filled from Income Statement actuals.");
   };
 
+  const copyFilledMonthToEmpty = () => {
+    const keys = period.monthKeys;
+    const filled = keys.find(mk =>
+      period.lines.some(l => (Number(l.months[mk]) || 0) > 0),
+    );
+    const empty = keys.filter(mk =>
+      period.lines.every(l => (Number(l.months[mk]) || 0) === 0),
+    );
+    if (!filled || empty.length === 0) {
+      toast.error("Fill at least one month first. Empty months will get that budget.");
+      return;
+    }
+    setPeriod(prev => ({
+      ...prev,
+      lines: prev.lines.map(l => {
+        const months = { ...l.months };
+        const src = Number(l.months[filled]) || 0;
+        for (const mk of empty) months[mk] = src;
+        return { ...l, months };
+      }),
+    }));
+    toast.success(`Copied ${monthLabel(filled)} budget into ${empty.map(monthLabel).join(" + ")}.`);
+  };
+
   const save = async () => {
     setSaving(true);
     try {
@@ -206,6 +230,10 @@ export default function IncomeBudgetModal({ open, onClose }: Props) {
     tableLines
       .filter(isBudgetExpenseLine)
       .reduce((a, l) => a + (Number(l.months[mk]) || 0), 0);
+  const monthExpenseActual = (mk: string) =>
+    tableLines
+      .filter(isBudgetExpenseLine)
+      .reduce((a, l) => a + (Number(byMonthActuals[mk]?.[l.key]) || 0), 0);
   const monthRevenueBudget = (mk: string) =>
     Number(tableLines.find(l => l.key === "revenue")?.months[mk]) || 0;
   const monthProjectedNet = (mk: string) => monthRevenueBudget(mk) - monthExpenseBudget(mk);
@@ -270,14 +298,22 @@ export default function IncomeBudgetModal({ open, onClose }: Props) {
             />
           </label>
           <div className="flex flex-wrap gap-1.5 pb-1">
-            {monthKeys.map((mk, i) => (
-              <span
-                key={mk}
-                className="inline-flex items-center h-8 px-2.5 rounded-lg bg-violet-50 text-violet-800 text-[11px] font-bold border border-violet-100"
-              >
-                M{i + 1}: {monthLabel(mk)}
-              </span>
-            ))}
+            {monthKeys.map((mk, i) => {
+              const filled = tableLines.some(l => (Number(l.months[mk]) || 0) > 0);
+              return (
+                <span
+                  key={mk}
+                  className={`inline-flex items-center h-8 px-2.5 rounded-lg text-[11px] font-bold border ${
+                    filled
+                      ? "bg-violet-50 text-violet-800 border-violet-100"
+                      : "bg-crm-muted text-crm-text-faint border-crm-border"
+                  }`}
+                >
+                  M{i + 1}: {monthLabel(mk)}
+                  {!filled ? " · empty" : ""}
+                </span>
+              );
+            })}
           </div>
           <button
             type="button"
@@ -316,8 +352,21 @@ export default function IncomeBudgetModal({ open, onClose }: Props) {
           >
             Fill from actuals
           </button>
-          <span className="text-[10px] text-crm-text-faint font-medium ml-auto pb-2">
-            {daysRecorded} IS day(s) · payroll {currency(budgetPayroll)} · OPEX {currency(budgetOpex)} · rev {currency(budgetRev)}
+          <button
+            type="button"
+            onClick={copyFilledMonthToEmpty}
+            disabled={!monthKeys.some(mk => tableLines.some(l => (Number(l.months[mk]) || 0) > 0))}
+            className="h-10 px-3 rounded-xl border border-violet-200 bg-violet-50 text-violet-800 text-xs font-bold hover:bg-violet-100 disabled:opacity-50 inline-flex items-center gap-1.5"
+            title="Copy the month you already filled (August) into Sep / Oct if those are still 0"
+          >
+            <Copy size={13} />
+            Copy filled month → empty
+          </button>
+          <span className="text-[10px] text-crm-text-faint font-medium ml-auto pb-2 text-right leading-snug">
+            White boxes = your dummy <span className="font-bold text-crm-text-muted">budget</span>.
+            Actual column = Income Statement (not those boxes).
+            <br />
+            {daysRecorded} IS day(s) · budget payroll {currency(budgetPayroll)} · budget OPEX {currency(budgetOpex)} · budget rev {currency(budgetRev)}
           </span>
         </div>
 
@@ -334,7 +383,7 @@ export default function IncomeBudgetModal({ open, onClose }: Props) {
                     Budget · {fromDate} → {toDate}
                   </p>
                   <p className="text-[10px] text-crm-text-faint mt-0.5">
-                    Salaries + OPEX heads in one table. Each OPEX row is an Income Statement Operating Expenses category total.
+                    Budget = numbers you type. Actual = saved Income Statement payroll + OPEX for that month (Loans/PF excluded). Dummy data does not change Actual.
                   </p>
                 </div>
                 <div className="overflow-x-auto">
@@ -342,11 +391,19 @@ export default function IncomeBudgetModal({ open, onClose }: Props) {
                     <thead>
                       <tr className="border-b border-crm-border-subtle text-[10px] uppercase tracking-wide text-crm-text-faint">
                         <th className="px-3 py-2 text-left font-bold sticky left-0 bg-[#FAFBFC] z-10">Category</th>
-                        {monthKeys.map(mk => (
-                          <th key={mk} className="px-2 py-2 text-center font-bold" colSpan={2}>
-                            {monthLabel(mk)}
-                          </th>
-                        ))}
+                        {monthKeys.map(mk => {
+                          const filled = tableLines.some(l => (Number(l.months[mk]) || 0) > 0);
+                          return (
+                            <th key={mk} className="px-2 py-2 text-center font-bold" colSpan={2}>
+                              {monthLabel(mk)}
+                              {!filled && (
+                                <span className="block text-[9px] font-semibold normal-case tracking-normal text-crm-text-faint">
+                                  No budget yet
+                                </span>
+                              )}
+                            </th>
+                          );
+                        })}
                         <th className="px-3 py-2 text-right font-bold">Total budget</th>
                         <th className="px-3 py-2 text-right font-bold">Total actual</th>
                       </tr>
@@ -418,22 +475,27 @@ export default function IncomeBudgetModal({ open, onClose }: Props) {
                     <tfoot>
                       <tr className="border-t-2 border-rose-200 bg-rose-50/70">
                         <td className="px-3 py-2.5 font-black uppercase tracking-wide text-[#B8112D] sticky left-0 bg-rose-50/90 z-10 text-[11px]">
-                          Total Budget
+                          Total expense
+                          <span className="block text-[9px] font-bold normal-case tracking-normal text-rose-700/80">
+                            Budget you typed · Actual from IS
+                          </span>
                         </td>
                         {monthKeys.map(mk => (
                           <Fragment key={`tb-${mk}`}>
-                            <td
-                              colSpan={2}
-                              className="px-2 py-2.5 text-right font-black tabular-nums text-[#B8112D] text-sm"
-                            >
+                            <td className="px-1.5 py-2.5 text-right font-black tabular-nums text-[#B8112D] text-xs">
                               {currency(monthExpenseBudget(mk))}
+                            </td>
+                            <td className="px-1.5 py-2.5 text-right font-black tabular-nums text-sky-900 text-xs">
+                              {currency(monthExpenseActual(mk))}
                             </td>
                           </Fragment>
                         ))}
                         <td className="px-3 py-2.5 text-right font-black tabular-nums text-[#B8112D]">
                           {currency(monthKeys.reduce((a, mk) => a + monthExpenseBudget(mk), 0))}
                         </td>
-                        <td className="px-3 py-2.5" />
+                        <td className="px-3 py-2.5 text-right font-black tabular-nums text-sky-900">
+                          {currency(monthKeys.reduce((a, mk) => a + monthExpenseActual(mk), 0))}
+                        </td>
                       </tr>
                       <tr className="bg-sky-50/80">
                         <td className="px-3 py-2.5 font-bold text-sky-900 sticky left-0 bg-sky-50/90 z-10 text-[11px]">

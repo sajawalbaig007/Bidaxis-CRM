@@ -819,20 +819,27 @@ export async function getIncomeBudgetActuals(req: AuthRequest, res: Response) {
     const byMonth: Record<string, ReturnType<typeof emptyCoreActuals>> = {};
     const opexHeadsTotal: Record<string, OpexHeadBucket> = {};
     const opexHeadsByMonth: Record<string, Record<string, OpexHeadBucket>> = {};
-    const revenueMonthsAdded = new Set<string>();
 
+    // Same as Income Statement month view: latest saved day per calendar month.
+    // Summing every daily snapshot double-counted payroll (e.g. Technical 986k + older 523k).
+    const latestByMonth = new Map<string, { date: string; data: Record<string, unknown> }>();
     for (const rec of isRecs) {
-      const ym = rec.recordDate.slice(0, 7);
-      if (!byMonth[ym]) byMonth[ym] = emptyCoreActuals();
-      if (!opexHeadsByMonth[ym]) opexHeadsByMonth[ym] = {};
-      const data = prepareIncomeStatement(rec.data as Record<string, unknown>);
-      // Month currency total once per month (project payments are monthly)
-      const revenue = revenueMonthsAdded.has(ym)
-        ? 0
-        : currencyFormulaTotalFromDashboard(dashForMonth(ym));
-      revenueMonthsAdded.add(ym);
-      accumulateCoreBudget(data, actuals, revenue, rec.recordDate);
-      accumulateCoreBudget(data, byMonth[ym]!, revenue, rec.recordDate);
+      const ym = yearMonthFromDate(rec.recordDate);
+      const prev = latestByMonth.get(ym);
+      if (!prev || rec.recordDate >= prev.date) {
+        latestByMonth.set(ym, { date: rec.recordDate, data: rec.data as Record<string, unknown> });
+      }
+    }
+
+    for (const [ym, snap] of latestByMonth) {
+      byMonth[ym] = emptyCoreActuals();
+      opexHeadsByMonth[ym] = {};
+      const data = prepareIncomeStatement(
+        await applyStaffPayrollToIncomeData(snap.data, snap.date),
+      );
+      const revenue = currencyFormulaTotalFromDashboard(dashForMonth(ym));
+      accumulateCoreBudget(data, actuals, revenue, snap.date);
+      accumulateCoreBudget(data, byMonth[ym]!, revenue, snap.date);
       accumulateOpexHeads(data, opexHeadsTotal);
       accumulateOpexHeads(data, opexHeadsByMonth[ym]!);
     }
@@ -876,7 +883,7 @@ export async function getIncomeBudgetActuals(req: AuthRequest, res: Response) {
       endMonth,
       fromDate,
       toDate,
-      daysRecorded: isRecs.length,
+      daysRecorded: latestByMonth.size,
       actuals,
       byMonth,
       opexLines,
