@@ -31,6 +31,28 @@ export function emptyDayCollections(): DayCollections {
   };
 }
 
+/** Sum month/day collection buckets without double-counting keys. */
+export function sumDayCollections(items: Iterable<DayCollections>): DayCollections {
+  const out = emptyDayCollections();
+  for (const item of items) {
+    for (const ch of CHANNELS) {
+      out[ch].usdAmount += item[ch].usdAmount;
+      out[ch].cadAmount += item[ch].cadAmount;
+      out[ch].pkrAmount += item[ch].pkrAmount;
+    }
+  }
+  return out;
+}
+
+export function serializeChannelFx(col: DayCollections): Record<PaymentChannel, ChannelAmounts> {
+  return {
+    AH: { ...col.AH },
+    SN: { ...col.SN },
+    CHQ: { ...col.CHQ },
+    HM: { ...col.HM },
+  };
+}
+
 /** YYYY-MM for Accounts bucketing — payment date first, never falls back to “today”. */
 export function paymentAccountsMonth(entry: ProjectPaymentEntry): string | null {
   if (!entry.isPaid) return null;

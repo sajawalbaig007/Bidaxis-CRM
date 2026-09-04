@@ -378,6 +378,7 @@ async function getAccountsDashboardSummary(req, res) {
         let recordDate = toDate;
         let dashData = (0, accountsDefaults_1.defaultAccountsData)("dashboard");
         let channelTotals = (0, currencyFormula_1.emptyCurrencyChannelNetTotals)();
+        let paymentFx = (0, projectCurrencyCollections_1.emptyDayCollections)();
         if (useRange) {
             // Income Statement page in Month / Date Range shows the latest saved day
             // in that period (not a sum of every daily snapshot). Match that here.
@@ -436,6 +437,7 @@ async function getAccountsDashboardSummary(req, res) {
                 ]),
             ];
             const collectionsByMonth = await (0, projectCurrencyCollections_1.aggregateCollectionsForMonths)(collectionMonths);
+            paymentFx = (0, projectCurrencyCollections_1.sumDayCollections)(collectionsByMonth.values());
             const dashForMonth = (ym) => {
                 const inMonth = dashRecs
                     .filter(r => (0, projectCurrencyCollections_1.yearMonthFromDate)(r.recordDate) === ym)
@@ -544,6 +546,7 @@ async function getAccountsDashboardSummary(req, res) {
             }
             const dash = await findRecord("dashboard", toDate);
             const dayCollections = await (0, projectCurrencyCollections_1.aggregateCollectionsForDate)(toDate);
+            paymentFx = dayCollections;
             dashData = (0, projectCurrencyCollections_1.applyCollectionsToDashboardData)(dash?.data ?? (0, accountsDefaults_1.defaultAccountsData)("dashboard"), dayCollections);
             channelTotals = (0, currencyFormula_1.addCurrencyChannelNetTotals)((0, currencyFormula_1.emptyCurrencyChannelNetTotals)(), dashData);
             persistedPages.dashboard = !!dash;
@@ -557,6 +560,7 @@ async function getAccountsDashboardSummary(req, res) {
             fromDate: useRange && mode !== "all_time" ? fromDate : undefined,
             summaries,
             channels: channelTotals,
+            channelFx: (0, projectCurrencyCollections_1.serializeChannelFx)(paymentFx),
             dashboard: dashData,
             persisted: {
                 dashboard: !!persistedPages.dashboard,

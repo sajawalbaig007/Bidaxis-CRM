@@ -28,6 +28,8 @@ import {
   aggregateAllCollectionMonths,
   applyCollectionsToDashboardData,
   emptyDayCollections,
+  sumDayCollections,
+  serializeChannelFx,
   monthStartIso,
   yearMonthFromDate,
   yearMonthsInclusive,
@@ -488,6 +490,7 @@ export async function getAccountsDashboardSummary(req: AuthRequest, res: Respons
     let recordDate = toDate;
     let dashData: Record<string, unknown> = defaultAccountsData("dashboard");
     let channelTotals = emptyCurrencyChannelNetTotals();
+    let paymentFx = emptyDayCollections();
 
     if (useRange) {
       // Income Statement page in Month / Date Range shows the latest saved day
@@ -553,6 +556,7 @@ export async function getAccountsDashboardSummary(req: AuthRequest, res: Respons
         ]),
       ];
       const collectionsByMonth = await aggregateCollectionsForMonths(collectionMonths);
+      paymentFx = sumDayCollections(collectionsByMonth.values());
       const dashForMonth = (ym: string) => {
         const inMonth = dashRecs
           .filter(r => yearMonthFromDate(r.recordDate) === ym)
@@ -693,6 +697,7 @@ export async function getAccountsDashboardSummary(req: AuthRequest, res: Respons
 
       const dash = await findRecord("dashboard", toDate);
       const dayCollections = await aggregateCollectionsForDate(toDate);
+      paymentFx = dayCollections;
       dashData = applyCollectionsToDashboardData(
         (dash?.data as Record<string, unknown> | undefined) ?? defaultAccountsData("dashboard"),
         dayCollections,
@@ -710,6 +715,7 @@ export async function getAccountsDashboardSummary(req: AuthRequest, res: Respons
       fromDate: useRange && mode !== "all_time" ? fromDate : undefined,
       summaries,
       channels: channelTotals,
+      channelFx: serializeChannelFx(paymentFx),
       dashboard: dashData,
       persisted: {
         dashboard: !!persistedPages.dashboard,
