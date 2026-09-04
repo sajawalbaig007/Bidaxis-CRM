@@ -237,6 +237,8 @@ type Summary = {
   totalAssetsRegister?: number;
 };
 
+type ChannelNets = { AH: number; SN: number; CHQ: number; HM: number };
+
 type ViewTab = CurrencyTabKey | "ALL";
 
 type LiveFxRates = {
@@ -252,6 +254,7 @@ export default function AccountsDashboardPage() {
   const acc = useAccountsPage<DashboardData>({ page: "dashboard", defaultData });
   useScrollToHash(!acc.loading);
   const [summaries, setSummaries] = useState<Summary>({});
+  const [periodChannels, setPeriodChannels] = useState<ChannelNets | null>(null);
   const [viewTab, setViewTab] = useState<ViewTab>("AH");
   const [formulaOpen, setFormulaOpen] = useState(false);
   const [formulaBookOpen, setFormulaBookOpen] = useState(false);
@@ -273,9 +276,16 @@ export default function AccountsDashboardPage() {
               ? `mode=range&from=${acc.filterFrom}&to=${acc.filterTo}`
               : `date=${acc.recordDate}`;
         const res = await API.get(`/accounts/dashboard/summary?${qs}`);
-        if (!cancelled) setSummaries(res.data.summaries ?? {});
+        if (!cancelled) {
+          setSummaries(res.data.summaries ?? {});
+          const ch = res.data.channels as ChannelNets | undefined;
+          setPeriodChannels(ch && typeof ch.AH === "number" ? ch : null);
+        }
       } catch {
-        if (!cancelled) setSummaries({});
+        if (!cancelled) {
+          setSummaries({});
+          setPeriodChannels(null);
+        }
       }
     })();
     return () => { cancelled = true; };
@@ -377,31 +387,31 @@ export default function AccountsDashboardPage() {
       : isDateRange
         ? "This range · same as Income Statement"
         : `As of ${acc.recordDate || todayIso()}`;
+  const isRev = summaries.incomeTotalRevenue ?? 0;
   const currencyCardTotal = usesPeriodSummary
-    ? (summaries.currencyFormulaTotal ?? combinedTotal)
-    : combinedTotal;
+    ? isRev
+    : (summaries.incomeTotalRevenue ?? combinedTotal);
 
   const metrics = [
-    { label: "Currency Formula Total", value: currencyCardTotal, color: "from-[#F59E0B] to-[#B45309]", hint: isAllTime ? "Sum of monthly currency formula through today" : isMonth || isDateRange ? "Currency formula · same period as Income Statement" : "AH + SN + Cheque + Habib Metro (this date)", icon: <Receipt size={14} /> },
-    { label: "IS Total Revenue", value: summaries.incomeTotalRevenue ?? 0, color: "from-[#6D28D9] to-[#4C1D95]", hint: isAllTime ? "Sum of currency formula · each month once" : "From Currency Formula (AH+SN+CHQ+HM)", icon: <TrendingUp size={14} /> },
-    { label: "IS Payroll", value: summaries.incomePayroll ?? 0, color: "from-[#0B84F3] to-[#0369A1]", hint: isAllTime ? "Team Salaries · latest day per month" : "Team Salaries · same as Income Statement", icon: <Cpu size={14} /> },
-    { label: "IS Total Expense", value: summaries.incomeTotalExpense ?? 0, color: "from-[#B8112D] to-[#8b0d22]", hint: isAllTime ? "Payroll + OPEX · latest day per month" : "Payroll + OPEX · same as Income Statement", icon: <Layers3 size={14} /> },
-    { label: "BS Total Assets", value: bsAssets, color: "from-[#0B84F3] to-[#0369A1]", hint: isAllTime ? "Latest balance sheet ≤ today" : isMonth || isDateRange ? "Latest balance sheet in this period" : "Must equal Equity + Liabilities", icon: <Scale size={14} /> },
-    { label: "BS Equity + Liabilities", value: bsEquityLiab, color: "from-[#0D9488] to-[#0F766E]", hint: `Equity ${currency(summaries.balanceSheetTotalEquity ?? 0)} · Liab ${currency(summaries.balanceSheetTotalLiabilities ?? 0)}`, icon: <Wallet size={14} /> },
-    { label: bsBalanced ? "BS Balanced (Diff 0)" : "BS Difference (A − E−L)", value: bsDiff, color: bsBalanced ? "from-[#12B76A] to-[#027A48]" : "from-[#F59E0B] to-[#B45309]", hint: bsBalanced ? "Assets = Equity + Liabilities" : "Should be zero when balanced", icon: <CheckCircle2 size={14} /> },
-    { label: "Income Statement Net Profit", value: summaries.incomeNetProfit ?? 0, color: "from-[#12B76A] to-[#027A48]", hint: `Revenue − Expense (${currency(summaries.incomeTotalExpense ?? 0)})`, icon: <TrendingUp size={14} /> },
-    { label: "Cash Flow Net Amount", value: summaries.cashFlowNet ?? 0, color: "from-[#B8112D] to-[#8b0d22]", hint: periodHint, icon: <Waves size={14} /> },
-    { label: "Total Assets Register", value: summaries.totalAssetsRegister ?? 0, color: "from-[#0D9488] to-[#0F766E]", hint: isAllTime ? "Latest register ≤ today" : isMonth || isDateRange ? "Latest register in this period" : "BEM + GPS + BDS register sum", icon: <Boxes size={14} /> },
+    { label: "Currency Formula Total", value: currencyCardTotal, color: "#B45309", hint: "Final FX for each month · same as IS Total Revenue", icon: <Receipt size={14} /> },
+    { label: "IS Total Revenue", value: isRev, color: "#6D28D9", hint: isAllTime ? "Each month’s final currency formula, summed once" : "From Currency Formula (AH+SN+CHQ+HM)", icon: <TrendingUp size={14} /> },
+    { label: "IS Payroll", value: summaries.incomePayroll ?? 0, color: "#0B84F3", hint: isAllTime ? "Team Salaries · latest day per month" : "Team Salaries · same as Income Statement", icon: <Cpu size={14} /> },
+    { label: "IS Total Expense", value: summaries.incomeTotalExpense ?? 0, color: "#B8112D", hint: isAllTime ? "Payroll + OPEX · latest day per month" : "Payroll + OPEX · same as Income Statement", icon: <Layers3 size={14} /> },
+    { label: "BS Total Assets", value: bsAssets, color: "#0369A1", hint: isAllTime ? "Latest balance sheet ≤ today" : isMonth || isDateRange ? "Latest balance sheet in this period" : "Must equal Equity + Liabilities", icon: <Scale size={14} /> },
+    { label: "BS Equity + Liabilities", value: bsEquityLiab, color: "#0D9488", hint: `Equity ${currency(summaries.balanceSheetTotalEquity ?? 0)} · Liab ${currency(summaries.balanceSheetTotalLiabilities ?? 0)}`, icon: <Wallet size={14} /> },
+    { label: bsBalanced ? "BS Balanced (Diff 0)" : "BS Difference (A − E−L)", value: bsDiff, color: bsBalanced ? "#12B76A" : "#F59E0B", hint: bsBalanced ? "Assets = Equity + Liabilities" : "Should be zero when balanced", icon: <CheckCircle2 size={14} /> },
+    { label: "Income Statement Net Profit", value: summaries.incomeNetProfit ?? 0, color: "#027A48", hint: `Revenue − Expense (${currency(summaries.incomeTotalExpense ?? 0)})`, icon: <TrendingUp size={14} /> },
+    { label: "Cash Flow Net Amount", value: summaries.cashFlowNet ?? 0, color: "#8b0d22", hint: periodHint, icon: <Waves size={14} /> },
+    { label: "Total Assets Register", value: summaries.totalAssetsRegister ?? 0, color: "#0F766E", hint: isAllTime ? "Latest register ≤ today" : isMonth || isDateRange ? "Latest register in this period" : "BEM + GPS + BDS register sum", icon: <Boxes size={14} /> },
   ];
 
   const channelChips = [
-    { key: "AH", label: "Ahmed Hamza", amount: ahCalc.total, dot: "#F87171" },
-    { key: "SN", label: "Sharjeel Nasir", amount: snCalc.total, dot: "#60A5FA" },
-    { key: "CHQ", label: "Cheque", amount: chqCalc.total, dot: "#FBBF24" },
-    { key: "HM", label: "Habib Metro", amount: hmCalc.total, dot: "#2DD4BF" },
+    { key: "AH", label: "Ahmed Hamza", amount: periodChannels?.AH ?? ahCalc.total, dot: "#F87171" },
+    { key: "SN", label: "Sharjeel Nasir", amount: periodChannels?.SN ?? snCalc.total, dot: "#60A5FA" },
+    { key: "CHQ", label: "Cheque", amount: periodChannels?.CHQ ?? chqCalc.total, dot: "#FBBF24" },
+    { key: "HM", label: "Habib Metro", amount: periodChannels?.HM ?? hmCalc.total, dot: "#2DD4BF" },
   ];
 
-  const isRev = summaries.incomeTotalRevenue ?? 0;
   const isPayroll = summaries.incomePayroll ?? 0;
   const isOpex = summaries.incomeOpex ?? 0;
   const isLoans = summaries.incomeLoans ?? 0;
@@ -509,7 +519,9 @@ export default function AccountsDashboardPage() {
         <AccountsPageShell
           {...accountsShellProps(acc)}
           title="Dashboard"
-          subtitle="Live totals from other pages. Currency formulas are view-only — open the eye to edit."
+          subtitle="Live totals · filter by period · currency formula uses each month’s final rates."
+          inlineTitle
+          hideFileActions
         >
           <div className="flex justify-end mb-3">
             <button
@@ -523,54 +535,45 @@ export default function AccountsDashboardPage() {
             </button>
           </div>
 
-          <section className="relative overflow-hidden rounded-[1.5rem] sm:rounded-[1.75rem] bg-[#0B1220] text-white shadow-2xl shadow-black/20">
-            <div className="absolute -top-24 -right-16 w-72 h-72 rounded-full bg-[#B8112D]/35 blur-3xl" />
-            <div className="absolute -bottom-28 left-1/4 w-80 h-80 rounded-full bg-[#0B84F3]/25 blur-3xl" />
-            <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-white/30 to-transparent" />
-            <div className="relative p-4 sm:p-6 flex flex-col lg:flex-row lg:items-center gap-4 lg:gap-8">
-              <div className="min-w-0">
+          <section className="rounded-2xl border border-gray-100 dark:border-crm-border bg-crm-surface p-4 sm:p-5">
+            <div className="flex flex-col lg:flex-row lg:items-end gap-4 lg:gap-8">
+              <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/60">Total Received — All Channels</p>
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-white/10 border border-white/15 text-white/80 tabular-nums">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-crm-text-faint">Total Received</p>
+                  <span className="text-[10px] font-semibold tabular-nums text-crm-text-muted bg-crm-muted px-2 py-0.5 rounded-full">
                     {isMonth
                       ? acc.filterMonth
                       : isDateRange && acc.filterFrom && acc.filterTo
                         ? `${acc.filterFrom} → ${acc.filterTo}`
                         : (acc.recordDate || todayIso())}
                   </span>
-                  <span
-                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${
-                      bsBalanced
-                        ? "bg-emerald-400/15 border-emerald-300/30 text-emerald-300"
-                        : "bg-amber-400/15 border-amber-300/30 text-amber-300"
-                    }`}
-                  >
-                    <CheckCircle2 size={11} />
-                    {bsBalanced ? "Balance Sheet balanced" : "Balance Sheet not balanced"}
+                  <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                    bsBalanced ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"
+                  }`}>
+                    {bsBalanced ? "BS balanced" : "BS not balanced"}
                   </span>
                 </div>
-                <p className="mt-2 text-3xl sm:text-4xl xl:text-5xl font-extrabold tabular-nums tracking-tight bg-gradient-to-r from-white via-white to-white/70 bg-clip-text text-transparent">
+                <p className="mt-1.5 text-3xl sm:text-4xl font-extrabold tabular-nums tracking-tight text-crm-text">
                   {currency(currencyCardTotal)}
                 </p>
-                <p className="mt-1.5 text-[11px] text-white/50 font-medium">
-                  Ahmed + Sharjeel + Cheque + Habib Metro — after tax, PKR net
-                  {usesPeriodSummary ? " · selected period" : ""}
+                <p className="mt-1 text-[11px] text-crm-text-faint font-medium">
+                  Same as IS Total Revenue · Ahmed + Sharjeel + Cheque + Habib Metro
                 </p>
               </div>
-              <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-2 xl:grid-cols-4 gap-2 lg:ml-auto shrink-0">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 lg:min-w-[420px]">
                 {channelChips.map(c => (
                   <button
                     key={c.key}
                     type="button"
                     onClick={() => { setViewTab(c.key as ViewTab); setFormulaOpen(false); }}
-                    className="text-left rounded-xl bg-white/[0.06] border border-white/10 px-3 py-2.5 hover:bg-white/[0.12] transition-colors backdrop-blur-sm"
+                    className="text-left rounded-xl border border-gray-100 bg-crm-muted/50 px-3 py-2 hover:border-[#B8112D]/30 transition-colors"
                     title={`View ${c.label} formula`}
                   >
-                    <p className="flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-wider text-white/55">
+                    <p className="flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-wider text-crm-text-faint">
                       <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: c.dot }} />
                       {c.label}
                     </p>
-                    <p className="mt-1 text-sm font-extrabold tabular-nums">{currency(c.amount)}</p>
+                    <p className="mt-0.5 text-sm font-extrabold tabular-nums text-crm-text">{currency(c.amount)}</p>
                   </button>
                 ))}
               </div>
@@ -581,18 +584,19 @@ export default function AccountsDashboardPage() {
             {metrics.map(m => (
               <div
                 key={m.label}
-                className={`group relative overflow-hidden rounded-[1.5rem] sm:rounded-[1.75rem] p-3.5 sm:p-4 text-white shadow-lg shadow-black/10 bg-gradient-to-br ${m.color} transition-transform duration-200 hover:-translate-y-0.5`}
+                className="rounded-2xl border border-gray-100 dark:border-crm-border bg-crm-surface p-3.5 sm:p-4"
               >
-                <div className="absolute -right-6 -top-6 w-24 h-24 rounded-full bg-white/10 transition-transform duration-300 group-hover:scale-125" />
-                <div className="absolute -right-2 bottom-0 w-16 h-16 rounded-full bg-white/5" />
-                <div className="relative flex items-start justify-between gap-2">
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-white/80 leading-snug">{m.label}</p>
-                  <span className="shrink-0 w-6 h-6 rounded-lg bg-white/15 border border-white/20 inline-flex items-center justify-center">
+                <div className="flex items-start justify-between gap-2">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-crm-text-faint leading-snug">{m.label}</p>
+                  <span
+                    className="shrink-0 w-6 h-6 rounded-lg inline-flex items-center justify-center text-white"
+                    style={{ backgroundColor: m.color }}
+                  >
                     {m.icon}
                   </span>
                 </div>
-                <p className="relative text-lg sm:text-2xl font-extrabold mt-2 tabular-nums tracking-tight">{currency(m.value)}</p>
-                <p className="relative text-[10px] text-white/65 mt-1.5 font-medium">
+                <p className="text-lg sm:text-xl font-extrabold mt-2 tabular-nums tracking-tight text-crm-text">{currency(m.value)}</p>
+                <p className="text-[10px] text-crm-text-faint mt-1.5 font-medium leading-snug">
                   {"hint" in m && m.hint ? m.hint : `As of ${acc.recordDate || todayIso()}`}
                 </p>
               </div>

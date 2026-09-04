@@ -2919,7 +2919,7 @@ router.post("/leads/reassign-bulk", auth_middleware_1.verifyToken, (0, role_midd
             if (page === "interested")
                 return (0, adminClientQueries_1.isInterestedStatusWhere)();
             if (page === "pending")
-                return { status: { equals: "pending", mode: "insensitive" } };
+                return (0, adminClientQueries_1.isPendingStatusWhere)();
             if (page === "not_picked") {
                 return { status: { in: ["not picked", "Not Picked", "not completed", "Not Completed"] } };
             }
@@ -2938,11 +2938,15 @@ router.post("/leads/reassign-bulk", auth_middleware_1.verifyToken, (0, role_midd
             return res.status(400).json({ success: false, message: "Select a valid source page" });
         }
         const leads = await db_1.default.lead.findMany({
-            where: {
-                assignedTo: fromCsrId,
-                inBin: { not: true },
-                ...sourceWhere,
-            },
+            where: fromPage === "pending"
+                ? (0, binLeads_1.pendingLeadWhere)(fromCsrId)
+                : {
+                    AND: [
+                        { assignedTo: fromCsrId },
+                        (0, binLeads_1.notInBinFilter)(),
+                        sourceWhere,
+                    ],
+                },
             select: {
                 id: true,
                 nextSchedule: true,

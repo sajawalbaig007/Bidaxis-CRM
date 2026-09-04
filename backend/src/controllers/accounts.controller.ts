@@ -21,7 +21,7 @@ import {
   normalizeTechnicalPayrollData,
   recomputeTechnicalTeamInIncomeStatement,
 } from "../utils/technicalPayrollDefaults";
-import { currencyFormulaTotalFromDashboard } from "../utils/currencyFormula";
+import { currencyFormulaTotalFromDashboard, emptyCurrencyChannelNetTotals, addCurrencyChannelNetTotals } from "../utils/currencyFormula";
 import {
   aggregateCollectionsForDate,
   aggregateCollectionsForMonths,
@@ -487,6 +487,7 @@ export async function getAccountsDashboardSummary(req: AuthRequest, res: Respons
     const persistedPages: Record<string, boolean> = {};
     let recordDate = toDate;
     let dashData: Record<string, unknown> = defaultAccountsData("dashboard");
+    let channelTotals = emptyCurrencyChannelNetTotals();
 
     if (useRange) {
       // Income Statement page in Month / Date Range shows the latest saved day
@@ -536,10 +537,6 @@ export async function getAccountsDashboardSummary(req: AuthRequest, res: Respons
         }),
       ]);
 
-      const dashByDate = new Map(
-        dashRecs.map(r => [r.recordDate, r.data as Record<string, unknown>]),
-      );
-
       const paidMonths =
         mode === "all_time"
           ? [...(await aggregateAllCollectionMonths()).keys()].filter(m => m <= toDate.slice(0, 7))
@@ -557,21 +554,17 @@ export async function getAccountsDashboardSummary(req: AuthRequest, res: Respons
       ];
       const collectionsByMonth = await aggregateCollectionsForMonths(collectionMonths);
       const dashForMonth = (ym: string) => {
-        const monthStart = monthStartIso(ym);
+        const inMonth = dashRecs
+          .filter(r => yearMonthFromDate(r.recordDate) === ym)
+          .sort((a, b) => a.recordDate.localeCompare(b.recordDate));
         const raw =
-          dashByDate.get(monthStart) ??
-          [...dashByDate.entries()].find(([d]) => yearMonthFromDate(d) === ym)?.[1] ??
+          (inMonth[inMonth.length - 1]?.data as Record<string, unknown> | undefined) ??
           defaultAccountsData("dashboard");
         return applyCollectionsToDashboardData(
           raw,
           collectionsByMonth.get(ym) ?? emptyDayCollections(),
         );
       };
-
-      let currencyFormulaTotal = 0;
-      for (const ym of collectionMonths) {
-        currencyFormulaTotal += currencyFormulaTotalFromDashboard(dashForMonth(ym));
-      }
 
       if (mode === "all_time") {
         const latestByMonth = new Map<string, { date: string; data: Record<string, unknown> }>();
@@ -586,18 +579,22 @@ export async function getAccountsDashboardSummary(req: AuthRequest, res: Respons
         let opex = 0;
         let loans = 0;
         let pf = 0;
-        for (const [ym, snap] of latestByMonth) {
-          revenue += currencyFormulaTotalFromDashboard(dashForMonth(ym));
+        const monthsForFormula = latestByMonth.size > 0 ? [...latestByMonth.keys()] : collectionMonths;
+        for (const ym of monthsForFormula) {
+          const dash = dashForMonth(ym);
+          revenue += currencyFormulaTotalFromDashboard(dash);
+          channelTotals = addCurrencyChannelNetTotals(channelTotals, dash);
+        }
+        for (const [, snap] of latestByMonth) {
           const parts = await incomePartsFromRaw(snap.data, snap.date);
           payroll += parts.payroll;
           opex += parts.opex;
           loans += parts.loans;
           pf += parts.pf;
         }
-        if (latestByMonth.size === 0) revenue = currencyFormulaTotal;
         assignIncomeSummaries(summaries, {
           revenue,
-          currencyTotal: currencyFormulaTotal,
+          currencyTotal: revenue,
           payroll,
           opex,
           loans,
@@ -609,7 +606,9 @@ export async function getAccountsDashboardSummary(req: AuthRequest, res: Respons
         const snapshotYm = latestIs
           ? yearMonthFromDate(latestIs.recordDate)
           : (rangeMonths[rangeMonths.length - 1] ?? yearMonthFromDate(toDate));
-        const revenue = currencyFormulaTotalFromDashboard(dashForMonth(snapshotYm));
+        const dash = dashForMonth(snapshotYm);
+        const revenue = currencyFormulaTotalFromDashboard(dash);
+        channelTotals = addCurrencyChannelNetTotals(emptyCurrencyChannelNetTotals(), dash);
         const parts = latestIs
           ? await incomePartsFromRaw(latestIs.data as Record<string, unknown>, latestIs.recordDate)
           : { payroll: 0, opex: 0, loans: 0, pf: 0 };
@@ -698,6 +697,7 @@ export async function getAccountsDashboardSummary(req: AuthRequest, res: Respons
         (dash?.data as Record<string, unknown> | undefined) ?? defaultAccountsData("dashboard"),
         dayCollections,
       );
+      channelTotals = addCurrencyChannelNetTotals(emptyCurrencyChannelNetTotals(), dashData);
       persistedPages.dashboard = !!dash;
       recordDate = toDate;
     }
@@ -709,6 +709,7 @@ export async function getAccountsDashboardSummary(req: AuthRequest, res: Respons
       throughDate: toDate,
       fromDate: useRange && mode !== "all_time" ? fromDate : undefined,
       summaries,
+      channels: channelTotals,
       dashboard: dashData,
       persisted: {
         dashboard: !!persistedPages.dashboard,

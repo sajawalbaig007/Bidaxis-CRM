@@ -4,6 +4,8 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.paymentsChannelPkr = paymentsChannelPkr;
 exports.currencyFormulaBreakdownFromDashboard = currencyFormulaBreakdownFromDashboard;
 exports.currencyFormulaTotalFromDashboard = currencyFormulaTotalFromDashboard;
+exports.emptyCurrencyChannelNetTotals = emptyCurrencyChannelNetTotals;
+exports.addCurrencyChannelNetTotals = addCurrencyChannelNetTotals;
 const TAB_DEFAULTS = {
     SN: {
         usdAmount: 0,
@@ -136,4 +138,14 @@ function currencyFormulaBreakdownFromDashboard(data) {
 /** Merged AH+SN+CHQ+HM net — Income Statement Total Revenue source. */
 function currencyFormulaTotalFromDashboard(data) {
     return currencyFormulaBreakdownFromDashboard(data).reduce((a, c) => a + c.netPkr, 0);
+}
+function emptyCurrencyChannelNetTotals() {
+    return { AH: 0, SN: 0, CHQ: 0, HM: 0 };
+}
+function addCurrencyChannelNetTotals(acc, data) {
+    const next = { ...acc };
+    for (const c of currencyFormulaBreakdownFromDashboard(data)) {
+        next[c.key] += c.netPkr;
+    }
+    return next;
 }
