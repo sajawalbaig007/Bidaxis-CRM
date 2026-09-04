@@ -1,7 +1,8 @@
 "use strict";
 /**
  * Income Statement → 3-month budget helpers (server).
- * Sales / Technical salaries are split from commission and overtime.
+ * Sales salaries are split from commission. Technical overtime is listed separately
+ * but the Technical Team actual is the full Income Statement net (OT included).
  * OPEX = head totals only (no sub-heads). Loans / PF are excluded.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
@@ -116,20 +117,81 @@ function tlExtraForLead(lead, salesPeers, opts) {
     })
         .reduce((sum, p) => sum + (0, salesPayrollFormula_1.calcTlAssignedCommission)(p, opts), 0);
 }
-/** Weekday 1.5× + weekend 2× · hourly = (Basic + Allowances) ÷ 30 ÷ 8 */
-function overtimeFromSalary(sal) {
-    if (!sal)
+function isTechnicalManagerPerson(teamTitle, subLabel) {
+    const t = teamTitle.trim().toLowerCase();
+    const l = String(subLabel ?? "").trim().toLowerCase();
+    if (t.includes("technical manager") || t.includes("tech manager"))
+        return true;
+    return (l.includes("technical manager") ||
+        l.includes("tech manager") ||
+        l.includes("tech mgr") ||
+        l.includes("(technical mgr)"));
+}
+function techTimeToMinutes(t) {
+    if (!t || !/^\d{1,2}:\d{2}$/.test(String(t).trim()))
+        return null;
+    const [h, m] = String(t).trim().split(":").map(Number);
+    if (h < 0 || h > 23 || m < 0 || m > 59)
+        return null;
+    return h * 60 + m;
+}
+/** Same late slabs as Income Statement (tech team 07:00 · manager 09:00). */
+function incomeStatementLateDeduction(daySalary, checkIn, checkOut, override, shiftStartHour) {
+    if (override != null && Number.isFinite(override) && override >= 0)
+        return Number(override) || 0;
+    const inMin = techTimeToMinutes(checkIn);
+    const outMin = techTimeToMinutes(checkOut);
+    if (inMin == null)
         return 0;
+    const start = shiftStartHour * 60;
+    const reliefEnd = start + 30;
+    const quarterEnd = start + 60;
+    const thirdEnd = start + 120;
+    if (inMin <= reliefEnd)
+        return 0;
+    if (outMin != null) {
+        const worked = outMin >= inMin ? outMin - inMin : outMin + 24 * 60 - inMin;
+        if (worked >= 9 * 60)
+            return 0;
+    }
+    if (inMin < quarterEnd)
+        return daySalary / 4;
+    if (inMin < thirdEnd)
+        return daySalary / 3;
+    return daySalary / 2;
+}
+/**
+ * Income Statement Technical / Manager net + OT.
+ * Mirrors frontend computeSalary (all allowance lines, cash loan, manager late 09:00).
+ */
+function incomeStatementTechnicalFromSalary(sal, lateShiftHour) {
+    if (!sal)
+        return { totalSalary: 0, totalOvertime: 0 };
     const basic = Number(sal.basic) || 0;
     const allowance = (Number(sal.allowance) || 0) +
         (Number(sal.homeAllowance) || 0) +
         (Number(sal.fuelAllowance) || 0) +
-        (Number(sal.medicalAllowance) || 0) +
-        (Number(sal.travelAllowance) || 0);
-    const hour = (basic + allowance) / 30 / 8;
+        (Number(sal.medicalAllowance) || 0);
+    const travel = Number(sal.travelAllowance) || 0;
+    const monthlySalary = basic + allowance + travel;
+    const daySalary = basic / 30;
+    const hour = monthlySalary / 30 / 8;
     const weekday = Number(sal.weekdayOtHours) || 0;
     const weekend = Number(sal.weekendOtHours) || 0;
-    return weekday * hour * 1.5 + weekend * hour * 2;
+    const totalOvertime = weekday * hour * 1.5 + weekend * hour * 2;
+    const totalEarning = monthlySalary + totalOvertime;
+    const lateOverride = sal.lateDeductionOverride == null || String(sal.lateDeductionOverride) === ""
+        ? null
+        : Number(sal.lateDeductionOverride);
+    const late = incomeStatementLateDeduction(daySalary, String(sal.checkIn ?? ""), String(sal.checkOut ?? ""), lateOverride, lateShiftHour);
+    const unpaidLeaveDeduction = (Number(sal.unpaidLeaveDays) || 0) * daySalary;
+    const loanThisMonth = Number(sal.loanThisMonth) || 0;
+    const loanFromSalary = String(sal.loanPaymentMode ?? "salary") === "cash" ? 0 : loanThisMonth;
+    const pf = sal.pfAuto !== false ? basic * 0.08 : Number(sal.pfOverride) || 0;
+    const incomeTax = Number(sal.incomeTax) || 0;
+    const occasional = Math.max(0, Number(sal.occasionalAmount) || 0);
+    const totalSalary = totalEarning - late - unpaidLeaveDeduction - loanFromSalary - pf - incomeTax + occasional;
+    return { totalSalary, totalOvertime };
 }
 function accumulateCoreBudget(data, into, revenue, recordDate) {
     into.revenue += revenue;
@@ -167,13 +229,28 @@ function accumulateCoreBudget(data, into, revenue, recordDate) {
             continue;
         }
         if (key === "technical") {
+            const title = String(team.team ?? "");
+            const subs = team.subHeads ?? [];
             let overtime = 0;
-            for (const sub of team.subHeads ?? []) {
-                overtime += overtimeFromSalary(sub.salary);
+            let net = 0;
+            if (subs.length === 0) {
+                net = total;
             }
-            overtime = Math.max(0, overtime);
-            into.technical_overtime += overtime;
-            into.technical += Math.max(0, total - overtime);
+            else {
+                for (const sub of subs) {
+                    if (!sub.salary) {
+                        net += Number(sub.amount) || 0;
+                        continue;
+                    }
+                    const shift = isTechnicalManagerPerson(title, sub.label) ? 9 : 7;
+                    const b = incomeStatementTechnicalFromSalary(sub.salary, shift);
+                    net += b.totalSalary;
+                    overtime += b.totalOvertime;
+                }
+            }
+            into.technical_overtime += Math.max(0, overtime);
+            // Full IS team total (OT already inside net). Do not subtract — OT is its own row.
+            into.technical += Math.max(0, net);
             continue;
         }
         into[key] += total;

@@ -233,7 +233,11 @@ export default function IncomeBudgetModal({ open, onClose }: Props) {
   const monthExpenseActual = (mk: string) =>
     tableLines
       .filter(isBudgetExpenseLine)
-      .reduce((a, l) => a + (Number(byMonthActuals[mk]?.[l.key]) || 0), 0);
+      .reduce((a, l) => {
+        // OT actual is already inside Technical Team (IS net).
+        if (l.key === "technical_overtime") return a;
+        return a + (Number(byMonthActuals[mk]?.[l.key]) || 0);
+      }, 0);
   const monthRevenueBudget = (mk: string) =>
     Number(tableLines.find(l => l.key === "revenue")?.months[mk]) || 0;
   const monthProjectedNet = (mk: string) => monthRevenueBudget(mk) - monthExpenseBudget(mk);
@@ -444,8 +448,8 @@ export default function IncomeBudgetModal({ open, onClose }: Props) {
                                     : line.key === "sales_commission"
                                       ? "Commission · Sales Team + Lead"
                                       : line.key === "technical"
-                                        ? "Salaries · Technical Team + Manager (excludes overtime)"
-                                        : "Overtime · Technical Team + Manager"}
+                                        ? "Same as Income Statement team total (overtime included)"
+                                        : "Overtime only · already inside the team actual above"}
                                 </span>
                               )}
                               {line.kind === "opex_head" && (
