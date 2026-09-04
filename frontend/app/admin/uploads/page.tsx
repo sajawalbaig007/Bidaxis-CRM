@@ -121,8 +121,12 @@ const REASSIGN_PAGES = [
   { key: "pending", label: "Pending / Today" },
   { key: "not_picked", label: "Not Picked" },
   { key: "not_interested", label: "Not Interested" },
+  { key: "no_owner", label: "No Owner" },
+  { key: "not_in_service", label: "Not In Service" },
+  { key: "in_house", label: "In House" },
   { key: "close_client", label: "Close Client" },
 ] as const;
+const REASSIGN_MATCH_DEST = new Set<string>(["pending", "no_owner", "not_in_service", "in_house"]);
 const RESULT_FILTER_OPTIONS = [
   { key: "all" as const, label: "All" },
   { key: "new" as const, label: "New" },
@@ -987,8 +991,8 @@ export default function UploadPage() {
                           type="button"
                           onClick={() => {
                             setReassignFromPage(p.key);
-                            if (p.key === "pending") {
-                              setReassignToPage("pending");
+                            if (REASSIGN_MATCH_DEST.has(p.key)) {
+                              setReassignToPage(p.key);
                               if (reassignFromCsrId) {
                                 setReassignToCsrIds((prev) => prev.filter((x) => x !== reassignFromCsrId));
                               }
@@ -1008,6 +1012,11 @@ export default function UploadPage() {
                   {reassignFromPage === "pending" && (
                     <p className="mt-1.5 text-[11px] text-violet-700">
                       {"Moves this CSR's Today / Pending call-data queue."}
+                    </p>
+                  )}
+                  {(reassignFromPage === "no_owner" || reassignFromPage === "not_in_service" || reassignFromPage === "in_house") && (
+                    <p className="mt-1.5 text-[11px] text-violet-700">
+                      Moves this CSR follow-up queue (same tab on destination).
                     </p>
                   )}
                 </div>
@@ -1058,6 +1067,11 @@ export default function UploadPage() {
                   {reassignToPage === "pending" && (
                     <p className="mt-1.5 text-[11px] text-emerald-700">
                       {"Leads land on the destination CSR's Today / Pending page."}
+                    </p>
+                  )}
+                  {(reassignToPage === "no_owner" || reassignToPage === "not_in_service" || reassignToPage === "in_house") && (
+                    <p className="mt-1.5 text-[11px] text-emerald-700">
+                      Leads land on the destination CSR follow-up tab.
                     </p>
                   )}
                   {reassignToPage === "schedule" && reassignFromPage !== "schedule" && (
