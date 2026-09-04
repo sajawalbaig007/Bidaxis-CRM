@@ -19,7 +19,7 @@ import {
   paidDatesFromPayments,
   syncAccountsCurrencyForDates,
 } from "../utils/projectCurrencyCollections";
-import { buildBinWhere, filterActiveLeads, notInBinFilter } from "../utils/binLeads";
+import { buildBinWhere, filterActiveLeads, notInBinFilter, pendingLeadWhere } from "../utils/binLeads";
 import { findLeadsByPhone, buildPhoneLookupResponse } from "../utils/leadPhoneLookup";
 import { findDuplicateLead } from "../utils/leadDuplicateCheck";
 import { CSR_UPLOAD_FILE_SELECT } from "../utils/uploadSourceSelect";
@@ -30,6 +30,7 @@ import {
   importantOnlyWhere,
   scheduledCallWhere,
   isInterestedStatusWhere,
+  isPendingStatusWhere,
   leadHasMeetingDate,
   ADMIN_LEAD_LIST_SELECT,
   type AdminClientView,
@@ -3415,7 +3416,7 @@ router.post(
         if (page === "important") return importantOnlyWhere();
         if (page === "schedule") return scheduledCallWhere();
         if (page === "interested") return isInterestedStatusWhere();
-        if (page === "pending") return { status: { equals: "pending", mode: "insensitive" } };
+        if (page === "pending") return isPendingStatusWhere();
         if (page === "not_picked") {
           return { status: { in: ["not picked", "Not Picked", "not completed", "Not Completed"] } };
         }
@@ -3436,11 +3437,16 @@ router.post(
       }
 
       const leads = await prisma.lead.findMany({
-        where: {
-          assignedTo: fromCsrId,
-          inBin: { not: true },
-          ...sourceWhere,
-        },
+        where:
+          fromPage === "pending"
+            ? pendingLeadWhere(fromCsrId)
+            : {
+                AND: [
+                  { assignedTo: fromCsrId },
+                  notInBinFilter(),
+                  sourceWhere,
+                ],
+              },
         select: {
           id: true,
           nextSchedule: true,

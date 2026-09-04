@@ -3,6 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.ADMIN_LEAD_LIST_SELECT = exports.uniqueLeadsByPhone = void 0;
 exports.isImportantStatusWhere = isImportantStatusWhere;
 exports.isInterestedStatusWhere = isInterestedStatusWhere;
+exports.isPendingStatusWhere = isPendingStatusWhere;
 exports.leadHasMeetingDate = leadHasMeetingDate;
 exports.importantOnlyWhere = importantOnlyWhere;
 exports.scheduledCallWhere = scheduledCallWhere;
@@ -45,6 +46,9 @@ function isImportantStatusWhere() {
 }
 function isInterestedStatusWhere() {
     return statusIn(["interested"]);
+}
+function isPendingStatusWhere() {
+    return statusIn(["pending"]);
 }
 function leadHasMeetingDate(nextSchedule) {
     return !!(nextSchedule && String(nextSchedule).trim());

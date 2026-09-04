@@ -175,3 +175,20 @@ export function currencyFormulaBreakdownFromDashboard(
 export function currencyFormulaTotalFromDashboard(data: Record<string, unknown> | null | undefined): number {
   return currencyFormulaBreakdownFromDashboard(data).reduce((a, c) => a + c.netPkr, 0);
 }
+
+export type CurrencyChannelNetTotals = { AH: number; SN: number; CHQ: number; HM: number };
+
+export function emptyCurrencyChannelNetTotals(): CurrencyChannelNetTotals {
+  return { AH: 0, SN: 0, CHQ: 0, HM: 0 };
+}
+
+export function addCurrencyChannelNetTotals(
+  acc: CurrencyChannelNetTotals,
+  data: Record<string, unknown> | null | undefined,
+): CurrencyChannelNetTotals {
+  const next = { ...acc };
+  for (const c of currencyFormulaBreakdownFromDashboard(data)) {
+    next[c.key] += c.netPkr;
+  }
+  return next;
+}

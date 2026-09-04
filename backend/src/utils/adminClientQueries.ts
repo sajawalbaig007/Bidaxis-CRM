@@ -33,6 +33,10 @@ export function isInterestedStatusWhere(): Prisma.LeadWhereInput {
   return statusIn(["interested"]);
 }
 
+export function isPendingStatusWhere(): Prisma.LeadWhereInput {
+  return statusIn(["pending"]);
+}
+
 
 
 export function leadHasMeetingDate(nextSchedule?: string | null): boolean {

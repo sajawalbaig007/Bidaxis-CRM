@@ -16,7 +16,7 @@ export type AccountsPeriodPreset =
 export const PERIOD_PRESET_LABELS: Record<"all_time" | "daily" | "month" | "date_range", string> = {
   all_time: "All Time",
   daily: "Daily",
-  month: "Month",
+  month: "Monthly",
   date_range: "Date Range",
 };
 

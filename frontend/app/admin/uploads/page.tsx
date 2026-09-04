@@ -118,7 +118,7 @@ const REASSIGN_PAGES = [
   { key: "important", label: "Important" },
   { key: "schedule", label: "Schedule Call" },
   { key: "interested", label: "Interested" },
-  { key: "pending", label: "Pending" },
+  { key: "pending", label: "Pending / Today" },
   { key: "not_picked", label: "Not Picked" },
   { key: "not_interested", label: "Not Interested" },
   { key: "close_client", label: "Close Client" },
@@ -974,7 +974,15 @@ export default function UploadPage() {
                         <button
                           key={p.key}
                           type="button"
-                          onClick={() => setReassignFromPage(p.key)}
+                          onClick={() => {
+                            setReassignFromPage(p.key);
+                            if (p.key === "pending") {
+                              setReassignToPage("pending");
+                              if (reassignFromCsrId) {
+                                setReassignToCsrIds((prev) => prev.filter((x) => x !== reassignFromCsrId));
+                              }
+                            }
+                          }}
                           className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${
                             on
                               ? "bg-violet-600 text-white border-violet-600"
@@ -986,6 +994,11 @@ export default function UploadPage() {
                       );
                     })}
                   </div>
+                  {reassignFromPage === "pending" && (
+                    <p className="mt-1.5 text-[11px] text-violet-700">
+                      Moves this CSR's Today / Pending call-data queue.
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -1009,6 +1022,38 @@ export default function UploadPage() {
                   >
                     Select all CSRs
                   </button>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-gray-500">Land on page</label>
+                  <div className="mt-1.5 flex flex-wrap gap-2">
+                    {REASSIGN_PAGES.map((p) => {
+                      const on = reassignToPage === p.key;
+                      return (
+                        <button
+                          key={p.key}
+                          type="button"
+                          onClick={() => setReassignToPage(p.key)}
+                          className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${
+                            on
+                              ? "bg-emerald-600 text-white border-emerald-600"
+                              : "bg-white text-gray-600 border-gray-200 hover:border-emerald-300"
+                          }`}
+                        >
+                          {p.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {reassignToPage === "pending" && (
+                    <p className="mt-1.5 text-[11px] text-emerald-700">
+                      Leads land on the destination CSR's Today / Pending page.
+                    </p>
+                  )}
+                  {reassignToPage === "schedule" && reassignFromPage !== "schedule" && (
+                    <p className="mt-1.5 text-[11px] text-amber-700">
+                      Schedule needs an existing meeting date — use Schedule Call as source, or pick another destination page.
+                    </p>
+                  )}
                 </div>
                 <div>
                   <label className="text-xs font-semibold text-gray-500">CSR(s) — equal distribute</label>
@@ -1061,33 +1106,6 @@ export default function UploadPage() {
                   {reassignToCsrIds.length > 1 && (
                     <p className="mt-1.5 text-[11px] text-gray-500">
                       {reassignToCsrIds.length} CSRs — leads split evenly (round-robin).
-                    </p>
-                  )}
-                </div>
-                <div>
-                  <label className="text-xs font-semibold text-gray-500">Land on page</label>
-                  <div className="mt-1.5 flex flex-wrap gap-2">
-                    {REASSIGN_PAGES.map((p) => {
-                      const on = reassignToPage === p.key;
-                      return (
-                        <button
-                          key={p.key}
-                          type="button"
-                          onClick={() => setReassignToPage(p.key)}
-                          className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${
-                            on
-                              ? "bg-emerald-600 text-white border-emerald-600"
-                              : "bg-white text-gray-600 border-gray-200 hover:border-emerald-300"
-                          }`}
-                        >
-                          {p.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                  {reassignToPage === "schedule" && reassignFromPage !== "schedule" && (
-                    <p className="mt-1.5 text-[11px] text-amber-700">
-                      Schedule needs an existing meeting date — use Schedule Call as source, or pick another destination page.
                     </p>
                   )}
                 </div>
@@ -2324,7 +2342,7 @@ export default function UploadPage() {
                         </div>
                         <h3 className="text-base sm:text-lg font-bold text-[#0F172A] leading-snug">Reassign CSR Leads</h3>
                         <p className="text-sm text-gray-500 mt-2 max-w-[280px] leading-snug">
-                          From CSR + page → To CSR(s) + page. Multi-CSR = equal split.
+                          From CSR + page → To CSR(s) + page, including Pending / Today. Multi-CSR = equal split.
                         </p>
                         <span className="mt-4 inline-flex bg-violet-600 text-white px-5 py-2.5 rounded-xl text-sm font-bold">
                           Open Reassign
