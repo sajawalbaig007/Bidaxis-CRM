@@ -1099,12 +1099,12 @@ export default function UsersPage() {
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             <div className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
               <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Total users</p>
-              {loading ? (
+          {loading ? (
                 <div className="h-8 w-12 bg-gray-100 rounded-lg animate-pulse mt-2" />
               ) : (
                 <p className="text-3xl font-bold text-[#0F172A] mt-1 tabular-nums">{totalUsers}</p>
               )}
-            </div>
+              </div>
             <div className="rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50 to-white p-4 shadow-sm">
               <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-700/70">Online now</p>
               {loading ? (
@@ -1166,9 +1166,9 @@ export default function UsersPage() {
             <div className="relative w-full sm:w-[280px]">
               <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400"/>
               <input type="text" placeholder="Search name, email, code…" value={search}
-                onChange={e => { setSearch(e.target.value); setPage(1); }}
+              onChange={e => { setSearch(e.target.value); setPage(1); }}
                 className="w-full bg-white border border-gray-200 rounded-2xl pl-10 pr-4 py-2.5 text-sm outline-none focus:border-[#B8112D]"/>
-            </div>
+          </div>
             <div className="relative w-full sm:w-[200px]">
               <ArrowUpDown size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"/>
               <select
@@ -1301,15 +1301,15 @@ export default function UsersPage() {
                     {/* PRESENCE (online + browser) */}
                     <td className="px-4 py-3.5">
                       <div className="flex flex-col gap-1 min-w-[140px]">
-                        <OnlineBadge isOnline={u.isOnline} lastActive={u.lastActive} now={now}/>
-                        {u.isOnline ? (
-                          <TabStatusBadge
-                            tabVisible={u.tabVisible}
-                            hiddenAt={u.hiddenAt}
-                            openedAt={u.openedAt}
-                            browser={u.browser}
-                            now={now}
-                          />
+                      <OnlineBadge isOnline={u.isOnline} lastActive={u.lastActive} now={now}/>
+                      {u.isOnline ? (
+                        <TabStatusBadge
+                          tabVisible={u.tabVisible}
+                          hiddenAt={u.hiddenAt}
+                          openedAt={u.openedAt}
+                          browser={u.browser}
+                          now={now}
+                        />
                         ) : null}
                       </div>
                     </td>
@@ -1461,19 +1461,19 @@ export default function UsersPage() {
                         {(() => {
                           const preview = cnicDocumentPreview(detailUser.cnicPdfUrl);
                           return preview.kind === "image" ? (
-                            <img
+                          <img
                               src={preview.src}
-                              alt="CNIC"
+                            alt="CNIC"
                               className="w-full max-h-56 object-contain rounded-xl border border-gray-200 bg-white"
-                            />
-                          ) : (
-                            <div className="rounded-xl border border-gray-200 overflow-hidden bg-white">
-                              <iframe
+                          />
+                        ) : (
+                          <div className="rounded-xl border border-gray-200 overflow-hidden bg-white">
+                            <iframe
                                 src={preview.src}
-                                title="CNIC document"
+                              title="CNIC document"
                                 className="w-full h-56"
-                              />
-                            </div>
+                            />
+                          </div>
                           );
                         })()}
                         <div className="flex items-center gap-3 mt-2">
@@ -1850,9 +1850,9 @@ export default function UsersPage() {
                     />
                     {form.role === "CSR" && (
                       <p className="text-[11px] text-gray-400">
-                        Clients of this CSR will be coded as {form.csrCode || "XXXX"}-01, {form.csrCode || "XXXX"}-02…
+                      Clients of this CSR will be coded as {form.csrCode || "XXXX"}-01, {form.csrCode || "XXXX"}-02…
                         {" "}· Separate from Employee Code above.
-                      </p>
+                    </p>
                     )}
                   </div>
                 )}

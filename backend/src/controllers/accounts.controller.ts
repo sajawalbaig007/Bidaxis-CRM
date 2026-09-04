@@ -298,9 +298,9 @@ export async function uploadAccountsFile(
       mergedData = preparePageData(
         pageParam,
         mergeAccountsExcel(
-          pageParam,
-          (record.data as Record<string, unknown>) ?? defaultAccountsData(pageParam),
-          file.buffer,
+        pageParam,
+        (record.data as Record<string, unknown>) ?? defaultAccountsData(pageParam),
+        file.buffer,
         ),
       );
       await prisma.accountsRecord.upsert({
@@ -658,14 +658,14 @@ export async function getAccountsDashboardSummary(req: AuthRequest, res: Respons
         : defaultAccountsData("dashboard");
       if (mode === "all_time") recordDate = toDate;
     } else {
-      const pages: AccountsPageKey[] = [
-        "balance_sheet",
-        "income_statement",
-        "cash_flow",
-        "total_assets",
-      ];
+    const pages: AccountsPageKey[] = [
+      "balance_sheet",
+      "income_statement",
+      "cash_flow",
+      "total_assets",
+    ];
 
-      for (const page of pages) {
+    for (const page of pages) {
         const record = await findRecord(page, toDate);
         persistedPages[page] = !!record;
         const data = preparePageData(
@@ -675,7 +675,7 @@ export async function getAccountsDashboardSummary(req: AuthRequest, res: Respons
 
         if (page === "balance_sheet") {
           Object.assign(summaries, summarizeBalanceSheet(data));
-        } else if (page === "income_statement") {
+      } else if (page === "income_statement") {
           const dashRec = await findRecord("dashboard", toDate);
           const collections = await aggregateCollectionsForDate(toDate);
           const dashMerged = applyCollectionsToDashboardData(
@@ -688,9 +688,9 @@ export async function getAccountsDashboardSummary(req: AuthRequest, res: Respons
             toDate,
           );
           assignIncomeSummaries(summaries, { revenue, ...parts });
-        } else if (page === "cash_flow") {
+      } else if (page === "cash_flow") {
           summaries.cashFlowNet = summarizeCashFlow(data);
-        } else if (page === "total_assets") {
+      } else if (page === "total_assets") {
           summaries.totalAssetsRegister = summarizeTotalAssets(data);
         }
       }
