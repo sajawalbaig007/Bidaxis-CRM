@@ -3,13 +3,26 @@
 import { Fragment, useState } from "react";
 import { ChevronDown, ChevronRight, Pencil, Plus } from "lucide-react";
 import type { BalanceLineItem, BalanceSection } from "../types";
-import { currency, lineAmount, normalizeNotes, todayIso } from "../types";
+import {
+  currency,
+  inventoryLineTotal,
+  lineAmount,
+  normalizeNotes,
+  subHeadLineAmount,
+  sumSubHeads,
+  todayIso,
+} from "../types";
 import { TABLE_VARIANT, type AccountsTableVariant } from "./accountsTheme";
 import AccountsNotesCell from "./AccountsNotesCell";
 import HeadDetailModal, { type HeadDetailModel } from "./HeadDetailModal";
 
-function sumItems(items: BalanceLineItem[]) {
-  return items.reduce((a, i) => a + lineAmount(i), 0);
+function sumItems(items: BalanceLineItem[], useInventoryFormula = false) {
+  return items.reduce((a, i) => {
+    if (useInventoryFormula) return a + lineAmount(i);
+    const subs = i.subHeads ?? [];
+    if (subs.length > 0) return a + subs.reduce((x, s) => x + (Number(s.amount) || 0), 0);
+    return a + (Number(i.amount) || 0);
+  }, 0);
 }
 
 type BalanceSheetTableProps = {
@@ -36,9 +49,10 @@ export default function BalanceSheetTable({
   onAddSection,
 }: BalanceSheetTableProps) {
   const theme = TABLE_VARIANT[variant];
+  const inventoryEnabled = variant === "assets";
   const [openItems, setOpenItems] = useState<Set<string>>(new Set());
   const [editing, setEditing] = useState<(HeadDetailModel & { sectionId: string }) | null>(null);
-  const grandTotal = sections.reduce((a, s) => a + sumItems(s.items), 0);
+  const grandTotal = sections.reduce((a, s) => a + sumItems(s.items, inventoryEnabled), 0);
 
   const toggleItem = (id: string) => {
     setOpenItems(prev => {
@@ -88,7 +102,7 @@ export default function BalanceSheetTable({
                     <p className="text-sm font-bold text-crm-text">{section.title}</p>
                   </td>
                   <td className="px-3 py-2 text-right font-bold text-[#475569] tabular-nums">
-                    {currency(sumItems(section.items))}
+                    {currency(sumItems(section.items, inventoryEnabled))}
                   </td>
                   <td className="px-2 py-2 text-center">
                     <button
@@ -105,6 +119,7 @@ export default function BalanceSheetTable({
                   const expanded = openItems.has(item.id);
                   const subs = item.subHeads ?? [];
                   const amt = lineAmount(item);
+                  const showInventoryCols = inventoryEnabled && subs.length > 0;
                   return (
                     <Fragment key={item.id}>
                       <tr className={`border-b border-crm-border-subtle/80 ${theme.rowHover}`}>
@@ -163,16 +178,34 @@ export default function BalanceSheetTable({
                                   <thead>
                                     <tr className="border-b bg-crm-surface-muted text-crm-text-muted">
                                       <th className="px-3 py-1.5 text-left font-semibold">Individual</th>
+                                      {showInventoryCols && (
+                                        <>
+                                          <th className="px-3 py-1.5 text-right font-semibold w-[72px]">Qty</th>
+                                          <th className="px-3 py-1.5 text-right font-semibold w-[100px]">Unit price</th>
+                                        </>
+                                      )}
                                       <th className="px-3 py-1.5 text-center font-semibold w-[110px]">Filled date</th>
-                                      <th className="px-3 py-1.5 text-right font-semibold w-[100px]">Amount</th>
+                                      <th className="px-3 py-1.5 text-right font-semibold w-[100px]">
+                                        {showInventoryCols ? "Total" : "Amount"}
+                                      </th>
                                     </tr>
                                   </thead>
                                   <tbody>
                                     {subs.map(s => (
                                       <tr key={s.id} className="border-b border-crm-border-subtle">
                                         <td className="px-3 py-1.5 text-crm-text-secondary">{s.label}</td>
+                                        {showInventoryCols && (
+                                          <>
+                                            <td className="px-3 py-1.5 text-right tabular-nums">{s.qty ?? "—"}</td>
+                                            <td className="px-3 py-1.5 text-right tabular-nums">
+                                              {currency(Number(s.unitPrice) || 0)}
+                                            </td>
+                                          </>
+                                        )}
                                         <td className="px-3 py-1.5 text-center text-crm-text-muted">{s.filledAt || "—"}</td>
-                                        <td className="px-3 py-1.5 text-right font-semibold tabular-nums">{currency(s.amount)}</td>
+                                        <td className="px-3 py-1.5 text-right font-semibold tabular-nums">
+                                          {currency(showInventoryCols ? subHeadLineAmount(s) : Number(s.amount) || 0)}
+                                        </td>
                                       </tr>
                                     ))}
                                   </tbody>
@@ -206,21 +239,37 @@ export default function BalanceSheetTable({
         open={!!editing}
         title={`Edit — ${groupTitle}`}
         value={editing}
+        inventoryMode={inventoryEnabled}
+        allowInventory={inventoryEnabled}
         onClose={() => setEditing(null)}
         onSave={next => {
           if (!editing) return;
-          const amount = next.subHeads.length > 0
-            ? next.subHeads.reduce((a, s) => a + (Number(s.amount) || 0), 0)
-            : next.amount;
+          const subHeads = inventoryEnabled
+            ? next.subHeads.map(s =>
+                s.qty != null || s.unitPrice != null
+                  ? {
+                      ...s,
+                      qty: Number(s.qty) || 0,
+                      unitPrice: Number(s.unitPrice) || 0,
+                      amount: inventoryLineTotal(s.qty, s.unitPrice, s.amount),
+                    }
+                  : s,
+              )
+            : next.subHeads;
+          const amount = inventoryEnabled
+            ? (subHeads.length > 0 ? sumSubHeads(subHeads) : next.amount)
+            : subHeads.length > 0
+              ? subHeads.reduce((a, s) => a + (Number(s.amount) || 0), 0)
+              : next.amount;
           onUpdateItem(editing.sectionId, next.id, {
             label: next.title,
             note: next.notes[0]?.text ?? next.note,
             amount,
             filledAt: next.filledAt,
-            subHeads: next.subHeads,
+            subHeads,
             notes: next.notes,
           });
-          setEditing({ ...editing, ...next, amount });
+          setEditing({ ...editing, ...next, amount, subHeads });
         }}
         onDelete={() => {
           if (!editing) return;

@@ -63,7 +63,7 @@ export function useAccountsPage<T extends Record<string, unknown>>({
   const recordDateRef = useRef(recordDate);
   const pendingSaveRef = useRef(false);
   const savingLockRef = useRef(false);
-  const saveRef = useRef<(override?: T) => Promise<void>>(async () => {});
+  const saveRef = useRef<(override?: T, opts?: { silent?: boolean }) => Promise<void>>(async () => {});
 
   useEffect(() => {
     recordDateRef.current = recordDate;
@@ -236,7 +236,7 @@ export function useAccountsPage<T extends Record<string, unknown>>({
    * Overlapping saves are coalesced: a PUT that finishes after a newer edit is retried
    * with the latest payload so a stale write cannot wipe a newly added row.
    */
-  const save = useCallback(async (override?: T) => {
+  const save = useCallback(async (override?: T, opts?: { silent?: boolean }) => {
     if (override) dataRef.current = override;
     pendingSaveRef.current = true;
     if (savingLockRef.current) return;
@@ -264,23 +264,25 @@ export function useAccountsPage<T extends Record<string, unknown>>({
       }
 
       if (applied) {
-        if (page === "income_statement") {
-          try {
-            const n = await syncLoansFromIncomeStatement(
-              (applied.saved as unknown as IncomeStatementData) ??
-                (applied.payload as unknown as IncomeStatementData),
-            );
-            toast.success(
-              n > 0
-                ? `Saved for ${applied.date} · ${n} loan(s) synced to ledger`
-                : `Saved for ${applied.date}`,
-            );
-          } catch {
+        if (!opts?.silent) {
+          if (page === "income_statement") {
+            try {
+              const n = await syncLoansFromIncomeStatement(
+                (applied.saved as unknown as IncomeStatementData) ??
+                  (applied.payload as unknown as IncomeStatementData),
+              );
+              toast.success(
+                n > 0
+                  ? `Saved for ${applied.date} · ${n} loan(s) synced to ledger`
+                  : `Saved for ${applied.date}`,
+              );
+            } catch {
+              toast.success(`Saved for ${applied.date}`);
+              toast.error("Payroll saved, but loan ledger sync failed.");
+            }
+          } else {
             toast.success(`Saved for ${applied.date}`);
-            toast.error("Payroll saved, but loan ledger sync failed.");
           }
-        } else {
-          toast.success(`Saved for ${applied.date}`);
         }
         refreshDates();
       }

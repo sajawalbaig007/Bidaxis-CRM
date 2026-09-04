@@ -34,6 +34,7 @@ type CashFlowTableProps = {
   onUpdateBank: (monthId: string, rowId: string, bank: string, side: "debit" | "credit", val: number) => void;
   onRemoveRow: (monthId: string, rowId: string) => void;
   onAddRow: (monthId: string) => void;
+  onPersist?: () => void;
 };
 
 export default function CashFlowTable({
@@ -45,6 +46,7 @@ export default function CashFlowTable({
   onUpdateBank: _onUpdateBank,
   onRemoveRow,
   onAddRow,
+  onPersist,
 }: CashFlowTableProps) {
   const theme = TABLE_VARIANT.cashflow;
   const [editing, setEditing] = useState<CashFlowEditModel | null>(null);
@@ -203,7 +205,10 @@ export default function CashFlowTable({
         open={!!editing}
         bankHeads={bankHeads}
         value={editing}
-        onClose={() => setEditing(null)}
+        onClose={() => {
+          setEditing(null);
+          onPersist?.();
+        }}
         onSave={next => {
           onUpdateRow(next.monthId, next.id, {
             date: next.date,
@@ -218,6 +223,7 @@ export default function CashFlowTable({
           if (!editing) return;
           onRemoveRow(editing.monthId, editing.id);
           setEditing(null);
+          onPersist?.();
         }}
       />
     </div>

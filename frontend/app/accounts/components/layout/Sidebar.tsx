@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { LayoutDashboard, Scale, TrendingUp, Landmark, Building2, FileText, LogOut, MessageSquare, ChevronDown } from "lucide-react";
+import { LayoutDashboard, Scale, TrendingUp, Landmark, FileText, LogOut, MessageSquare, ChevronDown } from "lucide-react";
 import { logoutSession } from "@/lib/session";
 import API from "@/lib/api";
 import ThemeToggle from "@/app/components/ThemeToggle";
@@ -25,7 +25,6 @@ const navItems = [
   { title: "Balance Sheet", shortTitle: "Balance", href: `${BASE}/balance-sheet`, icon: Scale },
   { title: "Income Statement", shortTitle: "Income", href: `${BASE}/income-statement`, icon: TrendingUp },
   { title: "Cash Flow Statement", shortTitle: "Cash Flow", href: `${BASE}/cash-flow-statement`, icon: Landmark },
-  { title: "Total Assets", shortTitle: "Assets", href: `${BASE}/total-assets`, icon: Building2 },
   { title: "Reports", shortTitle: "Reports", href: `${BASE}/reports`, icon: FileText },
 ];
 

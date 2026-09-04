@@ -19,6 +19,8 @@ type BemAssetInventoryEditorProps = {
   lockedCategory?: BemInventoryCategory | null;
   /** Head title — used to infer locked category when not passed. */
   headTitle?: string;
+  /** One qty × unit-price table (no IT / Electrical / Furniture groups). */
+  flatMode?: boolean;
 };
 
 export default function BemAssetInventoryEditor({
@@ -26,9 +28,16 @@ export default function BemAssetInventoryEditor({
   onChange,
   lockedCategory,
   headTitle,
+  flatMode = false,
 }: BemAssetInventoryEditorProps) {
-  const inferred = lockedCategory ?? (headTitle ? matchInventoryCategory(headTitle) : null);
-  const categories = inferred ? [inferred] : [...BEM_INVENTORY_CATEGORIES];
+  const inferred = flatMode
+    ? null
+    : lockedCategory ?? (headTitle ? matchInventoryCategory(headTitle) : null);
+  const categories = flatMode
+    ? (["IT Inventory"] as BemInventoryCategory[])
+    : inferred
+      ? [inferred]
+      : [...BEM_INVENTORY_CATEGORIES];
 
   const updateOne = (id: string, patch: Partial<SubHeadEntry>) => {
     onChange(subHeads.map(s => (s.id === id ? patchInventoryLine(s, patch) : s)));
@@ -48,14 +57,16 @@ export default function BemAssetInventoryEditor({
         TOTAL PRICE = QTY × Unit price · Add, edit, or delete lines.
       </p>
       {categories.map(cat => {
-        const rows = inferred
+        const rows = flatMode || inferred
           ? subHeads
           : subHeads.filter(s => (s.inventoryCategory || "IT Inventory") === cat);
         const subtotal = sumSubHeads(rows);
         return (
           <div key={cat} className="rounded-xl border border-crm-border overflow-hidden bg-crm-surface">
             <div className="flex items-center justify-between gap-2 px-3 py-2 bg-[#0F766E]/10 border-b border-crm-border-subtle">
-              <p className="text-xs font-extrabold uppercase tracking-wide text-[#0F766E]">{cat}</p>
+              <p className="text-xs font-extrabold uppercase tracking-wide text-[#0F766E]">
+                {flatMode ? "Line items" : cat}
+              </p>
               <button
                 type="button"
                 onClick={() => addOne(cat)}
@@ -145,7 +156,7 @@ export default function BemAssetInventoryEditor({
           </div>
         );
       })}
-      {!inferred && (
+      {!inferred && !flatMode && (
         <p className="text-right text-sm font-extrabold text-crm-text">
           Total Amount: {currency(sumSubHeads(subHeads))}
         </p>
