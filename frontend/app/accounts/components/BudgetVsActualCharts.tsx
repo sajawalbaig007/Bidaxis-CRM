@@ -281,7 +281,7 @@ export default function BudgetVsActualCharts({
               { label: "Budget revenue", value: totals.budgetRevenue, cls: "text-violet-700" },
               { label: "Actual revenue", value: totals.actualRevenue, cls: "text-violet-900" },
               { label: "Budget expense*", value: totals.budgetExpense, cls: "text-sky-700" },
-              { label: "Actual expense*", value: totals.actualExpense, cls: "text-sky-900" },
+              { label: "Actual expense* (from IS)", value: totals.actualExpense, cls: "text-sky-900" },
             ].map(c => (
               <div key={c.label} className="rounded-xl border border-crm-border-subtle bg-crm-surface px-3 py-2.5 shadow-sm">
                 <p className="text-[9px] font-bold uppercase tracking-wide text-crm-text-faint">{c.label}</p>
@@ -292,7 +292,7 @@ export default function BudgetVsActualCharts({
             ))}
           </div>
           <p className="text-[10px] text-crm-text-faint -mt-1">
-            * Expense = payroll categories + OPEX (Loans/PF excluded). Variance:{" "}
+            Budget expense = dummy / planned numbers in the planner (white boxes). Actual expense = Income Statement payroll + OPEX for this month — typing dummy data does not change it. Loans/PF excluded. Variance:{" "}
             <span
               className={`font-bold ${
                 totals.variance > 0 ? "text-amber-700" : totals.variance < 0 ? "text-emerald-700" : "text-crm-text-muted"
