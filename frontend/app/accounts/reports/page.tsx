@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Bar, BarChart, CartesianGrid, Cell, Legend, Pie, PieChart, ReferenceLine, Tooltip, XAxis, YAxis } from "recharts";
 import {
-  ArrowDownRight, ArrowUpRight, CalendarDays, Cloud, ExternalLink, Loader2,
+  ArrowDownRight, ArrowUpRight, CalendarDays, FileDown, FileText, Loader2,
   Sparkles, TrendingUp, Wallet, PieChart as PieIcon,
 } from "lucide-react";
 import toast from "react-hot-toast";
@@ -16,6 +16,12 @@ import RechartsBox from "@/app/components/charts/RechartsBox";
 import { currency } from "../types";
 import { useScrollToHash } from "../hooks/useScrollToHash";
 import { STAFF_PAGE_PAD, BENTO_CARD } from "@/lib/staffPageLayout";
+import {
+  captureReportBlocks,
+  shotsToPdfBlob,
+  shotsToWordHtml,
+  triggerLocalDownload,
+} from "../utils/reportVisualExport";
 
 type CategoryGroup = {
   name: string;
@@ -785,22 +791,8 @@ function buildWordBlob(report: MonthlyReport): { blob: Blob; fileName: string } 
   return { blob, fileName };
 }
 
-function triggerLocalDownload(blob: Blob, fileName: string) {
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = fileName;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
-}
-
-/** Download Word locally + archive the same file to Cloudinary. */
-async function saveAndDownloadWord(report: MonthlyReport): Promise<SavedMonthlyReport | null> {
-  const { blob, fileName } = buildWordBlob(report);
-  triggerLocalDownload(blob, fileName);
-
+/** Archive a downloaded file to Cloudinary (UI list is hidden). */
+async function archiveReportFile(report: MonthlyReport, blob: Blob, fileName: string): Promise<SavedMonthlyReport | null> {
   const form = new FormData();
   form.append("file", blob, fileName);
   form.append("month", report.month);
@@ -827,9 +819,21 @@ function TrendArrow({ v, goodWhenUp }: { v: number | null; goodWhenUp: boolean }
   );
 }
 
-function SectionCard({ title, children }: { title: string; children: React.ReactNode }) {
+function ReportBlock({ children, className = "" }: { children: React.ReactNode; className?: string }) {
+  return <div data-report-block className={className}>{children}</div>;
+}
+
+function SectionCard({
+  title,
+  children,
+  asBlock = true,
+}: {
+  title: string;
+  children: React.ReactNode;
+  asBlock?: boolean;
+}) {
   return (
-    <div className={`${BENTO_CARD} overflow-hidden h-full`}>
+    <div {...(asBlock ? { "data-report-block": "" } : {})} className={`${BENTO_CARD} overflow-hidden h-full`}>
       <div className="px-4 sm:px-5 pt-4 pb-2">
         <h2 className="font-extrabold text-[#0B1220] dark:text-crm-text text-sm tracking-tight border-b-2 border-[#B8112D] pb-2">
           {title}
@@ -1218,9 +1222,8 @@ function BudgetComparePanel({
 export default function AccountsReportsPage() {
   const [month, setMonth] = useState<string>(currentMonthIso());
   const [result, setResult] = useState<{ month: string; report: MonthlyReport | null } | null>(null);
-  const [saved, setSaved] = useState<SavedMonthlyReport[]>([]);
-  const [saving, setSaving] = useState(false);
-  const [savedVersion, setSavedVersion] = useState(0);
+  const [exporting, setExporting] = useState<"word" | "pdf" | null>(null);
+  const exportRootRef = useRef<HTMLDivElement>(null);
 
   // Loading is derived — true until the fetched result matches the selected month
   const loading = result?.month !== month;
@@ -1244,31 +1247,38 @@ export default function AccountsReportsPage() {
     };
   }, [month]);
 
-  useEffect(() => {
-    let cancelled = false;
-    API.get(`/accounts/reports/monthly/saved?month=${month}`)
-      .then(res => {
-        if (!cancelled) setSaved((res.data.reports as SavedMonthlyReport[]) ?? []);
-      })
-      .catch(() => {
-        if (!cancelled) setSaved([]);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [month, savedVersion]);
-
-  const handleSaveReport = async () => {
-    if (!report) return;
-    setSaving(true);
+  const handleExport = async (kind: "word" | "pdf") => {
+    if (!report || !exportRootRef.current) return;
+    setExporting(kind);
+    const fileName =
+      kind === "pdf" ? `Accounts-Report-${report.month}.pdf` : `Accounts-Report-${report.month}.doc`;
     try {
-      await saveAndDownloadWord(report);
-      toast.success("Report downloaded and archived to Cloudinary.");
-      setSavedVersion(v => v + 1);
+      const shots = await captureReportBlocks(exportRootRef.current);
+      if (shots.length === 0) throw new Error("empty");
+      const blob =
+        kind === "pdf"
+          ? shotsToPdfBlob(shots)
+          : new Blob(["\ufeff", shotsToWordHtml(shots, `Accounts Report ${monthLabel(report.month)}`)], {
+              type: "application/msword;charset=utf-8",
+            });
+      triggerLocalDownload(blob, fileName);
+      try {
+        await archiveReportFile(report, blob, fileName);
+        toast.success(kind === "pdf" ? "PDF downloaded." : "Word downloaded.");
+      } catch (err) {
+        toast.success(kind === "pdf" ? "PDF downloaded." : "Word downloaded.");
+        console.warn(apiErrorMessage(err, "Cloud archive failed."));
+      }
     } catch (err) {
-      toast.error(apiErrorMessage(err, "Word downloaded, but Cloudinary save failed."));
+      if (kind === "word") {
+        const { blob, fileName: fallbackName } = buildWordBlob(report);
+        triggerLocalDownload(blob, fallbackName);
+        toast.success("Word downloaded.");
+      } else {
+        toast.error(apiErrorMessage(err, "PDF export failed. Try again."));
+      }
     } finally {
-      setSaving(false);
+      setExporting(null);
     }
   };
 
@@ -1320,41 +1330,57 @@ export default function AccountsReportsPage() {
     <div className="flex min-h-screen accounts-page-bg">
       <AccountsSidebar />
       <main className={`flex-1 min-w-0 overflow-x-hidden ${ACCOUNTS_MAIN_OFFSET}`}>
-        <div id="monthly-report" className={`${STAFF_PAGE_PAD} scroll-mt-[80px]`}>
-          <div className={`${BENTO_CARD} px-4 sm:px-5 py-4 sm:py-5 flex flex-col sm:flex-row sm:items-end gap-3`}>
-            <div className="min-w-0 flex-1">
-              <h1 className="font-bold text-[#B8112D] text-xl sm:text-2xl tracking-tight leading-none">
-                Executive Summary
-              </h1>
-              <p className="text-[11px] sm:text-xs text-[#64748B] mt-2">
-                Accounts Team · {label}
-                {report?.daysRecorded != null ? ` · ${report.daysRecorded} day(s) recorded` : ""}
-                {report?.sourceDate ? ` · last ${report.sourceDate}` : ""} · BEM Solutions CRM
-              </p>
+        <div
+          id="monthly-report"
+          ref={exportRootRef}
+          className={`${STAFF_PAGE_PAD} scroll-mt-[80px]`}
+        >
+          <ReportBlock>
+            <div className={`${BENTO_CARD} px-4 sm:px-5 py-4 sm:py-5 flex flex-col sm:flex-row sm:items-end gap-3`}>
+              <div className="min-w-0 flex-1">
+                <h1 className="font-bold text-[#B8112D] text-xl sm:text-2xl tracking-tight leading-none">
+                  Executive Summary
+                </h1>
+                <p className="text-[11px] sm:text-xs text-[#64748B] mt-2">
+                  Accounts Team · {label}
+                  {report?.daysRecorded != null ? ` · ${report.daysRecorded} day(s) recorded` : ""}
+                  {report?.sourceDate ? ` · last ${report.sourceDate}` : ""} · BEM Solutions CRM
+                </p>
+              </div>
+              <div data-export-hide className="flex items-center gap-2 shrink-0">
+                <label className="inline-flex items-center gap-2 h-10 px-3 rounded-xl border border-crm-border bg-[#F8FAFC] text-xs font-bold text-crm-text-secondary">
+                  <CalendarDays size={14} className="text-[#B8112D]" />
+                  <input
+                    type="month"
+                    value={month}
+                    max={currentMonthIso()}
+                    onChange={e => setMonth(e.target.value || currentMonthIso())}
+                    className="bg-transparent outline-none text-sm font-semibold text-crm-text"
+                  />
+                </label>
+                <button
+                  type="button"
+                  disabled={!report || loading || exporting !== null}
+                  onClick={() => void handleExport("word")}
+                  className="h-10 px-4 rounded-xl bg-[#2B579A] text-white text-xs font-bold inline-flex items-center gap-2 hover:bg-[#1e4278] disabled:opacity-50 transition-colors shadow-md shadow-[#2B579A]/25"
+                  title="Download Word — same layout and charts"
+                >
+                  {exporting === "word" ? <Loader2 size={15} className="animate-spin" /> : <FileText size={15} />}
+                  {exporting === "word" ? "Saving…" : "Save as Word"}
+                </button>
+                <button
+                  type="button"
+                  disabled={!report || loading || exporting !== null}
+                  onClick={() => void handleExport("pdf")}
+                  className="h-10 px-4 rounded-xl bg-[#B8112D] text-white text-xs font-bold inline-flex items-center gap-2 hover:bg-[#9a0e26] disabled:opacity-50 transition-colors shadow-md shadow-[#B8112D]/25"
+                  title="Download PDF — same layout and charts"
+                >
+                  {exporting === "pdf" ? <Loader2 size={15} className="animate-spin" /> : <FileDown size={15} />}
+                  {exporting === "pdf" ? "Saving…" : "Save as PDF"}
+                </button>
+              </div>
             </div>
-            <div className="flex items-center gap-2 shrink-0">
-              <label className="inline-flex items-center gap-2 h-10 px-3 rounded-xl border border-crm-border bg-[#F8FAFC] text-xs font-bold text-crm-text-secondary">
-                <CalendarDays size={14} className="text-[#B8112D]" />
-                <input
-                  type="month"
-                  value={month}
-                  max={currentMonthIso()}
-                  onChange={e => setMonth(e.target.value || currentMonthIso())}
-                  className="bg-transparent outline-none text-sm font-semibold text-crm-text"
-                />
-              </label>
-              <button
-                type="button"
-                disabled={!report || loading || saving}
-                onClick={() => void handleSaveReport()}
-                className="h-10 px-4 rounded-xl bg-[#2B579A] text-white text-xs font-bold inline-flex items-center gap-2 hover:bg-[#1e4278] disabled:opacity-50 transition-colors shadow-md shadow-[#2B579A]/25"
-                title="Download Word + archive to Cloudinary"
-              >
-                {saving ? <Loader2 size={15} className="animate-spin" /> : <Cloud size={15} />}
-                {saving ? "Saving…" : "Save Report"}
-              </button>
-            </div>
-          </div>
+          </ReportBlock>
 
           {loading ? (
             <div className="bg-crm-surface rounded-2xl border border-crm-border-subtle/90 py-24 flex flex-col items-center justify-center gap-3 text-crm-text-faint">
@@ -1367,47 +1393,7 @@ export default function AccountsReportsPage() {
             </div>
           ) : (
             <>
-              <section className={`${BENTO_CARD} px-4 py-3 text-[11px] text-crm-text-secondary leading-relaxed`}>
-                <b className="text-crm-text">Month compile:</b> Revenue is that month&apos;s project collections
-                (once). Total cost, team salaries, OPEX, loans and PF match the latest Income Statement
-                day in the month{report.sourceDate ? ` (${report.sourceDate})` : ""} — same Total Expense as
-                that IS card. Budget plan vs actual uses the Income Statement budget planner for this month.
-                Financial performance splits last 3 months and last 6 months in one block. The position box
-                reads this month&apos;s full report automatically.{" "}
-                <b>Save Report</b> downloads a Word file and archives it to Cloudinary.
-              </section>
-
-              {saved.length > 0 && (
-                <section className={`${BENTO_CARD} overflow-hidden`}>
-                  <div className="px-4 py-3 border-b border-crm-border-subtle bg-gradient-to-r from-[#EFF8FF] to-white flex items-center gap-2">
-                    <Cloud size={14} className="text-[#0B84F3]" />
-                    <h2 className="font-extrabold text-crm-text text-sm tracking-tight">Cloudinary Archives — {label}</h2>
-                    <span className="text-[10px] text-crm-text-faint font-semibold">{saved.length} file(s)</span>
-                  </div>
-                  <ul className="divide-y divide-gray-50">
-                    {saved.map(s => (
-                      <li key={s.id} className="px-4 py-2.5 flex items-center justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="text-xs font-bold text-crm-text truncate">{s.fileName}</p>
-                          <p className="text-[10px] text-crm-text-faint">
-                            {formatEstDateTime(s.createdAt)}
-                            {s.sourceDate ? ` · through ${s.sourceDate}` : ""}
-                          </p>
-                        </div>
-                        <a
-                          href={s.fileUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="h-8 px-3 rounded-lg bg-[#EAF5FF] text-[#0B84F3] text-[11px] font-bold inline-flex items-center gap-1.5 hover:bg-[#D6EBFF] shrink-0"
-                        >
-                          <ExternalLink size={12} /> Open
-                        </a>
-                      </li>
-                    ))}
-                  </ul>
-                </section>
-              )}
-
+              <ReportBlock>
               <section className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-3.5">
                 {kpis.map(k => (
                   <div key={k.label} className={`${BENTO_CARD} h-full p-3.5 sm:p-4`}>
@@ -1417,7 +1403,9 @@ export default function AccountsReportsPage() {
                   </div>
                 ))}
               </section>
+              </ReportBlock>
 
+              <ReportBlock>
               <section className="grid grid-cols-1 xl:grid-cols-2 gap-3.5 items-stretch">
                 <AccountsChartCard
                   className="h-full min-h-[28rem]"
@@ -1493,26 +1481,32 @@ export default function AccountsReportsPage() {
                   )}
                 </AccountsChartCard>
               </section>
+              </ReportBlock>
 
-              <SectionCard title="Financial performance">
-                <HistoryPerformanceHalf
-                  title="Last 3 months"
-                  rows={report.history.slice(-3)}
-                  allHistory={report.history}
-                  currentMonth={report.month}
-                  chartId="report-chart-net3"
-                />
-                <div className="border-t-2 border-[#B8112D]/15">
+              <SectionCard title="Financial performance" asBlock={false}>
+                <ReportBlock>
                   <HistoryPerformanceHalf
-                    title="Last 6 months"
-                    rows={report.history}
+                    title="Last 3 months"
+                    rows={report.history.slice(-3)}
                     allHistory={report.history}
                     currentMonth={report.month}
-                    chartId="report-chart-net6"
+                    chartId="report-chart-net3"
                   />
+                </ReportBlock>
+                <div className="border-t-2 border-[#B8112D]/15">
+                  <ReportBlock>
+                    <HistoryPerformanceHalf
+                      title="Last 6 months"
+                      rows={report.history}
+                      allHistory={report.history}
+                      currentMonth={report.month}
+                      chartId="report-chart-net6"
+                    />
+                  </ReportBlock>
                 </div>
               </SectionCard>
 
+              <ReportBlock>
               <section className={`${BENTO_CARD} p-4 sm:p-5`}>
                 <div className="flex items-start gap-3">
                   <span
@@ -1534,6 +1528,7 @@ export default function AccountsReportsPage() {
                   </div>
                 </div>
               </section>
+              </ReportBlock>
 
               <SectionCard title="Revenue — currency channels">
                 <div className="overflow-x-auto">
@@ -1610,9 +1605,10 @@ export default function AccountsReportsPage() {
                 </div>
               </SectionCard>
 
+              <ReportBlock>
               <div className="grid grid-cols-1 xl:grid-cols-12 gap-3.5 items-stretch">
                 <div className="xl:col-span-7">
-                  <SectionCard title={`CSR team performance — ${label}`}>
+                  <SectionCard title={`CSR team performance — ${label}`} asBlock={false}>
                     <div className="overflow-x-auto">
                       <table className="w-full text-sm min-w-140">
                         <thead className="bg-[#0B1220]">
@@ -1670,7 +1666,7 @@ export default function AccountsReportsPage() {
                   </SectionCard>
                 </div>
                 <div className="xl:col-span-5">
-                  <SectionCard title="Projects by CSR">
+                  <SectionCard title="Projects by CSR" asBlock={false}>
                     <div className="p-4">
                       <RechartsBox height={Math.max(220, report.csr.rows.length * 36)}>
                         <BarChart
@@ -1690,6 +1686,7 @@ export default function AccountsReportsPage() {
                   </SectionCard>
                 </div>
               </div>
+              </ReportBlock>
 
               {(report.salaryTables ?? []).length === 0 ? (
                 <SectionCard title={`Team salaries (${pkr(report.totals.payroll)})`}>
@@ -1709,18 +1706,22 @@ export default function AccountsReportsPage() {
                 <OpexFieldTableView tables={report.opexTables ?? []} total={report.totals.opex} />
               </SectionCard>
 
+              <ReportBlock>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-3.5 items-stretch">
-                <SectionCard title={`Loans (${pkr(report.totals.loans)})`}>
+                <SectionCard title={`Loans (${pkr(report.totals.loans)})`} asBlock={false}>
                   <OpexFieldTableView tables={report.loanTables ?? []} total={report.totals.loans} />
                 </SectionCard>
-                <SectionCard title={`Provident fund (${pkr(report.totals.pf)})`}>
+                <SectionCard title={`Provident fund (${pkr(report.totals.pf)})`} asBlock={false}>
                   <OpexFieldTableView tables={report.pfTables ?? []} total={report.totals.pf} />
                 </SectionCard>
               </div>
+              </ReportBlock>
 
+              <ReportBlock>
               <p className="text-center text-[10px] text-[#94A3B8] pb-6">
                 Auto-generated from CRM accounts daily records, cash flow & payroll · {label}
               </p>
+              </ReportBlock>
             </>
           )}
         </div>
