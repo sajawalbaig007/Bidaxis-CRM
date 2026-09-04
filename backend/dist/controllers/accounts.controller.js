@@ -675,7 +675,6 @@ async function getIncomeBudgetActuals(req, res) {
         const payroll = actuals.sales +
             actuals.sales_commission +
             actuals.technical +
-            actuals.technical_overtime +
             actuals.email_marketing +
             actuals.administration +
             actuals.executive +

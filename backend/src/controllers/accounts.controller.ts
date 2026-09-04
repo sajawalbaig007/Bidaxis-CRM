@@ -848,7 +848,6 @@ export async function getIncomeBudgetActuals(req: AuthRequest, res: Response) {
       actuals.sales +
       actuals.sales_commission +
       actuals.technical +
-      actuals.technical_overtime +
       actuals.email_marketing +
       actuals.administration +
       actuals.executive +

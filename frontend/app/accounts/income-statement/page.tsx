@@ -5,7 +5,7 @@ import {
   Bar, BarChart, CartesianGrid, Cell, Pie, PieChart,
   Tooltip, XAxis, YAxis,
 } from "recharts";
-import { PieChart as PieIcon, Users, Layers3, TrendingUp, PiggyBank } from "lucide-react";
+import { PieChart as PieIcon, Users, Layers3, TrendingUp } from "lucide-react";
 import toast from "react-hot-toast";
 import API, { apiErrorMessage } from "@/lib/api";
 import AccountsSidebar from "../components/layout/Sidebar";
@@ -20,7 +20,7 @@ import { accountsShellProps } from "../utils/accountsShellProps";
 import { useAccountsPage } from "../hooks/useAccountsPage";
 import { useScrollToHash } from "../hooks/useScrollToHash";
 import type { DashboardData, IncomeStatementData, OpexRow, TeamSalaryRow } from "../types";
-import { currency, lineAmount, newRowId, todayIso } from "../types";
+import { currency, lineAmount, todayIso } from "../types";
 import {
   ensureIncomeStatementPeople,
   executiveCommissionBase,
@@ -404,37 +404,10 @@ export default function IncomeStatementPage() {
         <AccountsPageShell
           {...accountsShellProps(acc)}
           title="Income Statement"
-          subtitle="Daily record — pick a day, fill Team Salaries / OPEX, and Save. Loans & Provident Fund auto-fill from salary."
-          onAddNew={() =>
-            commit(
-              {
-                teamSalaries: [
-                  ...(data.teamSalaries ?? []),
-                  {
-                    id: newRowId("t"),
-                    team: "New Team Salaries",
-                    totalSalary: 0,
-                    filledAt: todayIso(),
-                    subHeads: [{ id: newRowId("sub"), label: "New person", amount: 0, filledAt: todayIso() }],
-                  },
-                ],
-              },
-              { persist: true },
-            )
-          }
-          addNewLabel="Add Team"
+          subtitle="Daily record — pick a day, fill Team Salaries / OPEX. Loans & Provident Fund auto-fill from salary."
+          inlineTitle
+          hideFileActions
         >
-          <div className="flex flex-wrap items-center justify-end gap-2 -mt-1 mb-1">
-            <button
-              type="button"
-              onClick={() => setBudgetOpen(true)}
-              className="h-10 px-4 rounded-xl bg-violet-600 text-white text-sm font-bold inline-flex items-center gap-2 hover:bg-violet-700 shadow-sm shadow-violet-600/20"
-            >
-              <PiggyBank size={16} />
-              3-Month Budget
-            </button>
-          </div>
-
           <section className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-2.5 sm:gap-3">
             {[
               { label: "Total Revenue", value: revenue, cls: "from-[#6D28D9] to-[#4C1D95]", hint: activeRollup ? "All Time · sum" : "Currency Formula" },
