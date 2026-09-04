@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import {
   Activity,
   BarChart3,
   Boxes,
+  Building2,
   CheckCircle2,
   Cpu,
   Eye,
@@ -53,6 +55,11 @@ import { normalizePeriodPreset } from "./utils/accountsPeriodFilters";
 import type { CurrencyTabKey, DashboardCurrency, DashboardCurrencyTab, DashboardData, FormulasState } from "./types";
 import { CURRENCY_TAB_LABELS, CURRENCY_TAB_SHORT, currency, isLocalPaymentTab, todayIso } from "./types";
 import { BENTO_CARD } from "@/lib/staffPageLayout";
+
+function fmtFx(n: number, ccy: "USD" | "CAD" | "PKR"): string {
+  const prefix = ccy === "USD" ? "$" : ccy === "CAD" ? "CAD " : "PKR ";
+  return `${prefix}${(Number(n) || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+}
 
 function compactPkr(n: number): string {
   const a = Math.abs(Number(n) || 0);
@@ -237,7 +244,8 @@ type Summary = {
   totalAssetsRegister?: number;
 };
 
-type ChannelNets = { AH: number; SN: number; CHQ: number; HM: number };
+type ChannelFxAmounts = { usdAmount: number; cadAmount: number; pkrAmount: number };
+type ChannelFx = Record<"AH" | "SN" | "CHQ" | "HM", ChannelFxAmounts>;
 
 type ViewTab = CurrencyTabKey | "ALL";
 
@@ -254,7 +262,7 @@ export default function AccountsDashboardPage() {
   const acc = useAccountsPage<DashboardData>({ page: "dashboard", defaultData });
   useScrollToHash(!acc.loading);
   const [summaries, setSummaries] = useState<Summary>({});
-  const [periodChannels, setPeriodChannels] = useState<ChannelNets | null>(null);
+  const [channelFx, setChannelFx] = useState<ChannelFx | null>(null);
   const [viewTab, setViewTab] = useState<ViewTab>("AH");
   const [formulaOpen, setFormulaOpen] = useState(false);
   const [formulaBookOpen, setFormulaBookOpen] = useState(false);
@@ -278,13 +286,13 @@ export default function AccountsDashboardPage() {
         const res = await API.get(`/accounts/dashboard/summary?${qs}`);
         if (!cancelled) {
           setSummaries(res.data.summaries ?? {});
-          const ch = res.data.channels as ChannelNets | undefined;
-          setPeriodChannels(ch && typeof ch.AH === "number" ? ch : null);
+          const fx = res.data.channelFx as ChannelFx | undefined;
+          setChannelFx(fx?.AH && typeof fx.AH.usdAmount === "number" ? fx : null);
         }
       } catch {
         if (!cancelled) {
           setSummaries({});
-          setPeriodChannels(null);
+          setChannelFx(null);
         }
       }
     })();
@@ -391,33 +399,42 @@ export default function AccountsDashboardPage() {
   const currencyCardTotal = usesPeriodSummary
     ? isRev
     : (summaries.incomeTotalRevenue ?? combinedTotal);
+  const isExp = summaries.incomeTotalExpense ?? 0;
+  const isProfit = summaries.incomeNetProfit ?? 0;
+  const bsLiab = summaries.balanceSheetTotalLiabilities ?? 0;
+  const bsEquity = summaries.balanceSheetTotalEquity ?? 0;
+  const totalAssetsVal = summaries.totalAssetsRegister ?? bsAssets;
 
-  const metrics = [
-    { label: "Currency Formula Total", value: currencyCardTotal, color: "#B45309", hint: "Final FX for each month · same as IS Total Revenue", icon: <Receipt size={14} /> },
-    { label: "IS Total Revenue", value: isRev, color: "#6D28D9", hint: isAllTime ? "Each month’s final currency formula, summed once" : "From Currency Formula (AH+SN+CHQ+HM)", icon: <TrendingUp size={14} /> },
-    { label: "IS Payroll", value: summaries.incomePayroll ?? 0, color: "#0B84F3", hint: isAllTime ? "Team Salaries · latest day per month" : "Team Salaries · same as Income Statement", icon: <Cpu size={14} /> },
-    { label: "IS Total Expense", value: summaries.incomeTotalExpense ?? 0, color: "#B8112D", hint: isAllTime ? "Payroll + OPEX · latest day per month" : "Payroll + OPEX · same as Income Statement", icon: <Layers3 size={14} /> },
-    { label: "BS Total Assets", value: bsAssets, color: "#0369A1", hint: isAllTime ? "Latest balance sheet ≤ today" : isMonth || isDateRange ? "Latest balance sheet in this period" : "Must equal Equity + Liabilities", icon: <Scale size={14} /> },
-    { label: "BS Equity + Liabilities", value: bsEquityLiab, color: "#0D9488", hint: `Equity ${currency(summaries.balanceSheetTotalEquity ?? 0)} · Liab ${currency(summaries.balanceSheetTotalLiabilities ?? 0)}`, icon: <Wallet size={14} /> },
-    { label: bsBalanced ? "BS Balanced (Diff 0)" : "BS Difference (A − E−L)", value: bsDiff, color: bsBalanced ? "#12B76A" : "#F59E0B", hint: bsBalanced ? "Assets = Equity + Liabilities" : "Should be zero when balanced", icon: <CheckCircle2 size={14} /> },
-    { label: "Income Statement Net Profit", value: summaries.incomeNetProfit ?? 0, color: "#027A48", hint: `Revenue − Expense (${currency(summaries.incomeTotalExpense ?? 0)})`, icon: <TrendingUp size={14} /> },
-    { label: "Cash Flow Net Amount", value: summaries.cashFlowNet ?? 0, color: "#8b0d22", hint: periodHint, icon: <Waves size={14} /> },
-    { label: "Total Assets Register", value: summaries.totalAssetsRegister ?? 0, color: "#0F766E", hint: isAllTime ? "Latest register ≤ today" : isMonth || isDateRange ? "Latest register in this period" : "BEM + GPS + BDS register sum", icon: <Boxes size={14} /> },
+  const kpiCards = [
+    { label: "Revenue", value: currencyCardTotal, color: "#6D28D9", hint: "Income Statement total revenue", href: "/accounts/income-statement", icon: <TrendingUp size={14} /> },
+    { label: "Total expenses", value: isExp, color: "#B8112D", hint: "Payroll + OPEX", href: "/accounts/income-statement", icon: <Layers3 size={14} /> },
+    { label: "Profit / Loss", value: isProfit, color: isProfit >= 0 ? "#027A48" : "#B8112D", hint: isProfit >= 0 ? "Net profit" : "Net loss", href: "/accounts/income-statement", icon: <TrendingUp size={14} /> },
+    { label: "Total Assets", value: totalAssetsVal, color: "#0F766E", hint: "Total Assets register", href: "/accounts/total-assets", icon: <Building2 size={14} /> },
+    { label: "Total Liabilities", value: bsLiab, color: "#0369A1", hint: "Balance Sheet", href: "/accounts/balance-sheet", icon: <Scale size={14} /> },
+    { label: "Total Equity", value: bsEquity, color: "#0D9488", hint: "Balance Sheet", href: "/accounts/balance-sheet", icon: <Wallet size={14} /> },
   ];
 
+  const fxFor = (key: "AH" | "SN" | "CHQ" | "HM"): ChannelFxAmounts => {
+    if (channelFx?.[key]) return channelFx[key];
+    const tab = key === "AH" ? ah : key === "SN" ? sn : key === "CHQ" ? chq : hm;
+    return {
+      usdAmount: Number(tab.usdAmount) || 0,
+      cadAmount: Number(tab.cadAmount) || 0,
+      pkrAmount: Number(tab.pkrAmount) || 0,
+    };
+  };
+
   const channelChips = [
-    { key: "AH", label: "Ahmed Hamza", amount: periodChannels?.AH ?? ahCalc.total, dot: "#F87171" },
-    { key: "SN", label: "Sharjeel Nasir", amount: periodChannels?.SN ?? snCalc.total, dot: "#60A5FA" },
-    { key: "CHQ", label: "Cheque", amount: periodChannels?.CHQ ?? chqCalc.total, dot: "#FBBF24" },
-    { key: "HM", label: "Habib Metro", amount: periodChannels?.HM ?? hmCalc.total, dot: "#2DD4BF" },
+    { key: "AH" as const, label: "Ahmed Hamza", fx: fxFor("AH"), dot: "#F87171" },
+    { key: "SN" as const, label: "Sharjeel Nasir", fx: fxFor("SN"), dot: "#60A5FA" },
+    { key: "CHQ" as const, label: "Cheque", fx: fxFor("CHQ"), dot: "#FBBF24" },
+    { key: "HM" as const, label: "Habib Metro", fx: fxFor("HM"), dot: "#2DD4BF" },
   ];
 
   const isPayroll = summaries.incomePayroll ?? 0;
   const isOpex = summaries.incomeOpex ?? 0;
   const isLoans = summaries.incomeLoans ?? 0;
   const isPf = summaries.incomeProvidentFund ?? 0;
-  const isExp = summaries.incomeTotalExpense ?? 0;
-  const isProfit = summaries.incomeNetProfit ?? 0;
   const profitMarginPct = isRev > 0 ? (isProfit / isRev) * 100 : 0;
   const marginClamped = Math.max(0, Math.min(100, Number.isFinite(profitMarginPct) ? Math.abs(profitMarginPct) : 0));
 
@@ -564,7 +581,7 @@ export default function AccountsDashboardPage() {
                   <button
                     key={c.key}
                     type="button"
-                    onClick={() => { setViewTab(c.key as ViewTab); setFormulaOpen(false); }}
+                    onClick={() => { setViewTab(c.key); setFormulaOpen(false); }}
                     className="text-left rounded-xl border border-gray-100 bg-crm-muted/50 px-3 py-2 hover:border-[#B8112D]/30 transition-colors"
                     title={`View ${c.label} formula`}
                   >
@@ -572,18 +589,29 @@ export default function AccountsDashboardPage() {
                       <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: c.dot }} />
                       {c.label}
                     </p>
-                    <p className="mt-0.5 text-sm font-extrabold tabular-nums text-crm-text">{currency(c.amount)}</p>
+                    <p className="mt-1 text-[11px] font-bold tabular-nums text-crm-text leading-snug">
+                      {fmtFx(c.fx.usdAmount, "USD")}
+                    </p>
+                    <p className="text-[11px] font-bold tabular-nums text-crm-text leading-snug">
+                      {fmtFx(c.fx.cadAmount, "CAD")}
+                    </p>
+                    {(c.key === "CHQ" || c.key === "HM" || c.fx.pkrAmount > 0) && (
+                      <p className="text-[10px] font-semibold tabular-nums text-crm-text-muted leading-snug">
+                        {fmtFx(c.fx.pkrAmount, "PKR")}
+                      </p>
+                    )}
                   </button>
                 ))}
               </div>
             </div>
           </section>
 
-          <section className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3 mt-4">
-            {metrics.map(m => (
-              <div
+          <section className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3 mt-4">
+            {kpiCards.map(m => (
+              <Link
                 key={m.label}
-                className="rounded-2xl border border-gray-100 dark:border-crm-border bg-crm-surface p-3.5 sm:p-4"
+                href={m.href}
+                className="rounded-2xl border border-gray-100 dark:border-crm-border bg-crm-surface p-3.5 sm:p-4 hover:border-[#B8112D]/35 hover:shadow-sm transition-all"
               >
                 <div className="flex items-start justify-between gap-2">
                   <p className="text-[10px] font-bold uppercase tracking-wider text-crm-text-faint leading-snug">{m.label}</p>
@@ -595,10 +623,8 @@ export default function AccountsDashboardPage() {
                   </span>
                 </div>
                 <p className="text-lg sm:text-xl font-extrabold mt-2 tabular-nums tracking-tight text-crm-text">{currency(m.value)}</p>
-                <p className="text-[10px] text-crm-text-faint mt-1.5 font-medium leading-snug">
-                  {"hint" in m && m.hint ? m.hint : `As of ${acc.recordDate || todayIso()}`}
-                </p>
-              </div>
+                <p className="text-[10px] text-crm-text-faint mt-1.5 font-medium leading-snug">{m.hint}</p>
+              </Link>
             ))}
           </section>
 

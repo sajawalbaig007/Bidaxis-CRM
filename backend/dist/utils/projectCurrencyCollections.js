@@ -11,6 +11,8 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.emptyDayCollections = emptyDayCollections;
+exports.sumDayCollections = sumDayCollections;
+exports.serializeChannelFx = serializeChannelFx;
 exports.paymentAccountsMonth = paymentAccountsMonth;
 exports.monthStartIso = monthStartIso;
 exports.yearMonthFromDate = yearMonthFromDate;
@@ -36,6 +38,26 @@ function emptyDayCollections() {
         SN: { usdAmount: 0, cadAmount: 0, pkrAmount: 0 },
         CHQ: { usdAmount: 0, cadAmount: 0, pkrAmount: 0 },
         HM: { usdAmount: 0, cadAmount: 0, pkrAmount: 0 },
+    };
+}
+/** Sum month/day collection buckets without double-counting keys. */
+function sumDayCollections(items) {
+    const out = emptyDayCollections();
+    for (const item of items) {
+        for (const ch of CHANNELS) {
+            out[ch].usdAmount += item[ch].usdAmount;
+            out[ch].cadAmount += item[ch].cadAmount;
+            out[ch].pkrAmount += item[ch].pkrAmount;
+        }
+    }
+    return out;
+}
+function serializeChannelFx(col) {
+    return {
+        AH: { ...col.AH },
+        SN: { ...col.SN },
+        CHQ: { ...col.CHQ },
+        HM: { ...col.HM },
     };
 }
 /** YYYY-MM for Accounts bucketing — payment date first, never falls back to “today”. */
