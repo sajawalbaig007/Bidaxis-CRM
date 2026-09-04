@@ -1,10 +1,10 @@
 "use client";
 
-import { useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import {
-  Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, Tooltip, XAxis, YAxis,
+  Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Legend, Line, LineChart, Pie, PieChart, Tooltip, XAxis, YAxis,
 } from "recharts";
-import { Landmark, Wallet, Building2, Activity, PieChart as PieIcon } from "lucide-react";
+import { Landmark, Wallet, Building2, Activity, PieChart as PieIcon, TrendingUp } from "lucide-react";
 import AccountsSidebar from "../components/layout/Sidebar";
 import { ACCOUNTS_MAIN_OFFSET } from "../components/layout/headerOffset";
 import AccountsPageShell from "../components/AccountsPageShell";
@@ -25,11 +25,53 @@ function defaultData(): CashFlowData {
   };
 }
 
+type ChannelKey = "AH" | "SN" | "CHQ" | "HM";
+
+const CHANNEL_CARDS: { key: ChannelKey; label: string; hint: string; grad: string }[] = [
+  { key: "AH", label: "AH", hint: "Ahmed Hamza · received", grad: "from-[#E11D48] to-[#9F1239]" },
+  { key: "SN", label: "SN", hint: "Sharjeel Nasir · received", grad: "from-[#0B84F3] to-[#0369A1]" },
+  { key: "CHQ", label: "Cheque", hint: "Cheque · received", grad: "from-[#F59E0B] to-[#B45309]" },
+  { key: "HM", label: "Habib Metro", hint: "Habib Metro · received", grad: "from-[#0D9488] to-[#0F766E]" },
+];
+
+function channelForBank(name: string): ChannelKey | null {
+  const t = name.trim().toLowerCase();
+  if (t.includes("cheque") || t.includes("chq") || /\bcheck\b/.test(t)) return "CHQ";
+  if (/\bah\b/.test(t) || t.includes("ahmed") || t.includes("ah paypal")) return "AH";
+  if (/\bsn\b/.test(t) || t.includes("sharjeel")) return "SN";
+  if (t.includes("habib") || t.includes("metro")) return "HM";
+  return null;
+}
+
 export default function CashFlowStatementPage() {
   const acc = useAccountsPage<CashFlowData>({ page: "cash_flow", defaultData });
   useScrollToHash(!acc.loading);
   const theme = TABLE_VARIANT.cashflow;
   const bankHeads = acc.data.bankHeads ?? [];
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const persistSoon = useCallback(() => {
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => {
+      saveTimer.current = null;
+      void acc.save(undefined, { silent: true });
+    }, 450);
+  }, [acc.save]);
+
+  const persistNow = useCallback(() => {
+    if (saveTimer.current) {
+      clearTimeout(saveTimer.current);
+      saveTimer.current = null;
+    }
+    void acc.save();
+  }, [acc.save]);
+
+  const dirtyRef = useRef(acc.dirty);
+  dirtyRef.current = acc.dirty;
+  useEffect(() => () => {
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    if (dirtyRef.current) void acc.save(undefined, { silent: true });
+  }, [acc.save]);
 
   const allRows = useMemo(
     () => (acc.data.months ?? []).flatMap(m => m.rows),
@@ -37,6 +79,18 @@ export default function CashFlowStatementPage() {
   );
 
   const totalNet = useMemo(() => allRows.reduce((a, r) => a + computedNet(r), 0), [allRows]);
+
+  const channelReceived = useMemo(() => {
+    const sums: Record<ChannelKey, number> = { AH: 0, SN: 0, CHQ: 0, HM: 0 };
+    for (const bank of bankHeads) {
+      const ch = channelForBank(bank);
+      if (!ch) continue;
+      for (const r of allRows) {
+        sums[ch] += Number(r.bankAmounts?.[bank]?.debit) || 0;
+      }
+    }
+    return sums;
+  }, [allRows, bankHeads]);
 
   const monthChart = useMemo(
     () => (acc.data.months ?? []).map(m => ({
@@ -73,6 +127,7 @@ export default function CashFlowStatementPage() {
         m.id === monthId ? { ...m, rows: m.rows.map(r => (r.id === rowId ? { ...r, ...patch } : r)) } : m,
       ),
     }));
+    persistSoon();
   };
 
   const updateBank = (monthId: string, rowId: string, bank: string, side: "debit" | "credit", val: number) => {
@@ -92,6 +147,7 @@ export default function CashFlowStatementPage() {
           : m,
       ),
     }));
+    persistSoon();
   };
 
   const addMonth = () => {
@@ -113,26 +169,7 @@ export default function CashFlowStatementPage() {
         },
       ],
     }));
-  };
-
-  const addRowToFirstMonth = () => {
-    acc.setData(prev => {
-      const months = [...prev.months];
-      let month = months[0];
-      if (!month) {
-        month = { id: newRowId("m"), month: "Entries", rows: [] };
-        months.unshift(month);
-      }
-      month.rows.push({
-        id: newRowId("r"),
-        date: acc.recordDate,
-        description: "New entry",
-        bankAmounts: Object.fromEntries((prev.bankHeads ?? []).map(b => [b, { debit: 0, credit: 0 }])),
-        netAmount: 0,
-        notes: [],
-      });
-      return { ...prev, months };
-    });
+    persistNow();
   };
 
   return (
@@ -143,50 +180,71 @@ export default function CashFlowStatementPage() {
           {...accountsShellProps(acc)}
           title="Cash Flow Statement"
           subtitle="Tables are view-only — pencil opens edit popup for bank Dr/Cr & notes. Net auto-calculates from banks."
-          onAddNew={addRowToFirstMonth}
-          addNewLabel="Add New Entry"
+          inlineTitle
+          hideFileActions
+          headerActions={
+            <button
+              type="button"
+              onClick={addMonth}
+              className="h-10 px-3 rounded-xl bg-[#FFF1F3] text-[#B8112D] text-xs font-bold inline-flex items-center gap-1.5 hover:bg-[#FFE4E8] shrink-0"
+            >
+              <Landmark size={14} />
+              Add Month Section
+            </button>
+          }
         >
-          <section className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-            <div className={`lg:col-span-4 rounded-2xl border-2 p-5 text-white bg-gradient-to-br from-[#B8112D] to-[#8b0d22] shadow-lg ${theme.card}`}>
-              <div className="flex items-center gap-2 mb-2">
-                <Wallet size={18} className="text-white/80" />
-                <p className="text-[10px] font-bold uppercase tracking-wider text-white/75">Net Cash Flow</p>
+          <section className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-2.5">
+            <div className={`rounded-xl p-3 text-white bg-gradient-to-br from-[#B8112D] to-[#8b0d22] shadow-md min-w-0 ${theme.card}`}>
+              <div className="flex items-center gap-1.5">
+                <Wallet size={14} className="text-white/80 shrink-0" />
+                <p className="text-[10px] font-bold uppercase tracking-wider text-white/75 truncate">Net Cash Flow</p>
               </div>
-              <p className="text-3xl font-extrabold tabular-nums">{currency(totalNet)}</p>
-              <p className="text-[11px] text-white/60 mt-2">{allRows.length} entries across {acc.data.months?.length ?? 0} sections</p>
+              <p className="text-lg sm:text-xl font-extrabold tabular-nums mt-1 truncate">{currency(totalNet)}</p>
+              <p className="text-[9px] text-white/60 font-medium mt-0.5 truncate">
+                {allRows.length} entries · {acc.data.months?.length ?? 0} sections
+              </p>
             </div>
+            {CHANNEL_CARDS.map(c => (
+              <div
+                key={c.key}
+                className={`rounded-xl p-3 text-white bg-gradient-to-br ${c.grad} shadow-md min-w-0`}
+              >
+                <p className="text-[10px] font-bold uppercase tracking-wider text-white/80 truncate">{c.label}</p>
+                <p className="text-lg sm:text-xl font-extrabold tabular-nums mt-1 truncate">
+                  PKR {currency(channelReceived[c.key])}
+                </p>
+                <p className="text-[9px] text-white/60 font-medium mt-0.5 truncate">{c.hint}</p>
+              </div>
+            ))}
+          </section>
 
-            <div className={`lg:col-span-8 bg-crm-surface rounded-2xl border-2 p-4 sm:p-5 ${theme.card}`}>
-              <div className="flex items-center gap-2 mb-3">
-                <Building2 size={16} className="text-[#B8112D]" />
-                <h2 className="font-bold text-sm text-crm-text">Bank Accounts</h2>
-              </div>
-              <label className="text-xs font-semibold text-crm-text-secondary block">
-                Bank heads (comma separated)
-                <input
-                  value={bankHeads.join(", ")}
-                  onChange={e => {
-                    const heads = e.target.value.split(",").map(s => s.trim()).filter(Boolean);
-                    acc.setData(prev => ({ ...prev, bankHeads: heads }));
-                  }}
-                  className={`mt-1.5 h-10 w-full rounded-xl border border-crm-border px-3 text-sm outline-none focus:ring-2 ${theme.input}`}
-                />
-              </label>
-              <div className="flex flex-wrap gap-2 mt-3">
-                {bankHeads.map((bank, i) => (
-                  <span
-                    key={bank}
-                    className="px-2.5 py-1 rounded-lg text-[11px] font-bold text-white"
-                    style={{ backgroundColor: bankColor(i) }}
-                  >
-                    {bank}
-                  </span>
-                ))}
-              </div>
-              <button type="button" onClick={addMonth} className="mt-3 h-9 px-4 rounded-xl bg-[#FFF1F3] text-[#B8112D] text-xs font-bold inline-flex items-center gap-1.5 hover:bg-[#FFE4E8]">
-                <Landmark size={14} />
-                Add Month Section
-              </button>
+          <section className={`mt-4 bg-crm-surface rounded-2xl border-2 p-4 sm:p-5 ${theme.card}`}>
+            <div className="flex items-center gap-2 mb-3">
+              <Building2 size={16} className="text-[#B8112D]" />
+              <h2 className="font-bold text-sm text-crm-text">Bank Accounts</h2>
+            </div>
+            <label className="text-xs font-semibold text-crm-text-secondary block">
+              Bank heads (comma separated)
+              <input
+                value={bankHeads.join(", ")}
+                onChange={e => {
+                  const heads = e.target.value.split(",").map(s => s.trim()).filter(Boolean);
+                  acc.setData(prev => ({ ...prev, bankHeads: heads }));
+                  persistSoon();
+                }}
+                className={`mt-1.5 h-10 w-full rounded-xl border border-crm-border px-3 text-sm outline-none focus:ring-2 ${theme.input}`}
+              />
+            </label>
+            <div className="flex flex-wrap gap-2 mt-3">
+              {bankHeads.map((bank, i) => (
+                <span
+                  key={bank}
+                  className="px-2.5 py-1 rounded-lg text-[11px] font-bold text-white"
+                  style={{ backgroundColor: bankColor(i) }}
+                >
+                  {bank}
+                </span>
+              ))}
             </div>
           </section>
 
@@ -255,7 +313,7 @@ export default function CashFlowStatementPage() {
           </section>
 
           {bankChart.length > 0 && (
-            <section className="mt-4">
+            <section className="mt-4 grid grid-cols-1 xl:grid-cols-2 gap-4">
               <AccountsChartCard
                 title="Bank Debit vs Credit"
                 subtitle="Side-by-side activity"
@@ -268,9 +326,28 @@ export default function CashFlowStatementPage() {
                     <XAxis dataKey="name" tick={{ fontSize: 10, fontWeight: 600 }} />
                     <YAxis tick={{ fontSize: 10 }} />
                     <Tooltip formatter={v => currency(Number(v ?? 0))} />
+                    <Legend />
                     <Bar dataKey="debit" name="Debit" fill="#0B84F3" radius={[8, 8, 0, 0]} />
                     <Bar dataKey="credit" name="Credit" fill="#B8112D" radius={[8, 8, 0, 0]} />
                   </BarChart>
+                </RechartsBox>
+              </AccountsChartCard>
+              <AccountsChartCard
+                title="Bank Debit vs Credit"
+                subtitle="Trend by bank"
+                accent="#0B84F3"
+                icon={<TrendingUp size={16} />}
+              >
+                <RechartsBox height={230}>
+                  <LineChart data={bankChart}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                    <XAxis dataKey="name" tick={{ fontSize: 10, fontWeight: 600 }} />
+                    <YAxis tick={{ fontSize: 10 }} />
+                    <Tooltip formatter={v => currency(Number(v ?? 0))} />
+                    <Legend />
+                    <Line type="monotone" dataKey="debit" name="Debit" stroke="#0B84F3" strokeWidth={2.5} dot={{ r: 4 }} />
+                    <Line type="monotone" dataKey="credit" name="Credit" stroke="#B8112D" strokeWidth={2.5} dot={{ r: 4 }} />
+                  </LineChart>
                 </RechartsBox>
               </AccountsChartCard>
             </section>
@@ -280,35 +357,48 @@ export default function CashFlowStatementPage() {
             <CashFlowTable
               months={acc.data.months ?? []}
               bankHeads={bankHeads}
-              onUpdateMonthTitle={(id, title) => acc.setData(prev => ({
-                ...prev,
-                months: prev.months.map(m => (m.id === id ? { ...m, month: title } : m)),
-              }))}
-              onRemoveMonth={id => acc.setData(prev => ({ ...prev, months: prev.months.filter(m => m.id !== id) }))}
+              onUpdateMonthTitle={(id, title) => {
+                acc.setData(prev => ({
+                  ...prev,
+                  months: prev.months.map(m => (m.id === id ? { ...m, month: title } : m)),
+                }));
+                persistNow();
+              }}
+              onRemoveMonth={id => {
+                acc.setData(prev => ({ ...prev, months: prev.months.filter(m => m.id !== id) }));
+                persistNow();
+              }}
               onUpdateRow={updateRow}
               onUpdateBank={updateBank}
-              onRemoveRow={(mid, rid) => acc.setData(prev => ({
-                ...prev,
-                months: prev.months.map(m => m.id === mid ? { ...m, rows: m.rows.filter(r => r.id !== rid) } : m),
-              }))}
-              onAddRow={mid => acc.setData(prev => ({
-                ...prev,
-                months: prev.months.map(m =>
-                  m.id === mid
-                    ? {
-                        ...m,
-                        rows: [...m.rows, {
-                          id: newRowId("r"),
-                          date: acc.recordDate,
-                          description: "New entry",
-                          bankAmounts: Object.fromEntries((prev.bankHeads ?? []).map(b => [b, { debit: 0, credit: 0 }])),
-                          netAmount: 0,
-                          notes: [],
-                        }],
-                      }
-                    : m,
-                ),
-              }))}
+              onPersist={persistNow}
+              onRemoveRow={(mid, rid) => {
+                acc.setData(prev => ({
+                  ...prev,
+                  months: prev.months.map(m => m.id === mid ? { ...m, rows: m.rows.filter(r => r.id !== rid) } : m),
+                }));
+                persistNow();
+              }}
+              onAddRow={mid => {
+                acc.setData(prev => ({
+                  ...prev,
+                  months: prev.months.map(m =>
+                    m.id === mid
+                      ? {
+                          ...m,
+                          rows: [...m.rows, {
+                            id: newRowId("r"),
+                            date: acc.recordDate,
+                            description: "New entry",
+                            bankAmounts: Object.fromEntries((prev.bankHeads ?? []).map(b => [b, { debit: 0, credit: 0 }])),
+                            netAmount: 0,
+                            notes: [],
+                          }],
+                        }
+                      : m,
+                  ),
+                }));
+                persistNow();
+              }}
             />
           </div>
         </AccountsPageShell>

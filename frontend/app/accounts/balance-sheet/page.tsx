@@ -21,8 +21,8 @@ function defaultData(): BalanceSheetData {
   return { assetSections: [], equityLiabilitySections: [] };
 }
 
-function sumSections(sections: BalanceSheetData["assetSections"]) {
-  return sections.reduce((a, s) => a + sumItems(s.items), 0);
+function sumSections(sections: BalanceSheetData["assetSections"], useInventoryFormula = false) {
+  return sections.reduce((a, s) => a + sumItems(s.items, useInventoryFormula), 0);
 }
 
 export default function BalanceSheetPage() {
@@ -34,13 +34,13 @@ export default function BalanceSheetPage() {
     const eqSections = acc.data.equityLiabilitySections ?? [];
     const nc = assetSections.find(s => s.title.toLowerCase().includes("non-current"))?.items ?? [];
     const cur = assetSections.find(s => s.title.toLowerCase() === "current assets")?.items ?? [];
-    const nonCurrentAssets = sumItems(nc.length ? nc : assetSections[0]?.items ?? []);
-    const currentAssets = sumItems(cur.length ? cur : assetSections[1]?.items ?? []);
-    const totalAssets = sumSections(assetSections);
+    const nonCurrentAssets = sumItems(nc.length ? nc : assetSections[0]?.items ?? [], true);
+    const currentAssets = sumItems(cur.length ? cur : assetSections[1]?.items ?? [], true);
+    const totalAssets = sumSections(assetSections, true);
     const equity = eqSections.find(s => s.title.toLowerCase() === "equity")?.items ?? [];
-    const totalEquity = sumItems(equity);
+    const totalEquity = sumItems(equity, false);
     const liabilities = eqSections.filter(s => s.title.toLowerCase() !== "equity");
-    const totalLiabilities = sumSections(liabilities);
+    const totalLiabilities = sumSections(liabilities, false);
     const totalEL = totalEquity + totalLiabilities;
     return {
       totalAssets,
@@ -80,24 +80,9 @@ export default function BalanceSheetPage() {
         <AccountsPageShell
           {...accountsShellProps(acc)}
           title="Balance Sheet"
-          subtitle="Section totals on main rows — expand for individual heads with fill dates."
-          onAddNew={() => {
-            acc.setData(prev => {
-              const sections = [...prev.assetSections];
-              const target = sections[0] ?? { id: newRowId("as"), title: "Non-Current Assets", items: [] };
-              if (!sections[0]) sections.push(target);
-              target.items.push({
-                id: newRowId("a"),
-                label: "New Line Item",
-                note: "",
-                amount: 0,
-                filledAt: todayIso(),
-                subHeads: [],
-                notes: [],
-              });
-              return { ...prev, assetSections: sections };
-            });
-          }}
+          subtitle="Assets: TOTAL = QTY × Unit price. Equity & Liabilities stay amount-only."
+          inlineTitle
+          hideFileActions
         >
           <section className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             {[

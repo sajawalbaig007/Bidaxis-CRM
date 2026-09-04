@@ -386,14 +386,12 @@ export default function AccountsDashboardPage() {
   const netCashFlow = summaries.cashFlowNet ?? 0;
   const bsLiab = summaries.balanceSheetTotalLiabilities ?? 0;
   const bsEquity = summaries.balanceSheetTotalEquity ?? 0;
-  const totalAssetsVal = summaries.totalAssetsRegister ?? bsAssets;
-
   const kpiCards = [
     { label: "Revenue", value: currencyCardTotal, color: "#6D28D9", hint: "Income Statement total revenue", href: "/accounts/income-statement", icon: <TrendingUp size={14} /> },
     { label: "Total expenses", value: isExp, color: "#B8112D", hint: "Payroll + OPEX", href: "/accounts/income-statement", icon: <Layers3 size={14} /> },
     { label: "Profit / Loss", value: isProfit, color: isProfit >= 0 ? "#027A48" : "#B8112D", hint: isProfit >= 0 ? "Net profit" : "Net loss", href: "/accounts/income-statement", icon: <TrendingUp size={14} /> },
     { label: "Net Balance", value: netCashFlow, color: "#8b0d22", hint: "Cash Flow net amount", href: "/accounts/cash-flow-statement", icon: <Waves size={14} /> },
-    { label: "Total Assets", value: totalAssetsVal, color: "#0F766E", hint: "Total Assets register", href: "/accounts/total-assets", icon: <Building2 size={14} /> },
+    { label: "Total Assets", value: bsAssets, color: "#0F766E", hint: "Balance Sheet · Total Assets", href: "/accounts/balance-sheet#bs-assets", icon: <Building2 size={14} /> },
     { label: "Total Liabilities", value: bsLiab, color: "#0369A1", hint: "Balance Sheet", href: "/accounts/balance-sheet", icon: <Scale size={14} /> },
     { label: "Total Equity", value: bsEquity, color: "#0D9488", hint: "Balance Sheet", href: "/accounts/balance-sheet", icon: <Wallet size={14} /> },
   ];

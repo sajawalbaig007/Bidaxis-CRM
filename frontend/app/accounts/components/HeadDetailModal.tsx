@@ -28,6 +28,7 @@ import { DEFAULT_SALARY_SLIP_COMPANY } from "../utils/salarySlipCompanies";
 import AmountInput from "./AmountInput";
 import ProofUploadField from "./ProofUploadField";
 import BemAssetInventoryEditor from "./BemAssetInventoryEditor";
+import { matchInventoryCategory } from "../utils/bemAssetInventorySeed";
 
 export type HeadDetailModel = {
   id: string;
@@ -67,6 +68,8 @@ type HeadDetailModalProps = {
   salarySlipCompany?: SalarySlipCompanyKey;
   /** BEM Asset inventory tables (qty × unit price). */
   inventoryMode?: boolean;
+  /** When false, never use qty × unit-price (Equity / Liabilities). */
+  allowInventory?: boolean;
 };
 
 export default function HeadDetailModal({
@@ -87,6 +90,7 @@ export default function HeadDetailModal({
   calcOpts: calcOptsProp,
   salarySlipCompany = DEFAULT_SALARY_SLIP_COMPANY,
   inventoryMode: inventoryModeProp = false,
+  allowInventory = true,
 }: HeadDetailModalProps) {
   const calcOpts = calcOptsProp ?? { recordDate };
   const [uploadingId, setUploadingId] = useState<string | null>(null);
@@ -129,7 +133,9 @@ export default function HeadDetailModal({
     calcOpts,
   );
   const inventoryMode =
-    inventoryModeProp || isInventoryAssetHead(draft.title, draft.subHeads);
+    allowInventory &&
+    (inventoryModeProp || isInventoryAssetHead(draft.title, draft.subHeads));
+  const inventoryFlat = inventoryMode && !matchInventoryCategory(draft.title);
 
   const salesPayrollContext = (): SalesPayrollData => ({
     salesTeamMembers: salesPeers.map(s => ensureSalesPayrollFromSub(s, "sales")),
@@ -393,7 +399,9 @@ export default function HeadDetailModal({
             <div className="flex items-center justify-between mb-2">
               <p className="text-xs font-bold text-crm-text-secondary">
                 {inventoryMode
-                  ? "Inventory (IT · Electrical · Furniture)"
+                  ? inventoryFlat
+                    ? "Line items (QTY × Unit price = Total)"
+                    : "Inventory (IT · Electrical · Furniture)"
                   : salaryMode
                     ? "Employees (full payroll)"
                     : "People / line items"}
@@ -410,6 +418,7 @@ export default function HeadDetailModal({
                 <BemAssetInventoryEditor
                   subHeads={draft.subHeads}
                   headTitle={draft.title}
+                  flatMode={inventoryFlat}
                   onChange={subHeads =>
                     setDraft(prev =>
                       prev
