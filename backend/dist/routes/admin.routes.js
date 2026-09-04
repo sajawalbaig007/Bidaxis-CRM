@@ -14,6 +14,7 @@ const purgeCsrLeads_1 = require("../utils/purgeCsrLeads");
 const csrResetPages_1 = require("../utils/csrResetPages");
 const uploadSourceStats_1 = require("../utils/uploadSourceStats");
 const projectLeads_1 = require("../utils/projectLeads");
+const csrDashboardQueries_1 = require("../utils/csrDashboardQueries");
 const projectPayments_1 = require("../utils/projectPayments");
 const projectCurrencyCollections_1 = require("../utils/projectCurrencyCollections");
 const binLeads_1 = require("../utils/binLeads");
@@ -2926,6 +2927,42 @@ function reassignStatusPatch(page, keepSchedule) {
             ...clearSched,
         };
     }
+    if (page === "no_owner") {
+        return {
+            status: "no owner available",
+            important: false,
+            interested: false,
+            hiddenOnMain: false,
+            inBin: false,
+            binReason: null,
+            binPreviousStatus: null,
+            ...clearSched,
+        };
+    }
+    if (page === "not_in_service") {
+        return {
+            status: "not in service",
+            important: false,
+            interested: false,
+            hiddenOnMain: false,
+            inBin: false,
+            binReason: null,
+            binPreviousStatus: null,
+            ...clearSched,
+        };
+    }
+    if (page === "in_house") {
+        return {
+            status: "in house",
+            important: false,
+            interested: false,
+            hiddenOnMain: false,
+            inBin: false,
+            binReason: null,
+            binPreviousStatus: null,
+            ...clearSched,
+        };
+    }
     return {
         status: "Close Client",
         important: false,
@@ -2993,6 +3030,9 @@ router.post("/leads/reassign-bulk", auth_middleware_1.verifyToken, (0, role_midd
             "pending",
             "not_picked",
             "not_interested",
+            "no_owner",
+            "not_in_service",
+            "in_house",
             "close_client",
         ]);
         const fromPage = String(body.fromPage ?? body.pages?.[0] ?? "")
@@ -3048,6 +3088,15 @@ router.post("/leads/reassign-bulk", auth_middleware_1.verifyToken, (0, role_midd
             if (page === "not_interested") {
                 return { status: { in: ["not interested", "Not Interested"] } };
             }
+            if (page === "no_owner") {
+                return { status: { equals: "no owner available", mode: "insensitive" } };
+            }
+            if (page === "not_in_service") {
+                return { status: { equals: "not in service", mode: "insensitive" } };
+            }
+            if (page === "in_house") {
+                return { status: { equals: "in house", mode: "insensitive" } };
+            }
             if (page === "close_client") {
                 return {
                     status: { in: ["Close Client", "close client", "closed", "completed", "Completed"] },
@@ -3059,8 +3108,15 @@ router.post("/leads/reassign-bulk", auth_middleware_1.verifyToken, (0, role_midd
         if (!sourceWhere) {
             return res.status(400).json({ success: false, message: "Select a valid source page" });
         }
-        const sourceQuery = fromPage === "pending"
-            ? (0, binLeads_1.pendingLeadWhere)(fromCsrId)
+        const csrTabByPage = {
+            pending: "pending",
+            no_owner: "noowner",
+            not_in_service: "notinservice",
+            in_house: "inhouse",
+        };
+        const sourceTab = csrTabByPage[fromPage];
+        const sourceQuery = sourceTab
+            ? (0, csrDashboardQueries_1.buildCsrTabWhere)(fromCsrId, sourceTab)
             : {
                 AND: [
                     { assignedTo: fromCsrId },

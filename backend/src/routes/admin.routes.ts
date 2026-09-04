@@ -10,6 +10,7 @@ import { purgeCsrLeads } from "../utils/purgeCsrLeads";
 import { CSR_RESET_GROUPS, normalizeCsrResetScopes } from "../utils/csrResetPages";
 import { countLeadStatuses } from "../utils/uploadSourceStats";
 import { buildProjectLeadWhere, isDisplayableProjectLead } from "../utils/projectLeads";
+import { buildCsrTabWhere, type CsrTabKey } from "../utils/csrDashboardQueries";
 import {
   normalizePaymentsInput,
   parseProjectPayments,
@@ -19,7 +20,7 @@ import {
   paidDatesFromPayments,
   syncAccountsCurrencyForDates,
 } from "../utils/projectCurrencyCollections";
-import { buildBinWhere, filterActiveLeads, notInBinFilter, pendingLeadWhere } from "../utils/binLeads";
+import { buildBinWhere, filterActiveLeads, notInBinFilter } from "../utils/binLeads";
 import { findLeadsByPhone, buildPhoneLookupResponse } from "../utils/leadPhoneLookup";
 import { findDuplicateLead } from "../utils/leadDuplicateCheck";
 import { CSR_UPLOAD_FILE_SELECT } from "../utils/uploadSourceSelect";
@@ -3416,6 +3417,42 @@ function reassignStatusPatch(
       ...clearSched,
     };
   }
+  if (page === "no_owner") {
+    return {
+      status: "no owner available",
+      important: false,
+      interested: false,
+      hiddenOnMain: false,
+      inBin: false,
+      binReason: null,
+      binPreviousStatus: null,
+      ...clearSched,
+    };
+  }
+  if (page === "not_in_service") {
+    return {
+      status: "not in service",
+      important: false,
+      interested: false,
+      hiddenOnMain: false,
+      inBin: false,
+      binReason: null,
+      binPreviousStatus: null,
+      ...clearSched,
+    };
+  }
+  if (page === "in_house") {
+    return {
+      status: "in house",
+      important: false,
+      interested: false,
+      hiddenOnMain: false,
+      inBin: false,
+      binReason: null,
+      binPreviousStatus: null,
+      ...clearSched,
+    };
+  }
   return {
     status: "Close Client",
     important: false,
@@ -3501,6 +3538,9 @@ router.post(
         "pending",
         "not_picked",
         "not_interested",
+        "no_owner",
+        "not_in_service",
+        "in_house",
         "close_client",
       ]);
       const fromPage = String(body.fromPage ?? body.pages?.[0] ?? "")
@@ -3556,6 +3596,15 @@ router.post(
         if (page === "not_interested") {
           return { status: { in: ["not interested", "Not Interested"] } };
         }
+        if (page === "no_owner") {
+          return { status: { equals: "no owner available", mode: "insensitive" } };
+        }
+        if (page === "not_in_service") {
+          return { status: { equals: "not in service", mode: "insensitive" } };
+        }
+        if (page === "in_house") {
+          return { status: { equals: "in house", mode: "insensitive" } };
+        }
         if (page === "close_client") {
           return {
             status: { in: ["Close Client", "close client", "closed", "completed", "Completed"] },
@@ -3569,16 +3618,22 @@ router.post(
         return res.status(400).json({ success: false, message: "Select a valid source page" });
       }
 
-      const sourceQuery: Prisma.LeadWhereInput =
-        fromPage === "pending"
-          ? pendingLeadWhere(fromCsrId)
-          : {
-              AND: [
-                { assignedTo: fromCsrId },
-                notInBinFilter(),
-                sourceWhere,
-              ],
-            };
+      const csrTabByPage: Partial<Record<string, CsrTabKey>> = {
+        pending: "pending",
+        no_owner: "noowner",
+        not_in_service: "notinservice",
+        in_house: "inhouse",
+      };
+      const sourceTab = csrTabByPage[fromPage];
+      const sourceQuery: Prisma.LeadWhereInput = sourceTab
+        ? buildCsrTabWhere(fromCsrId, sourceTab)
+        : {
+            AND: [
+              { assignedTo: fromCsrId },
+              notInBinFilter(),
+              sourceWhere,
+            ],
+          };
 
       const destIds = [...new Set(toCsrIds)];
       const finalTargets =
