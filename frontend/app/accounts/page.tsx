@@ -407,10 +407,10 @@ export default function AccountsDashboardPage() {
   };
 
   const channelChips = [
-    { key: "AH" as const, label: "Ahmed Hamza", fx: fxFor("AH"), dot: "#F87171" },
-    { key: "SN" as const, label: "Sharjeel Nasir", fx: fxFor("SN"), dot: "#60A5FA" },
-    { key: "CHQ" as const, label: "Cheque", fx: fxFor("CHQ"), dot: "#FBBF24" },
-    { key: "HM" as const, label: "Habib Metro", fx: fxFor("HM"), dot: "#2DD4BF" },
+    { key: "AH" as const, label: "Ahmed Hamza", fx: fxFor("AH"), dot: "#B8112D" },
+    { key: "SN" as const, label: "Sharjeel Nasir", fx: fxFor("SN"), dot: "#0B84F3" },
+    { key: "CHQ" as const, label: "Cheque", fx: fxFor("CHQ"), dot: "#F59E0B" },
+    { key: "HM" as const, label: "Habib Metro", fx: fxFor("HM"), dot: "#12B76A" },
   ];
 
   const paymentSplit = channelChips.map(c => ({
@@ -537,10 +537,10 @@ export default function AccountsDashboardPage() {
             <button
               type="button"
               onClick={() => setFormulaBookOpen(true)}
-              className="h-10 px-4 rounded-xl bg-crm-surface border border-crm-border text-xs font-bold text-crm-text-secondary inline-flex items-center gap-2 hover:border-[#B8112D] hover:text-[#B8112D] transition-colors shadow-sm"
+              className="h-10 px-4 rounded-xl bg-[#FFF1F3] border border-[#F3D7DC] text-xs font-bold text-[#B8112D] inline-flex items-center gap-2 hover:bg-[#FFE4E8] transition-colors shadow-sm"
               title="All Accounts formulas — by section, editable"
             >
-              <Sigma size={15} className="text-[#B8112D]" />
+              <Sigma size={15} />
               All Formulas
             </button>
           }
@@ -576,10 +576,11 @@ export default function AccountsDashboardPage() {
                     key={c.key}
                     type="button"
                     onClick={() => { setViewTab(c.key); setFormulaOpen(false); }}
-                    className="text-left rounded-xl border border-gray-100 bg-crm-muted/50 px-3 py-2 hover:border-[#B8112D]/30 transition-colors"
+                    className="text-left rounded-xl border border-gray-100 bg-crm-muted/50 px-3 py-2 transition-colors"
                     title={`View ${c.label} formula`}
+                    style={{ borderColor: `${c.dot}33` }}
                   >
-                    <p className="flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-wider text-crm-text-faint">
+                    <p className="flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-wider" style={{ color: c.dot }}>
                       <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: c.dot }} />
                       {c.label}
                     </p>
@@ -636,7 +637,7 @@ export default function AccountsDashboardPage() {
                     className={`mt-0.5 shrink-0 text-[#0B84F3] transition-transform ${fxExpanded ? "" : "-rotate-90"}`}
                   />
                   <div className="min-w-0">
-                    <h2 className="font-extrabold text-crm-text text-sm tracking-tight">Live FX Rates — USD & CAD → PKR</h2>
+                    <h2 className="font-extrabold text-[#0369A1] text-sm tracking-tight">Live FX Rates — USD & CAD → PKR</h2>
                     <p className="text-[11px] text-crm-text-faint mt-0.5">
                       Fetched from Google Finance · live USD and CAD to PKR for review against your formula
                     </p>
@@ -673,14 +674,14 @@ export default function AccountsDashboardPage() {
                         <p className="text-[10px] text-crm-text-muted mt-2">
                           Ahmed formula now: <span className="font-bold text-crm-text-secondary tabular-nums">{ah.usdToPkrRate}</span>
                           {Math.abs(ah.usdToPkrRate - fxRates.usdToPkr) > 0.01 && (
-                            <span className="ml-1 text-amber-600 font-semibold">
+                            <span className="ml-1 text-[#B8112D] font-semibold">
                               (diff {(fxRates.usdToPkr - ah.usdToPkrRate).toFixed(2)})
                             </span>
                           )}
                         </p>
                       </div>
-                      <div className="rounded-xl border border-teal-100 bg-[#F8FFFE] p-3.5">
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-teal-700">1 CAD → PKR</p>
+                      <div className="rounded-xl border border-[#D6EBFF] bg-[#F8FBFF] p-3.5">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-[#0369A1]">1 CAD → PKR</p>
                         <p className="text-2xl font-extrabold tabular-nums text-crm-text mt-1">{fxRates.cadToPkr.toFixed(4)}</p>
                         <p className="text-[10px] text-crm-text-faint mt-1">{fxRates.cadSource ?? "Google Finance"}</p>
                         <p className="text-[10px] text-crm-text-muted mt-2">
@@ -765,8 +766,8 @@ export default function AccountsDashboardPage() {
                   {([
                     { key: "AH" as const, label: "Ahmed Hamza", accent: "text-[#B8112D]", calc: ahCalc, note: "FX · 11% tax keep 0.89" },
                     { key: "SN" as const, label: "Sharjeel Nasir", accent: "text-[#0B84F3]", calc: snCalc, note: "CAD · tax 0.945" },
-                    { key: "CHQ" as const, label: "Cheque Payment", accent: "text-amber-700", calc: chqCalc, note: "25% tax deduction" },
-                    { key: "HM" as const, label: "Direct Habib Metro", accent: "text-teal-700", calc: hmCalc, note: "1% tax deduction" },
+                    { key: "CHQ" as const, label: "Cheque Payment", accent: "text-[#D97706]", calc: chqCalc, note: "25% tax deduction" },
+                    { key: "HM" as const, label: "Direct Habib Metro", accent: "text-[#12B76A]", calc: hmCalc, note: "1% tax deduction" },
                   ]).map(card => (
                     <div key={card.key} className="rounded-xl border border-crm-border-subtle bg-[#FAFBFC] p-3.5">
                       <div className="flex items-center justify-between mb-1.5">
@@ -1027,7 +1028,7 @@ export default function AccountsDashboardPage() {
                     <Area type="monotone" dataKey="Ahmed" stackId="ch" stroke="#B8112D" fill="#B8112D" fillOpacity={0.45} />
                     <Area type="monotone" dataKey="Sharjeel" stackId="ch" stroke="#0B84F3" fill="#0B84F3" fillOpacity={0.4} />
                     <Area type="monotone" dataKey="Cheque" stackId="ch" stroke="#F59E0B" fill="#F59E0B" fillOpacity={0.4} />
-                    <Area type="monotone" dataKey="Habib" stackId="ch" stroke="#0D9488" fill="#0D9488" fillOpacity={0.4} />
+                    <Area type="monotone" dataKey="Habib" stackId="ch" stroke="#12B76A" fill="#12B76A" fillOpacity={0.4} />
                   </AreaChart>
                 </RechartsBox>
               </AccountsChartCard>
