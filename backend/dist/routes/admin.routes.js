@@ -2853,9 +2853,131 @@ router.put("/lead/:id/reassign", auth_middleware_1.verifyToken, (0, role_middlew
         return res.status(500).json({ success: false, message: "Failed to reassign lead" });
     }
 });
+const REASSIGN_ID_BATCH = 300;
+function reassignStatusPatch(page, keepSchedule) {
+    const clearSched = { nextSchedule: null, nextTime: null };
+    if (page === "important") {
+        return {
+            status: "important",
+            important: true,
+            interested: false,
+            hiddenOnMain: false,
+            inBin: false,
+            binReason: null,
+            binPreviousStatus: null,
+            ...clearSched,
+        };
+    }
+    if (page === "schedule") {
+        return {
+            status: "important",
+            important: true,
+            interested: false,
+            hiddenOnMain: false,
+            inBin: false,
+            binReason: null,
+            binPreviousStatus: null,
+            ...(keepSchedule ? {} : clearSched),
+        };
+    }
+    if (page === "interested") {
+        return {
+            status: "interested",
+            important: false,
+            interested: true,
+            hiddenOnMain: false,
+            inBin: false,
+            binReason: null,
+            binPreviousStatus: null,
+            ...clearSched,
+        };
+    }
+    if (page === "pending") {
+        return {
+            status: "pending",
+            important: false,
+            interested: false,
+            hiddenOnMain: false,
+            inBin: false,
+            binReason: null,
+            binPreviousStatus: null,
+            ...clearSched,
+        };
+    }
+    if (page === "not_picked") {
+        return {
+            status: "not picked",
+            important: false,
+            interested: false,
+            inBin: false,
+            binReason: null,
+            binPreviousStatus: null,
+            ...clearSched,
+        };
+    }
+    if (page === "not_interested") {
+        return {
+            status: "Not Interested",
+            important: false,
+            interested: false,
+            inBin: false,
+            binReason: null,
+            binPreviousStatus: null,
+            ...clearSched,
+        };
+    }
+    return {
+        status: "Close Client",
+        important: false,
+        interested: false,
+        hiddenOnMain: true,
+        inBin: false,
+        binReason: null,
+        binPreviousStatus: null,
+        ...clearSched,
+    };
+}
+async function collectReassignLeadIds(where, needSchedule) {
+    const out = [];
+    let cursor;
+    for (;;) {
+        const batch = await db_1.default.lead.findMany({
+            where,
+            select: needSchedule ? { id: true, nextSchedule: true } : { id: true },
+            take: REASSIGN_ID_BATCH,
+            orderBy: { id: "asc" },
+            ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+        });
+        if (!batch.length)
+            break;
+        for (const row of batch) {
+            const nextSchedule = "nextSchedule" in row ? row.nextSchedule : null;
+            out.push({
+                id: row.id,
+                keepSchedule: Boolean(nextSchedule && String(nextSchedule).trim()),
+            });
+        }
+        cursor = batch[batch.length - 1].id;
+        if (batch.length < REASSIGN_ID_BATCH)
+            break;
+    }
+    return out;
+}
+async function applyReassignPatch(ids, data) {
+    for (let i = 0; i < ids.length; i += REASSIGN_ID_BATCH) {
+        const slice = ids.slice(i, i + REASSIGN_ID_BATCH);
+        if (!slice.length)
+            continue;
+        await db_1.default.lead.updateMany({
+            where: { id: { in: slice } },
+            data,
+        });
+    }
+}
 /**
  * Bulk reassign: From CSR + page → To CSR(s) + page (equal round-robin).
  * Destination page sets status/flags so leads land on that CSR page.
+ * Batched updateMany so 10k+ queues finish without timing out.
  */
 router.post("/leads/reassign-bulk", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager"), async (req, res) => {
     try {
@@ -2937,26 +3059,15 @@ router.post("/leads/reassign-bulk", auth_middleware_1.verifyToken, (0, role_midd
         if (!sourceWhere) {
             return res.status(400).json({ success: false, message: "Select a valid source page" });
         }
-        const leads = await db_1.default.lead.findMany({
-            where: fromPage === "pending"
-                ? (0, binLeads_1.pendingLeadWhere)(fromCsrId)
-                : {
-                    AND: [
-                        { assignedTo: fromCsrId },
-                        (0, binLeads_1.notInBinFilter)(),
-                        sourceWhere,
-                    ],
-                },
-            select: {
-                id: true,
-                nextSchedule: true,
-                nextTime: true,
-                clientCode: true,
-                phone: true,
-                company: true,
-            },
-            orderBy: { updatedAt: "asc" },
-        });
+        const sourceQuery = fromPage === "pending"
+            ? (0, binLeads_1.pendingLeadWhere)(fromCsrId)
+            : {
+                AND: [
+                    { assignedTo: fromCsrId },
+                    (0, binLeads_1.notInBinFilter)(),
+                    sourceWhere,
+                ],
+            };
         const destIds = [...new Set(toCsrIds)];
         const finalTargets = fromPage === toPage
             ? destIds.filter((id) => id !== fromCsrId)
@@ -2969,121 +3080,36 @@ router.post("/leads/reassign-bulk", auth_middleware_1.verifyToken, (0, role_midd
                     : "No valid destination CSRs",
             });
         }
-        const statusPatchForPage = (page, lead) => {
-            const clearSched = { nextSchedule: null, nextTime: null };
-            if (page === "important") {
-                return {
-                    status: "important",
-                    important: true,
-                    interested: false,
-                    hiddenOnMain: false,
-                    inBin: false,
-                    binReason: null,
-                    binPreviousStatus: null,
-                    ...clearSched,
-                };
-            }
-            if (page === "schedule") {
-                const hasMeeting = Boolean(lead.nextSchedule && String(lead.nextSchedule).trim());
-                return {
-                    status: "important",
-                    important: true,
-                    interested: false,
-                    hiddenOnMain: false,
-                    inBin: false,
-                    binReason: null,
-                    binPreviousStatus: null,
-                    ...(hasMeeting ? {} : clearSched),
-                };
-            }
-            if (page === "interested") {
-                return {
-                    status: "interested",
-                    important: false,
-                    interested: true,
-                    hiddenOnMain: false,
-                    inBin: false,
-                    binReason: null,
-                    binPreviousStatus: null,
-                    ...clearSched,
-                };
-            }
-            if (page === "pending") {
-                return {
-                    status: "pending",
-                    important: false,
-                    interested: false,
-                    hiddenOnMain: false,
-                    inBin: false,
-                    binReason: null,
-                    binPreviousStatus: null,
-                    ...clearSched,
-                };
-            }
-            if (page === "not_picked") {
-                return {
-                    status: "not picked",
-                    important: false,
-                    interested: false,
-                    inBin: false,
-                    binReason: null,
-                    binPreviousStatus: null,
-                    ...clearSched,
-                };
-            }
-            if (page === "not_interested") {
-                return {
-                    status: "Not Interested",
-                    important: false,
-                    interested: false,
-                    inBin: false,
-                    binReason: null,
-                    binPreviousStatus: null,
-                    ...clearSched,
-                };
-            }
-            return {
-                status: "Close Client",
-                important: false,
-                interested: false,
-                hiddenOnMain: true,
-                inBin: false,
-                binReason: null,
-                binPreviousStatus: null,
-                ...clearSched,
-            };
-        };
-        let moved = 0;
+        const leads = await collectReassignLeadIds(sourceQuery, toPage === "schedule");
         const perCsr = {};
         for (const id of finalTargets)
             perCsr[id] = 0;
-        for (let i = 0; i < leads.length; i++) {
-            const lead = leads[i];
-            const toId = finalTargets[i % finalTargets.length];
-            const pageData = statusPatchForPage(toPage, lead);
-            await db_1.default.lead.update({
-                where: { id: lead.id },
-                data: {
-                    assignedTo: toId,
-                    ...pageData,
-                },
-            });
-            perCsr[toId] = (perCsr[toId] ?? 0) + 1;
-            moved += 1;
+        for (let t = 0; t < finalTargets.length; t++) {
+            const destId = finalTargets[t];
+            const mine = leads.filter((_, i) => i % finalTargets.length === t);
+            if (!mine.length)
+                continue;
+            perCsr[destId] = mine.length;
+            if (toPage === "schedule") {
+                const keep = mine.filter((l) => l.keepSchedule).map((l) => l.id);
+                const clear = mine.filter((l) => !l.keepSchedule).map((l) => l.id);
+                await applyReassignPatch(keep, {
+                    assignedTo: destId,
+                    ...reassignStatusPatch(toPage, true),
+                });
+                await applyReassignPatch(clear, {
+                    assignedTo: destId,
+                    ...reassignStatusPatch(toPage, false),
+                });
+            }
+            else {
+                await applyReassignPatch(mine.map((l) => l.id), { assignedTo: destId, ...reassignStatusPatch(toPage, false) });
+            }
         }
-        (0, cache_1.flushAdminClientsCache)();
-        (0, cache_1.invalidatePattern)("admin:bin");
-        const cacheKeys = [
-            `csr:dashboard:${fromCsrId}`,
-            `csr:leads:${fromCsrId}`,
-            `csr:not-interested:${fromCsrId}`,
-            `csr:bin:${fromCsrId}`,
-            `csr:projects:${fromCsrId}`,
-        ];
-        for (const id of finalTargets) {
-            cacheKeys.push(`csr:dashboard:${id}`, `csr:leads:${id}`, `csr:not-interested:${id}`, `csr:bin:${id}`, `csr:projects:${id}`);
-        }
-        (0, cache_1.invalidateCache)(...cacheKeys);
+        const moved = leads.length;
+        (0, csrCache_1.invalidateCsrLeadCaches)(fromCsrId);
+        for (const id of finalTargets)
+            (0, csrCache_1.invalidateCsrLeadCaches)(id);
         const destNames = destCsrs
             .filter((c) => finalTargets.includes(c.id))
             .map((c) => ({ csrId: c.id, name: c.name, leads: perCsr[c.id] ?? 0 }));
@@ -3098,8 +3124,11 @@ router.post("/leads/reassign-bulk", auth_middleware_1.verifyToken, (0, role_midd
         });
     }
     catch (error) {
-        console.log(error);
-        return res.status(500).json({ success: false, message: "Failed to bulk reassign leads" });
+        console.error("[reassign-bulk]", error);
+        return res.status(500).json({
+            success: false,
+            message: "Failed to bulk reassign leads. Retry — large queues are processed in batches.",
+        });
     }
 });
 /* ================= UPLOAD SOURCES (admin-only — hidden from CSR) ================= */

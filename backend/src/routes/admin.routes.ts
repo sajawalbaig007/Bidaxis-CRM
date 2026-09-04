@@ -3339,9 +3339,142 @@ router.put("/lead/:id/reassign", verifyToken, allowRoles("admin", "manager", "te
   }
 });
 
+const REASSIGN_ID_BATCH = 300;
+
+function reassignStatusPatch(
+  page: string,
+  keepSchedule: boolean,
+): Prisma.LeadUncheckedUpdateManyInput {
+  const clearSched = { nextSchedule: null, nextTime: null };
+  if (page === "important") {
+    return {
+      status: "important",
+      important: true,
+      interested: false,
+      hiddenOnMain: false,
+      inBin: false,
+      binReason: null,
+      binPreviousStatus: null,
+      ...clearSched,
+    };
+  }
+  if (page === "schedule") {
+    return {
+      status: "important",
+      important: true,
+      interested: false,
+      hiddenOnMain: false,
+      inBin: false,
+      binReason: null,
+      binPreviousStatus: null,
+      ...(keepSchedule ? {} : clearSched),
+    };
+  }
+  if (page === "interested") {
+    return {
+      status: "interested",
+      important: false,
+      interested: true,
+      hiddenOnMain: false,
+      inBin: false,
+      binReason: null,
+      binPreviousStatus: null,
+      ...clearSched,
+    };
+  }
+  if (page === "pending") {
+    return {
+      status: "pending",
+      important: false,
+      interested: false,
+      hiddenOnMain: false,
+      inBin: false,
+      binReason: null,
+      binPreviousStatus: null,
+      ...clearSched,
+    };
+  }
+  if (page === "not_picked") {
+    return {
+      status: "not picked",
+      important: false,
+      interested: false,
+      inBin: false,
+      binReason: null,
+      binPreviousStatus: null,
+      ...clearSched,
+    };
+  }
+  if (page === "not_interested") {
+    return {
+      status: "Not Interested",
+      important: false,
+      interested: false,
+      inBin: false,
+      binReason: null,
+      binPreviousStatus: null,
+      ...clearSched,
+    };
+  }
+  return {
+    status: "Close Client",
+    important: false,
+    interested: false,
+    hiddenOnMain: true,
+    inBin: false,
+    binReason: null,
+    binPreviousStatus: null,
+    ...clearSched,
+  };
+}
+
+async function collectReassignLeadIds(
+  where: Prisma.LeadWhereInput,
+  needSchedule: boolean,
+): Promise<{ id: string; keepSchedule: boolean }[]> {
+  const out: { id: string; keepSchedule: boolean }[] = [];
+  let cursor: string | undefined;
+  for (;;) {
+    const batch = await prisma.lead.findMany({
+      where,
+      select: needSchedule ? { id: true, nextSchedule: true } : { id: true },
+      take: REASSIGN_ID_BATCH,
+      orderBy: { id: "asc" },
+      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+    });
+    if (!batch.length) break;
+    for (const row of batch) {
+      const nextSchedule =
+        "nextSchedule" in row ? (row.nextSchedule as string | null) : null;
+      out.push({
+        id: row.id,
+        keepSchedule: Boolean(nextSchedule && String(nextSchedule).trim()),
+      });
+    }
+    cursor = batch[batch.length - 1]!.id;
+    if (batch.length < REASSIGN_ID_BATCH) break;
+  }
+  return out;
+}
+
+async function applyReassignPatch(
+  ids: string[],
+  data: Prisma.LeadUncheckedUpdateManyInput,
+): Promise<void> {
+  for (let i = 0; i < ids.length; i += REASSIGN_ID_BATCH) {
+    const slice = ids.slice(i, i + REASSIGN_ID_BATCH);
+    if (!slice.length) continue;
+    await prisma.lead.updateMany({
+      where: { id: { in: slice } },
+      data,
+    });
+  }
+}
+
 /**
  * Bulk reassign: From CSR + page → To CSR(s) + page (equal round-robin).
  * Destination page sets status/flags so leads land on that CSR page.
+ * Batched updateMany so 10k+ queues finish without timing out.
  */
 router.post(
   "/leads/reassign-bulk",
@@ -3436,27 +3569,16 @@ router.post(
         return res.status(400).json({ success: false, message: "Select a valid source page" });
       }
 
-      const leads = await prisma.lead.findMany({
-        where:
-          fromPage === "pending"
-            ? pendingLeadWhere(fromCsrId)
-            : {
-                AND: [
-                  { assignedTo: fromCsrId },
-                  notInBinFilter(),
-                  sourceWhere,
-                ],
-              },
-        select: {
-          id: true,
-          nextSchedule: true,
-          nextTime: true,
-          clientCode: true,
-          phone: true,
-          company: true,
-        },
-        orderBy: { updatedAt: "asc" },
-      });
+      const sourceQuery: Prisma.LeadWhereInput =
+        fromPage === "pending"
+          ? pendingLeadWhere(fromCsrId)
+          : {
+              AND: [
+                { assignedTo: fromCsrId },
+                notInBinFilter(),
+                sourceWhere,
+              ],
+            };
 
       const destIds = [...new Set(toCsrIds)];
       const finalTargets =
@@ -3473,132 +3595,38 @@ router.post(
         });
       }
 
-      const statusPatchForPage = (
-        page: string,
-        lead: { nextSchedule: string | null; nextTime: string | null },
-      ): Prisma.LeadUncheckedUpdateInput => {
-        const clearSched = { nextSchedule: null, nextTime: null };
-        if (page === "important") {
-          return {
-            status: "important",
-            important: true,
-            interested: false,
-            hiddenOnMain: false,
-            inBin: false,
-            binReason: null,
-            binPreviousStatus: null,
-            ...clearSched,
-          };
-        }
-        if (page === "schedule") {
-          const hasMeeting = Boolean(lead.nextSchedule && String(lead.nextSchedule).trim());
-          return {
-            status: "important",
-            important: true,
-            interested: false,
-            hiddenOnMain: false,
-            inBin: false,
-            binReason: null,
-            binPreviousStatus: null,
-            ...(hasMeeting ? {} : clearSched),
-          };
-        }
-        if (page === "interested") {
-          return {
-            status: "interested",
-            important: false,
-            interested: true,
-            hiddenOnMain: false,
-            inBin: false,
-            binReason: null,
-            binPreviousStatus: null,
-            ...clearSched,
-          };
-        }
-        if (page === "pending") {
-          return {
-            status: "pending",
-            important: false,
-            interested: false,
-            hiddenOnMain: false,
-            inBin: false,
-            binReason: null,
-            binPreviousStatus: null,
-            ...clearSched,
-          };
-        }
-        if (page === "not_picked") {
-          return {
-            status: "not picked",
-            important: false,
-            interested: false,
-            inBin: false,
-            binReason: null,
-            binPreviousStatus: null,
-            ...clearSched,
-          };
-        }
-        if (page === "not_interested") {
-          return {
-            status: "Not Interested",
-            important: false,
-            interested: false,
-            inBin: false,
-            binReason: null,
-            binPreviousStatus: null,
-            ...clearSched,
-          };
-        }
-        return {
-          status: "Close Client",
-          important: false,
-          interested: false,
-          hiddenOnMain: true,
-          inBin: false,
-          binReason: null,
-          binPreviousStatus: null,
-          ...clearSched,
-        };
-      };
+      const leads = await collectReassignLeadIds(sourceQuery, toPage === "schedule");
 
-      let moved = 0;
       const perCsr: Record<string, number> = {};
       for (const id of finalTargets) perCsr[id] = 0;
 
-      for (let i = 0; i < leads.length; i++) {
-        const lead = leads[i]!;
-        const toId = finalTargets[i % finalTargets.length]!;
-        const pageData = statusPatchForPage(toPage, lead);
-        await prisma.lead.update({
-          where: { id: lead.id },
-          data: {
-            assignedTo: toId,
-            ...pageData,
-          },
-        });
-        perCsr[toId] = (perCsr[toId] ?? 0) + 1;
-        moved += 1;
+      for (let t = 0; t < finalTargets.length; t++) {
+        const destId = finalTargets[t]!;
+        const mine = leads.filter((_, i) => i % finalTargets.length === t);
+        if (!mine.length) continue;
+        perCsr[destId] = mine.length;
+        if (toPage === "schedule") {
+          const keep = mine.filter((l) => l.keepSchedule).map((l) => l.id);
+          const clear = mine.filter((l) => !l.keepSchedule).map((l) => l.id);
+          await applyReassignPatch(keep, {
+            assignedTo: destId,
+            ...reassignStatusPatch(toPage, true),
+          });
+          await applyReassignPatch(clear, {
+            assignedTo: destId,
+            ...reassignStatusPatch(toPage, false),
+          });
+        } else {
+          await applyReassignPatch(
+            mine.map((l) => l.id),
+            { assignedTo: destId, ...reassignStatusPatch(toPage, false) },
+          );
+        }
       }
 
-      flushAdminClientsCache();
-      invalidatePattern("admin:bin");
-      const cacheKeys = [
-        `csr:dashboard:${fromCsrId}`,
-        `csr:leads:${fromCsrId}`,
-        `csr:not-interested:${fromCsrId}`,
-        `csr:bin:${fromCsrId}`,
-        `csr:projects:${fromCsrId}`,
-      ];
-      for (const id of finalTargets) {
-        cacheKeys.push(
-          `csr:dashboard:${id}`,
-          `csr:leads:${id}`,
-          `csr:not-interested:${id}`,
-          `csr:bin:${id}`,
-          `csr:projects:${id}`,
-        );
-      }
-      invalidateCache(...cacheKeys);
+      const moved = leads.length;
+      invalidateCsrLeadCaches(fromCsrId);
+      for (const id of finalTargets) invalidateCsrLeadCaches(id);
 
       const destNames = destCsrs
         .filter((c) => finalTargets.includes(c.id))
@@ -3614,8 +3642,11 @@ router.post(
         message: `Moved ${moved} lead(s) from ${fromCsr.name}/${fromPage} → ${toPage}.`,
       });
     } catch (error) {
-      console.log(error);
-      return res.status(500).json({ success: false, message: "Failed to bulk reassign leads" });
+      console.error("[reassign-bulk]", error);
+      return res.status(500).json({
+        success: false,
+        message: "Failed to bulk reassign leads. Retry — large queues are processed in batches.",
+      });
     }
   },
 );

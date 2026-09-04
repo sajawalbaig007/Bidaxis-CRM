@@ -45,6 +45,8 @@ type AccountsPageShellProps = {
   inlineTitle?: boolean;
   /** Hide Upload File + Save (dashboard is live totals) */
   hideFileActions?: boolean;
+  /** Extra controls on the title row (e.g. All Formulas) */
+  headerActions?: React.ReactNode;
   children: React.ReactNode;
 };
 
@@ -77,6 +79,7 @@ export default function AccountsPageShell({
   uploads = [],
   inlineTitle = false,
   hideFileActions = false,
+  headerActions,
   children,
 }: AccountsPageShellProps) {
   const fileRef = useRef<HTMLInputElement>(null);
@@ -86,7 +89,34 @@ export default function AccountsPageShell({
   const sortedSavedDays = [...savedDates].sort().reverse();
   const recentSavedDays = sortedSavedDays.slice(0, 7);
   const pickSavedDate = onSelectSavedDate ?? onRecordDateChange;
-  const showActions = !hideFileActions || !!onAddNew;
+  const periodInHeader = hideFileActions;
+  const showActions = !hideFileActions || !!onAddNew || periodInHeader || !!headerActions;
+
+  const periodTrigger = (
+    <>
+      <button
+        type="button"
+        onClick={() => setFilterOpen(true)}
+        className="w-10 h-10 rounded-xl bg-[#FFF1F3] text-[#B8112D] inline-flex items-center justify-center hover:bg-[#FFE4E8] transition-colors shrink-0"
+        title={periodSummary || "Open period filter"}
+      >
+        <Filter size={16} />
+      </button>
+      {!periodInHeader && (
+        <button type="button" onClick={() => setFilterOpen(true)} className="flex-1 min-w-0 text-left">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-crm-text-faint">Period</p>
+          <p className="text-sm font-semibold text-crm-text truncate">{periodSummary || "Choose a period"}</p>
+        </button>
+      )}
+      <button
+        type="button"
+        onClick={() => setFilterOpen(true)}
+        className={`${periodInHeader ? "inline-flex" : "hidden sm:inline-flex"} text-[11px] font-semibold text-[#B8112D] bg-[#FFF1F3] px-2.5 py-1 rounded-full shrink-0`}
+      >
+        {PERIOD_PRESET_LABELS[activePreset]}
+      </button>
+    </>
+  );
 
   return (
     <div className={STAFF_PAGE_PAD}>
@@ -111,6 +141,8 @@ export default function AccountsPageShell({
           </div>
           {showActions && (
             <div className="flex flex-wrap items-center gap-2 shrink-0">
+              {periodInHeader && periodTrigger}
+              {headerActions}
               {onAddNew && (
                 <button
                   type="button"
@@ -159,25 +191,13 @@ export default function AccountsPageShell({
         </div>
       </header>
 
-      <section className="rounded-2xl border border-gray-100 dark:border-crm-border bg-crm-surface px-4 sm:px-5 py-3">
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={() => setFilterOpen(true)}
-            className="w-10 h-10 rounded-xl bg-[#FFF1F3] text-[#B8112D] inline-flex items-center justify-center hover:bg-[#FFE4E8] transition-colors shrink-0"
-            title="Open period filter"
-          >
-            <Filter size={16} />
-          </button>
-          <button type="button" onClick={() => setFilterOpen(true)} className="flex-1 min-w-0 text-left">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-crm-text-faint">Period</p>
-            <p className="text-sm font-semibold text-crm-text truncate">{periodSummary || "Choose a period"}</p>
-          </button>
-          <span className="hidden sm:inline-flex text-[11px] font-semibold text-[#B8112D] bg-[#FFF1F3] px-2.5 py-1 rounded-full shrink-0">
-            {PERIOD_PRESET_LABELS[activePreset]}
-          </span>
-        </div>
-      </section>
+      {!periodInHeader && (
+        <section className="rounded-2xl border border-gray-100 dark:border-crm-border bg-crm-surface px-4 sm:px-5 py-3">
+          <div className="flex items-center gap-3">
+            {periodTrigger}
+          </div>
+        </section>
+      )}
 
       {filterOpen && (
         <div className="fixed inset-0 z-[80] bg-black/40 backdrop-blur-[2px] flex items-end sm:items-center justify-center p-0 sm:p-4">

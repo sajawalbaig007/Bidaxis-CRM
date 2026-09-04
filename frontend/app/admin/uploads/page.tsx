@@ -552,19 +552,23 @@ export default function UploadPage() {
     const toLabel = REASSIGN_PAGES.find((p) => p.key === reassignToPage)?.label ?? reassignToPage;
     if (
       !confirm(
-        `Move ${fromLabel} leads from ${fromName}\n→ ${dest.length} CSR(s) on page: ${toLabel}?\nEqual round-robin.`,
+        `Move ALL ${fromLabel} leads from ${fromName}\n→ ${dest.length} CSR(s) on page: ${toLabel}?\nEqual round-robin. Large queues (10k+) can take a few minutes.`,
       )
     ) {
       return;
     }
     setReassignSubmitting(true);
     try {
-      const res = await API.post("/admin/leads/reassign-bulk", {
-        fromCsrId: reassignFromCsrId,
-        toCsrIds: dest,
-        fromPage: reassignFromPage,
-        toPage: reassignToPage,
-      });
+      const res = await API.post(
+        "/admin/leads/reassign-bulk",
+        {
+          fromCsrId: reassignFromCsrId,
+          toCsrIds: dest,
+          fromPage: reassignFromPage,
+          toPage: reassignToPage,
+        },
+        { timeout: 900_000 },
+      );
       const moved = Number(res.data?.moved ?? 0);
       const dist = (res.data?.distribution ?? []) as { name: string; leads: number }[];
       const distLine = dist
@@ -578,10 +582,17 @@ export default function UploadPage() {
       );
       setShowReassignModal(false);
     } catch (err: unknown) {
-      const msg =
-        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
-        "Reassign failed";
-      toast.error(msg);
+      const ax = err as {
+        code?: string;
+        message?: string;
+        response?: { data?: { message?: string } };
+      };
+      const timedOut = ax.code === "ECONNABORTED" || /timeout/i.test(ax.message ?? "");
+      toast.error(
+        timedOut
+          ? "Transfer is still running or timed out — wait and check CSR pages, then retry remaining leads."
+          : (ax.response?.data?.message ?? "Reassign failed"),
+      );
     } finally {
       setReassignSubmitting(false);
     }
@@ -996,7 +1007,7 @@ export default function UploadPage() {
                   </div>
                   {reassignFromPage === "pending" && (
                     <p className="mt-1.5 text-[11px] text-violet-700">
-                      Moves this CSR's Today / Pending call-data queue.
+                      {"Moves this CSR's Today / Pending call-data queue."}
                     </p>
                   )}
                 </div>
@@ -1046,7 +1057,7 @@ export default function UploadPage() {
                   </div>
                   {reassignToPage === "pending" && (
                     <p className="mt-1.5 text-[11px] text-emerald-700">
-                      Leads land on the destination CSR's Today / Pending page.
+                      {"Leads land on the destination CSR's Today / Pending page."}
                     </p>
                   )}
                   {reassignToPage === "schedule" && reassignFromPage !== "schedule" && (
@@ -1127,7 +1138,7 @@ export default function UploadPage() {
                 className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white bg-violet-600 hover:bg-violet-700 disabled:opacity-60"
               >
                 {reassignSubmitting ? <Loader2 size={16} className="animate-spin" /> : <ArrowLeftRight size={16} />}
-                Reassign leads
+                {reassignSubmitting ? "Transferring…" : "Reassign leads"}
               </button>
             </div>
           </div>
