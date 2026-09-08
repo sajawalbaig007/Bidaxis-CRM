@@ -1785,18 +1785,20 @@ export default function AccountsReportsPage() {
                 ))
               )}
 
-              <SectionCard title={`Operating expenses (${pkr(report.totals.opex)})`} variant="table">
+              <SectionCard title={`Operating expenses (${pkr(report.totals.opex)})`}>
                 <OpexFieldTableView tables={report.opexTables ?? []} total={report.totals.opex} />
               </SectionCard>
 
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-3.5 items-start">
-                <SectionCard title={`Loans (${pkr(report.totals.loans)})`} variant="table">
+              <ReportBlock>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-3.5 items-stretch">
+                <SectionCard title={`Loans (${pkr(report.totals.loans)})`} asBlock={false}>
                   <OpexFieldTableView tables={report.loanTables ?? []} total={report.totals.loans} />
                 </SectionCard>
-                <SectionCard title={`Provident fund (${pkr(report.totals.pf)})`} variant="table">
+                <SectionCard title={`Provident fund (${pkr(report.totals.pf)})`} asBlock={false}>
                   <OpexFieldTableView tables={report.pfTables ?? []} total={report.totals.pf} />
                 </SectionCard>
               </div>
+              </ReportBlock>
 
               <ReportBlock>
               <p className="text-center text-[10px] text-[#94A3B8] pb-6">
