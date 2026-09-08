@@ -23,7 +23,7 @@ export default function AccountsChartCard({
 }: AccountsChartCardProps) {
   return (
     <div
-      className={`relative overflow-hidden flex flex-col ${BENTO_CARD} ${className}`}
+      className={`relative overflow-hidden flex flex-col min-w-0 ${BENTO_CARD} ${className}`}
     >
       <div
         className="absolute inset-x-0 top-0 h-1 opacity-90"
