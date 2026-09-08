@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Bar, BarChart, CartesianGrid, Cell, Legend, Pie, PieChart, ReferenceLine, Tooltip, XAxis, YAxis } from "recharts";
+import { Bar, BarChart, CartesianGrid, Cell, LabelList, Legend, Pie, PieChart, ReferenceLine, Tooltip, XAxis, YAxis } from "recharts";
 import {
   ArrowDownRight, ArrowUpRight, CalendarDays, FileDown, FileText, Loader2,
   Sparkles, TrendingUp, Wallet, PieChart as PieIcon,
@@ -16,9 +16,12 @@ import RechartsBox from "@/app/components/charts/RechartsBox";
 import { currency } from "../types";
 import { useScrollToHash } from "../hooks/useScrollToHash";
 import { STAFF_PAGE_PAD, BENTO_CARD } from "@/lib/staffPageLayout";
+import autoTable from "jspdf-autotable";
+import { jsPDF } from "jspdf";
 import {
   captureReportBlocks,
-  shotsToPdfBlob,
+  restoreExportButtons,
+  shotsToPdfDoc,
   shotsToWordHtml,
   triggerLocalDownload,
 } from "../utils/reportVisualExport";
@@ -205,6 +208,32 @@ function monthNameOnly(m: string): string {
 
 const pkr = (n: number) => `PKR ${currency(n)}`;
 const signed = (n: number) => `${n >= 0 ? "+" : "–"}PKR ${currency(Math.abs(n))}`;
+
+function BarEndLabel(props: Record<string, unknown>) {
+  const value = props.value;
+  if (value == null || value === "") return null;
+  const n = Number(value);
+  if (!Number.isFinite(n)) return null;
+  const x = Number(props.x) || 0;
+  const y = Number(props.y) || 0;
+  const width = Number(props.width) || 0;
+  const height = Number(props.height) || 0;
+  const layout = props.layout === "vertical" ? "vertical" : "horizontal";
+  const txt = currency(n);
+  if (layout === "vertical") {
+    return (
+      <text x={x + width + 4} y={y + height / 2} dominantBaseline="middle" fontSize={9} fontWeight={700} fill="#0B1220">
+        {txt}
+      </text>
+    );
+  }
+  const up = n >= 0;
+  return (
+    <text x={x + width / 2} y={up ? y - 4 : y + height + 11} textAnchor="middle" fontSize={9} fontWeight={700} fill="#0B1220">
+      {txt}
+    </text>
+  );
+}
 
 /** Auto commentary: streak + month-over-month movement. */
 function buildInsights(report: MonthlyReport) {
@@ -805,6 +834,89 @@ async function archiveReportFile(report: MonthlyReport, blob: Blob, fileName: st
   return (res.data.report as SavedMonthlyReport) ?? null;
 }
 
+function closingTableHtml(title: string, tables: OpexFieldTable[], total: number): string {
+  const NAVY = "#0B1220";
+  const RED = "#B8112D";
+  const th = `style="background:${NAVY};color:#fff;padding:6px 8px;font-size:10px;border:1px solid ${NAVY};"`;
+  const thR = `style="background:${NAVY};color:#fff;padding:6px 8px;font-size:10px;text-align:right;border:1px solid ${NAVY};"`;
+  const td = `style="padding:5px 8px;border:1px solid #E2E8F0;font-size:10px;"`;
+  const tdR = `style="padding:5px 8px;border:1px solid #E2E8F0;font-size:10px;text-align:right;"`;
+  const sub = `style="padding:3px 8px 3px 18px;border:1px solid #F1F5F9;font-size:9.5px;color:#334155;background:#fff;"`;
+  const subR = `style="padding:3px 8px;border:1px solid #F1F5F9;font-size:9.5px;color:#334155;text-align:right;background:#fff;"`;
+  const empty = `<tr><td colspan="5" style="padding:10px;border:1px solid #E2E8F0;font-size:10px;color:#94A3B8;text-align:center;">No entries this month.</td></tr>`;
+  const body = tables.length
+    ? tables
+        .flatMap(h => {
+          const headRow = `<tr style="background:#F8FAFC;">
+          <td ${td}><b>${h.name}</b></td>
+          <td ${td}></td>
+          <td ${td}>${h.filledAt || "—"}</td>
+          <td ${td}>${h.notes || "—"}</td>
+          <td ${tdR}><b>${currency(h.amount)}</b></td>
+        </tr>`;
+          const lines = h.lines.map(
+            l => `<tr>
+            <td ${sub}></td>
+            <td ${sub}>${l.label}</td>
+            <td ${sub}>${l.filledAt || "—"}</td>
+            <td ${sub}>${l.proofName || "—"}</td>
+            <td ${subR}>${currency(l.amount)}</td>
+          </tr>`,
+          );
+          return [headRow, ...lines];
+        })
+        .join("")
+    : empty;
+  return `<h2>${title}</h2>
+  <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:0 0 16px;">
+    <tr><td ${th}>Head</td><td ${th}>Individual</td><td ${th}>Filled date</td><td ${th}>Notes / Image</td><td ${thR}>Amount (PKR)</td></tr>
+    ${body}
+    <tr style="background:#FFF1F3;"><td ${td} colspan="4"><b>TOTAL</b></td><td ${tdR}><b style="color:${RED};">${currency(total)}</b></td></tr>
+  </table>`;
+}
+
+function closingTablesHtml(report: MonthlyReport): string {
+  return (
+    closingTableHtml(`Operating expenses (${pkr(report.totals.opex)})`, report.opexTables ?? [], report.totals.opex) +
+    closingTableHtml(`Loans (${pkr(report.totals.loans)})`, report.loanTables ?? [], report.totals.loans) +
+    closingTableHtml(`Provident fund (${pkr(report.totals.pf)})`, report.pfTables ?? [], report.totals.pf)
+  );
+}
+
+function closingTableBody(tables: OpexFieldTable[]): (string | number)[][] {
+  if (!tables.length) return [["No entries this month.", "", "", "", ""]];
+  return tables.flatMap(h => [
+    [h.name, "", h.filledAt || "—", h.notes || "—", currency(h.amount)],
+    ...h.lines.map(l => ["", l.label, l.filledAt || "—", l.proofName || "—", currency(l.amount)]),
+  ]);
+}
+
+function appendClosingTablesPdf(pdf: jsPDF, report: MonthlyReport) {
+  const sections = [
+    { title: `Operating expenses (PKR ${currency(report.totals.opex)})`, tables: report.opexTables ?? [], total: report.totals.opex },
+    { title: `Loans (PKR ${currency(report.totals.loans)})`, tables: report.loanTables ?? [], total: report.totals.loans },
+    { title: `Provident fund (PKR ${currency(report.totals.pf)})`, tables: report.pfTables ?? [], total: report.totals.pf },
+  ];
+  for (const s of sections) {
+    pdf.addPage();
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(12);
+    pdf.setTextColor(11, 18, 32);
+    pdf.text(s.title, 10, 16);
+    autoTable(pdf, {
+      startY: 20,
+      head: [["Head", "Individual", "Filled date", "Notes / Image", "Amount (PKR)"]],
+      body: closingTableBody(s.tables),
+      foot: [["TOTAL", "", "", "", currency(s.total)]],
+      theme: "grid",
+      styles: { fontSize: 8, cellPadding: 2, textColor: [15, 23, 42], lineColor: [226, 232, 240] },
+      headStyles: { fillColor: [11, 18, 32], textColor: 255, fontStyle: "bold" },
+      footStyles: { fillColor: [255, 241, 243], textColor: [184, 17, 45], fontStyle: "bold" },
+      margin: { left: 10, right: 10 },
+    });
+  }
+}
+
 /** MoM movement arrow — goodWhenUp: revenue up = green, cost up = red. */
 function TrendArrow({ v, goodWhenUp }: { v: number | null; goodWhenUp: boolean }) {
   if (v == null) return <span className="text-[9px] text-crm-text-faint">—</span>;
@@ -819,21 +931,45 @@ function TrendArrow({ v, goodWhenUp }: { v: number | null; goodWhenUp: boolean }
   );
 }
 
-function ReportBlock({ children, className = "" }: { children: React.ReactNode; className?: string }) {
-  return <div data-report-block className={className}>{children}</div>;
+function ReportBlock({
+  children,
+  className = "",
+  skipExport = false,
+}: {
+  children: React.ReactNode;
+  className?: string;
+  skipExport?: boolean;
+}) {
+  return (
+    <div data-report-block {...(skipExport ? { "data-export-skip": "" } : {})} className={className}>
+      {children}
+    </div>
+  );
 }
 
 function SectionCard({
   title,
   children,
   asBlock = true,
+  skipExport = false,
+  variant = "card",
 }: {
   title: string;
   children: React.ReactNode;
   asBlock?: boolean;
+  skipExport?: boolean;
+  variant?: "card" | "table";
 }) {
+  const shell =
+    variant === "table"
+      ? "rounded-xl border border-[#E2E8F0] bg-white overflow-hidden h-full"
+      : `${BENTO_CARD} overflow-hidden h-full`;
   return (
-    <div {...(asBlock ? { "data-report-block": "" } : {})} className={`${BENTO_CARD} overflow-hidden h-full`}>
+    <div
+      {...(asBlock ? { "data-report-block": "" } : {})}
+      {...(skipExport ? { "data-export-skip": "" } : {})}
+      className={shell}
+    >
       <div className="px-4 sm:px-5 pt-4 pb-2">
         <h2 className="font-extrabold text-[#0B1220] dark:text-crm-text text-sm tracking-tight border-b-2 border-[#B8112D] pb-2">
           {title}
@@ -961,14 +1097,19 @@ function HistoryPerformanceHalf({
                 loss: h.net < 0 ? h.net : null,
               }))}
               barSize={22}
+              margin={{ top: 18, right: 8, left: 0, bottom: 0 }}
             >
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
               <XAxis dataKey="name" tick={{ fontSize: 10, fontWeight: 600, fill: "#0B1220" }} />
               <YAxis tick={{ fontSize: 10, fill: "#64748B" }} />
               <ReferenceLine y={0} stroke="#0B1220" strokeWidth={1} />
               <Tooltip formatter={v => pkr(Number(v ?? 0))} />
-              <Bar dataKey="profit" name="Profit" fill="#0B84F3" radius={[6, 6, 0, 0]} maxBarSize={28} />
-              <Bar dataKey="loss" name="Loss" fill="#B8112D" radius={[0, 0, 6, 6]} maxBarSize={28} />
+              <Bar dataKey="profit" name="Profit" fill="#0B84F3" radius={[6, 6, 0, 0]} maxBarSize={28}>
+                <LabelList dataKey="profit" content={props => <BarEndLabel {...props} layout="horizontal" />} />
+              </Bar>
+              <Bar dataKey="loss" name="Loss" fill="#B8112D" radius={[0, 0, 6, 6]} maxBarSize={28}>
+                <LabelList dataKey="loss" content={props => <BarEndLabel {...props} layout="horizontal" />} />
+              </Bar>
             </BarChart>
           </RechartsBox>
         </div>
@@ -1002,15 +1143,19 @@ function BudgetVsActualBars({
           }))}
           layout="vertical"
           barSize={10}
-          margin={{ left: 4, right: 12, top: 4, bottom: 4 }}
+          margin={{ left: 4, right: 58, top: 4, bottom: 4 }}
         >
           <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
           <XAxis type="number" tick={{ fontSize: 10 }} />
           <YAxis type="category" dataKey="name" width={118} tick={{ fontSize: 10, fontWeight: 600 }} />
           <Tooltip formatter={v => pkr(Number(v ?? 0))} />
           <Legend wrapperStyle={{ fontSize: 11, fontWeight: 600 }} />
-          <Bar dataKey="Planned" fill="#0B1220" radius={[0, 6, 6, 0]} />
-          <Bar dataKey="Actual" fill="#0B84F3" radius={[0, 6, 6, 0]} />
+          <Bar dataKey="Planned" fill="#0B1220" radius={[0, 6, 6, 0]}>
+            <LabelList dataKey="Planned" content={props => <BarEndLabel {...props} layout="vertical" />} />
+          </Bar>
+          <Bar dataKey="Actual" fill="#0B84F3" radius={[0, 6, 6, 0]}>
+            <LabelList dataKey="Actual" content={props => <BarEndLabel {...props} layout="vertical" />} />
+          </Bar>
         </BarChart>
       </RechartsBox>
       <p className="text-[11px] text-crm-text-muted mt-1 px-2">
@@ -1078,9 +1223,9 @@ function SalaryFieldTableView({ table }: { table: SalaryFieldTable }) {
 function OpexFieldTableView({ tables, total }: { tables: OpexFieldTable[]; total: number }) {
   return (
     <div className="overflow-x-auto">
-      <table className="w-full text-sm min-w-160">
+      <table className="w-full text-sm min-w-160 border-collapse">
         <thead className="bg-[#0B1220]">
-          <tr className="border-b border-crm-border/80">
+          <tr>
             <th className={`${thCls} text-left`}>Head</th>
             <th className={`${thCls} text-left`}>Individual</th>
             <th className={`${thCls} text-center`}>Filled date</th>
@@ -1090,32 +1235,32 @@ function OpexFieldTableView({ tables, total }: { tables: OpexFieldTable[]; total
         </thead>
         <tbody>
           {tables.length === 0 ? (
-            <tr><td colSpan={5} className="px-3 py-6 text-center text-crm-text-faint text-xs">No entries this month.</td></tr>
+            <tr><td colSpan={5} className="px-3 py-6 text-center text-crm-text-faint text-xs border border-[#E2E8F0]">No entries this month.</td></tr>
           ) : (
             tables.flatMap(h => [
-              <tr key={h.name} className="border-b border-crm-border-subtle bg-crm-surface">
-                <td className={`${tdCls} font-bold text-crm-text`}>{h.name}</td>
-                <td className={tdCls} />
-                <td className={`${tdCls} text-center text-crm-text-muted`}>{h.filledAt || "—"}</td>
-                <td className={`${tdCls} text-crm-text-muted`}>{h.notes || "—"}</td>
-                <td className={`${tdCls} text-right font-bold tabular-nums`}>{currency(h.amount)}</td>
+              <tr key={h.name} className="border-b border-[#E2E8F0] bg-[#F8FAFC]">
+                <td className={`${tdCls} font-bold text-crm-text border border-[#E2E8F0]`}>{h.name}</td>
+                <td className={`${tdCls} border border-[#E2E8F0]`} />
+                <td className={`${tdCls} text-center text-crm-text-muted border border-[#E2E8F0]`}>{h.filledAt || "—"}</td>
+                <td className={`${tdCls} text-crm-text-muted border border-[#E2E8F0]`}>{h.notes || "—"}</td>
+                <td className={`${tdCls} text-right font-bold tabular-nums border border-[#E2E8F0]`}>{currency(h.amount)}</td>
               </tr>,
               ...h.lines.map(l => (
-                <tr key={`${h.name}-${l.label}-${l.filledAt}`} className="border-b border-crm-border-subtle bg-[#FCFCFD]">
-                  <td className={tdCls} />
-                  <td className="px-3 py-1.5 pl-6 text-[11px] text-crm-text-muted">{l.label}</td>
-                  <td className="px-3 py-1.5 text-center text-[11px] text-crm-text-faint">{l.filledAt || "—"}</td>
-                  <td className="px-3 py-1.5 text-[11px] text-crm-text-faint">{l.proofName || "—"}</td>
-                  <td className="px-3 py-1.5 text-right text-[11px] tabular-nums text-crm-text-muted">{currency(l.amount)}</td>
+                <tr key={`${h.name}-${l.label}-${l.filledAt}`} className="border-b border-[#E2E8F0] bg-white">
+                  <td className="border border-[#E2E8F0]" />
+                  <td className="px-3 py-1.5 pl-6 text-[11px] text-crm-text border border-[#E2E8F0]">{l.label}</td>
+                  <td className="px-3 py-1.5 text-center text-[11px] text-crm-text-muted border border-[#E2E8F0]">{l.filledAt || "—"}</td>
+                  <td className="px-3 py-1.5 text-[11px] text-crm-text-muted border border-[#E2E8F0]">{l.proofName || "—"}</td>
+                  <td className="px-3 py-1.5 text-right text-[11px] tabular-nums text-crm-text border border-[#E2E8F0]">{currency(l.amount)}</td>
                 </tr>
               )),
             ])
           )}
         </tbody>
         <tfoot>
-          <tr className="border-t-2 border-[#B8112D]/20 bg-[#B8112D]/5">
-            <td className="px-3 py-2.5 font-extrabold text-crm-text text-xs" colSpan={4}>TOTAL</td>
-            <td className="px-3 py-2.5 text-right font-extrabold tabular-nums text-[#B8112D] text-xs">{currency(total)}</td>
+          <tr className="bg-[#FFF1F3]">
+            <td className="px-3 py-2.5 font-extrabold text-crm-text text-xs border border-[#E2E8F0]" colSpan={4}>TOTAL</td>
+            <td className="px-3 py-2.5 text-right font-extrabold tabular-nums text-[#B8112D] text-xs border border-[#E2E8F0]">{currency(total)}</td>
           </tr>
         </tfoot>
       </table>
@@ -1231,6 +1376,10 @@ export default function AccountsReportsPage() {
   useScrollToHash(!loading);
 
   useEffect(() => {
+    restoreExportButtons();
+  }, []);
+
+  useEffect(() => {
     let cancelled = false;
     API.get(`/accounts/reports/monthly?month=${month}`)
       .then(res => {
@@ -1248,36 +1397,57 @@ export default function AccountsReportsPage() {
   }, [month]);
 
   const handleExport = async (kind: "word" | "pdf") => {
-    if (!report || !exportRootRef.current) return;
+    if (!report) return;
+    restoreExportButtons();
     setExporting(kind);
     const fileName =
       kind === "pdf" ? `Accounts-Report-${report.month}.pdf` : `Accounts-Report-${report.month}.doc`;
     try {
-      const shots = await captureReportBlocks(exportRootRef.current);
-      if (shots.length === 0) throw new Error("empty");
-      const blob =
-        kind === "pdf"
-          ? shotsToPdfBlob(shots)
-          : new Blob(["\ufeff", shotsToWordHtml(shots, `Accounts Report ${monthLabel(report.month)}`)], {
-              type: "application/msword;charset=utf-8",
-            });
+      let blob: Blob | null = null;
+      if (exportRootRef.current) {
+        try {
+          const shots = await captureReportBlocks(exportRootRef.current);
+          if (shots.length > 0) {
+            blob =
+              kind === "pdf"
+                ? (() => {
+                    const pdf = shotsToPdfDoc(shots);
+                    appendClosingTablesPdf(pdf, report);
+                    return pdf.output("blob");
+                  })()
+                : new Blob(
+                    ["\ufeff", shotsToWordHtml(shots, `Accounts Report ${monthLabel(report.month)}`, closingTablesHtml(report))],
+                    { type: "application/msword;charset=utf-8" },
+                  );
+          }
+        } catch (err) {
+          console.warn(apiErrorMessage(err, "Visual capture failed."));
+        }
+      }
+      if (!blob) {
+        if (kind === "word") {
+          blob = buildWordBlob(report).blob;
+        } else {
+          throw new Error("PDF capture failed");
+        }
+      }
       triggerLocalDownload(blob, fileName);
       try {
         await archiveReportFile(report, blob, fileName);
-        toast.success(kind === "pdf" ? "PDF downloaded." : "Word downloaded.");
       } catch (err) {
-        toast.success(kind === "pdf" ? "PDF downloaded." : "Word downloaded.");
         console.warn(apiErrorMessage(err, "Cloud archive failed."));
       }
+      toast.success(kind === "pdf" ? "PDF downloaded." : "Word downloaded.");
     } catch (err) {
       if (kind === "word") {
-        const { blob, fileName: fallbackName } = buildWordBlob(report);
-        triggerLocalDownload(blob, fallbackName);
+        const fallback = buildWordBlob(report);
+        triggerLocalDownload(fallback.blob, fallback.fileName);
         toast.success("Word downloaded.");
       } else {
         toast.error(apiErrorMessage(err, "PDF export failed. Try again."));
       }
     } finally {
+      restoreExportButtons();
       setExporting(null);
     }
   };
@@ -1672,14 +1842,16 @@ export default function AccountsReportsPage() {
                         <BarChart
                           data={report.csr.rows.map(r => ({ name: r.name, projects: r.projects }))}
                           layout="vertical"
-                          margin={{ left: 8, right: 12 }}
+                          margin={{ left: 8, right: 36 }}
                           barSize={14}
                         >
                           <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
                           <XAxis type="number" tick={{ fontSize: 10 }} />
                           <YAxis type="category" dataKey="name" width={88} tick={{ fontSize: 10, fontWeight: 600 }} />
                           <Tooltip />
-                          <Bar dataKey="projects" name="Projects" fill="#0B84F3" radius={[0, 6, 6, 0]} />
+                          <Bar dataKey="projects" name="Projects" fill="#0B84F3" radius={[0, 6, 6, 0]}>
+                            <LabelList dataKey="projects" content={props => <BarEndLabel {...props} layout="vertical" />} />
+                          </Bar>
                         </BarChart>
                       </RechartsBox>
                     </div>
@@ -1702,20 +1874,18 @@ export default function AccountsReportsPage() {
                 ))
               )}
 
-              <SectionCard title={`Operating expenses (${pkr(report.totals.opex)})`}>
+              <SectionCard title={`Operating expenses (${pkr(report.totals.opex)})`} skipExport variant="table">
                 <OpexFieldTableView tables={report.opexTables ?? []} total={report.totals.opex} />
               </SectionCard>
 
-              <ReportBlock>
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-3.5 items-stretch">
-                <SectionCard title={`Loans (${pkr(report.totals.loans)})`} asBlock={false}>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-3.5 items-start">
+                <SectionCard title={`Loans (${pkr(report.totals.loans)})`} skipExport variant="table">
                   <OpexFieldTableView tables={report.loanTables ?? []} total={report.totals.loans} />
                 </SectionCard>
-                <SectionCard title={`Provident fund (${pkr(report.totals.pf)})`} asBlock={false}>
+                <SectionCard title={`Provident fund (${pkr(report.totals.pf)})`} skipExport variant="table">
                   <OpexFieldTableView tables={report.pfTables ?? []} total={report.totals.pf} />
                 </SectionCard>
               </div>
-              </ReportBlock>
 
               <ReportBlock>
               <p className="text-center text-[10px] text-[#94A3B8] pb-6">
