@@ -16,8 +16,6 @@ import RechartsBox from "@/app/components/charts/RechartsBox";
 import { currency } from "../types";
 import { useScrollToHash } from "../hooks/useScrollToHash";
 import { STAFF_PAGE_PAD, BENTO_CARD } from "@/lib/staffPageLayout";
-import autoTable from "jspdf-autotable";
-import { jsPDF } from "jspdf";
 import {
   captureReportBlocks,
   restoreExportButtons,
@@ -834,89 +832,6 @@ async function archiveReportFile(report: MonthlyReport, blob: Blob, fileName: st
   return (res.data.report as SavedMonthlyReport) ?? null;
 }
 
-function closingTableHtml(title: string, tables: OpexFieldTable[], total: number): string {
-  const NAVY = "#0B1220";
-  const RED = "#B8112D";
-  const th = `style="background:${NAVY};color:#fff;padding:6px 8px;font-size:10px;border:1px solid ${NAVY};"`;
-  const thR = `style="background:${NAVY};color:#fff;padding:6px 8px;font-size:10px;text-align:right;border:1px solid ${NAVY};"`;
-  const td = `style="padding:5px 8px;border:1px solid #E2E8F0;font-size:10px;"`;
-  const tdR = `style="padding:5px 8px;border:1px solid #E2E8F0;font-size:10px;text-align:right;"`;
-  const sub = `style="padding:3px 8px 3px 18px;border:1px solid #F1F5F9;font-size:9.5px;color:#334155;background:#fff;"`;
-  const subR = `style="padding:3px 8px;border:1px solid #F1F5F9;font-size:9.5px;color:#334155;text-align:right;background:#fff;"`;
-  const empty = `<tr><td colspan="5" style="padding:10px;border:1px solid #E2E8F0;font-size:10px;color:#94A3B8;text-align:center;">No entries this month.</td></tr>`;
-  const body = tables.length
-    ? tables
-        .flatMap(h => {
-          const headRow = `<tr style="background:#F8FAFC;">
-          <td ${td}><b>${h.name}</b></td>
-          <td ${td}></td>
-          <td ${td}>${h.filledAt || "—"}</td>
-          <td ${td}>${h.notes || "—"}</td>
-          <td ${tdR}><b>${currency(h.amount)}</b></td>
-        </tr>`;
-          const lines = h.lines.map(
-            l => `<tr>
-            <td ${sub}></td>
-            <td ${sub}>${l.label}</td>
-            <td ${sub}>${l.filledAt || "—"}</td>
-            <td ${sub}>${l.proofName || "—"}</td>
-            <td ${subR}>${currency(l.amount)}</td>
-          </tr>`,
-          );
-          return [headRow, ...lines];
-        })
-        .join("")
-    : empty;
-  return `<h2>${title}</h2>
-  <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:0 0 16px;">
-    <tr><td ${th}>Head</td><td ${th}>Individual</td><td ${th}>Filled date</td><td ${th}>Notes / Image</td><td ${thR}>Amount (PKR)</td></tr>
-    ${body}
-    <tr style="background:#FFF1F3;"><td ${td} colspan="4"><b>TOTAL</b></td><td ${tdR}><b style="color:${RED};">${currency(total)}</b></td></tr>
-  </table>`;
-}
-
-function closingTablesHtml(report: MonthlyReport): string {
-  return (
-    closingTableHtml(`Operating expenses (${pkr(report.totals.opex)})`, report.opexTables ?? [], report.totals.opex) +
-    closingTableHtml(`Loans (${pkr(report.totals.loans)})`, report.loanTables ?? [], report.totals.loans) +
-    closingTableHtml(`Provident fund (${pkr(report.totals.pf)})`, report.pfTables ?? [], report.totals.pf)
-  );
-}
-
-function closingTableBody(tables: OpexFieldTable[]): (string | number)[][] {
-  if (!tables.length) return [["No entries this month.", "", "", "", ""]];
-  return tables.flatMap(h => [
-    [h.name, "", h.filledAt || "—", h.notes || "—", currency(h.amount)],
-    ...h.lines.map(l => ["", l.label, l.filledAt || "—", l.proofName || "—", currency(l.amount)]),
-  ]);
-}
-
-function appendClosingTablesPdf(pdf: jsPDF, report: MonthlyReport) {
-  const sections = [
-    { title: `Operating expenses (PKR ${currency(report.totals.opex)})`, tables: report.opexTables ?? [], total: report.totals.opex },
-    { title: `Loans (PKR ${currency(report.totals.loans)})`, tables: report.loanTables ?? [], total: report.totals.loans },
-    { title: `Provident fund (PKR ${currency(report.totals.pf)})`, tables: report.pfTables ?? [], total: report.totals.pf },
-  ];
-  for (const s of sections) {
-    pdf.addPage();
-    pdf.setFont("helvetica", "bold");
-    pdf.setFontSize(12);
-    pdf.setTextColor(11, 18, 32);
-    pdf.text(s.title, 10, 16);
-    autoTable(pdf, {
-      startY: 20,
-      head: [["Head", "Individual", "Filled date", "Notes / Image", "Amount (PKR)"]],
-      body: closingTableBody(s.tables),
-      foot: [["TOTAL", "", "", "", currency(s.total)]],
-      theme: "grid",
-      styles: { fontSize: 8, cellPadding: 2, textColor: [15, 23, 42], lineColor: [226, 232, 240] },
-      headStyles: { fillColor: [11, 18, 32], textColor: 255, fontStyle: "bold" },
-      footStyles: { fillColor: [255, 241, 243], textColor: [184, 17, 45], fontStyle: "bold" },
-      margin: { left: 10, right: 10 },
-    });
-  }
-}
-
 /** MoM movement arrow — goodWhenUp: revenue up = green, cost up = red. */
 function TrendArrow({ v, goodWhenUp }: { v: number | null; goodWhenUp: boolean }) {
   if (v == null) return <span className="text-[9px] text-crm-text-faint">—</span>;
@@ -1410,13 +1325,9 @@ export default function AccountsReportsPage() {
           if (shots.length > 0) {
             blob =
               kind === "pdf"
-                ? (() => {
-                    const pdf = shotsToPdfDoc(shots);
-                    appendClosingTablesPdf(pdf, report);
-                    return pdf.output("blob");
-                  })()
+                ? shotsToPdfDoc(shots).output("blob")
                 : new Blob(
-                    ["\ufeff", shotsToWordHtml(shots, `Accounts Report ${monthLabel(report.month)}`, closingTablesHtml(report))],
+                    ["\ufeff", shotsToWordHtml(shots, `Accounts Report ${monthLabel(report.month)}`)],
                     { type: "application/msword;charset=utf-8" },
                   );
           }
@@ -1874,15 +1785,15 @@ export default function AccountsReportsPage() {
                 ))
               )}
 
-              <SectionCard title={`Operating expenses (${pkr(report.totals.opex)})`} skipExport variant="table">
+              <SectionCard title={`Operating expenses (${pkr(report.totals.opex)})`} variant="table">
                 <OpexFieldTableView tables={report.opexTables ?? []} total={report.totals.opex} />
               </SectionCard>
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-3.5 items-start">
-                <SectionCard title={`Loans (${pkr(report.totals.loans)})`} skipExport variant="table">
+                <SectionCard title={`Loans (${pkr(report.totals.loans)})`} variant="table">
                   <OpexFieldTableView tables={report.loanTables ?? []} total={report.totals.loans} />
                 </SectionCard>
-                <SectionCard title={`Provident fund (${pkr(report.totals.pf)})`} skipExport variant="table">
+                <SectionCard title={`Provident fund (${pkr(report.totals.pf)})`} variant="table">
                   <OpexFieldTableView tables={report.pfTables ?? []} total={report.totals.pf} />
                 </SectionCard>
               </div>
