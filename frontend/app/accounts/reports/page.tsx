@@ -3,12 +3,12 @@
 import { useEffect, useRef, useState } from "react";
 import { Bar, BarChart, CartesianGrid, Cell, LabelList, Legend, Pie, PieChart, ReferenceLine, Tooltip, XAxis, YAxis } from "recharts";
 import {
-  ArrowDownRight, ArrowUpRight, CalendarDays, FileDown, FileText, Loader2,
+  ArrowDownRight, ArrowUpRight, CalendarDays, FileDown, Loader2,
   Sparkles, TrendingUp, Wallet, PieChart as PieIcon,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import API, { apiErrorMessage } from "@/lib/api";
-import { estCurrentMonthValue, formatEstDateTime } from "@/lib/estTime";
+import { estCurrentMonthValue } from "@/lib/estTime";
 import AccountsSidebar from "../components/layout/Sidebar";
 import { ACCOUNTS_MAIN_OFFSET } from "../components/layout/headerOffset";
 import AccountsChartCard from "../components/AccountsChartCard";
@@ -17,10 +17,8 @@ import { currency } from "../types";
 import { useScrollToHash } from "../hooks/useScrollToHash";
 import { STAFF_PAGE_PAD, BENTO_CARD } from "@/lib/staffPageLayout";
 import {
-  captureReportBlocks,
+  captureReportVisualPdf,
   restoreExportButtons,
-  shotsToPdfDoc,
-  shotsToWordHtml,
   triggerLocalDownload,
 } from "../utils/reportVisualExport";
 
@@ -205,13 +203,25 @@ function monthNameOnly(m: string): string {
 }
 
 const pkr = (n: number) => `PKR ${currency(n)}`;
-const signed = (n: number) => `${n >= 0 ? "+" : "–"}PKR ${currency(Math.abs(n))}`;
+const signed = (n: number) => `${n >= 0 ? "+" : "—"}PKR ${currency(Math.abs(n))}`;
+const NO_SCROLL = "[scrollbar-width:none] [&::-webkit-scrollbar]:hidden";
+
+function chartLabelValue(props: Record<string, unknown>): number | null {
+  const candidates = [props.value, props.label];
+  const payload = props.payload as Record<string, unknown> | undefined;
+  const key = typeof props.dataKey === "string" ? props.dataKey : typeof props.name === "string" ? props.name : "";
+  if (payload && key) candidates.push(payload[key]);
+  for (const v of candidates) {
+    if (v == null || v === "") continue;
+    const n = Number(v);
+    if (Number.isFinite(n)) return n;
+  }
+  return null;
+}
 
 function BarEndLabel(props: Record<string, unknown>) {
-  const value = props.value;
-  if (value == null || value === "") return null;
-  const n = Number(value);
-  if (!Number.isFinite(n)) return null;
+  const n = chartLabelValue(props);
+  if (n == null) return null;
   const x = Number(props.x) || 0;
   const y = Number(props.y) || 0;
   const width = Number(props.width) || 0;
@@ -219,15 +229,17 @@ function BarEndLabel(props: Record<string, unknown>) {
   const layout = props.layout === "vertical" ? "vertical" : "horizontal";
   const txt = currency(n);
   if (layout === "vertical") {
+    const barW = Math.abs(width);
+    const end = (width < 0 ? x + width : x) + barW;
     return (
-      <text x={x + width + 4} y={y + height / 2} dominantBaseline="middle" fontSize={9} fontWeight={700} fill="#0B1220">
+      <text x={end + 5} y={y + height / 2} dominantBaseline="middle" fontSize={8} fontWeight={700} fill="#0B1220">
         {txt}
       </text>
     );
   }
   const up = n >= 0;
   return (
-    <text x={x + width / 2} y={up ? y - 4 : y + height + 11} textAnchor="middle" fontSize={9} fontWeight={700} fill="#0B1220">
+    <text x={x + width / 2} y={up ? y - 6 : y + height + 13} textAnchor="middle" fontSize={8} fontWeight={700} fill="#0B1220">
       {txt}
     </text>
   );
@@ -384,441 +396,8 @@ function buildPositionSummary(report: MonthlyReport): string[] {
   return [p1, p2.trim(), p3];
 }
 
-/**
- * Word-compatible HTML — same light template as Technical Team monthly report:
- * red h1, grey meta, pastel KPI cards, navy table headers, nested-table bars.
- */
-function buildWordHtml(report: MonthlyReport): string {
-  const label = monthLabel(report.month);
-  const ins = buildInsights(report);
-  const net = report.totals.netProfit;
 
-  const RED = "#B8112D";
-  const NAVY = "#0B1220";
-  const RED_TXT = "#B8112D";
-  const BLUE = "#0B84F3";
-  const SLATE = "#334155";
-
-  const th = `style="background:${NAVY};color:#fff;padding:6px 8px;font-size:10px;"`;
-  const thR = `style="background:${NAVY};color:#fff;padding:6px 8px;font-size:10px;text-align:right;"`;
-  const thC = `style="background:${NAVY};color:#fff;padding:6px 8px;font-size:10px;text-align:center;"`;
-  const td = `style="padding:5px 8px;border:1px solid #E2E8F0;font-size:10px;"`;
-  const tdR = `style="padding:5px 8px;border:1px solid #E2E8F0;font-size:10px;text-align:right;"`;
-  const sub = `style="padding:3px 8px 3px 22px;border:1px solid #F1F5F9;font-size:9.5px;color:#64748B;background:#FCFCFD;"`;
-  const subR = `style="padding:3px 8px;border:1px solid #F1F5F9;font-size:9.5px;color:#64748B;text-align:right;background:#FCFCFD;"`;
-
-  const tdEmpty = (cols: number, text: string) =>
-    `<tr><td colspan="${cols}" style="padding:10px;border:1px solid #E2E8F0;font-size:10px;color:#94A3B8;text-align:center;">${text}</td></tr>`;
-
-  const statusCell = (text: string, bg: string, color: string) =>
-    `<td style="padding:4px 8px;border:1px solid #E2E8F0;text-align:center;background:${bg};"><b style="color:${color};font-size:8.5px;letter-spacing:0.5px;">${text.toUpperCase()}</b></td>`;
-
-  const profitCell = (v: number) =>
-    v >= 0 ? statusCell("Profit", "#EFF6FF", BLUE) : statusCell("Loss", "#FFF1F3", RED);
-
-  const trendArrow = (v: number | null, goodWhenUp: boolean) => {
-    if (v == null) return `<span style="color:#94A3B8;font-size:9px;">—</span>`;
-    const up = v >= 0;
-    const good = goodWhenUp ? up : !up;
-    const color = good ? BLUE : RED;
-    return `<span style="color:${color};font-size:9px;font-weight:bold;">${up ? "▲" : "▼"} ${signed(v)}</span>`;
-  };
-
-  const card = (title: string, value: string, subTxt: string, bg = "#FFFFFF", width = "20%") =>
-    `<td width="${width}" style="padding:5px;">
-      <table width="100%" cellpadding="0" cellspacing="0" style="background:${bg};border:1px solid #E5E7EB;border-radius:10px;">
-        <tr><td style="padding:12px 14px;">
-          <p style="margin:0;font-size:9px;color:${RED};text-transform:uppercase;letter-spacing:0.5px;font-weight:bold;">${title}</p>
-          <p style="margin:4px 0 2px;font-size:18px;font-weight:bold;color:${NAVY};">${value}</p>
-          <p style="margin:0;font-size:9px;color:#64748B;">${subTxt}</p>
-        </td></tr>
-      </table>
-    </td>`;
-
-  const darkCard = (title: string, value: string, subTxt: string, bg: string) =>
-    `<td width="20%" style="padding:5px;">
-      <table width="100%" cellpadding="0" cellspacing="0" style="background:${bg};border-radius:10px;">
-        <tr><td style="padding:12px 14px;">
-          <p style="margin:0;font-size:9px;color:#FFFFFF;text-transform:uppercase;letter-spacing:0.5px;font-weight:bold;">${title}</p>
-          <p style="margin:4px 0 2px;font-size:16px;font-weight:bold;color:#FFFFFF;">${value}</p>
-          <p style="margin:0;font-size:8px;color:#FFFFFF;">${subTxt}</p>
-        </td></tr>
-      </table>
-    </td>`;
-
-  const barRow = (rowLabel: string, value: number, max: number, color: string, valueTxt?: string) => {
-    const pct = Math.max(0, Math.min(100, max > 0 ? Math.round((Math.abs(value) / max) * 100) : 0));
-    return `<tr>
-      <td style="padding:4px 8px;border:1px solid #E2E8F0;font-size:10px;width:140px;">${rowLabel}</td>
-      <td style="padding:4px 8px;border:1px solid #E2E8F0;font-size:10px;width:90px;text-align:right;font-weight:bold;color:${value < 0 ? RED_TXT : SLATE};">${valueTxt ?? currency(value)}</td>
-      <td style="padding:4px 8px;border:1px solid #E2E8F0;">
-        <table cellpadding="0" cellspacing="0" width="100%"><tr>
-          <td width="${pct}%" bgcolor="${color}" style="height:14px;font-size:1px;">&nbsp;</td>
-          <td width="${100 - pct}%" bgcolor="#F1F5F9" style="height:14px;font-size:1px;">&nbsp;</td>
-        </tr></table>
-      </td>
-    </tr>`;
-  };
-  const historyRows = report.history
-    .map((h, i) => {
-      const prev = i > 0 ? report.history[i - 1] : null;
-      const isThis = h.month === report.month;
-      return `<tr style="background:${isThis ? "#FFF1F3" : "#FFFFFF"};">
-        <td ${td}><b>${monthShort(h.month)}</b>${isThis ? ` <span style="color:${RED};font-size:8px;">● THIS</span>` : ""}</td>
-        <td ${tdR}>${currency(h.revenue)}<br/>${trendArrow(prev ? h.revenue - prev.revenue : null, true)}</td>
-        <td ${tdR}>${currency(h.cost)}<br/>${trendArrow(prev ? h.cost - prev.cost : null, false)}</td>
-        <td ${tdR}><b style="color:${h.net >= 0 ? BLUE : RED_TXT};">${signed(h.net)}</b></td>
-        ${profitCell(h.net)}
-      </tr>`;
-    })
-    .join("");
-  const histTotal = report.history.reduce(
-    (a, h) => ({ revenue: a.revenue + h.revenue, cost: a.cost + h.cost, net: a.net + h.net }),
-    { revenue: 0, cost: 0, net: 0 },
-  );
-  const hist3 = report.history.slice(-3);
-  const historyRows3 = hist3
-    .map(h => {
-      const idx = report.history.findIndex(x => x.month === h.month);
-      const prev = idx > 0 ? report.history[idx - 1] : null;
-      const isThis = h.month === report.month;
-      return `<tr style="background:${isThis ? "#FFF1F3" : "#FFFFFF"};">
-        <td ${td}><b>${monthShort(h.month)}</b>${isThis ? ` <span style="color:${RED};font-size:8px;">● THIS</span>` : ""}</td>
-        <td ${tdR}>${currency(h.revenue)}<br/>${trendArrow(prev ? h.revenue - prev.revenue : null, true)}</td>
-        <td ${tdR}>${currency(h.cost)}<br/>${trendArrow(prev ? h.cost - prev.cost : null, false)}</td>
-        <td ${tdR}><b style="color:${h.net >= 0 ? BLUE : RED_TXT};">${signed(h.net)}</b></td>
-        ${profitCell(h.net)}
-      </tr>`;
-    })
-    .join("");
-  const hist3Total = hist3.reduce(
-    (a, h) => ({ revenue: a.revenue + h.revenue, cost: a.cost + h.cost, net: a.net + h.net }),
-    { revenue: 0, cost: 0, net: 0 },
-  );
-
-  const csrStatusHtml = (status: string) => {
-    if (status === "Top Performer") {
-      return `<td style="padding:5px 8px;border:1px solid #E2E8F0;text-align:center;"><b style="color:${BLUE};font-size:10px;">Top Performer</b></td>`;
-    }
-    if (status === "Below Expectation") {
-      return `<td style="padding:5px 8px;border:1px solid #E2E8F0;text-align:center;"><b style="color:${RED_TXT};font-size:10px;">Below Expectation</b></td>`;
-    }
-    return `<td style="padding:5px 8px;border:1px solid #E2E8F0;text-align:center;color:${NAVY};font-size:10px;">Active</td>`;
-  };
-  const csrRows = report.csr.rows
-    .map((r, i) => `<tr style="background:${i % 2 === 0 ? "#EFF6FF" : "#FFFFFF"};">
-        <td ${td}><b>${r.name}</b></td>
-        <td ${tdR}><b>${r.projects}</b></td>
-        <td ${tdR}>${r.share.toFixed(1)}%</td>
-        ${csrStatusHtml(r.status || (r.projects > 0 ? "Active" : "Below Expectation"))}
-        <td ${td}>${r.note || "—"}</td>
-      </tr>`)
-    .join("");
-  const csrBarMax = Math.max(...report.csr.rows.map(r => r.projects), 1);
-  const csrBars = report.csr.rows
-    .map(r => barRow(r.name, r.projects, csrBarMax, r.projects > 0 ? BLUE : RED, String(r.projects)))
-    .join("");
-
-  const salaryTableHtml = (tables: SalaryFieldTable[]) =>
-    tables
-      .map(t => {
-        const head = t.columns.map((c, i) => (i === 0 ? `<td ${th}>${c}</td>` : `<td ${thR}>${c}</td>`)).join("");
-        const body = t.rows
-          .map(r => {
-            const tds = r.cells
-              .map((c, i) => {
-                const col = t.columns[i] ?? "";
-                const txt =
-                  typeof c === "number" ? (/%/.test(col) ? `${c}%` : currency(c)) : c;
-                return i === 0 ? `<td ${td}><b>${txt}</b></td>` : `<td ${tdR}>${txt}</td>`;
-              })
-              .join("");
-            return `<tr>${tds}</tr>`;
-          })
-          .join("");
-        return `<h2>${t.name} (${pkr(t.total)})</h2>
-    <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
-      <tr>${head}</tr>
-      ${body || tdEmpty(t.columns.length, "No employees.")}
-      <tr style="background:#FFF1F3;"><td ${td}><b>TOTAL</b></td><td ${tdR} colspan="${Math.max(t.columns.length - 1, 1)}"><b style="color:${RED};">${currency(t.total)}</b></td></tr>
-    </table>`;
-      })
-      .join("");
-
-  const opexTableHtml = (title: string, tables: OpexFieldTable[], total: number) => `
-    <h2>${title}</h2>
-    <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
-      <tr><td ${th}>Head</td><td ${th}>Individual</td><td ${th}>Filled date</td><td ${th}>Notes / Image</td><td ${thR}>Amount (PKR)</td></tr>
-      ${
-        tables.length
-          ? tables
-              .flatMap(h => {
-                const headRow = `<tr style="background:#FFF1F3;">
-                  <td ${td}><b>${h.name}</b></td>
-                  <td ${td}></td>
-                  <td ${td}>${h.filledAt || "—"}</td>
-                  <td ${td}>${h.notes || "—"}</td>
-                  <td ${tdR}><b>${currency(h.amount)}</b></td>
-                </tr>`;
-                const lines = h.lines.map(
-                  l => `<tr>
-                    <td ${sub}></td>
-                    <td ${sub}>${l.label}</td>
-                    <td ${sub}>${l.filledAt || "—"}</td>
-                    <td ${sub}>${l.proofName || "—"}</td>
-                    <td ${subR}>${currency(l.amount)}</td>
-                  </tr>`,
-                );
-                return [headRow, ...lines];
-              })
-              .join("")
-          : tdEmpty(5, "No entries this month.")
-      }
-      <tr style="background:#FFF1F3;"><td ${td} colspan="4"><b>TOTAL</b></td><td ${tdR}><b style="color:${RED};">${currency(total)}</b></td></tr>
-    </table>`;
-
-  const channelRows = (report.revenueChannels ?? [])
-    .map(
-      c => `<tr>
-        <td ${td}><b>${c.label}</b></td>
-        <td ${tdR}>${currency(c.usd)}</td>
-        <td ${tdR}>${currency(c.cad)}</td>
-        <td ${tdR}>${currency(c.pkr)}</td>
-        <td ${tdR}><b>${currency(c.netPkr)}</b></td>
-      </tr>`,
-    )
-    .join("");
-
-  const generatedAt = formatEstDateTime(new Date());
-  const bc = report.budgetCompare;
-  const budgetRowHtml = (bc?.rows ?? [])
-    .map(r => {
-      const over = r.variance > 0;
-      return `<tr>
-        <td ${td}><b>${r.name}</b></td>
-        <td ${tdR}>${currency(r.budget)}</td>
-        <td ${tdR}>${currency(r.actual)}</td>
-        <td ${tdR}><b style="color:${over ? RED_TXT : BLUE};">${signed(r.variance)}</b></td>
-        <td style="padding:4px 8px;border:1px solid #E2E8F0;text-align:center;font-size:9px;font-weight:bold;color:${over ? RED_TXT : BLUE};">${over ? "OVER" : r.variance < 0 ? "UNDER" : "ON PLAN"}</td>
-      </tr>`;
-    })
-    .join("");
-  const budgetMax = Math.max(...(bc?.rows ?? []).flatMap(r => [r.budget, r.actual]), 1);
-  const budgetBars = (bc?.rows ?? [])
-    .map(r => barRow(`${r.name} plan`, r.budget, budgetMax, NAVY) + barRow(`${r.name} actual`, r.actual, budgetMax, BLUE))
-    .join("");
-  const chRecv = cashChannelReceived(report);
-  const mixTotal = Math.max(PIE_LEGEND.reduce((a, l) => a + chRecv[l.key], 0), 1);
-  const companyBalanceHtml = PIE_LEGEND.map(l => {
-    const v = chRecv[l.key];
-    const pct = Math.max(0, Math.min(100, Math.round((v / mixTotal) * 100)));
-    return `<tr>
-      <td style="padding:5px 6px;font-size:10px;width:18px;"><table cellpadding="0" cellspacing="0"><tr><td width="10" height="10" bgcolor="${PIE_COLORS[l.key]}" style="font-size:1px;">&nbsp;</td></tr></table></td>
-      <td style="padding:5px 6px;font-size:10px;color:${NAVY};"><b>${l.key}</b> · ${l.name}</td>
-      <td style="padding:5px 6px;font-size:10px;text-align:right;font-weight:bold;color:${NAVY};">${pkr(v)}</td>
-    </tr>
-    <tr>
-      <td colspan="3" style="padding:0 6px 8px;">
-        <table width="100%" cellpadding="0" cellspacing="0"><tr>
-          <td width="${pct}%" bgcolor="${PIE_COLORS[l.key]}" style="height:9px;font-size:1px;">&nbsp;</td>
-          <td width="${100 - pct}%" bgcolor="#F1F5F9" style="height:9px;font-size:1px;">&nbsp;</td>
-        </tr></table>
-      </td>
-    </tr>`;
-  }).join("");
-  const hist3NetMax = Math.max(...hist3.map(h => Math.abs(h.net)), 1);
-  const hist3Bars = hist3
-    .map(h =>
-      barRow(monthShort(h.month) + (h.month === report.month ? " ●" : ""), h.net, hist3NetMax, h.net >= 0 ? BLUE : RED, signed(h.net)),
-    )
-    .join("");
-  const hist6NetMax = Math.max(...report.history.map(h => Math.abs(h.net)), 1);
-  const hist6Bars = report.history
-    .map(h =>
-      barRow(monthShort(h.month) + (h.month === report.month ? " ●" : ""), h.net, hist6NetMax, h.net >= 0 ? BLUE : RED, signed(h.net)),
-    )
-    .join("");
-
-  return `<!DOCTYPE html>
-<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word">
-<head><meta charset="utf-8"><title>Accounts Report ${label}</title>
-<!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View></w:WordDocument></xml><![endif]-->
-<style>
-  body { font-family: Calibri, Arial, sans-serif; color: #0F172A; margin: 24px; }
-  h1 { color: ${RED}; font-size: 22px; margin: 0 0 4px; }
-  h2 { color: ${NAVY}; font-size: 14px; margin: 20px 0 8px; border-bottom: 2px solid ${RED}; padding-bottom: 4px; }
-  p.meta { color: #64748B; font-size: 10px; margin: 0 0 16px; }
-</style></head>
-<body>
-  <h1>Executive Summary</h1>
-  <p class="meta">Accounts Team · ${label} · Generated ${generatedAt} · BEM Solutions CRM</p>
-
-  <table width="100%" cellpadding="0" cellspacing="0"><tr>
-    ${card("Targeted Revenue", pkr(bc?.totals.budgetRevenue ?? 0), bc?.hasBudget ? "Income Statement budget" : "No budget plan saved")}
-    ${card("Actual Revenue", pkr(report.totals.revenue), ins.revenueVsPrev != null ? `${signed(ins.revenueVsPrev)} vs prev month` : "Month collections")}
-    ${card("Total cost", pkr(report.totals.totalCost), report.sourceDate ? `Matches IS Total Expense · ${report.sourceDate}` : ins.costVsPrev != null ? `${signed(ins.costVsPrev)} vs prev month` : `Payroll ${pkr(report.totals.payroll)}`)}
-    ${card("Profit / Loss", signed(net), ins.profitNote)}
-    ${card("Net balance", pkr(report.cash.closingNet), report.cash.asOf ? `As of ${report.cash.asOf}` : "Closing cash position")}
-  </tr></table>
-
-  <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:14px;">
-    <tr>
-      <td width="48%" valign="top" style="padding-right:8px;">
-        <h2 style="margin-top:0;">Company Balance</h2>
-        <p style="margin:0 0 8px;font-size:9px;color:#64748B;">Cash flow received — AH · SN · Qasim Habib Metro · Habib Metro</p>
-        <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">${companyBalanceHtml}</table>
-      </td>
-      <td width="52%" valign="top" style="padding-left:8px;">
-        <h2 style="margin-top:0;">Budget plan vs actual — ${label}</h2>
-        <p style="margin:0 0 8px;font-size:9px;color:#64748B;">As of this month · black planned · blue actual</p>
-        ${
-          !bc?.hasBudget
-            ? `<p style="font-size:10px;color:#64748B;">No Income Statement budget saved for this month.</p>`
-            : `<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">${budgetBars || tdEmpty(3, "No budget / actual lines.")}</table>
-        <p style="margin:6px 0 0;font-size:9px;color:#64748B;"><b style="color:${NAVY};">■</b> Planned &nbsp; <b style="color:${BLUE};">■</b> Actual</p>`
-        }
-      </td>
-    </tr>
-  </table>
-
-  <h2>Financial performance</h2>
-  <h3 style="color:${RED};font-size:11px;margin:8px 0 6px;letter-spacing:0.4px;">LAST 3 MONTHS</h3>
-  <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
-    <tr>
-      <td ${th}>Month</td><td ${thR}>Revenue (PKR)</td><td ${thR}>Total Cost (PKR)</td><td ${thR}>Net P/L (PKR)</td><td ${thC}>Status</td>
-    </tr>
-    ${historyRows3 || tdEmpty(5, "No income statement records yet.")}
-    <tr style="background:#F8FAFC;">
-      <td ${td}><b>TOTAL</b></td>
-      <td ${tdR}><b>${currency(hist3Total.revenue)}</b></td>
-      <td ${tdR}><b>${currency(hist3Total.cost)}</b></td>
-      <td ${tdR}><b style="color:${hist3Total.net >= 0 ? BLUE : RED};">${signed(hist3Total.net)}</b></td>
-      ${profitCell(hist3Total.net)}
-    </tr>
-  </table>
-  <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin-top:8px;">${hist3Bars || tdEmpty(3, "No history data.")}</table>
-  <h3 style="color:${RED};font-size:11px;margin:16px 0 6px;letter-spacing:0.4px;">LAST 6 MONTHS</h3>
-  <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
-    <tr>
-      <td ${th}>Month</td><td ${thR}>Revenue (PKR)</td><td ${thR}>Total Cost (PKR)</td><td ${thR}>Net P/L (PKR)</td><td ${thC}>Status</td>
-    </tr>
-    ${historyRows || tdEmpty(5, "No income statement records yet.")}
-    <tr style="background:#F8FAFC;">
-      <td ${td}><b>TOTAL</b></td>
-      <td ${tdR}><b>${currency(histTotal.revenue)}</b></td>
-      <td ${tdR}><b>${currency(histTotal.cost)}</b></td>
-      <td ${tdR}><b style="color:${histTotal.net >= 0 ? BLUE : RED};">${signed(histTotal.net)}</b></td>
-      ${profitCell(histTotal.net)}
-    </tr>
-  </table>
-  <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin-top:8px;">${hist6Bars || tdEmpty(3, "No history data.")}</table>
-  <p style="margin:6px 0 0;font-size:9px;color:#64748B;"><b style="color:${BLUE};">■</b> Profit &nbsp; <b style="color:${RED};">■</b> Loss</p>
-
-  <h2>Company position — ${label}</h2>
-  ${buildPositionSummary(report).map(p => `<p style="font-size:11px;line-height:1.55;color:#334155;margin:0 0 8px;">${p}</p>`).join("")}
-
-  <h2>Revenue — currency channels</h2>
-  <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
-    <tr>
-      <td ${th}>Channel</td><td ${thR}>USD</td><td ${thR}>CAD</td><td ${thR}>PKR</td><td ${thR}>Net PKR</td>
-    </tr>
-    ${channelRows || tdEmpty(5, "No channel amounts this month.")}
-    <tr style="background:#EFF6FF;">
-      <td ${td}><b>TOTAL REVENUE</b></td>
-      <td ${tdR}><b>${currency((report.revenueChannels ?? []).reduce((a, c) => a + c.usd, 0))}</b></td>
-      <td ${tdR}><b>${currency((report.revenueChannels ?? []).reduce((a, c) => a + c.cad, 0))}</b></td>
-      <td ${tdR}><b>${currency((report.revenueChannels ?? []).reduce((a, c) => a + c.pkr, 0))}</b></td>
-      <td ${tdR}><b>${currency(report.totals.revenue)}</b></td>
-    </tr>
-  </table>
-
-  <h2>Budget plan vs actual — ${label}</h2>
-  ${
-    !bc?.hasBudget
-      ? `<p style="font-size:10px;color:#64748B;">No Income Statement budget saved for this month. Set a plan on the Income Statement budget planner first.</p>`
-      : `<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
-    <tr>
-      <td ${th}>Head</td><td ${thR}>Planned budget (PKR)</td><td ${thR}>Actual spent (PKR)</td><td ${thR}>Variance</td><td ${thC}>Status</td>
-    </tr>
-    ${budgetRowHtml || tdEmpty(5, "No budget / actual lines.")}
-    <tr style="background:#F8FAFC;">
-      <td ${td}><b>EXPENSE TOTAL</b></td>
-      <td ${tdR}><b>${currency(bc.totals.budgetExpense)}</b></td>
-      <td ${tdR}><b>${currency(bc.totals.actualExpense)}</b></td>
-      <td ${tdR}><b style="color:${bc.totals.variance > 0 ? RED : BLUE};">${signed(bc.totals.variance)}</b></td>
-      <td style="padding:4px 8px;border:1px solid #E2E8F0;text-align:center;font-size:9px;font-weight:bold;color:${bc.totals.variance > 0 ? RED : BLUE};">${bc.totals.variance > 0 ? "OVER" : bc.totals.variance < 0 ? "UNDER" : "ON PLAN"}</td>
-    </tr>
-  </table>`
-  }
-
-  <h2>Cash flow statement${report.cash.asOf ? ` — as of ${report.cash.asOf}` : ""}</h2>
-  <table width="100%" cellpadding="0" cellspacing="0"><tr>
-    ${darkCard("Net Cash Flow", currency(report.cash.monthNet), `${report.cash.monthEntries ?? 0} entries · ${label}`, RED)}
-    ${darkCard("AH", pkr(chRecv.AH), "Ahmed Hamza · received", RED)}
-    ${darkCard("SN", pkr(chRecv.SN), "Sharjeel Nasir · received", BLUE)}
-    ${darkCard("Qasim Habib Metro", pkr(chRecv.QHM), "Qasim Habib Metro · received", NAVY)}
-    ${darkCard("Habib Metro", pkr(chRecv.HM), "CO. Habib Metro · received", SLATE)}
-  </tr></table>
-
-  <h2>CSR team performance — ${label}</h2>
-  <table width="100%" cellpadding="0" cellspacing="0"><tr>
-    <td width="62%" valign="top" style="padding-right:10px;">
-      <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
-        <tr>
-          <td ${th}>CSR</td>
-          <td ${thR}>Projects – ${monthNameOnly(report.month)}</td>
-          <td ${thR}>Share %</td>
-          <td ${thC}>Status</td>
-          <td ${th}>Note</td>
-        </tr>
-        ${csrRows || tdEmpty(5, "No sales / team-lead CSRs recorded this month.")}
-        <tr>
-          <td style="background:${NAVY};color:#fff;padding:6px 8px;font-size:10px;"><b>TOTAL</b></td>
-          <td style="background:${NAVY};color:#fff;padding:6px 8px;font-size:10px;text-align:right;"><b>${report.csr.totalProjects}</b></td>
-          <td style="background:${NAVY};color:#fff;padding:6px 8px;font-size:10px;text-align:right;"><b>100%</b></td>
-          <td style="background:${NAVY};color:#fff;padding:6px 8px;font-size:10px;"></td>
-          <td style="background:${NAVY};color:#fff;padding:6px 8px;font-size:9px;">Closing rate tracking live from ${monthNameOnly(report.month)}</td>
-        </tr>
-      </table>
-    </td>
-    <td width="38%" valign="top">
-      <p style="margin:0 0 6px;font-size:11px;font-weight:bold;color:${NAVY};">Projects by CSR</p>
-      <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">${csrBars || tdEmpty(3, "No CSR project counts.")}</table>
-    </td>
-  </tr></table>
-
-  ${
-    (report.salaryTables ?? []).length === 0
-      ? `<h2>Team salaries (${pkr(report.totals.payroll)})</h2>
-  <p style="font-size:10px;color:#94A3B8;">No employees on the latest Income Statement for this month.</p>`
-      : salaryTableHtml(report.salaryTables ?? [])
-  }
-
-  ${opexTableHtml(`Operating expenses (${pkr(report.totals.opex)})`, report.opexTables ?? [], report.totals.opex)}
-
-  <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:4px;">
-    <tr>
-      <td width="49%" valign="top" style="padding-right:8px;">
-        ${opexTableHtml(`Loans (${pkr(report.totals.loans)})`, report.loanTables ?? [], report.totals.loans)}
-      </td>
-      <td width="49%" valign="top" style="padding-left:8px;">
-        ${opexTableHtml(`Provident fund (${pkr(report.totals.pf)})`, report.pfTables ?? [], report.totals.pf)}
-      </td>
-    </tr>
-  </table>
-
-  <p style="margin-top:24px;font-size:9px;color:#94A3B8;">Auto-generated from CRM accounts daily records, cash flow &amp; payroll. ${report.daysRecorded} income-statement day${report.daysRecorded === 1 ? "" : "s"} in ${label}.</p>
-</body></html>`;
-}
-
-function buildWordBlob(report: MonthlyReport): { blob: Blob; fileName: string } {
-  const html = buildWordHtml(report);
-  const blob = new Blob(["\ufeff", html], { type: "application/msword;charset=utf-8" });
-  const fileName = `Accounts-Report-${report.month}.doc`;
-  return { blob, fileName };
-}
-
-/** Archive a downloaded file to Cloudinary (UI list is hidden). */
+/** Archive a downloaded file to Cloudinary (UI list is hidden). Non-blocking for the user. */
 async function archiveReportFile(report: MonthlyReport, blob: Blob, fileName: string): Promise<SavedMonthlyReport | null> {
   const form = new FormData();
   form.append("file", blob, fileName);
@@ -828,13 +407,14 @@ async function archiveReportFile(report: MonthlyReport, blob: Blob, fileName: st
 
   const res = await API.post("/accounts/reports/monthly/save", form, {
     headers: { "Content-Type": "multipart/form-data" },
+    timeout: 60_000,
   });
   return (res.data.report as SavedMonthlyReport) ?? null;
 }
 
-/** MoM movement arrow — goodWhenUp: revenue up = green, cost up = red. */
+/** MoM movement arrow – goodWhenUp: revenue up = green, cost up = red. */
 function TrendArrow({ v, goodWhenUp }: { v: number | null; goodWhenUp: boolean }) {
-  if (v == null) return <span className="text-[9px] text-crm-text-faint">—</span>;
+  if (v == null) return <span className="text-[9px] text-crm-text-faint">–</span>;
   const up = v >= 0;
   const good = goodWhenUp ? up : !up;
   const Icon = up ? ArrowUpRight : ArrowDownRight;
@@ -917,8 +497,8 @@ function HistoryPerformanceHalf({
       <div className="px-4 sm:px-5 pt-3 pb-1">
         <h3 className="text-[11px] font-extrabold uppercase tracking-wider text-[#B8112D]">{title}</h3>
       </div>
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm min-w-160">
+      <div className={`overflow-x-auto ${NO_SCROLL}`}>
+        <table className="w-full text-sm">
           <thead className="bg-[#0B1220]">
             <tr>
               <th className={`${thCls} text-left`}>Month</th>
@@ -1003,8 +583,8 @@ function HistoryPerformanceHalf({
         </table>
       </div>
       {rows.length > 0 && (
-        <div className="px-3 pb-3 pt-1" id={chartId}>
-          <RechartsBox height={168}>
+        <div className={`px-3 pb-3 pt-1 overflow-hidden ${NO_SCROLL}`} id={chartId}>
+          <RechartsBox height={200} className="overflow-hidden">
             <BarChart
               data={rows.map(h => ({
                 name: monthShort(h.month),
@@ -1012,18 +592,18 @@ function HistoryPerformanceHalf({
                 loss: h.net < 0 ? h.net : null,
               }))}
               barSize={22}
-              margin={{ top: 18, right: 8, left: 0, bottom: 0 }}
+              margin={{ top: 28, right: 12, left: 8, bottom: 22 }}
             >
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
               <XAxis dataKey="name" tick={{ fontSize: 10, fontWeight: 600, fill: "#0B1220" }} />
-              <YAxis tick={{ fontSize: 10, fill: "#64748B" }} />
+              <YAxis tick={{ fontSize: 10, fill: "#64748B" }} width={52} />
               <ReferenceLine y={0} stroke="#0B1220" strokeWidth={1} />
               <Tooltip formatter={v => pkr(Number(v ?? 0))} />
               <Bar dataKey="profit" name="Profit" fill="#0B84F3" radius={[6, 6, 0, 0]} maxBarSize={28}>
-                <LabelList dataKey="profit" content={props => <BarEndLabel {...props} layout="horizontal" />} />
+                <LabelList dataKey="profit" position="top" content={props => <BarEndLabel {...props} layout="horizontal" />} />
               </Bar>
               <Bar dataKey="loss" name="Loss" fill="#B8112D" radius={[0, 0, 6, 6]} maxBarSize={28}>
-                <LabelList dataKey="loss" content={props => <BarEndLabel {...props} layout="horizontal" />} />
+                <LabelList dataKey="loss" position="bottom" content={props => <BarEndLabel {...props} layout="horizontal" />} />
               </Bar>
             </BarChart>
           </RechartsBox>
@@ -1047,34 +627,42 @@ function BudgetVsActualBars({
       <p className="px-3 py-8 text-center text-xs text-crm-text-faint">No budget / actual lines for this month.</p>
     );
   }
+  const rowH = 36;
   return (
-    <div className="px-1 sm:px-2 h-full" id={chartId}>
-      <RechartsBox height={Math.max(320, data.rows.length * 28)}>
+    <div className={`px-1 sm:px-2 min-w-0 h-full overflow-hidden ${NO_SCROLL}`} id={chartId}>
+      <RechartsBox height={Math.max(260, data.rows.length * rowH + 44)} className="overflow-hidden">
         <BarChart
           data={data.rows.map(r => ({
-            name: r.name.replace(/\s*\(incl\.[^)]*\)/gi, "").slice(0, 22),
+            name: r.name.replace(/\s*\(incl\.[^)]*\)/gi, ""),
             Planned: r.budget,
             Actual: r.actual,
           }))}
           layout="vertical"
           barSize={10}
-          margin={{ left: 4, right: 58, top: 4, bottom: 4 }}
+          barGap={2}
+          barCategoryGap={10}
+          margin={{ left: 8, right: 88, top: 4, bottom: 4 }}
         >
           <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
-          <XAxis type="number" tick={{ fontSize: 10 }} />
-          <YAxis type="category" dataKey="name" width={118} tick={{ fontSize: 10, fontWeight: 600 }} />
-          <Tooltip formatter={v => pkr(Number(v ?? 0))} />
+          <XAxis type="number" tick={{ fontSize: 9 }} tickFormatter={v => currency(Number(v))} />
+          <YAxis
+            type="category"
+            dataKey="name"
+            width={148}
+            interval={0}
+            tick={{ fontSize: 9, fontWeight: 600, fill: "#0B1220" }}
+          />
           <Legend wrapperStyle={{ fontSize: 11, fontWeight: 600 }} />
-          <Bar dataKey="Planned" fill="#0B1220" radius={[0, 6, 6, 0]}>
+          <Bar dataKey="Planned" fill="#0B1220" radius={[0, 6, 6, 0]} isAnimationActive={false}>
             <LabelList dataKey="Planned" content={props => <BarEndLabel {...props} layout="vertical" />} />
           </Bar>
-          <Bar dataKey="Actual" fill="#0B84F3" radius={[0, 6, 6, 0]}>
+          <Bar dataKey="Actual" fill="#0B84F3" radius={[0, 6, 6, 0]} isAnimationActive={false}>
             <LabelList dataKey="Actual" content={props => <BarEndLabel {...props} layout="vertical" />} />
           </Bar>
         </BarChart>
       </RechartsBox>
       <p className="text-[11px] text-crm-text-muted mt-1 px-2">
-        Black = Planned. Blue = Actual — latest IS day for {label}.
+        Black = Planned. Blue = Actual – latest IS day for {label}.
       </p>
     </div>
   );
@@ -1091,7 +679,7 @@ function formatSalaryCell(col: string, value: string | number) {
 
 function SalaryFieldTableView({ table }: { table: SalaryFieldTable }) {
   return (
-    <div className="overflow-x-auto">
+    <div className={`overflow-x-auto ${NO_SCROLL}`}>
       <table className="w-full text-sm min-w-200">
         <thead className="bg-[#0B1220]">
           <tr className="border-b border-crm-border/80">
@@ -1137,7 +725,7 @@ function SalaryFieldTableView({ table }: { table: SalaryFieldTable }) {
 
 function OpexFieldTableView({ tables, total }: { tables: OpexFieldTable[]; total: number }) {
   return (
-    <div className="overflow-x-auto">
+    <div className={`overflow-x-auto ${NO_SCROLL}`}>
       <table className="w-full text-sm min-w-160 border-collapse">
         <thead className="bg-[#0B1220]">
           <tr>
@@ -1156,16 +744,16 @@ function OpexFieldTableView({ tables, total }: { tables: OpexFieldTable[]; total
               <tr key={h.name} className="border-b border-[#E2E8F0] bg-[#F8FAFC]">
                 <td className={`${tdCls} font-bold text-crm-text border border-[#E2E8F0]`}>{h.name}</td>
                 <td className={`${tdCls} border border-[#E2E8F0]`} />
-                <td className={`${tdCls} text-center text-crm-text-muted border border-[#E2E8F0]`}>{h.filledAt || "—"}</td>
-                <td className={`${tdCls} text-crm-text-muted border border-[#E2E8F0]`}>{h.notes || "—"}</td>
+                <td className={`${tdCls} text-center text-crm-text-muted border border-[#E2E8F0]`}>{h.filledAt || "–"}</td>
+                <td className={`${tdCls} text-crm-text-muted border border-[#E2E8F0]`}>{h.notes || "–"}</td>
                 <td className={`${tdCls} text-right font-bold tabular-nums border border-[#E2E8F0]`}>{currency(h.amount)}</td>
               </tr>,
               ...h.lines.map(l => (
                 <tr key={`${h.name}-${l.label}-${l.filledAt}`} className="border-b border-[#E2E8F0] bg-white">
                   <td className="border border-[#E2E8F0]" />
                   <td className="px-3 py-1.5 pl-6 text-[11px] text-crm-text border border-[#E2E8F0]">{l.label}</td>
-                  <td className="px-3 py-1.5 text-center text-[11px] text-crm-text-muted border border-[#E2E8F0]">{l.filledAt || "—"}</td>
-                  <td className="px-3 py-1.5 text-[11px] text-crm-text-muted border border-[#E2E8F0]">{l.proofName || "—"}</td>
+                  <td className="px-3 py-1.5 text-center text-[11px] text-crm-text-muted border border-[#E2E8F0]">{l.filledAt || "–"}</td>
+                  <td className="px-3 py-1.5 text-[11px] text-crm-text-muted border border-[#E2E8F0]">{l.proofName || "–"}</td>
                   <td className="px-3 py-1.5 text-right text-[11px] tabular-nums text-crm-text border border-[#E2E8F0]">{currency(l.amount)}</td>
                 </tr>
               )),
@@ -1212,7 +800,7 @@ function BudgetComparePanel({
         ))}
       </div>
       )}
-      <div className="overflow-x-auto">
+      <div className={`overflow-x-auto ${NO_SCROLL}`}>
         <table className="w-full text-sm min-w-160">
           <thead className="bg-[#0B1220]">
             <tr>
@@ -1282,10 +870,10 @@ function BudgetComparePanel({
 export default function AccountsReportsPage() {
   const [month, setMonth] = useState<string>(currentMonthIso());
   const [result, setResult] = useState<{ month: string; report: MonthlyReport | null } | null>(null);
-  const [exporting, setExporting] = useState<"word" | "pdf" | null>(null);
+  const [exporting, setExporting] = useState(false);
   const exportRootRef = useRef<HTMLDivElement>(null);
 
-  // Loading is derived — true until the fetched result matches the selected month
+  // Loading is derived – true until the fetched result matches the selected month
   const loading = result?.month !== month;
   const report = result?.month === month ? result.report : null;
   useScrollToHash(!loading);
@@ -1311,55 +899,36 @@ export default function AccountsReportsPage() {
     };
   }, [month]);
 
-  const handleExport = async (kind: "word" | "pdf") => {
+  const handleExport = async () => {
     if (!report) return;
     restoreExportButtons();
-    setExporting(kind);
-    const fileName =
-      kind === "pdf" ? `Accounts-Report-${report.month}.pdf` : `Accounts-Report-${report.month}.doc`;
+    setExporting(true);
+    const toastId = "acct-report-pdf";
     try {
-      let blob: Blob | null = null;
-      if (exportRootRef.current) {
-        try {
-          const shots = await captureReportBlocks(exportRootRef.current);
-          if (shots.length > 0) {
-            blob =
-              kind === "pdf"
-                ? shotsToPdfDoc(shots).output("blob")
-                : new Blob(
-                    ["\ufeff", shotsToWordHtml(shots, `Accounts Report ${monthLabel(report.month)}`)],
-                    { type: "application/msword;charset=utf-8" },
-                  );
-          }
-        } catch (err) {
-          console.warn(apiErrorMessage(err, "Visual capture failed."));
-        }
-      }
-      if (!blob) {
-        if (kind === "word") {
-          blob = buildWordBlob(report).blob;
-        } else {
-          throw new Error("PDF capture failed");
-        }
-      }
+      const root = exportRootRef.current;
+      if (!root) throw new Error("Report is not on screen.");
+      toast.loading("Capturing this page for PDF…", { id: toastId });
+      const blob = await captureReportVisualPdf(root, {
+        footer: `BEM Solutions CRM · Accounts Report · ${monthLabel(report.month)}`,
+        onProgress: (done, total) => {
+          toast.loading(`Capturing report ${done}/${total}…`, { id: toastId });
+        },
+      });
+      const fileName = `Accounts-Report-${report.month}.pdf`;
       triggerLocalDownload(blob, fileName);
-      try {
-        await archiveReportFile(report, blob, fileName);
-      } catch (err) {
+      toast.success("PDF downloaded – same layout and charts as this page.", { id: toastId });
+
+      void archiveReportFile(report, blob, fileName).catch(err => {
         console.warn(apiErrorMessage(err, "Cloud archive failed."));
-      }
-      toast.success(kind === "pdf" ? "PDF downloaded." : "Word downloaded.");
+      });
     } catch (err) {
-      if (kind === "word") {
-        const fallback = buildWordBlob(report);
-        triggerLocalDownload(fallback.blob, fallback.fileName);
-        toast.success("Word downloaded.");
-      } else {
-        toast.error(apiErrorMessage(err, "PDF export failed. Try again."));
-      }
+      toast.error(
+        apiErrorMessage(err, "PDF capture failed. Keep this report page open and try Save as PDF again."),
+        { id: toastId },
+      );
     } finally {
       restoreExportButtons();
-      setExporting(null);
+      setExporting(false);
     }
   };
 
@@ -1441,23 +1010,13 @@ export default function AccountsReportsPage() {
                 </label>
                 <button
                   type="button"
-                  disabled={!report || loading || exporting !== null}
-                  onClick={() => void handleExport("word")}
-                  className="h-10 px-4 rounded-xl bg-[#2B579A] text-white text-xs font-bold inline-flex items-center gap-2 hover:bg-[#1e4278] disabled:opacity-50 transition-colors shadow-md shadow-[#2B579A]/25"
-                  title="Download Word — same layout and charts"
-                >
-                  {exporting === "word" ? <Loader2 size={15} className="animate-spin" /> : <FileText size={15} />}
-                  {exporting === "word" ? "Saving…" : "Save as Word"}
-                </button>
-                <button
-                  type="button"
-                  disabled={!report || loading || exporting !== null}
-                  onClick={() => void handleExport("pdf")}
+                  disabled={!report || loading || exporting}
+                  onClick={() => void handleExport()}
                   className="h-10 px-4 rounded-xl bg-[#B8112D] text-white text-xs font-bold inline-flex items-center gap-2 hover:bg-[#9a0e26] disabled:opacity-50 transition-colors shadow-md shadow-[#B8112D]/25"
-                  title="Download PDF — same layout and charts"
+                  title="Download PDF – exact visual of this report page, including charts"
                 >
-                  {exporting === "pdf" ? <Loader2 size={15} className="animate-spin" /> : <FileDown size={15} />}
-                  {exporting === "pdf" ? "Saving…" : "Save as PDF"}
+                  {exporting ? <Loader2 size={15} className="animate-spin" /> : <FileDown size={15} />}
+                  {exporting ? "Downloading…" : "Save as PDF"}
                 </button>
               </div>
             </div>
@@ -1470,7 +1029,7 @@ export default function AccountsReportsPage() {
             </div>
           ) : !report ? (
             <div className="bg-crm-surface rounded-2xl border border-crm-border-subtle/90 py-24 text-center text-crm-text-faint text-sm">
-              Report did not load — select a month or try again.
+              Report did not load – select a month or try again.
             </div>
           ) : (
             <>
@@ -1487,30 +1046,30 @@ export default function AccountsReportsPage() {
               </ReportBlock>
 
               <ReportBlock>
-              <section className="grid grid-cols-1 xl:grid-cols-2 gap-3.5 items-stretch">
+              <section
+                data-pdf-pair
+                className="grid grid-cols-1 xl:grid-cols-2 gap-3.5 items-stretch min-w-0"
+              >
                 <AccountsChartCard
-                  className="h-full min-h-[28rem]"
+                  className="min-w-0 h-full"
                   title="Company Balance"
-                  subtitle="Cash flow received — AH · SN · Qasim Habib Metro · Habib Metro"
+                  subtitle="Cash flow received – AH · SN · Qasim Habib Metro · Habib Metro"
                   accent="#B8112D"
                   icon={<PieIcon size={16} />}
                 >
-                  <div className="h-full min-h-[22rem] grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-3 items-center">
-                    <RechartsBox height={360}>
+                  <div className="h-full min-h-[16rem] grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-3 items-center min-w-0">
+                    <RechartsBox height={220} className="overflow-hidden">
                       <PieChart>
                         <Pie
                           data={pieHasData ? pieSlices : pieSlices.map(s => ({ ...s, value: 1 }))}
                           dataKey="value"
                           nameKey="name"
-                          innerRadius={68}
-                          outerRadius={124}
+                          innerRadius={52}
+                          outerRadius={92}
                           paddingAngle={3}
+                          isAnimationActive={false}
                           stroke="#fff"
                           strokeWidth={3}
-                          label={({ name, percent }) =>
-                            (percent ?? 0) >= 0.06 ? String(name) : ""
-                          }
-                          labelLine={false}
                         >
                           {pieSlices.map(s => (
                             <Cell key={s.name} fill={s.color} />
@@ -1524,7 +1083,7 @@ export default function AccountsReportsPage() {
                         />
                       </PieChart>
                     </RechartsBox>
-                    <ul className="flex flex-col justify-center gap-3 px-2 py-2 h-full">
+                    <ul className="flex flex-col justify-center gap-2.5 px-2 py-1">
                       {PIE_LEGEND.map(l => {
                         const slice = pieSlices.find(s => s.name === l.key);
                         return (
@@ -1546,8 +1105,8 @@ export default function AccountsReportsPage() {
                 </AccountsChartCard>
 
                 <AccountsChartCard
-                  className="h-full min-h-[28rem]"
-                  title={`Budget plan vs actual — ${label}`}
+                  className="min-w-0 h-full"
+                  title={`Budget plan vs actual – ${label}`}
                   subtitle="As of this month · black planned · blue actual"
                   accent="#0B84F3"
                   icon={<TrendingUp size={16} />}
@@ -1564,26 +1123,22 @@ export default function AccountsReportsPage() {
               </section>
               </ReportBlock>
 
-              <SectionCard title="Financial performance" asBlock={false}>
-                <ReportBlock>
+              <SectionCard title="Financial performance">
+                <HistoryPerformanceHalf
+                  title="Last 3 months"
+                  rows={report.history.slice(-3)}
+                  allHistory={report.history}
+                  currentMonth={report.month}
+                  chartId="report-chart-net3"
+                />
+                <div className="border-t-2 border-[#B8112D]/15">
                   <HistoryPerformanceHalf
-                    title="Last 3 months"
-                    rows={report.history.slice(-3)}
+                    title="Last 6 months"
+                    rows={report.history}
                     allHistory={report.history}
                     currentMonth={report.month}
-                    chartId="report-chart-net3"
+                    chartId="report-chart-net6"
                   />
-                </ReportBlock>
-                <div className="border-t-2 border-[#B8112D]/15">
-                  <ReportBlock>
-                    <HistoryPerformanceHalf
-                      title="Last 6 months"
-                      rows={report.history}
-                      allHistory={report.history}
-                      currentMonth={report.month}
-                      chartId="report-chart-net6"
-                    />
-                  </ReportBlock>
                 </div>
               </SectionCard>
 
@@ -1599,7 +1154,7 @@ export default function AccountsReportsPage() {
                   </span>
                   <div className="min-w-0 space-y-2">
                     <h2 className="font-extrabold text-crm-text text-sm tracking-tight">
-                      Company position — {label}
+                      Company position – {label}
                     </h2>
                     {positionSummary.map((p, i) => (
                       <p key={i} className="text-xs text-crm-text-secondary leading-relaxed">
@@ -1611,8 +1166,8 @@ export default function AccountsReportsPage() {
               </section>
               </ReportBlock>
 
-              <SectionCard title="Revenue — currency channels">
-                <div className="overflow-x-auto">
+              <SectionCard title="Revenue – currency channels">
+                <div className={`overflow-x-auto ${NO_SCROLL}`}>
                   <table className="w-full text-sm min-w-140">
                     <thead className="bg-[#0B1220]">
                       <tr>
@@ -1651,7 +1206,7 @@ export default function AccountsReportsPage() {
                 </div>
               </SectionCard>
 
-              <SectionCard title={`Budget plan vs actual — ${label}`}>
+              <SectionCard title={`Budget plan vs actual – ${label}`}>
                 {report.budgetCompare && report.budgetCompare.hasBudget ? (
                   <BudgetComparePanel data={report.budgetCompare} label={label} showChart={false} showMinis={false} />
                 ) : (
@@ -1662,7 +1217,7 @@ export default function AccountsReportsPage() {
                 )}
               </SectionCard>
 
-              <SectionCard title={`Cash flow statement${report.cash.asOf ? ` — as of ${report.cash.asOf}` : ""}`}>
+              <SectionCard title={`Cash flow statement${report.cash.asOf ? ` – as of ${report.cash.asOf}` : ""}`}>
                 <div className="p-4">
                   <section className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-3.5">
                     <div className="rounded-2xl p-3.5 text-white bg-[#B8112D] min-w-0 h-full">
@@ -1687,15 +1242,15 @@ export default function AccountsReportsPage() {
               </SectionCard>
 
               <ReportBlock>
-              <div className="grid grid-cols-1 xl:grid-cols-12 gap-3.5 items-stretch">
+              <div data-pdf-pair className="grid grid-cols-1 xl:grid-cols-12 gap-3.5 items-stretch">
                 <div className="xl:col-span-7">
-                  <SectionCard title={`CSR team performance — ${label}`} asBlock={false}>
-                    <div className="overflow-x-auto">
+                  <SectionCard title={`CSR team performance – ${label}`} asBlock={false}>
+                    <div className={`overflow-x-auto ${NO_SCROLL}`}>
                       <table className="w-full text-sm min-w-140">
                         <thead className="bg-[#0B1220]">
                           <tr className="border-b border-crm-border/80">
                             <th className={`${thCls} text-left`}>CSR</th>
-                            <th className={`${thCls} text-right`}>Projects – {monthNameOnly(report.month)}</th>
+                            <th className={`${thCls} text-right`}>Projects — {monthNameOnly(report.month)}</th>
                             <th className={`${thCls} text-right`}>Share %</th>
                             <th className={`${thCls} text-center`}>Status</th>
                             <th className={`${thCls} text-left`}>Note</th>
@@ -1727,7 +1282,7 @@ export default function AccountsReportsPage() {
                                       {status}
                                     </span>
                                   </td>
-                                  <td className={`${tdCls} text-crm-text-secondary`}>{r.note || "—"}</td>
+                                  <td className={`${tdCls} text-crm-text-secondary`}>{r.note || "–"}</td>
                                 </tr>
                               );
                             })
@@ -1748,20 +1303,20 @@ export default function AccountsReportsPage() {
                 </div>
                 <div className="xl:col-span-5">
                   <SectionCard title="Projects by CSR" asBlock={false}>
-                    <div className="p-4">
-                      <RechartsBox height={Math.max(220, report.csr.rows.length * 36)}>
+                    <div className={`p-4 min-w-0 overflow-hidden ${NO_SCROLL}`}>
+                      <RechartsBox height={Math.max(240, report.csr.rows.length * 40)} className="overflow-hidden">
                         <BarChart
                           data={report.csr.rows.map(r => ({ name: r.name, projects: r.projects }))}
                           layout="vertical"
-                          margin={{ left: 8, right: 36 }}
+                          margin={{ left: 8, right: 48, top: 4, bottom: 4 }}
                           barSize={14}
                         >
                           <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
-                          <XAxis type="number" tick={{ fontSize: 10 }} />
-                          <YAxis type="category" dataKey="name" width={88} tick={{ fontSize: 10, fontWeight: 600 }} />
+                          <XAxis type="number" tick={{ fontSize: 10 }} allowDecimals={false} />
+                          <YAxis type="category" dataKey="name" width={110} interval={0} tick={{ fontSize: 10, fontWeight: 600 }} />
                           <Tooltip />
-                          <Bar dataKey="projects" name="Projects" fill="#0B84F3" radius={[0, 6, 6, 0]}>
-                            <LabelList dataKey="projects" content={props => <BarEndLabel {...props} layout="vertical" />} />
+                          <Bar dataKey="projects" name="Projects" fill="#0B84F3" radius={[0, 6, 6, 0]} isAnimationActive={false}>
+                            <LabelList dataKey="projects" position="right" content={props => <BarEndLabel {...props} layout="vertical" />} />
                           </Bar>
                         </BarChart>
                       </RechartsBox>

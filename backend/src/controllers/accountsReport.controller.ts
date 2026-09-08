@@ -1164,6 +1164,9 @@ export async function saveMonthlyAccountsReport(
       }
     }
 
+    const originalName = file.originalname || `BEM-Executive-Summary-${month}.doc`;
+    const isPdf =
+      file.mimetype === "application/pdf" || originalName.toLowerCase().endsWith(".pdf");
     const publicId = `bem-exec-${month}-${Date.now()}`;
     const uploaded = await new Promise<{ secure_url: string; public_id: string }>((resolve, reject) => {
       const stream = cloudinary.uploader.upload_stream(
@@ -1171,7 +1174,7 @@ export async function saveMonthlyAccountsReport(
           folder: ACCOUNTS_CLOUDINARY_FOLDERS.monthlyReports,
           resource_type: "raw",
           public_id: publicId,
-          format: "doc",
+          format: isPdf ? "pdf" : "doc",
         },
         (error, result) => {
           if (error || !result) reject(error ?? new Error("Cloudinary upload failed"));
@@ -1184,9 +1187,9 @@ export async function saveMonthlyAccountsReport(
     const row = await prisma.accountsMonthlyReport.create({
       data: {
         month,
-        fileName: file.originalname || `BEM-Executive-Summary-${month}.doc`,
+        fileName: originalName,
         fileUrl: uploaded.secure_url,
-        mimeType: file.mimetype || "application/msword",
+        mimeType: file.mimetype || (isPdf ? "application/pdf" : "application/msword"),
         sourceDate,
         cloudinaryPublicId: uploaded.public_id,
         totals: totals ?? undefined,
