@@ -25,7 +25,7 @@ import {
 } from "@/app/components/projects/ProjectTableCells";
 import CapsuleTabs from "@/app/components/CapsuleTabs";
 import RechartsBox from "@/app/components/charts/RechartsBox";
-import API, { getClientAuthToken, resolveBaseURL } from "@/lib/api";
+import API from "@/lib/api";
 import {
   projectReceiveDate,
   formatElapsed,
@@ -270,39 +270,6 @@ export default function EstimatorMyProjectsPage() {
     });
   }, [projects]);
 
-  /** Tab close / leave: pause running timer so overnight does not keep counting. */
-  useEffect(() => {
-    const pauseOnLeave = () => {
-      const clock = liveClockRef.current;
-      if (!clock) return;
-      const secs = Math.max(0, Math.floor(clock.baseSeconds + (Date.now() - clock.startedAtMs) / 1000));
-      const token = getClientAuthToken();
-      const body = JSON.stringify({
-        action: "pause",
-        clientElapsedSeconds: secs,
-      });
-      const base = resolveBaseURL().replace(/\/$/, "");
-      const path = `${base}/estimator/project/${encodeURIComponent(clock.projectId)}/timer`;
-      try {
-        void fetch(path, {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-          body,
-          credentials: "include",
-          keepalive: true,
-        });
-      } catch {
-        /* best-effort */
-      }
-      setLiveClock(null);
-    };
-    window.addEventListener("pagehide", pauseOnLeave);
-    return () => window.removeEventListener("pagehide", pauseOnLeave);
-  }, []);
-
   const getElapsed = useCallback(
     (p: Project) => {
       const a = p.myAssignment;
@@ -310,8 +277,14 @@ export default function EstimatorMyProjectsPage() {
       if (liveClock && liveClock.projectId === p.id) {
         return liveElapsed(liveClock, now);
       }
-      // Paused / completed — never use server timerStartedAt (skew)
-      return Math.max(0, a.timerSeconds ?? 0);
+      let total = Math.max(0, a.timerSeconds ?? 0);
+      if (a.timerStartedAt && !a.takeoffDone) {
+        const started = new Date(a.timerStartedAt).getTime();
+        if (Number.isFinite(started)) {
+          total += Math.max(0, Math.floor((now - started) / 1000));
+        }
+      }
+      return total;
     },
     [liveClock, now],
   );
