@@ -373,17 +373,7 @@ export default function AccountsPageShell({
       {loading ? (
         <div className="rounded-2xl border border-crm-border-subtle bg-crm-surface p-14 flex flex-col items-center justify-center gap-3">
           <Loader2 size={28} className="animate-spin text-[#B8112D]" />
-          <p className="text-xs font-semibold text-crm-text-faint">Loading record…</p>
-        </div>
-      ) : (
-        children
-      )}
-    </div>
-  );
-}
-r-crm-border-subtle bg-crm-surface p-14 flex flex-col items-center justify-center gap-3">
-          <Loader2 size={28} className="animate-spin text-[#B8112D]" />
-          <p className="text-xs font-semibold text-crm-text-faint">Loading record…</p>
+          <p className="text-xs font-semibold text-crm-text-faint">Loading record...</p>
         </div>
       ) : (
         children

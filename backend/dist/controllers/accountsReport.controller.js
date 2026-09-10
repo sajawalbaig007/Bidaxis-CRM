@@ -17,6 +17,7 @@ const salesPayrollFormula_1 = require("../utils/salesPayrollFormula");
 const technicalPayrollFormula_1 = require("../utils/technicalPayrollFormula");
 const projectCurrencyCollections_1 = require("../utils/projectCurrencyCollections");
 const accountsDefaults_1 = require("../utils/accountsDefaults");
+const accountsSnapshot_1 = require("../utils/accountsSnapshot");
 const fxRates_1 = require("../utils/fxRates");
 const incomeBudget_1 = require("../utils/incomeBudget");
 /**
@@ -647,25 +648,27 @@ async function getMonthlyAccountsReport(req, res) {
             where: { page: "dashboard" },
             select: { recordDate: true, data: true },
         });
-        const dashByDate = new Map(dashRecords.map(r => [r.recordDate, r.data]));
         const collectionsByMonth = await (0, projectCurrencyCollections_1.aggregateAllCollectionMonths)();
         const dashForMonth = (ym) => {
-            const monthStart = (0, projectCurrencyCollections_1.monthStartIso)(ym);
-            const raw = dashByDate.get(monthStart) ??
-                [...dashByDate.entries()].find(([d]) => (0, projectCurrencyCollections_1.yearMonthFromDate)(d) === ym)?.[1] ??
+            const inMonth = dashRecords.filter(r => (0, projectCurrencyCollections_1.yearMonthFromDate)(r.recordDate) === ym);
+            const picked = (0, accountsSnapshot_1.pickLatestMeaningful)(inMonth);
+            const raw = picked?.data ??
                 (0, accountsDefaults_1.defaultAccountsData)("dashboard");
             return (0, projectCurrencyCollections_1.applyCollectionsToDashboardData)(raw, collectionsByMonth.get(ym) ?? (0, projectCurrencyCollections_1.emptyDayCollections)());
         };
         const revenueForMonth = (ym) => (0, currencyFormula_1.currencyFormulaTotalFromDashboard)(dashForMonth(ym));
         const lastByMonth = new Map();
+        const pickedByMonth = (0, accountsSnapshot_1.pickLatestMeaningfulByMonth)(isRecords);
+        const daysByMonth = new Map();
         for (const rec of isRecords) {
-            const data = prepareIncomeStatementData(rec.data);
             const m = rec.recordDate.slice(0, 7);
-            const prev = lastByMonth.get(m);
+            daysByMonth.set(m, (daysByMonth.get(m) ?? 0) + 1);
+        }
+        for (const [m, rec] of pickedByMonth) {
             lastByMonth.set(m, {
                 date: rec.recordDate,
-                data,
-                days: (prev?.days ?? 0) + 1,
+                data: prepareIncomeStatementData(rec.data),
+                days: daysByMonth.get(m) ?? 1,
             });
         }
         const windowMonths = lastNMonthsInclusive(month, 6);
@@ -873,13 +876,15 @@ async function saveMonthlyAccountsReport(req, res) {
                 totals = undefined;
             }
         }
+        const originalName = file.originalname || `BEM-Executive-Summary-${month}.doc`;
+        const isPdf = file.mimetype === "application/pdf" || originalName.toLowerCase().endsWith(".pdf");
         const publicId = `bem-exec-${month}-${Date.now()}`;
         const uploaded = await new Promise((resolve, reject) => {
             const stream = cloudinary_1.default.uploader.upload_stream({
                 folder: accountsStorage_1.ACCOUNTS_CLOUDINARY_FOLDERS.monthlyReports,
                 resource_type: "raw",
                 public_id: publicId,
-                format: "doc",
+                format: isPdf ? "pdf" : "doc",
             }, (error, result) => {
                 if (error || !result)
                     reject(error ?? new Error("Cloudinary upload failed"));
@@ -891,9 +896,9 @@ async function saveMonthlyAccountsReport(req, res) {
         const row = await db_1.default.accountsMonthlyReport.create({
             data: {
                 month,
-                fileName: file.originalname || `BEM-Executive-Summary-${month}.doc`,
+                fileName: originalName,
                 fileUrl: uploaded.secure_url,
-                mimeType: file.mimetype || "application/msword",
+                mimeType: file.mimetype || (isPdf ? "application/pdf" : "application/msword"),
                 sourceDate,
                 cloudinaryPublicId: uploaded.public_id,
                 totals: totals ?? undefined,

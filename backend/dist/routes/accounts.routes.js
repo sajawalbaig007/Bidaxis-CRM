@@ -13,6 +13,10 @@ const accountsReport_controller_1 = require("../controllers/accountsReport.contr
 const accountsFx_controller_1 = require("../controllers/accountsFx.controller");
 const router = express_1.default.Router();
 router.use(auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("accounts", "admin"));
+router.use((_req, res, next) => {
+    res.set("Cache-Control", "no-store");
+    next();
+});
 router.get("/dashboard/summary", accounts_controller_1.getAccountsDashboardSummary);
 router.get("/fx-rates", accountsFx_controller_1.getLiveFxRates);
 router.get("/income-budget/actuals", accounts_controller_1.getIncomeBudgetActuals);
