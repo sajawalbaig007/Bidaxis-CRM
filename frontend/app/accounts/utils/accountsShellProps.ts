@@ -26,6 +26,7 @@ export function accountsShellProps<T extends Record<string, unknown>>(
     uploading: acc.uploading,
     loading: acc.loading,
     dirty: acc.dirty,
+    copiedFrom: acc.copiedFrom,
     uploads: acc.uploads,
   };
 }

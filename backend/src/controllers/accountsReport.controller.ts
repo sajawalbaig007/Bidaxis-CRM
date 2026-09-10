@@ -31,6 +31,7 @@ import {
   yearMonthFromDate,
 } from "../utils/projectCurrencyCollections";
 import { defaultAccountsData } from "../utils/accountsDefaults";
+import { pickLatestMeaningful, pickLatestMeaningfulByMonth } from "../utils/accountsSnapshot";
 import { fetchLiveFxRates } from "../utils/fxRates";
 import {
   CORE_BUDGET_LINE_DEFS,
@@ -909,16 +910,12 @@ export async function getMonthlyAccountsReport(req: AuthRequest, res: Response) 
       where: { page: "dashboard" },
       select: { recordDate: true, data: true },
     });
-    const dashByDate = new Map(
-      dashRecords.map(r => [r.recordDate, r.data as Record<string, unknown>]),
-    );
-
     const collectionsByMonth = await aggregateAllCollectionMonths();
     const dashForMonth = (ym: string) => {
-      const monthStart = monthStartIso(ym);
+      const inMonth = dashRecords.filter(r => yearMonthFromDate(r.recordDate) === ym);
+      const picked = pickLatestMeaningful(inMonth);
       const raw =
-        dashByDate.get(monthStart) ??
-        [...dashByDate.entries()].find(([d]) => yearMonthFromDate(d) === ym)?.[1] ??
+        (picked?.data as Record<string, unknown> | undefined) ??
         defaultAccountsData("dashboard");
       return applyCollectionsToDashboardData(
         raw,
@@ -928,14 +925,17 @@ export async function getMonthlyAccountsReport(req: AuthRequest, res: Response) 
     const revenueForMonth = (ym: string) => currencyFormulaTotalFromDashboard(dashForMonth(ym));
 
     const lastByMonth = new Map<string, { date: string; data: Record<string, unknown>; days: number }>();
+    const pickedByMonth = pickLatestMeaningfulByMonth(isRecords);
+    const daysByMonth = new Map<string, number>();
     for (const rec of isRecords) {
-      const data = prepareIncomeStatementData(rec.data as Record<string, unknown>);
       const m = rec.recordDate.slice(0, 7);
-      const prev = lastByMonth.get(m);
+      daysByMonth.set(m, (daysByMonth.get(m) ?? 0) + 1);
+    }
+    for (const [m, rec] of pickedByMonth) {
       lastByMonth.set(m, {
         date: rec.recordDate,
-        data,
-        days: (prev?.days ?? 0) + 1,
+        data: prepareIncomeStatementData(rec.data as Record<string, unknown>),
+        days: daysByMonth.get(m) ?? 1,
       });
     }
 
