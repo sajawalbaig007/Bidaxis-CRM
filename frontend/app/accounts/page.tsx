@@ -40,6 +40,7 @@ import {
   YAxis,
 } from "recharts";
 import API, { apiErrorMessage } from "@/lib/api";
+import { getAccountsDashboardSummary } from "@/lib/accountsDashboardCache";
 import { formatEstDateTime } from "@/lib/estTime";
 import AccountsSidebar from "./components/layout/Sidebar";
 import { ACCOUNTS_MAIN_OFFSET } from "./components/layout/headerOffset";
@@ -285,10 +286,13 @@ export default function AccountsDashboardPage() {
             : (mode === "month" || mode === "date_range") && acc.filterFrom && acc.filterTo
               ? `mode=range&from=${acc.filterFrom}&to=${acc.filterTo}`
               : `date=${acc.recordDate}`;
-        const res = await API.get(`/accounts/dashboard/summary?${qs}`);
+        const res = await getAccountsDashboardSummary(qs) as {
+          summaries?: Summary;
+          channelFx?: ChannelFx;
+        };
         if (!cancelled) {
-          setSummaries(res.data.summaries ?? {});
-          const fx = res.data.channelFx as ChannelFx | undefined;
+          setSummaries(res.summaries ?? {});
+          const fx = res.channelFx;
           setChannelFx(fx?.AH && typeof fx.AH.usdAmount === "number" ? fx : null);
         }
       } catch {

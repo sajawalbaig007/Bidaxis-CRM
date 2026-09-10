@@ -69,7 +69,7 @@ function reportFilter(_req, file, cb) {
 }
 const uploadReportFile = (0, multer_1.default)({
     storage,
-    limits: { fileSize: 15 * 1024 * 1024, files: 1 },
+    limits: { fileSize: 30 * 1024 * 1024, files: 1 },
     fileFilter: reportFilter,
 });
 exports.uploadReportFile = uploadReportFile;

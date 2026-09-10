@@ -229,7 +229,9 @@ export default function IncomeStatementPage() {
     let cancelled = false;
     const mode = normalizePeriodPreset(acc.periodPreset);
     if (mode === "all_time") {
-      API.get(`/accounts/dashboard/summary?mode=all_time&to=${todayIso()}`)
+      API.get(`/accounts/dashboard/summary?mode=all_time&to=${todayIso()}`, {
+        headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
+      })
         .then(res => {
           if (cancelled) return;
           const s = res.data.summaries ?? {};

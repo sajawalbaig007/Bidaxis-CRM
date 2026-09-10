@@ -24,6 +24,10 @@ import { getLiveFxRates } from "../controllers/accountsFx.controller";
 const router = express.Router();
 
 router.use(verifyToken, allowRoles("accounts", "admin"));
+router.use((_req, res, next) => {
+  res.set("Cache-Control", "no-store");
+  next();
+});
 
 router.get("/dashboard/summary", getAccountsDashboardSummary);
 router.get("/fx-rates", getLiveFxRates);

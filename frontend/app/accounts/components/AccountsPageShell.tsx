@@ -41,6 +41,8 @@ type AccountsPageShellProps = {
   loading?: boolean;
   dirty?: boolean;
   uploads?: AccountsUpload[];
+  /** Last same-month saved day this view was filled from (empty today). */
+  copiedFrom?: string | null;
   /** Dashboard: "Accounts Dashboard" on one line */
   inlineTitle?: boolean;
   /** Hide Upload File + Save (dashboard is live totals) */
@@ -77,6 +79,7 @@ export default function AccountsPageShell({
   loading,
   dirty,
   uploads = [],
+  copiedFrom = null,
   inlineTitle = false,
   hideFileActions = false,
   headerActions,
@@ -335,6 +338,13 @@ export default function AccountsPageShell({
         </div>
       )}
 
+      {copiedFrom && copiedFrom !== recordDate && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-xs text-amber-950">
+          Showing last saved figures from <span className="font-semibold">{copiedFrom}</span> for this
+          month. Click Save to keep them on {recordDate}.
+        </div>
+      )}
+
       {uploads.length > 0 && !hideFileActions && (
         <section className="rounded-2xl border border-crm-border-subtle bg-crm-surface shadow-sm p-4">
           <div className="flex items-center gap-2 mb-2">
@@ -363,7 +373,7 @@ export default function AccountsPageShell({
       {loading ? (
         <div className="rounded-2xl border border-crm-border-subtle bg-crm-surface p-14 flex flex-col items-center justify-center gap-3">
           <Loader2 size={28} className="animate-spin text-[#B8112D]" />
-          <p className="text-xs font-semibold text-crm-text-faint">Loading record…</p>
+          <p className="text-xs font-semibold text-crm-text-faint">Loading record...</p>
         </div>
       ) : (
         children

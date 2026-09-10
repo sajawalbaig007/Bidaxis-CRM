@@ -49,6 +49,12 @@ import { applyStaffPayrollToIncomeData } from "../utils/loadStaffPayroll";
 import { collapsePfNameBuckets, pfHasLongerCanonical } from "../utils/pfNameAlias";
 import { loadMergedNamePairs, resolveMergedName } from "../utils/employeeNameMerge";
 import { estDateYmd } from "../utils/estTime";
+import {
+  hasMeaningfulAccountsData,
+  pickLatestMeaningful,
+  pickLatestMeaningfulByMonth,
+  resolveAccountsSnapshot,
+} from "../utils/accountsSnapshot";
 
 function todayIsoDate(): string {
   return estDateYmd();
@@ -115,14 +121,15 @@ export async function listAccountsDates(req: AuthRequest, res: Response) {
 
     const records = await prisma.accountsRecord.findMany({
       where,
-      select: { recordDate: true, updatedAt: true },
+      select: { recordDate: true, updatedAt: true, data: true },
       orderBy: { recordDate: "desc" },
     });
+    const visible = records.filter(r => hasMeaningfulAccountsData(r.data));
 
     return res.json({
       success: true,
-      dates: records.map((r: { recordDate: string }) => r.recordDate),
-      records: records.map((r: { recordDate: string; updatedAt: Date }) => ({
+      dates: visible.map(r => r.recordDate),
+      records: visible.map(r => ({
         recordDate: r.recordDate,
         updatedAt: r.updatedAt,
       })),
@@ -145,7 +152,8 @@ export async function getAccountsRecord(req: AuthRequest, res: Response) {
       return res.status(400).json({ success: false, message: "Invalid date. Use YYYY-MM-DD." });
     }
 
-    const record = await findRecord(pageParam, recordDate);
+    const resolved = await resolveAccountsSnapshot(pageParam, recordDate);
+    const record = resolved.record;
     let raw = (record?.data as Record<string, unknown> | undefined) ?? defaultAccountsData(pageParam);
     if (pageParam === "income_statement") {
       raw = await applyStaffPayrollToIncomeData(raw, recordDate);
@@ -172,7 +180,8 @@ export async function getAccountsRecord(req: AuthRequest, res: Response) {
     return res.json({
       success: true,
       recordDate,
-      persisted: !!record,
+      persisted: !!record && !resolved.copiedFrom,
+      copiedFrom: resolved.copiedFrom,
       data: responseData,
       updatedAt: record?.updatedAt ?? null,
       uploads,
@@ -313,8 +322,6 @@ export async function uploadAccountsFile(
         },
         update: { data: mergedData as Prisma.InputJsonValue, updatedBy: req.user.id },
       });
-    } else {
-      await getOrCreateRecord(pageParam, recordDate, req.user.id);
     }
 
     const uploads = await prisma.accountsFileUpload.findMany({
@@ -558,11 +565,10 @@ export async function getAccountsDashboardSummary(req: AuthRequest, res: Respons
       const collectionsByMonth = await aggregateCollectionsForMonths(collectionMonths);
       paymentFx = sumDayCollections(collectionsByMonth.values());
       const dashForMonth = (ym: string) => {
-        const inMonth = dashRecs
-          .filter(r => yearMonthFromDate(r.recordDate) === ym)
-          .sort((a, b) => a.recordDate.localeCompare(b.recordDate));
+        const inMonth = dashRecs.filter(r => yearMonthFromDate(r.recordDate) === ym);
+        const picked = pickLatestMeaningful(inMonth);
         const raw =
-          (inMonth[inMonth.length - 1]?.data as Record<string, unknown> | undefined) ??
+          (picked?.data as Record<string, unknown> | undefined) ??
           defaultAccountsData("dashboard");
         return applyCollectionsToDashboardData(
           raw,
@@ -571,13 +577,7 @@ export async function getAccountsDashboardSummary(req: AuthRequest, res: Respons
       };
 
       if (mode === "all_time") {
-        const latestByMonth = new Map<string, { date: string; data: Record<string, unknown> }>();
-        for (const rec of isRecs) {
-          latestByMonth.set(yearMonthFromDate(rec.recordDate), {
-            date: rec.recordDate,
-            data: rec.data as Record<string, unknown>,
-          });
-        }
+        const latestByMonth = pickLatestMeaningfulByMonth(isRecs);
         let revenue = 0;
         let payroll = 0;
         let opex = 0;
@@ -590,7 +590,10 @@ export async function getAccountsDashboardSummary(req: AuthRequest, res: Respons
           channelTotals = addCurrencyChannelNetTotals(channelTotals, dash);
         }
         for (const [, snap] of latestByMonth) {
-          const parts = await incomePartsFromRaw(snap.data, snap.date);
+          const parts = await incomePartsFromRaw(
+            snap.data as Record<string, unknown>,
+            snap.recordDate,
+          );
           payroll += parts.payroll;
           opex += parts.opex;
           loans += parts.loans;
@@ -606,7 +609,7 @@ export async function getAccountsDashboardSummary(req: AuthRequest, res: Respons
         });
       } else {
         // Month / date range: same snapshot the Income Statement page shows
-        const latestIs = isRecs[isRecs.length - 1];
+        const latestIs = pickLatestMeaningful(isRecs);
         const snapshotYm = latestIs
           ? yearMonthFromDate(latestIs.recordDate)
           : (rangeMonths[rangeMonths.length - 1] ?? yearMonthFromDate(toDate));
@@ -652,7 +655,7 @@ export async function getAccountsDashboardSummary(req: AuthRequest, res: Respons
 
       persistedPages.income_statement = isRecs.length > 0;
       persistedPages.dashboard = dashRecs.length > 0;
-      const latestDash = dashRecs[dashRecs.length - 1];
+      const latestDash = pickLatestMeaningful(dashRecs);
       dashData = latestDash
         ? dashForMonth(yearMonthFromDate(latestDash.recordDate))
         : defaultAccountsData("dashboard");
@@ -666,8 +669,9 @@ export async function getAccountsDashboardSummary(req: AuthRequest, res: Respons
     ];
 
     for (const page of pages) {
-        const record = await findRecord(page, toDate);
-        persistedPages[page] = !!record;
+        const resolved = await resolveAccountsSnapshot(page, toDate);
+        const record = resolved.record;
+        persistedPages[page] = !!record && !resolved.copiedFrom;
         const data = preparePageData(
           page,
           (record?.data as Record<string, unknown> | undefined) ?? defaultAccountsData(page),
@@ -676,7 +680,8 @@ export async function getAccountsDashboardSummary(req: AuthRequest, res: Respons
         if (page === "balance_sheet") {
           Object.assign(summaries, summarizeBalanceSheet(data));
       } else if (page === "income_statement") {
-          const dashRec = await findRecord("dashboard", toDate);
+          const dashResolved = await resolveAccountsSnapshot("dashboard", toDate);
+          const dashRec = dashResolved.record;
           const collections = await aggregateCollectionsForDate(toDate);
           const dashMerged = applyCollectionsToDashboardData(
             (dashRec?.data as Record<string, unknown> | undefined) ?? defaultAccountsData("dashboard"),
@@ -685,7 +690,7 @@ export async function getAccountsDashboardSummary(req: AuthRequest, res: Respons
           const revenue = currencyFormulaTotalFromDashboard(dashMerged);
           const parts = await incomePartsFromRaw(
             (record?.data as Record<string, unknown> | undefined) ?? defaultAccountsData(page),
-            toDate,
+            record?.recordDate ?? toDate,
           );
           assignIncomeSummaries(summaries, { revenue, ...parts });
       } else if (page === "cash_flow") {
@@ -695,7 +700,8 @@ export async function getAccountsDashboardSummary(req: AuthRequest, res: Respons
         }
       }
 
-      const dash = await findRecord("dashboard", toDate);
+      const dashResolved = await resolveAccountsSnapshot("dashboard", toDate);
+      const dash = dashResolved.record;
       const dayCollections = await aggregateCollectionsForDate(toDate);
       paymentFx = dayCollections;
       dashData = applyCollectionsToDashboardData(
@@ -792,10 +798,6 @@ export async function getIncomeBudgetActuals(req: AuthRequest, res: Response) {
       }),
     ]);
 
-    const dashByDate = new Map(
-      dashRecs.map(r => [r.recordDate, r.data as Record<string, unknown>]),
-    );
-
     const collectionMonths = [
       ...new Set([
         ...dashRecs.map((r) => yearMonthFromDate(r.recordDate)),
@@ -804,10 +806,10 @@ export async function getIncomeBudgetActuals(req: AuthRequest, res: Response) {
     ];
     const collectionsByMonth = await aggregateCollectionsForMonths(collectionMonths);
     const dashForMonth = (ym: string) => {
-      const monthStart = monthStartIso(ym);
+      const inMonth = dashRecs.filter(r => yearMonthFromDate(r.recordDate) === ym);
+      const picked = pickLatestMeaningful(inMonth);
       const raw =
-        dashByDate.get(monthStart) ??
-        [...dashByDate.entries()].find(([d]) => yearMonthFromDate(d) === ym)?.[1] ??
+        (picked?.data as Record<string, unknown> | undefined) ??
         defaultAccountsData("dashboard");
       return applyCollectionsToDashboardData(
         raw,
@@ -820,26 +822,18 @@ export async function getIncomeBudgetActuals(req: AuthRequest, res: Response) {
     const opexHeadsTotal: Record<string, OpexHeadBucket> = {};
     const opexHeadsByMonth: Record<string, Record<string, OpexHeadBucket>> = {};
 
-    // Same as Income Statement month view: latest saved day per calendar month.
-    // Summing every daily snapshot double-counted payroll (e.g. Technical 986k + older 523k).
-    const latestByMonth = new Map<string, { date: string; data: Record<string, unknown> }>();
-    for (const rec of isRecs) {
-      const ym = yearMonthFromDate(rec.recordDate);
-      const prev = latestByMonth.get(ym);
-      if (!prev || rec.recordDate >= prev.date) {
-        latestByMonth.set(ym, { date: rec.recordDate, data: rec.data as Record<string, unknown> });
-      }
-    }
+    // Latest non-empty day per calendar month (empty later days must not wipe OPEX).
+    const latestByMonth = pickLatestMeaningfulByMonth(isRecs);
 
     for (const [ym, snap] of latestByMonth) {
       byMonth[ym] = emptyCoreActuals();
       opexHeadsByMonth[ym] = {};
       const data = prepareIncomeStatement(
-        await applyStaffPayrollToIncomeData(snap.data, snap.date),
+        await applyStaffPayrollToIncomeData(snap.data as Record<string, unknown>, snap.recordDate),
       );
       const revenue = currencyFormulaTotalFromDashboard(dashForMonth(ym));
-      accumulateCoreBudget(data, actuals, revenue, snap.date);
-      accumulateCoreBudget(data, byMonth[ym]!, revenue, snap.date);
+      accumulateCoreBudget(data, actuals, revenue, snap.recordDate);
+      accumulateCoreBudget(data, byMonth[ym]!, revenue, snap.recordDate);
       accumulateOpexHeads(data, opexHeadsTotal);
       accumulateOpexHeads(data, opexHeadsByMonth[ym]!);
     }

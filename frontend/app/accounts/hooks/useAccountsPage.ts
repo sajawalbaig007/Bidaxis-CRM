@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import API from "@/lib/api";
+import { invalidateAccountsDashboardCache } from "@/lib/accountsDashboardCache";
 import type { AccountsPageKey, AccountsUpload, IncomeStatementData } from "../types";
 import { todayIso } from "../types";
 import {
@@ -45,6 +46,7 @@ export function useAccountsPage<T extends Record<string, unknown>>({
   const [data, setData] = useState<T>(() => defaultData());
   const [uploads, setUploads] = useState<AccountsUpload[]>([]);
   const [savedDates, setSavedDates] = useState<string[]>([]);
+  const [copiedFrom, setCopiedFrom] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [dirty, setDirty] = useState(false);
@@ -165,7 +167,9 @@ export function useAccountsPage<T extends Record<string, unknown>>({
       if (filterTo) params.set("to", filterTo);
     }
     const qs = params.toString();
-    API.get(`/accounts/${page}${qs ? `?${qs}` : ""}`)
+    API.get(`/accounts/${page}${qs ? `?${qs}` : ""}`, {
+      headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
+    })
       .then(res => {
         if (cancelled) return;
         const dates: string[] = res.data.dates ?? [];
@@ -191,7 +195,9 @@ export function useAccountsPage<T extends Record<string, unknown>>({
     const seqAtStart = seqRef.current;
     dirtyRef.current = false;
 
-    API.get(`/accounts/${page}/${recordDate}`)
+    API.get(`/accounts/${page}/${recordDate}`, {
+      headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
+    })
       .then(res => {
         if (cancelled) return;
         if (seqRef.current !== seqAtStart) {
@@ -201,6 +207,7 @@ export function useAccountsPage<T extends Record<string, unknown>>({
         dataRef.current = next;
         setData(next);
         setUploads(res.data.uploads ?? []);
+        setCopiedFrom(typeof res.data.copiedFrom === "string" ? res.data.copiedFrom : null);
         dirtyRef.current = false;
         setDirty(false);
       })
@@ -211,6 +218,7 @@ export function useAccountsPage<T extends Record<string, unknown>>({
         const fallback = defaultRef.current();
         dataRef.current = fallback;
         setData(fallback);
+        setCopiedFrom(null);
       })
       .finally(() => {
         if (!cancelled) setLoadedKey(loadKey);
@@ -261,9 +269,11 @@ export function useAccountsPage<T extends Record<string, unknown>>({
         dirtyRef.current = false;
         setDirty(false);
         applied = { payload, saved, date };
+        setCopiedFrom(null);
       }
 
       if (applied) {
+        invalidateAccountsDashboardCache();
         if (!opts?.silent) {
           if (page === "income_statement") {
             try {
@@ -322,6 +332,7 @@ export function useAccountsPage<T extends Record<string, unknown>>({
         toast.success("File uploaded for this date.");
       }
       setUploads(res.data.uploads ?? []);
+      invalidateAccountsDashboardCache();
       refreshDates();
     } catch {
       toast.error("Upload failed.");
@@ -349,6 +360,7 @@ export function useAccountsPage<T extends Record<string, unknown>>({
     setData: patchData,
     uploads,
     savedDates,
+    copiedFrom,
     loading,
     saving,
     uploading,

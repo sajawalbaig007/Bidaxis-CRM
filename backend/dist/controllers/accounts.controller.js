@@ -27,6 +27,7 @@ const loadStaffPayroll_1 = require("../utils/loadStaffPayroll");
 const pfNameAlias_1 = require("../utils/pfNameAlias");
 const employeeNameMerge_1 = require("../utils/employeeNameMerge");
 const estTime_1 = require("../utils/estTime");
+const accountsSnapshot_1 = require("../utils/accountsSnapshot");
 function todayIsoDate() {
     return (0, estTime_1.estDateYmd)();
 }
@@ -85,13 +86,14 @@ async function listAccountsDates(req, res) {
         }
         const records = await db_1.default.accountsRecord.findMany({
             where,
-            select: { recordDate: true, updatedAt: true },
+            select: { recordDate: true, updatedAt: true, data: true },
             orderBy: { recordDate: "desc" },
         });
+        const visible = records.filter(r => (0, accountsSnapshot_1.hasMeaningfulAccountsData)(r.data));
         return res.json({
             success: true,
-            dates: records.map((r) => r.recordDate),
-            records: records.map((r) => ({
+            dates: visible.map(r => r.recordDate),
+            records: visible.map(r => ({
                 recordDate: r.recordDate,
                 updatedAt: r.updatedAt,
             })),
@@ -112,7 +114,8 @@ async function getAccountsRecord(req, res) {
         if (!(0, accountsDefaults_1.isValidRecordDate)(recordDate)) {
             return res.status(400).json({ success: false, message: "Invalid date. Use YYYY-MM-DD." });
         }
-        const record = await findRecord(pageParam, recordDate);
+        const resolved = await (0, accountsSnapshot_1.resolveAccountsSnapshot)(pageParam, recordDate);
+        const record = resolved.record;
         let raw = record?.data ?? (0, accountsDefaults_1.defaultAccountsData)(pageParam);
         if (pageParam === "income_statement") {
             raw = await (0, loadStaffPayroll_1.applyStaffPayrollToIncomeData)(raw, recordDate);
@@ -136,7 +139,8 @@ async function getAccountsRecord(req, res) {
         return res.json({
             success: true,
             recordDate,
-            persisted: !!record,
+            persisted: !!record && !resolved.copiedFrom,
+            copiedFrom: resolved.copiedFrom,
             data: responseData,
             updatedAt: record?.updatedAt ?? null,
             uploads,
@@ -256,9 +260,6 @@ async function uploadAccountsFile(req, res) {
                 },
                 update: { data: mergedData, updatedBy: req.user.id },
             });
-        }
-        else {
-            await getOrCreateRecord(pageParam, recordDate, req.user.id);
         }
         const uploads = await db_1.default.accountsFileUpload.findMany({
             where: { page: (0, accountsDefaults_1.toPrismaAccountsPage)(pageParam), recordDate },
@@ -439,21 +440,14 @@ async function getAccountsDashboardSummary(req, res) {
             const collectionsByMonth = await (0, projectCurrencyCollections_1.aggregateCollectionsForMonths)(collectionMonths);
             paymentFx = (0, projectCurrencyCollections_1.sumDayCollections)(collectionsByMonth.values());
             const dashForMonth = (ym) => {
-                const inMonth = dashRecs
-                    .filter(r => (0, projectCurrencyCollections_1.yearMonthFromDate)(r.recordDate) === ym)
-                    .sort((a, b) => a.recordDate.localeCompare(b.recordDate));
-                const raw = inMonth[inMonth.length - 1]?.data ??
+                const inMonth = dashRecs.filter(r => (0, projectCurrencyCollections_1.yearMonthFromDate)(r.recordDate) === ym);
+                const picked = (0, accountsSnapshot_1.pickLatestMeaningful)(inMonth);
+                const raw = picked?.data ??
                     (0, accountsDefaults_1.defaultAccountsData)("dashboard");
                 return (0, projectCurrencyCollections_1.applyCollectionsToDashboardData)(raw, collectionsByMonth.get(ym) ?? (0, projectCurrencyCollections_1.emptyDayCollections)());
             };
             if (mode === "all_time") {
-                const latestByMonth = new Map();
-                for (const rec of isRecs) {
-                    latestByMonth.set((0, projectCurrencyCollections_1.yearMonthFromDate)(rec.recordDate), {
-                        date: rec.recordDate,
-                        data: rec.data,
-                    });
-                }
+                const latestByMonth = (0, accountsSnapshot_1.pickLatestMeaningfulByMonth)(isRecs);
                 let revenue = 0;
                 let payroll = 0;
                 let opex = 0;
@@ -466,7 +460,7 @@ async function getAccountsDashboardSummary(req, res) {
                     channelTotals = (0, currencyFormula_1.addCurrencyChannelNetTotals)(channelTotals, dash);
                 }
                 for (const [, snap] of latestByMonth) {
-                    const parts = await incomePartsFromRaw(snap.data, snap.date);
+                    const parts = await incomePartsFromRaw(snap.data, snap.recordDate);
                     payroll += parts.payroll;
                     opex += parts.opex;
                     loans += parts.loans;
@@ -483,7 +477,7 @@ async function getAccountsDashboardSummary(req, res) {
             }
             else {
                 // Month / date range: same snapshot the Income Statement page shows
-                const latestIs = isRecs[isRecs.length - 1];
+                const latestIs = (0, accountsSnapshot_1.pickLatestMeaningful)(isRecs);
                 const snapshotYm = latestIs
                     ? (0, projectCurrencyCollections_1.yearMonthFromDate)(latestIs.recordDate)
                     : (rangeMonths[rangeMonths.length - 1] ?? (0, projectCurrencyCollections_1.yearMonthFromDate)(toDate));
@@ -508,7 +502,7 @@ async function getAccountsDashboardSummary(req, res) {
             summaries.totalAssetsRegister = summarizeTotalAssets(preparePageData("total_assets", ta?.data ?? (0, accountsDefaults_1.defaultAccountsData)("total_assets")));
             persistedPages.income_statement = isRecs.length > 0;
             persistedPages.dashboard = dashRecs.length > 0;
-            const latestDash = dashRecs[dashRecs.length - 1];
+            const latestDash = (0, accountsSnapshot_1.pickLatestMeaningful)(dashRecs);
             dashData = latestDash
                 ? dashForMonth((0, projectCurrencyCollections_1.yearMonthFromDate)(latestDash.recordDate))
                 : (0, accountsDefaults_1.defaultAccountsData)("dashboard");
@@ -523,18 +517,20 @@ async function getAccountsDashboardSummary(req, res) {
                 "total_assets",
             ];
             for (const page of pages) {
-                const record = await findRecord(page, toDate);
-                persistedPages[page] = !!record;
+                const resolved = await (0, accountsSnapshot_1.resolveAccountsSnapshot)(page, toDate);
+                const record = resolved.record;
+                persistedPages[page] = !!record && !resolved.copiedFrom;
                 const data = preparePageData(page, record?.data ?? (0, accountsDefaults_1.defaultAccountsData)(page));
                 if (page === "balance_sheet") {
                     Object.assign(summaries, summarizeBalanceSheet(data));
                 }
                 else if (page === "income_statement") {
-                    const dashRec = await findRecord("dashboard", toDate);
+                    const dashResolved = await (0, accountsSnapshot_1.resolveAccountsSnapshot)("dashboard", toDate);
+                    const dashRec = dashResolved.record;
                     const collections = await (0, projectCurrencyCollections_1.aggregateCollectionsForDate)(toDate);
                     const dashMerged = (0, projectCurrencyCollections_1.applyCollectionsToDashboardData)(dashRec?.data ?? (0, accountsDefaults_1.defaultAccountsData)("dashboard"), collections);
                     const revenue = (0, currencyFormula_1.currencyFormulaTotalFromDashboard)(dashMerged);
-                    const parts = await incomePartsFromRaw(record?.data ?? (0, accountsDefaults_1.defaultAccountsData)(page), toDate);
+                    const parts = await incomePartsFromRaw(record?.data ?? (0, accountsDefaults_1.defaultAccountsData)(page), record?.recordDate ?? toDate);
                     assignIncomeSummaries(summaries, { revenue, ...parts });
                 }
                 else if (page === "cash_flow") {
@@ -544,7 +540,8 @@ async function getAccountsDashboardSummary(req, res) {
                     summaries.totalAssetsRegister = summarizeTotalAssets(data);
                 }
             }
-            const dash = await findRecord("dashboard", toDate);
+            const dashResolved = await (0, accountsSnapshot_1.resolveAccountsSnapshot)("dashboard", toDate);
+            const dash = dashResolved.record;
             const dayCollections = await (0, projectCurrencyCollections_1.aggregateCollectionsForDate)(toDate);
             paymentFx = dayCollections;
             dashData = (0, projectCurrencyCollections_1.applyCollectionsToDashboardData)(dash?.data ?? (0, accountsDefaults_1.defaultAccountsData)("dashboard"), dayCollections);
@@ -633,7 +630,6 @@ async function getIncomeBudgetActuals(req, res) {
                 select: { recordDate: true, data: true },
             }),
         ]);
-        const dashByDate = new Map(dashRecs.map(r => [r.recordDate, r.data]));
         const collectionMonths = [
             ...new Set([
                 ...dashRecs.map((r) => (0, projectCurrencyCollections_1.yearMonthFromDate)(r.recordDate)),
@@ -642,9 +638,9 @@ async function getIncomeBudgetActuals(req, res) {
         ];
         const collectionsByMonth = await (0, projectCurrencyCollections_1.aggregateCollectionsForMonths)(collectionMonths);
         const dashForMonth = (ym) => {
-            const monthStart = (0, projectCurrencyCollections_1.monthStartIso)(ym);
-            const raw = dashByDate.get(monthStart) ??
-                [...dashByDate.entries()].find(([d]) => (0, projectCurrencyCollections_1.yearMonthFromDate)(d) === ym)?.[1] ??
+            const inMonth = dashRecs.filter(r => (0, projectCurrencyCollections_1.yearMonthFromDate)(r.recordDate) === ym);
+            const picked = (0, accountsSnapshot_1.pickLatestMeaningful)(inMonth);
+            const raw = picked?.data ??
                 (0, accountsDefaults_1.defaultAccountsData)("dashboard");
             return (0, projectCurrencyCollections_1.applyCollectionsToDashboardData)(raw, collectionsByMonth.get(ym) ?? (0, projectCurrencyCollections_1.emptyDayCollections)());
         };
@@ -652,23 +648,15 @@ async function getIncomeBudgetActuals(req, res) {
         const byMonth = {};
         const opexHeadsTotal = {};
         const opexHeadsByMonth = {};
-        // Same as Income Statement month view: latest saved day per calendar month.
-        // Summing every daily snapshot double-counted payroll (e.g. Technical 986k + older 523k).
-        const latestByMonth = new Map();
-        for (const rec of isRecs) {
-            const ym = (0, projectCurrencyCollections_1.yearMonthFromDate)(rec.recordDate);
-            const prev = latestByMonth.get(ym);
-            if (!prev || rec.recordDate >= prev.date) {
-                latestByMonth.set(ym, { date: rec.recordDate, data: rec.data });
-            }
-        }
+        // Latest non-empty day per calendar month (empty later days must not wipe OPEX).
+        const latestByMonth = (0, accountsSnapshot_1.pickLatestMeaningfulByMonth)(isRecs);
         for (const [ym, snap] of latestByMonth) {
             byMonth[ym] = (0, incomeBudget_1.emptyCoreActuals)();
             opexHeadsByMonth[ym] = {};
-            const data = prepareIncomeStatement(await (0, loadStaffPayroll_1.applyStaffPayrollToIncomeData)(snap.data, snap.date));
+            const data = prepareIncomeStatement(await (0, loadStaffPayroll_1.applyStaffPayrollToIncomeData)(snap.data, snap.recordDate));
             const revenue = (0, currencyFormula_1.currencyFormulaTotalFromDashboard)(dashForMonth(ym));
-            (0, incomeBudget_1.accumulateCoreBudget)(data, actuals, revenue, snap.date);
-            (0, incomeBudget_1.accumulateCoreBudget)(data, byMonth[ym], revenue, snap.date);
+            (0, incomeBudget_1.accumulateCoreBudget)(data, actuals, revenue, snap.recordDate);
+            (0, incomeBudget_1.accumulateCoreBudget)(data, byMonth[ym], revenue, snap.recordDate);
             (0, incomeBudget_1.accumulateOpexHeads)(data, opexHeadsTotal);
             (0, incomeBudget_1.accumulateOpexHeads)(data, opexHeadsByMonth[ym]);
         }
