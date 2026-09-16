@@ -469,7 +469,12 @@ export function planTools(text: string): PlannedCall[] {
     !wantsAccounts &&
     /\b(how many|kitn[aeiy]|kitne|dashboard|stats|statistic|this month|is month|summary|online csr)\b/.test(lower);
 
+  const wantsChiefDesk =
+    /\b(chief\s*estimator|technical\s*manager|tech\s*manager)\b/.test(lower) ||
+    /\b(technical|estimator)\s+dashboard\b/.test(lower);
+
   const wantsTechnical =
+    wantsChiefDesk ||
     /\b(technical|estimator|estimators|take[- ]?off|kpi|revision|revisions|pipeline|chief estimator|workload|scoreboard|man[- ]?hours|timer)\b/.test(
       lower,
     );
@@ -490,13 +495,15 @@ export function planTools(text: string): PlannedCall[] {
     !personName &&
     (/\bcsr\b/.test(lower) || /\b(sales team|csr desk)\b/.test(lower));
   const techFocus =
-    (/\b(kitn[aeiy]|how many|count|kitny)\b/.test(lower) && /\bprojects?\b/.test(lower))
-      ? "count"
-      : /\b(scoreboard|estimators?\s+list)\b/.test(lower)
-        ? "scoreboard"
-        : /\b(full|snapshot|overview)\b/.test(lower)
-          ? "full"
-          : "pipeline";
+    wantsChiefDesk
+      ? "live"
+      : (/\b(kitn[aeiy]|how many|count|kitny)\b/.test(lower) && /\bprojects?\b/.test(lower))
+        ? "count"
+        : /\b(scoreboard|estimators?\s+list)\b/.test(lower)
+          ? "scoreboard"
+          : /\b(full|snapshot|overview|live)\b/.test(lower)
+            ? "full"
+            : "pipeline";
 
   if (wantsEmail) {
     return [{
@@ -510,6 +517,9 @@ export function planTools(text: string): PlannedCall[] {
   }
   if (wantsAccounts && !personName) {
     return [{ tool: "getAccountsMonth", args: { month: month ?? "", page: accountsPage } }];
+  }
+  if (wantsChiefDesk) {
+    return [{ tool: "getTechnicalOverview", args: { query: q, focus: "live" } }];
   }
   if (personName && !email && !phone && !projectCode) {
     return [{
