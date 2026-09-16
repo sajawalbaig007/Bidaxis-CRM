@@ -230,6 +230,29 @@ async function buildAdminTabCountsPayload(filters) {
         },
     };
 }
+/** Closed leads only — dashboard used to load every lead just to unique-count Close Client. */
+async function countUniqueClosedForSummary() {
+    try {
+        const rows = await db_1.default.lead.findMany({
+            where: (0, adminClientQueries_1.buildAdminClientListWhere)("closed"),
+            select: {
+                id: true,
+                phone: true,
+                email: true,
+                company: true,
+                clientCode: true,
+                projectCode: true,
+                status: true,
+                nextSchedule: true,
+            },
+        });
+        return (0, adminClientQueries_1.uniqueClosedLeadsByClientCode)(rows).length;
+    }
+    catch (err) {
+        console.log("[admin summary] unique closed count failed", err);
+        return null;
+    }
+}
 async function buildAdminClientSummaryPayload() {
     const chartSince = (0, businessCalendar_1.businessChartSinceUtc)(CHART_DAYS);
     const pipelinePromise = countExclusivePipeline();
@@ -237,9 +260,9 @@ async function buildAdminClientSummaryPayload() {
     const todayYmd = (0, businessCalendar_1.currentBusinessYmd)();
     const todayStart = (0, businessCalendar_1.businessDayStartUtc)(todayYmd);
     const tomorrowStart = (0, businessCalendar_1.businessDayStartUtc)((0, businessCalendar_1.addDaysToYmd)(todayYmd, 1));
-    const [pipeline, uniqueTabCounts, todayCompletedCalls, totalCompletedCalls, recent, recentStatusLogs, chartSeries, csrGroups, resolvedGroups, onlineCSRs, totalOnline,] = await Promise.all([
+    const [pipeline, uniqueClosedCount, todayCompletedCalls, totalCompletedCalls, recent, recentStatusLogs, chartSeries, csrGroups, resolvedGroups, onlineCSRs, totalOnline,] = await Promise.all([
         pipelinePromise,
-        buildAdminTabCountsPayload(),
+        countUniqueClosedForSummary(),
         db_1.default.callLog.count({
             where: { createdAt: { gte: todayStart, lt: tomorrowStart } },
         }),
@@ -311,8 +334,8 @@ async function buildAdminClientSummaryPayload() {
         .sort((a, b) => b.resolved - a.resolved || b.rate - a.rate)
         .slice(0, 5);
     const { totalLeads, pending, interested, importantOnly, scheduled, other, inBin, legacyCompleted, } = pipeline;
-    const tabCounts = uniqueTabCounts.tabCounts;
-    const uniqueClosed = tabCounts.closed;
+    const uniqueClosed = uniqueClosedCount ?? pipeline.projectWon;
+    const tabCounts = { closed: uniqueClosed };
     const distribution = {
         Pending: pending,
         Important: importantOnly,

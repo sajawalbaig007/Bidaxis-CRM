@@ -295,7 +295,7 @@ router.get("/clients/tab-counts", auth_middleware_1.verifyToken, (0, role_middle
 /* ================= CLIENT SUMMARY (fast — dashboard tiles & charts) ================= */
 router.get("/clients/summary", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager", "technical_manager"), async (_req, res) => {
     try {
-        const CACHE_KEY = "admin:clients:summary:v5";
+        const CACHE_KEY = "admin:clients:summary:v6";
         const cached = (0, cache_1.getCache)(CACHE_KEY);
         if (cached)
             return res.json(cached);
@@ -2415,7 +2415,7 @@ router.put("/project/:id/move-technical-tab", auth_middleware_1.verifyToken, (0,
     try {
         const leadId = String(req.params.id);
         const tabRaw = String(req.body?.tab ?? "").trim();
-        const allowed = ["not_assigned", "assigned", "takeoff_done", "pricing", "final_submission", "completed"];
+        const allowed = ["not_assigned", "assigned", "takeoff_done", "pricing", "final_submission", "completed", "revisions"];
         if (!allowed.includes(tabRaw)) {
             return res.status(400).json({ success: false, message: "Invalid workflow tab." });
         }
@@ -2427,10 +2427,31 @@ router.put("/project/:id/move-technical-tab", auth_middleware_1.verifyToken, (0,
                 projectPhase: true,
                 technicalAssignments: true,
                 assignedTo: true,
+                needsRevision: true,
             },
         });
         if (!existing) {
             return res.status(404).json({ success: false, message: "Project not found" });
+        }
+        if (tab === "revisions") {
+            const lead = await db_1.default.lead.update({
+                where: { id: leadId },
+                data: {
+                    needsRevision: true,
+                    revisionRequestedAt: new Date(),
+                    hiddenOnTechnical: false,
+                },
+                include: {
+                    csr: { select: { id: true, name: true, email: true, csrCode: true } },
+                    notes: { orderBy: { createdAt: "asc" }, take: 20 },
+                    uploadFile: { select: { companyName: true } },
+                },
+            });
+            (0, cache_1.flushAdminClientsCache)();
+            (0, cache_1.invalidatePattern)("admin:projects:");
+            if (lead.assignedTo)
+                (0, cache_1.invalidateCache)(`csr:projects:${lead.assignedTo}`);
+            return res.json({ success: true, lead, tab });
         }
         const previous = (0, technicalEstimators_1.parseTechnicalAssignments)(existing.technicalAssignments);
         const moved = (0, technicalEstimators_1.applyTechnicalTabMove)(previous, tab, existing.projectPhase);

@@ -152,6 +152,7 @@ router.get("/dashboard", async (req: AuthRequest, res) => {
         projectDeadline: true,
         projectPhase: true,
         technicalAssignments: true,
+        technicalNotes: true,
         updatedAt: true,
         hiddenOnTechnical: true,
       },
@@ -173,6 +174,7 @@ router.get("/dashboard", async (req: AuthRequest, res) => {
         projectCode: string | null;
         projectDeadline: string | null;
         projectPhase: string | null;
+        technicalNotes: string | null;
         updatedAt: Date;
         myAssignment: TechnicalAssignment;
       }>;

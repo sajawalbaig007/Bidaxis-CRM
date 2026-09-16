@@ -6,6 +6,30 @@ import API, { apiErrorMessage } from "@/lib/api";
 import { EST_TZ_ABBR, EST_TZ_LABEL, estNowYmd, formatEstDateTimeLocalInput } from "@/lib/estTime";
 import { ChevronDown, Clock, Download, LogIn, LogOut, Monitor, Pencil, Users, X } from "lucide-react";
 
+type ClockTz = "est" | "pkt";
+
+const CLOCKS: Record<ClockTz, { tz: string; abbr: string; label: string; button: string }> = {
+  est: { tz: "America/New_York", abbr: EST_TZ_ABBR, label: EST_TZ_LABEL, button: "EST" },
+  pkt: { tz: "Asia/Karachi", abbr: "PKT", label: "Pakistan Time (PKT)", button: "Pakistan" },
+};
+
+function formatSessionStamp(iso: string | null | undefined, timeZone: string, empty = "—"): string {
+  if (!iso) return empty;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return empty;
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    month: "short",
+    day: "2-digit",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: true,
+    timeZoneName: "short",
+  }).format(d);
+}
+
 type CsrOption = { id: string; name: string; csrCode?: string | null };
 
 type SessionRow = {
@@ -46,9 +70,6 @@ type ReportResponse = {
   summary: SummaryRow[];
 };
 
-const ADMIN_SESSION_TZ_LABEL = EST_TZ_LABEL;
-const ADMIN_SESSION_TZ_ABBR = EST_TZ_ABBR;
-
 function pktTodayYmd(): string {
   return estNowYmd();
 }
@@ -82,12 +103,13 @@ function periodFromDates(from: string, to: string, today: string): PeriodPreset 
   return "custom";
 }
 
-function downloadCsv(rows: SessionRow[], filename: string, personLabel: string) {
+function downloadCsv(rows: SessionRow[], filename: string, personLabel: string, clock: ClockTz) {
+  const tz = CLOCKS[clock];
   const headers = [
     personLabel,
     "Code",
-    `Check In (${ADMIN_SESSION_TZ_ABBR})`,
-    `Check Out (${ADMIN_SESSION_TZ_ABBR})`,
+    `Check In (${tz.abbr})`,
+    `Check Out (${tz.abbr})`,
     "On Dashboard",
     "Away",
     "Total",
@@ -102,8 +124,8 @@ function downloadCsv(rows: SessionRow[], filename: string, personLabel: string) 
     ...rows.map(r => [
       escape(r.csrName),
       escape(r.csrCode ?? ""),
-      escape(r.checkInAtEst ?? r.loginAtEst),
-      escape(r.checkOutAtEst ?? r.logoutAtEst),
+      escape(formatSessionStamp(r.loginAt, tz.tz)),
+      escape(r.logoutAt ? formatSessionStamp(r.logoutAt, tz.tz) : "Still checked in"),
       escape(r.dashboardDuration),
       escape(r.awayDuration),
       escape(r.totalDuration),
@@ -136,14 +158,15 @@ function downloadExcel(
   filename: string,
   personLabel: string,
   title: string,
-  timezoneLabel: string = ADMIN_SESSION_TZ_LABEL,
+  clock: ClockTz,
 ) {
-  const sessionHeader = [personLabel, "Code", `Check In (${ADMIN_SESSION_TZ_ABBR})`, `Check Out (${ADMIN_SESSION_TZ_ABBR})`, "On Dashboard", "Away", "Total", "Status", "Browser", "IP", "Closed Reason"];
+  const tz = CLOCKS[clock];
+  const sessionHeader = [personLabel, "Code", `Check In (${tz.abbr})`, `Check Out (${tz.abbr})`, "On Dashboard", "Away", "Total", "Status", "Browser", "IP", "Closed Reason"];
   const sessionBody = sessions.map(r => [
     r.csrName,
     r.csrCode ?? "",
-    r.checkInAtEst ?? r.loginAtEst,
-    r.checkOutAtEst ?? r.logoutAtEst,
+    formatSessionStamp(r.loginAt, tz.tz),
+    r.logoutAt ? formatSessionStamp(r.logoutAt, tz.tz) : "Still checked in",
     r.dashboardDuration,
     r.awayDuration,
     r.totalDuration,
@@ -170,7 +193,7 @@ function downloadExcel(
 <head><meta charset="UTF-8"></head>
 <body>
 <h2>${escHtml(title)}</h2>
-<p>All times in ${escHtml(timezoneLabel)}</p>
+<p>All times in ${escHtml(tz.label)}</p>
 <h3>Per session</h3>
 ${table(sessionHeader, sessionBody)}
 <h3>Per ${escHtml(personLabel)}</h3>
@@ -208,7 +231,7 @@ export default function CsrActivityReport({
   const [csrs, setCsrs] = useState<CsrOption[]>([]);
   const [sessions, setSessions] = useState<SessionRow[]>([]);
   const [summary, setSummary] = useState<SummaryRow[]>([]);
-  const [timezoneLabel, setTimezoneLabel] = useState(ADMIN_SESSION_TZ_LABEL);
+  const [clockTz, setClockTz] = useState<ClockTz>("est");
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(defaultOpen);
   const [view, setView] = useState<"sessions" | "summary">("sessions");
@@ -289,7 +312,6 @@ export default function CsrActivityReport({
       const res = await API.get<ReportResponse>(`/admin/csr-session-report?${params}`);
       setSessions(res.data.sessions ?? []);
       setSummary(res.data.summary ?? []);
-      setTimezoneLabel(res.data.timezoneLabel ?? ADMIN_SESSION_TZ_LABEL);
       setHasLoaded(true);
     } catch (err) {
       toast.error(apiErrorMessage(err, `Failed to load ${personLabel} activity report.`));
@@ -312,6 +334,9 @@ export default function CsrActivityReport({
     setFromDate(range.from);
     setToDate(range.to);
   };
+
+  const clock = CLOCKS[clockTz];
+  const timezoneLabel = clock.label;
 
   const totals = useMemo(() => ({
     sessions: sessions.length,
@@ -441,7 +466,7 @@ export default function CsrActivityReport({
 
             <button
               type="button"
-              onClick={() => downloadCsv(sessions, `${isEstimator ? "estimator" : "csr"}-activity-${fromDate}-${toDate}.csv`, personLabel)}
+              onClick={() => downloadCsv(sessions, `${isEstimator ? "estimator" : "csr"}-activity-${fromDate}-${toDate}.csv`, personLabel, clockTz)}
               disabled={!sessions.length}
               className="h-10 px-4 rounded-xl border border-gray-200 bg-white text-sm font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-50 flex items-center gap-2"
             >
@@ -456,7 +481,7 @@ export default function CsrActivityReport({
                 `${isEstimator ? "estimator" : "csr"}-activity-${fromDate}-${toDate}`,
                 personLabel,
                 title,
-                timezoneLabel,
+                clockTz,
               )}
               disabled={!sessions.length && !summary.length}
               className="h-10 px-4 rounded-xl border border-gray-200 bg-white text-sm font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-50 flex items-center gap-2"
@@ -499,8 +524,30 @@ export default function CsrActivityReport({
             {view === "sessions" ? (
               <table className="w-full" style={{ minWidth: "980px" }}>
                 <thead>
+                  <tr className="border-b border-gray-100 bg-white">
+                    <th colSpan={allowEdit ? 9 : 8} className="px-3 py-2 text-left">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">Times</span>
+                        {(["est", "pkt"] as const).map(key => (
+                          <button
+                            key={key}
+                            type="button"
+                            onClick={() => setClockTz(key)}
+                            className={`h-7 px-3 rounded-lg text-[11px] font-bold border ${
+                              clockTz === key
+                                ? "bg-[#B8112D] text-white border-[#B8112D]"
+                                : "bg-white text-gray-600 border-gray-200 hover:border-[#B8112D]/40"
+                            }`}
+                          >
+                            {CLOCKS[key].button}
+                          </button>
+                        ))}
+                        <span className="text-[11px] text-gray-400">{clock.label}</span>
+                      </div>
+                    </th>
+                  </tr>
                   <tr className="border-b border-gray-100 text-left bg-[#FAFAFB]">
-                    {[personLabel, `Check In (${ADMIN_SESSION_TZ_ABBR})`, `Check Out (${ADMIN_SESSION_TZ_ABBR})`, "On Dashboard", "Away", "Total", "Status", "Closed By", ...(allowEdit ? [""] : [])].map(h => (
+                    {[personLabel, `Check In (${clock.abbr})`, `Check Out (${clock.abbr})`, "On Dashboard", "Away", "Total", "Status", "Closed By", ...(allowEdit ? [""] : [])].map(h => (
                       <th key={h || "actions"} className="px-3 py-2.5 text-[10px] sm:text-xs font-semibold text-gray-400 uppercase tracking-wide whitespace-nowrap">
                         {h}
                       </th>
@@ -531,12 +578,12 @@ export default function CsrActivityReport({
                         {row.csrCode && <div className="text-[10px] text-gray-400">{row.csrCode}</div>}
                       </td>
                       <td className="px-3 py-3 text-xs sm:text-sm text-gray-700 whitespace-nowrap">
-                        <span className="inline-flex items-center gap-1"><LogIn size={12} className="text-green-500" />{row.checkInAtEst ?? row.loginAtEst}</span>
+                        <span className="inline-flex items-center gap-1"><LogIn size={12} className="text-green-500" />{formatSessionStamp(row.loginAt, clock.tz)}</span>
                       </td>
                       <td className="px-3 py-3 text-xs sm:text-sm text-gray-700 whitespace-nowrap">
                         <span className="inline-flex items-center gap-1">
                           <LogOut size={12} className={row.status === "active" ? "text-amber-500" : "text-gray-400"} />
-                          {row.checkOutAtEst ?? row.logoutAtEst}
+                          {row.logoutAt ? formatSessionStamp(row.logoutAt, clock.tz) : "Still checked in"}
                         </span>
                       </td>
                       <td className="px-3 py-3 text-xs sm:text-sm font-semibold text-emerald-600 whitespace-nowrap">
@@ -574,6 +621,28 @@ export default function CsrActivityReport({
             ) : (
               <table className="w-full" style={{ minWidth: "700px" }}>
                 <thead>
+                  <tr className="border-b border-gray-100 bg-white">
+                    <th colSpan={5} className="px-3 py-2 text-left">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">Times</span>
+                        {(["est", "pkt"] as const).map(key => (
+                          <button
+                            key={key}
+                            type="button"
+                            onClick={() => setClockTz(key)}
+                            className={`h-7 px-3 rounded-lg text-[11px] font-bold border ${
+                              clockTz === key
+                                ? "bg-[#B8112D] text-white border-[#B8112D]"
+                                : "bg-white text-gray-600 border-gray-200 hover:border-[#B8112D]/40"
+                            }`}
+                          >
+                            {CLOCKS[key].button}
+                          </button>
+                        ))}
+                        <span className="text-[11px] text-gray-400">{clock.label}</span>
+                      </div>
+                    </th>
+                  </tr>
                   <tr className="border-b border-gray-100 text-left bg-[#FAFAFB]">
                     {[personLabel, "Sessions", "On Dashboard", "Away", "Total"].map(h => (
                       <th key={h} className="px-3 py-2.5 text-[10px] sm:text-xs font-semibold text-gray-400 uppercase tracking-wide whitespace-nowrap">
@@ -624,7 +693,7 @@ export default function CsrActivityReport({
               <div>
                 <h3 className="text-base font-bold text-[#111827]">Adjust session times</h3>
                 <p className="text-xs text-gray-400 mt-0.5">
-                  {editing.csrName} · times in {timezoneLabel}
+                  {editing.csrName} · edit times in {EST_TZ_LABEL}
                 </p>
               </div>
               <button

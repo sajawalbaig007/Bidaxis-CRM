@@ -3,13 +3,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import toast, { Toaster } from "react-hot-toast";
 import {
-  Search, FolderKanban, Calendar, Check, Clock3, Play, Pause, Lock, RefreshCw,
+  Search, FolderKanban, Calendar, Check, Clock3, Play, Pause, Lock, RefreshCw, MessageSquare,
 } from "lucide-react";
 import {
   Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, Tooltip, XAxis, YAxis,
 } from "recharts";
 import { peekAuthMe } from "@/lib/authMeCache";
 import EstimatorPageShell from "../components/EstimatorPageShell";
+import TmRemarksPreview from "../components/TmRemarksPreview";
 import { STAFF_PAGE_PAD, BENTO_CARD } from "@/lib/staffPageLayout";
 import CommentCell from "@/app/csr/components/shared/CommentCell";
 import { NoteEntry } from "@/app/csr/hooks/useLeadsData";
@@ -625,6 +626,7 @@ export default function EstimatorMyProjectsPage() {
 
   const headers = [
     "Project Details",
+    "TM Remarks",
     "Receive",
     "Deadline",
     "Bid Instruction",
@@ -780,6 +782,16 @@ export default function EstimatorMyProjectsPage() {
             paginated.map((p) => (
               <div key={p.id} className="bg-crm-surface rounded-2xl border border-crm-border-subtle p-4 shadow-sm space-y-3">
                 <ProjectDetailCell p={projectAsRow(p)} />
+                <div>
+                  <p className="text-[10px] font-semibold text-violet-600 uppercase mb-1 inline-flex items-center gap-1">
+                    <MessageSquare size={10} /> Chief Estimator remarks
+                  </p>
+                  <TmRemarksPreview
+                    technicalNotes={p.technicalNotes}
+                    evaluationRemarks={p.myAssignment?.evaluationRemarks}
+                    currentUserId={peekAuthMe()?.id}
+                  />
+                </div>
                 <div className="grid grid-cols-2 gap-3 text-xs">
                   <div>
                     <p className="text-[10px] font-semibold text-gray-400 uppercase mb-1">Receive</p>
@@ -847,7 +859,7 @@ export default function EstimatorMyProjectsPage() {
         <div className={`hidden lg:block ${PROJECT_TABLE_CARD}`}>
           <div className="overflow-x-auto">
             <table className="w-full table-fixed border-collapse" style={{ minWidth: "1280px" }}>
-              <CsrColGroup widths={["18%", "9%", "9%", "12%", "12%", "12%", "7%", "21%"] as const} />
+              <CsrColGroup widths={["16%", "13%", "8%", "8%", "11%", "11%", "10%", "6%", "17%"] as const} />
               <thead className={CSR_THEAD}>
                 <tr className="text-left">
                   {headers.map((h, i) => (
@@ -870,6 +882,13 @@ export default function EstimatorMyProjectsPage() {
                     <tr key={p.id} className="border-b border-crm-border-subtle hover:bg-crm-surface-muted transition-all align-top">
                       <td className="px-3 xl:px-4 py-3 xl:py-4">
                         <ProjectDetailCell p={projectAsRow(p)} />
+                      </td>
+                      <td className="px-3 xl:px-4 py-3 xl:py-4">
+                        <TmRemarksPreview
+                          technicalNotes={p.technicalNotes}
+                          evaluationRemarks={p.myAssignment?.evaluationRemarks}
+                          currentUserId={peekAuthMe()?.id}
+                        />
                       </td>
                       <td className="px-3 xl:px-4 py-3 xl:py-4">
                         <p className="text-[10px] xl:text-xs font-semibold text-gray-700 flex items-center gap-1">
