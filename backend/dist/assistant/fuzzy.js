@@ -3,6 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.levenshtein = levenshtein;
 exports.normToken = normToken;
 exports.isNearFiller = isNearFiller;
+exports.extractPersonName = extractPersonName;
 exports.looksLikePersonName = looksLikePersonName;
 exports.nameScore = nameScore;
 exports.fuzzyNameHit = fuzzyNameHit;
@@ -52,11 +53,25 @@ function isNearFiller(token, stop) {
     }
     return false;
 }
+const COMPANY_NAME_TOKENS = new Set([
+    "ps", "bds", "bem", "gps", "bim", "pacific", "sunshine", "estimating", "studio", "design",
+    "construction", "llc", "inc", "ltd", "company", "co",
+]);
+/** First/last name tokens only — drop “ps”, “k”, company words. */
+function extractPersonName(search) {
+    const parts = search
+        .trim()
+        .split(/\s+/)
+        .filter(p => {
+        const k = p.toLowerCase().replace(/[^a-z]/g, "");
+        if (!k || COMPANY_NAME_TOKENS.has(k))
+            return false;
+        return /^[a-z][a-z.'-]{2,}$/i.test(p);
+    });
+    return parts.slice(0, 3).join(" ");
+}
 function looksLikePersonName(search) {
-    const parts = search.trim().split(/\s+/).filter(Boolean);
-    if (parts.length < 1 || parts.length > 4)
-        return false;
-    return parts.every(p => /^[a-z][a-z.'-]{2,}$/i.test(p));
+    return extractPersonName(search).length >= 3;
 }
 function collapseRepeats(s) {
     return s.replace(/(.)\1+/g, "$1");

@@ -1084,7 +1084,9 @@ async function getPersonSnapshot(actor, args) {
         ? (0, fuzzy_1.bestNameMatch)(q, snap.team, m => `${m.name} ${m.code}`)
         : null;
     if (!user && !est) {
-        if ((0, permissions_1.canSearchClients)(actor.role)) {
+        const asked = (args.intent ?? "").toLowerCase();
+        const staffAsk = /\b(estimator|csr|accounts|staff|employee|check[- ]?in|checkin|kitn[aeiy]|kitny|how many)\b/.test(asked);
+        if (!staffAsk && (0, permissions_1.canSearchClients)(actor.role)) {
             return getClientHistory(actor, { query: q });
         }
         return {

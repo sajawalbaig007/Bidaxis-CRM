@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import API, { apiErrorMessage } from "@/lib/api";
-import { EST_TZ_ABBR, EST_TZ_LABEL, estNowYmd, formatEstDateTimeLocalInput } from "@/lib/estTime";
+import { EST_TZ_ABBR, EST_TZ_LABEL, formatEstDateTimeLocalInput } from "@/lib/estTime";
 import { ChevronDown, Clock, Download, LogIn, LogOut, Monitor, Pencil, Users, X } from "lucide-react";
 
 type ClockTz = "est" | "pkt";
@@ -61,6 +61,9 @@ type SummaryRow = {
   dashboardDuration: string;
   awayDuration: string;
   totalDuration: string;
+  firstLoginAt?: string;
+  lastLogoutAt?: string | null;
+  stillOpen?: boolean;
 };
 
 type ReportResponse = {
@@ -70,8 +73,13 @@ type ReportResponse = {
   summary: SummaryRow[];
 };
 
-function pktTodayYmd(): string {
-  return estNowYmd();
+function calendarYmd(timeZone: string, value: Date = new Date()): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(value);
 }
 
 function toPktLocalInput(iso: string | null | undefined): string {
@@ -175,9 +183,11 @@ function downloadExcel(
     r.ip ?? "",
     r.closedReasonLabel ?? r.closedReason ?? "",
   ].map(escHtml));
-  const summaryHeader = [personLabel, "Sessions", "On Dashboard", "Away", "Total"];
+  const summaryHeader = [personLabel, `First Check In (${tz.abbr})`, `Last Check Out (${tz.abbr})`, "Sessions", "On Dashboard", "Away", "Total"];
   const summaryBody = summary.map(r => [
     r.csrName,
+    r.firstLoginAt ? formatSessionStamp(r.firstLoginAt, tz.tz) : "—",
+    r.stillOpen || !r.lastLogoutAt ? "Still checked in" : formatSessionStamp(r.lastLogoutAt, tz.tz),
     String(r.sessions),
     r.dashboardDuration,
     r.awayDuration,
@@ -218,7 +228,7 @@ export default function CsrActivityReport({
   allowEdit?: boolean;
   defaultOpen?: boolean;
 }) {
-  const today = pktTodayYmd();
+  const today = calendarYmd(CLOCKS.est.tz);
   const isEstimator = staffRole === "estimator";
   const title = isEstimator ? "Estimator Check In / Check Out" : "CSR Check In / Check Out";
   const personLabel = isEstimator ? "Estimator" : "CSR";
@@ -307,7 +317,12 @@ export default function CsrActivityReport({
     if (!fromDate || !toDate) return;
     try {
       setLoading(true);
-      const params = new URLSearchParams({ from: fromDate, to: toDate, role: staffRole });
+      const params = new URLSearchParams({
+        from: fromDate,
+        to: toDate,
+        role: staffRole,
+        tz: clockTz === "pkt" ? "Asia/Karachi" : "America/New_York",
+      });
       if (csrId !== "all") params.set("csrId", csrId);
       const res = await API.get<ReportResponse>(`/admin/csr-session-report?${params}`);
       setSessions(res.data.sessions ?? []);
@@ -318,7 +333,7 @@ export default function CsrActivityReport({
     } finally {
       setLoading(false);
     }
-  }, [fromDate, toDate, csrId, staffRole, personLabel]);
+  }, [fromDate, toDate, csrId, staffRole, personLabel, clockTz]);
 
   useEffect(() => {
     if (!open) return;
@@ -327,16 +342,15 @@ export default function CsrActivityReport({
 
   const selectedCsr = csrs.find(c => c.id === csrId) ?? null;
   const dropdownLabel = selectedCsr ? selectedCsr.name : allLabel;
-  const activePeriod = periodFromDates(fromDate, toDate, today);
+  const clock = CLOCKS[clockTz];
+  const timezoneLabel = clock.label;
+  const activePeriod = periodFromDates(fromDate, toDate, calendarYmd(clock.tz));
 
   const applyPeriod = (period: PeriodPreset) => {
-    const range = rangeForPeriod(period, pktTodayYmd());
+    const range = rangeForPeriod(period, calendarYmd(clock.tz));
     setFromDate(range.from);
     setToDate(range.to);
   };
-
-  const clock = CLOCKS[clockTz];
-  const timezoneLabel = clock.label;
 
   const totals = useMemo(() => ({
     sessions: sessions.length,
@@ -421,6 +435,25 @@ export default function CsrActivityReport({
               onChange={e => setToDate(e.target.value)}
               className="h-10 flex-1 min-w-[130px] sm:flex-none rounded-xl border border-gray-200 bg-white px-3 text-sm outline-none focus:border-[#B8112D]"
             />
+            <div className="flex items-center gap-1.5">
+              {(["est", "pkt"] as const).map(key => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setClockTz(key)}
+                  className={`h-10 px-3 rounded-xl text-xs font-bold border ${
+                    clockTz === key
+                      ? "bg-[#B8112D] text-white border-[#B8112D]"
+                      : "bg-white text-gray-600 border-gray-200 hover:border-[#B8112D]/40"
+                  }`}
+                >
+                  {CLOCKS[key].button}
+                </button>
+              ))}
+            </div>
+            <p className="w-full text-[11px] text-gray-400 -mt-1">
+              From / To follow {timezoneLabel} calendar days.
+            </p>
 
             <div className="relative" ref={dropdownRef}>
               <button
@@ -619,10 +652,10 @@ export default function CsrActivityReport({
                 </tbody>
               </table>
             ) : (
-              <table className="w-full" style={{ minWidth: "700px" }}>
+              <table className="w-full" style={{ minWidth: "980px" }}>
                 <thead>
                   <tr className="border-b border-gray-100 bg-white">
-                    <th colSpan={5} className="px-3 py-2 text-left">
+                    <th colSpan={7} className="px-3 py-2 text-left">
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">Times</span>
                         {(["est", "pkt"] as const).map(key => (
@@ -639,12 +672,12 @@ export default function CsrActivityReport({
                             {CLOCKS[key].button}
                           </button>
                         ))}
-                        <span className="text-[11px] text-gray-400">{clock.label}</span>
+                        <span className="text-[11px] text-gray-400">{clock.label} · first check-in, last check-out</span>
                       </div>
                     </th>
                   </tr>
                   <tr className="border-b border-gray-100 text-left bg-[#FAFAFB]">
-                    {[personLabel, "Sessions", "On Dashboard", "Away", "Total"].map(h => (
+                    {[personLabel, `First Check In (${clock.abbr})`, `Last Check Out (${clock.abbr})`, "Sessions", "On Dashboard", "Away", "Total"].map(h => (
                       <th key={h} className="px-3 py-2.5 text-[10px] sm:text-xs font-semibold text-gray-400 uppercase tracking-wide whitespace-nowrap">
                         {h}
                       </th>
@@ -655,7 +688,7 @@ export default function CsrActivityReport({
                   {loading ? (
                     [1, 2, 3].map(i => (
                       <tr key={i} className="border-b border-gray-50">
-                        {[1, 2, 3, 4, 5].map(j => (
+                        {[1, 2, 3, 4, 5, 6, 7].map(j => (
                           <td key={j} className="px-3 py-3">
                             <div className="h-4 w-16 bg-gray-100 rounded animate-pulse" />
                           </td>
@@ -664,13 +697,30 @@ export default function CsrActivityReport({
                     ))
                   ) : summary.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="py-12 text-center text-gray-400 text-sm">
+                      <td colSpan={7} className="py-12 text-center text-gray-400 text-sm">
                         No summary for this date range
                       </td>
                     </tr>
                   ) : summary.map(row => (
                     <tr key={row.csrId} className="border-b border-gray-50 hover:bg-[#FAFAFB]">
-                      <td className="px-3 py-3 font-semibold text-sm text-[#111827]">{row.csrName}</td>
+                      <td className="px-3 py-3">
+                        <div className="font-semibold text-sm text-[#111827]">{row.csrName}</div>
+                        {row.csrCode ? <div className="text-[10px] text-gray-400">{row.csrCode}</div> : null}
+                      </td>
+                      <td className="px-3 py-3 text-xs sm:text-sm text-gray-700 whitespace-nowrap">
+                        <span className="inline-flex items-center gap-1">
+                          <LogIn size={12} className="text-green-500" />
+                          {row.firstLoginAt ? formatSessionStamp(row.firstLoginAt, clock.tz) : "—"}
+                        </span>
+                      </td>
+                      <td className="px-3 py-3 text-xs sm:text-sm text-gray-700 whitespace-nowrap">
+                        <span className="inline-flex items-center gap-1">
+                          <LogOut size={12} className={row.stillOpen ? "text-amber-500" : "text-gray-400"} />
+                          {row.stillOpen || !row.lastLogoutAt
+                            ? "Still checked in"
+                            : formatSessionStamp(row.lastLogoutAt, clock.tz)}
+                        </span>
+                      </td>
                       <td className="px-3 py-3 text-sm font-bold text-gray-700">{row.sessions}</td>
                       <td className="px-3 py-3 text-sm font-semibold text-emerald-600">{row.dashboardDuration}</td>
                       <td className="px-3 py-3 text-sm font-semibold text-amber-600">{row.awayDuration}</td>

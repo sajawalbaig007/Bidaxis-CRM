@@ -3896,7 +3896,12 @@ router.get(
       let to: Date | undefined;
       const fromStr = typeof req.query.from === "string" ? req.query.from : "";
       const toStr = typeof req.query.to === "string" ? req.query.to : "";
-      const tz = ADMIN_SESSION_TIMEZONE;
+      const tzRaw = String(req.query.tz ?? "").trim().toLowerCase();
+      const tz =
+        tzRaw === "pkt" || tzRaw === "asia/karachi" || tzRaw === "pakistan"
+          ? "Asia/Karachi"
+          : ADMIN_SESSION_TIMEZONE;
+      const timezoneLabel = tz === "Asia/Karachi" ? "Pakistan Time (PKT)" : ADMIN_SESSION_TZ_LABEL;
 
       if (fromStr) {
         const b = estDayBoundsUtc(fromStr, tz);
@@ -3919,7 +3924,7 @@ router.get(
       return res.json({
         success: true,
         timezone: tz,
-        timezoneLabel: ADMIN_SESSION_TZ_LABEL,
+        timezoneLabel,
         from: from?.toISOString() ?? null,
         to: to?.toISOString() ?? null,
         ...report,

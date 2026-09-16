@@ -139,9 +139,9 @@ export default function CrmMailProvider({ children }: { children: React.ReactNod
     <CrmMailContext.Provider value={value}>
       {children}
       {target && (
-        <div className="fixed inset-0 z-[120] bg-black/50 backdrop-blur-[2px] flex items-end sm:items-center justify-center p-0 sm:p-4">
-          <div className="w-full sm:max-w-lg bg-white dark:bg-crm-surface rounded-t-2xl sm:rounded-2xl shadow-2xl overflow-hidden">
-            <div className="flex items-start justify-between gap-3 px-5 py-4 border-b border-gray-100 dark:border-crm-border">
+        <div className="fixed inset-0 z-[120] bg-black/50 backdrop-blur-[2px] flex items-end sm:items-center justify-center p-3 sm:p-4">
+          <div className="w-full max-w-[min(100%,28rem)] sm:max-w-lg lg:max-w-xl max-h-[min(92dvh,40rem)] flex flex-col bg-white dark:bg-crm-surface rounded-2xl shadow-2xl overflow-hidden min-w-0">
+            <div className="shrink-0 flex items-start justify-between gap-3 px-4 sm:px-5 py-3 sm:py-4 border-b border-gray-100 dark:border-crm-border">
               <div className="min-w-0">
                 <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#B8112D]">Send as you</p>
                 <h2 className="text-base font-extrabold text-[#0F172A] dark:text-gray-100 truncate">
@@ -154,20 +154,44 @@ export default function CrmMailProvider({ children }: { children: React.ReactNod
               <button
                 type="button"
                 onClick={close}
-                className="w-8 h-8 rounded-lg bg-gray-100 hover:bg-gray-200 inline-flex items-center justify-center shrink-0"
+                className="w-9 h-9 rounded-lg bg-gray-100 hover:bg-gray-200 inline-flex items-center justify-center shrink-0"
               >
                 <X size={14} />
               </button>
             </div>
 
-            <div className="px-5 py-4 space-y-4 max-h-[75vh] overflow-y-auto">
+            {confirming ? (
+              <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 sm:px-5 py-4 space-y-3">
+                <p className="text-sm font-bold text-[#0F172A] dark:text-gray-100">Confirm send</p>
+                <div className="rounded-xl bg-[#FFF1F3] border border-[#f5c5ce] px-3 py-3 text-xs text-[#7f1d1d] space-y-1.5 break-words">
+                  <p>
+                    <span className="font-semibold">From:</span> {selectedFrom?.email}
+                  </p>
+                  <p>
+                    <span className="font-semibold">To:</span> {to}
+                  </p>
+                  <p>
+                    <span className="font-semibold">Subject:</span> {subject}
+                  </p>
+                  {selectedFrom?.signatureLabel ? (
+                    <p>
+                      Footer: <span className="font-semibold">{selectedFrom.signatureLabel}</span>
+                    </p>
+                  ) : null}
+                </div>
+                <p className="text-[11px] text-gray-500 leading-relaxed">
+                  This sends from the mailbox you picked. The company signature is added automatically.
+                </p>
+              </div>
+            ) : (
+            <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 sm:px-5 py-4 space-y-3 sm:space-y-4">
               {toOptions.length > 1 ? (
-                <label className="block text-xs font-semibold text-gray-600">
+                <label className="block text-xs font-semibold text-gray-600 min-w-0">
                   Client email (To)
                   <select
                     value={to}
                     onChange={e => setTo(e.target.value)}
-                    className="mt-1 h-10 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm text-[#0F172A]"
+                    className="mt-1 h-10 w-full min-w-0 rounded-xl border border-gray-200 bg-white px-3 text-sm text-[#0F172A]"
                   >
                     {toOptions.map(em => (
                       <option key={em} value={em}>{em}</option>
@@ -175,32 +199,32 @@ export default function CrmMailProvider({ children }: { children: React.ReactNod
                   </select>
                 </label>
               ) : (
-                <p className="text-xs text-gray-500">
+                <p className="text-xs text-gray-500 break-words">
                   To: <span className="font-semibold text-[#0F172A]">{to || "—"}</span>
                 </p>
               )}
 
-              <label className="block text-xs font-semibold text-gray-600">
+              <label className="block text-xs font-semibold text-gray-600 min-w-0">
                 Subject
                 <input
                   value={subject}
                   onChange={e => { setSubject(e.target.value); setConfirming(false); }}
-                  className="mt-1 h-10 w-full rounded-xl border border-gray-200 px-3 text-sm text-[#0F172A]"
+                  className="mt-1 h-10 w-full min-w-0 rounded-xl border border-gray-200 px-3 text-sm text-[#0F172A]"
                   placeholder="Subject"
                 />
               </label>
-              <label className="block text-xs font-semibold text-gray-600">
+              <label className="block text-xs font-semibold text-gray-600 min-w-0">
                 Message
                 <textarea
                   value={body}
                   onChange={e => { setBody(e.target.value); setConfirming(false); }}
-                  rows={8}
-                  className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm text-[#0F172A] leading-relaxed"
+                  rows={6}
+                  className="mt-1 w-full min-w-0 rounded-xl border border-gray-200 px-3 py-2 text-sm text-[#0F172A] leading-relaxed"
                   placeholder="Your email..."
                 />
               </label>
 
-              <div>
+              <div className="min-w-0">
                 <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#B8112D] mb-2">
                   Send through
                 </p>
@@ -218,7 +242,7 @@ export default function CrmMailProvider({ children }: { children: React.ReactNod
                         key={s.id}
                         type="button"
                         onClick={() => pickFrom(s.id)}
-                        className={`text-left rounded-xl border px-3 py-2.5 transition-colors ${
+                        className={`text-left rounded-xl border px-3 py-2.5 transition-colors min-w-0 ${
                           fromId === s.id
                             ? "border-[#B8112D] bg-[#FFF1F3] shadow-sm"
                             : "border-gray-200 hover:border-[#B8112D]/40"
@@ -227,7 +251,7 @@ export default function CrmMailProvider({ children }: { children: React.ReactNod
                         <p className="text-sm font-semibold text-[#0F172A] truncate">{s.name}</p>
                         <p className="text-[11px] text-gray-500 truncate">{s.email}</p>
                         {s.signatureLabel ? (
-                          <p className="text-[10px] font-semibold text-[#0878e8] mt-0.5">
+                          <p className="text-[10px] font-semibold text-[#0878e8] mt-0.5 truncate">
                             Footer: {s.signatureLabel}
                           </p>
                         ) : null}
@@ -237,31 +261,22 @@ export default function CrmMailProvider({ children }: { children: React.ReactNod
                 )}
               </div>
             </div>
+            )}
 
-            <div className="px-5 py-4 border-t border-gray-100 flex flex-col gap-2">
-              {confirming ? (
-                <div className="rounded-xl bg-[#FFF1F3] border border-[#f5c5ce] px-3 py-2 text-xs text-[#7f1d1d]">
-                  Send from <span className="font-semibold">{selectedFrom?.email}</span> to{" "}
-                  <span className="font-semibold">{to}</span>
-                  {selectedFrom?.signatureLabel ? (
-                    <>
-                      {" "}with the <span className="font-semibold">{selectedFrom.signatureLabel}</span> footer
-                    </>
-                  ) : null}
-                  ?
-                </div>
-              ) : selectedFrom?.signatureLabel ? (
-                <p className="text-[11px] text-gray-500">
+            <div className="shrink-0 px-4 sm:px-5 py-3 sm:py-4 border-t border-gray-100 dark:border-crm-border bg-white dark:bg-crm-surface">
+              {!confirming && selectedFrom?.signatureLabel ? (
+                <p className="text-[11px] text-gray-500 mb-2 truncate">
                   Footer added on send: {selectedFrom.signatureLabel}
                 </p>
               ) : null}
-              <div className="flex items-center justify-end gap-2">
+              <div className={`grid gap-2 ${confirming ? "grid-cols-2" : "grid-cols-1"}`}>
                 {confirming ? (
                   <>
                     <button
                       type="button"
                       onClick={() => setConfirming(false)}
-                      className="h-9 px-3 rounded-xl text-sm font-semibold text-gray-600"
+                      disabled={sending}
+                      className="h-11 w-full rounded-xl text-sm font-semibold text-gray-700 bg-gray-100 hover:bg-gray-200 disabled:opacity-50"
                     >
                       Back
                     </button>
@@ -269,7 +284,7 @@ export default function CrmMailProvider({ children }: { children: React.ReactNod
                       type="button"
                       onClick={() => void send()}
                       disabled={sending}
-                      className="h-9 px-4 rounded-xl bg-[#B8112D] text-white text-sm font-semibold inline-flex items-center gap-1.5 disabled:opacity-50"
+                      className="h-11 w-full rounded-xl bg-[#B8112D] text-white text-sm font-semibold inline-flex items-center justify-center gap-1.5 disabled:opacity-50"
                     >
                       {sending ? <Loader2 size={14} className="animate-spin" /> : <Mail size={14} />}
                       Confirm send
@@ -279,7 +294,7 @@ export default function CrmMailProvider({ children }: { children: React.ReactNod
                   <button
                     type="button"
                     onClick={requestSend}
-                    className="h-9 px-4 rounded-xl bg-[#B8112D] text-white text-sm font-semibold inline-flex items-center gap-1.5"
+                    className="h-11 w-full sm:w-auto sm:ml-auto sm:px-5 rounded-xl bg-[#B8112D] text-white text-sm font-semibold inline-flex items-center justify-center gap-1.5"
                   >
                     <Mail size={14} />
                     Send

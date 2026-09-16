@@ -415,55 +415,55 @@ export default function EstimatorDashboardPage() {
   return (
     <EstimatorPageShell>
       <div className={STAFF_PAGE_PAD}>
-        <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-          <div className="min-w-0">
+          <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <div className="min-w-0">
             <h1 className="text-xl sm:text-2xl md:text-[28px] font-bold text-crm-text tracking-tight">
-              Estimator Dashboard
-            </h1>
+                Estimator Dashboard
+              </h1>
             <p className="text-xs sm:text-sm text-crm-text-muted mt-0.5 sm:mt-1">
               Assigned work · takeoff · Chief Estimator remarks
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={() => void load()}
-            disabled={loading}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => void load()}
+              disabled={loading}
             className="h-10 sm:h-11 px-4 sm:px-5 rounded-xl border border-crm-border bg-crm-surface text-sm font-semibold text-crm-text-secondary inline-flex items-center justify-center gap-2 hover:border-[#7C3AED]/40 hover:text-[#7C3AED] hover:bg-violet-50 dark:hover:bg-violet-500/10 disabled:opacity-60 shadow-sm w-full sm:w-auto shrink-0"
-          >
-            <RefreshCw size={15} className={loading ? "animate-spin" : ""} />
-            {loading ? "Refreshing…" : "Refresh stats"}
-          </button>
-        </header>
+            >
+              <RefreshCw size={15} className={loading ? "animate-spin" : ""} />
+              {loading ? "Refreshing…" : "Refresh stats"}
+            </button>
+          </header>
 
-        <section aria-label="Quick stats">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 sm:gap-3">
+          <section aria-label="Quick stats">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 sm:gap-3">
             {cards.map((c) => (
-              <div
-                key={c.label}
-                className={`bg-gradient-to-br ${c.from} ${c.to} rounded-xl sm:rounded-2xl p-3 sm:p-4 text-white shadow-md flex flex-col gap-2 sm:gap-2.5 min-h-[96px] sm:min-h-[108px]`}
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <span className="text-white/75 text-[9px] sm:text-[10px] font-bold uppercase tracking-wider leading-snug">
-                    {c.label}
-                  </span>
-                  <span className="w-6 h-6 sm:w-7 sm:h-7 bg-white/20 rounded-lg sm:rounded-xl flex items-center justify-center shrink-0">
-                    <c.icon size={15} />
-                  </span>
+                <div
+                  key={c.label}
+                  className={`bg-gradient-to-br ${c.from} ${c.to} rounded-xl sm:rounded-2xl p-3 sm:p-4 text-white shadow-md flex flex-col gap-2 sm:gap-2.5 min-h-[96px] sm:min-h-[108px]`}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <span className="text-white/75 text-[9px] sm:text-[10px] font-bold uppercase tracking-wider leading-snug">
+                      {c.label}
+                    </span>
+                    <span className="w-6 h-6 sm:w-7 sm:h-7 bg-white/20 rounded-lg sm:rounded-xl flex items-center justify-center shrink-0">
+                      <c.icon size={15} />
+                    </span>
+                  </div>
+                  {loading ? (
+                    <div className="h-7 sm:h-8 w-12 sm:w-14 bg-white/25 rounded-lg animate-pulse" />
+                  ) : (
+                    <span className="text-xl sm:text-2xl md:text-3xl font-extrabold tracking-tight leading-none tabular-nums">
+                      {c.value.toLocaleString()}
+                    </span>
+                  )}
+                  <div className="w-full h-1 bg-white/20 rounded-full overflow-hidden mt-auto">
+                    <div className="h-full bg-white/60 rounded-full" style={{ width: c.bar }} />
+                  </div>
                 </div>
-                {loading ? (
-                  <div className="h-7 sm:h-8 w-12 sm:w-14 bg-white/25 rounded-lg animate-pulse" />
-                ) : (
-                  <span className="text-xl sm:text-2xl md:text-3xl font-extrabold tracking-tight leading-none tabular-nums">
-                    {c.value.toLocaleString()}
-                  </span>
-                )}
-                <div className="w-full h-1 bg-white/20 rounded-full overflow-hidden mt-auto">
-                  <div className="h-full bg-white/60 rounded-full" style={{ width: c.bar }} />
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
+              ))}
+            </div>
+          </section>
 
         <UploadActionBento
           title="Overview board"
@@ -471,7 +471,7 @@ export default function EstimatorDashboardPage() {
           replayLabel="Replay layout"
           items={bentoItems}
         />
-      </div>
+              </div>
     </EstimatorPageShell>
   );
 }

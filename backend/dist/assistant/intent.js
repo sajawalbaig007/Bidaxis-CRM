@@ -10,6 +10,7 @@ exports.extractSearchQuery = extractSearchQuery;
 exports.extractProjectCode = extractProjectCode;
 exports.extractEmailPurpose = extractEmailPurpose;
 exports.clientFocus = clientFocus;
+exports.personFocus = personFocus;
 exports.isFollowUp = isFollowUp;
 exports.lastFocusFromHistory = lastFocusFromHistory;
 exports.resolveWithHistory = resolveWithHistory;
@@ -47,7 +48,8 @@ const STOP = new Set([
     "takeoff", "take-off", "workload", "scoreboard", "monitoring", "team", "staff",
     "users", "user", "employees", "employee", "payments", "payment", "outstanding",
     "collected", "unpaid", "csr", "csrs", "online", "roster", "desk", "performance",
-    "chief", "gps", "timer", "timers", "overdue", "assigned", "pending", "completed",
+    "chief", "gps", "ps", "bds", "bem", "bim", "pacific", "sunshine", "estimating", "studio",
+    "design", "hostinger", "timer", "timers", "overdue", "assigned", "pending", "completed",
     "active", "currently", "current", "today", "tonight", "this", "month", "cover",
     "covers", "covering", "checkin", "checkout", "check-in", "check-out", "chekin",
     "attendance", "sttaus", "staus", "stats", "stat", "gimme",
@@ -294,10 +296,25 @@ function clientFocus(text) {
     }
     return "history";
 }
+function personFocus(text) {
+    const lower = text.toLowerCase();
+    if (/\b(email|phone|number|contact)\b/.test(lower) && !/\b(send|bhej|mail|compose)\b/.test(lower)) {
+        return "contact";
+    }
+    if (/\b(check[- ]?in|checkin|chekin|check[- ]?out|attendance|checked\s*in)\b/.test(lower)) {
+        return "checkin";
+    }
+    if (/\b(how many|kitn[aeiy]|kitne|kitny|count)\b/.test(lower) && /\bprojects?\b/.test(lower)) {
+        return "count";
+    }
+    return "full";
+}
 function wantsClientLookup(lower, search, email, phone, raw, projectCode) {
     if (email || phone || projectCode)
         return true;
     if (!search)
+        return false;
+    if ((0, fuzzy_1.looksLikePersonName)(search))
         return false;
     const lookupVerb = /\b(history|overall|details?|batao|btana|btado|tell|show|find|search|lookup|client|customer|about|follow-?up|quoted|paid|projects?)\b/.test(lower);
     if (lookupVerb)
@@ -379,10 +396,10 @@ function preferFollowUpPlan(message, focus) {
                 args: { query: email || focus, phone: phone ?? "", intent: extractEmailPurpose(message) },
             }];
     }
-    if (/\b(check[- ]?in|checkin|chekin|check[- ]?out|attendance|checked\s*in)\b/.test(lower)) {
+    if ((0, fuzzy_1.looksLikePersonName)(focus) || /\b(check[- ]?in|checkin|chekin|estimator|csr|accounts|staff|employee)\b/.test(lower)) {
         return [{
                 tool: "getPersonSnapshot",
-                args: { query: focus, intent: message, month: month ?? "", day: day ?? "" },
+                args: { query: (0, fuzzy_1.extractPersonName)(focus) || focus, intent: message, month: month ?? "", day: day ?? "" },
             }];
     }
     return [{
@@ -400,6 +417,13 @@ function fallbackPlan(text, lastFocus) {
     const phone = parsePhone(text);
     const projectCode = extractProjectCode(text);
     const search = extractSearchQuery(text) || lastFocus;
+    const person = (0, fuzzy_1.extractPersonName)(search);
+    if (person && !email && !phone && !projectCode) {
+        return [{
+                tool: "getPersonSnapshot",
+                args: { query: person, intent: text, month: parseMonth(text) ?? "", day: parseDay(text) ?? "" },
+            }];
+    }
     if (search || email || phone || projectCode) {
         return [{
                 tool: "getClientHistory",
@@ -424,6 +448,7 @@ function planTools(text) {
     const phone = parsePhone(q);
     const projectCode = extractProjectCode(q);
     const search = extractSearchQuery(q);
+    const personName = (0, fuzzy_1.extractPersonName)(search);
     const clientHint = wantsClientLookup(lower, search, email, phone, q, projectCode);
     const accountsPage = parseAccountsPage(q);
     const wantsEmail = wantsEmailIntent(lower);
@@ -444,7 +469,6 @@ function planTools(text) {
         !/\b(client|customer|history|quoted)\b/.test(lower);
     const wantsStaff = !wantsTechnical &&
         /\b(users?|staff|roster|employees?|who is online|online users|team list)\b/.test(lower);
-    const personName = (0, fuzzy_1.looksLikePersonName)(search) ? search : "";
     const wantsCheckin = /\b(check[- ]?in|checkin|chekin|check[- ]?out|attendance|checked\s*in)\b/.test(lower);
     const wantsCsrOverview = !personName &&
         (/\bcsr\b/.test(lower) || /\b(sales team|csr desk)\b/.test(lower));

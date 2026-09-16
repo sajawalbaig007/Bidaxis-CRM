@@ -3360,7 +3360,11 @@ router.get("/csr-session-report", auth_middleware_1.verifyToken, (0, role_middle
         let to;
         const fromStr = typeof req.query.from === "string" ? req.query.from : "";
         const toStr = typeof req.query.to === "string" ? req.query.to : "";
-        const tz = estTime_1.ADMIN_SESSION_TIMEZONE;
+        const tzRaw = String(req.query.tz ?? "").trim().toLowerCase();
+        const tz = tzRaw === "pkt" || tzRaw === "asia/karachi" || tzRaw === "pakistan"
+            ? "Asia/Karachi"
+            : estTime_1.ADMIN_SESSION_TIMEZONE;
+        const timezoneLabel = tz === "Asia/Karachi" ? "Pakistan Time (PKT)" : estTime_1.ADMIN_SESSION_TZ_LABEL;
         if (fromStr) {
             const b = (0, estTime_1.estDayBoundsUtc)(fromStr, tz);
             if (b)
@@ -3382,7 +3386,7 @@ router.get("/csr-session-report", auth_middleware_1.verifyToken, (0, role_middle
         return res.json({
             success: true,
             timezone: tz,
-            timezoneLabel: estTime_1.ADMIN_SESSION_TZ_LABEL,
+            timezoneLabel,
             from: from?.toISOString() ?? null,
             to: to?.toISOString() ?? null,
             ...report,
