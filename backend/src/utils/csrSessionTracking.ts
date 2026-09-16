@@ -368,6 +368,9 @@ export type CsrSessionSummary = {
   dashboardDuration: string;
   awayDuration: string;
   totalDuration: string;
+  firstLoginAt: string;
+  lastLogoutAt: string | null;
+  stillOpen: boolean;
 };
 
 function liveTotals(session: {
@@ -513,6 +516,9 @@ export async function buildCsrSessionReport(opts: {
         dashboardDuration: formatDurationMs(s.dashboardMs),
         awayDuration: formatDurationMs(s.awayMs),
         totalDuration: formatDurationMs(s.totalMs),
+        firstLoginAt: s.loginAt,
+        lastLogoutAt: s.logoutAt,
+        stillOpen: s.status === "active",
       });
       continue;
     }
@@ -523,6 +529,11 @@ export async function buildCsrSessionReport(opts: {
     hit.dashboardDuration = formatDurationMs(hit.dashboardMs);
     hit.awayDuration = formatDurationMs(hit.awayMs);
     hit.totalDuration = formatDurationMs(hit.totalMs);
+    if (s.loginAt < hit.firstLoginAt) hit.firstLoginAt = s.loginAt;
+    if (s.status === "active") hit.stillOpen = true;
+    if (s.logoutAt && (!hit.lastLogoutAt || s.logoutAt > hit.lastLogoutAt)) {
+      hit.lastLogoutAt = s.logoutAt;
+    }
   }
 
   return {

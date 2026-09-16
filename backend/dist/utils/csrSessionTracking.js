@@ -412,6 +412,9 @@ async function buildCsrSessionReport(opts) {
                 dashboardDuration: (0, estTime_1.formatDurationMs)(s.dashboardMs),
                 awayDuration: (0, estTime_1.formatDurationMs)(s.awayMs),
                 totalDuration: (0, estTime_1.formatDurationMs)(s.totalMs),
+                firstLoginAt: s.loginAt,
+                lastLogoutAt: s.logoutAt,
+                stillOpen: s.status === "active",
             });
             continue;
         }
@@ -422,6 +425,13 @@ async function buildCsrSessionReport(opts) {
         hit.dashboardDuration = (0, estTime_1.formatDurationMs)(hit.dashboardMs);
         hit.awayDuration = (0, estTime_1.formatDurationMs)(hit.awayMs);
         hit.totalDuration = (0, estTime_1.formatDurationMs)(hit.totalMs);
+        if (s.loginAt < hit.firstLoginAt)
+            hit.firstLoginAt = s.loginAt;
+        if (s.status === "active")
+            hit.stillOpen = true;
+        if (s.logoutAt && (!hit.lastLogoutAt || s.logoutAt > hit.lastLogoutAt)) {
+            hit.lastLogoutAt = s.logoutAt;
+        }
     }
     return {
         sessions,

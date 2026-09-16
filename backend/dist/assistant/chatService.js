@@ -64,6 +64,89 @@ function formatHistory(d, focus) {
     }
     return lines.join("\n");
 }
+function formatPerson(d, asked) {
+    const role = d.role ? String(d.role).replace(/_/g, " ") : "";
+    const title = heading(`${d.name}${d.code ? ` (${d.code})` : ""}${role ? ` · ${role}` : ""}`);
+    const focus = (0, intent_1.personFocus)(asked);
+    const est = asRecord(d.estimator);
+    const csr = asRecord(d.csr);
+    const ck = asRecord(d.checkin);
+    const lines = [title, ""];
+    if (focus === "count") {
+        if (Object.keys(est).length) {
+            lines.push(`Projects covering now: ${est.assigned ?? 0}`);
+            lines.push(`Pending ${est.pending ?? 0} · done ${est.completed ?? 0} · overdue ${est.overdue ?? 0}`);
+            return lines.join("\n");
+        }
+        if (Object.keys(csr).length) {
+            lines.push(`CSR leads: ${csr.total ?? 0}`);
+            lines.push(`Pending ${csr.pending ?? 0} · interested ${csr.interested ?? 0} · closed ${csr.closed ?? 0}`);
+            return lines.join("\n");
+        }
+        lines.push("No project count on file for this person.");
+        return lines.join("\n");
+    }
+    if (focus === "contact") {
+        if (d.email)
+            lines.push(`Email: ${d.email}`);
+        if (d.phone)
+            lines.push(`Phone: ${d.phone}`);
+        if (!d.email && !d.phone)
+            lines.push("No email or phone on file.");
+        return lines.join("\n");
+    }
+    if (d.email)
+        lines.push(`Email: ${d.email}`);
+    if (d.phone)
+        lines.push(`Phone: ${d.phone}`);
+    if (d.employeeCode)
+        lines.push(`Employee code: ${d.employeeCode}`);
+    if (Object.keys(ck).length) {
+        const when = ck.isToday === false && ck.day ? String(ck.day) : "today";
+        if (ck.checkedIn) {
+            lines.push(`Check-in ${when}: YES at ${ck.checkInAtEst || "—"}${ck.paused ? " · paused" : ""}`);
+            lines.push(`On dashboard: ${ck.duration || "—"}`);
+        }
+        else if (ck.hadSessionToday) {
+            lines.push(`Check-in ${when}: YES at ${ck.checkInAtEst || "—"}`);
+            if (ck.checkedOutAtEst)
+                lines.push(`Checked out: ${ck.checkedOutAtEst}`);
+            if (ck.duration)
+                lines.push(`Time on dashboard: ${ck.duration}`);
+        }
+        else {
+            lines.push(`Check-in ${when}: NO session.`);
+        }
+        lines.push("");
+        lines.push(`Portal: ${ck.online || d.online ? "online" : "offline"}`);
+        if (ck.lastActive)
+            lines.push(`Last active: ${ck.lastActive}`);
+    }
+    else {
+        lines.push(`Portal: ${d.online ? "online" : "offline"} (no check-in record).`);
+    }
+    if (focus === "checkin")
+        return lines.join("\n");
+    if (Object.keys(csr).length) {
+        lines.push("");
+        lines.push(`CSR desk: ${csr.total ?? 0} leads`);
+        lines.push(`Pending ${csr.pending ?? 0} · interested ${csr.interested ?? 0} · closed ${csr.closed ?? 0}`);
+    }
+    if (Object.keys(est).length) {
+        lines.push("");
+        lines.push(`Projects covering now: ${est.assigned ?? 0}`);
+        lines.push(`Pending ${est.pending ?? 0} · done ${est.completed ?? 0} · overdue ${est.overdue ?? 0}`);
+        lines.push(`This month deadlines (${est.month || "now"}): ${est.monthCount ?? 0} · score ${est.score ?? 0} · logged ${est.logged ?? "0h"}`);
+        const jobs = Array.isArray(est.projects) ? est.projects : [];
+        if (jobs.length) {
+            lines.push("");
+            jobs.slice(0, 8).forEach((p, i) => {
+                lines.push(`${i + 1}. ${p.code || "—"} — ${p.title || "Untitled"} · takeoff ${p.takeoffDone ? "done" : "open"}${p.overdue ? " · OVERDUE" : ""}`);
+            });
+        }
+    }
+    return lines.join("\n");
+}
 function formatFallback(results) {
     const lines = [];
     for (const raw of results) {
@@ -125,60 +208,7 @@ function formatFallback(results) {
             continue;
         }
         if (d.person) {
-            const role = d.role ? String(d.role).replace(/_/g, " ") : "";
-            lines.push(heading(`${d.name}${d.code ? ` (${d.code})` : ""}${role ? ` · ${role}` : ""}`));
-            lines.push("");
-            if (d.email)
-                lines.push(`Email: ${d.email}`);
-            if (d.phone)
-                lines.push(`Phone: ${d.phone}`);
-            if (d.employeeCode)
-                lines.push(`Employee code: ${d.employeeCode}`);
-            const ck = asRecord(d.checkin);
-            if (Object.keys(ck).length) {
-                const when = ck.isToday === false && ck.day ? String(ck.day) : "today";
-                if (ck.checkedIn) {
-                    lines.push(`Check-in ${when}: YES at ${ck.checkInAtEst || "—"}${ck.paused ? " · paused" : ""}`);
-                    lines.push(`On dashboard: ${ck.duration || "—"}`);
-                }
-                else if (ck.hadSessionToday) {
-                    lines.push(`Check-in ${when}: YES at ${ck.checkInAtEst || "—"}`);
-                    if (ck.checkedOutAtEst)
-                        lines.push(`Checked out: ${ck.checkedOutAtEst}`);
-                    if (ck.duration)
-                        lines.push(`Time on dashboard: ${ck.duration}`);
-                }
-                else {
-                    lines.push(`Check-in ${when}: NO session.`);
-                }
-                lines.push("");
-                lines.push(`Portal: ${ck.online || d.online ? "online" : "offline"}`);
-                if (ck.lastActive)
-                    lines.push(`Last active: ${ck.lastActive}`);
-            }
-            else {
-                lines.push(`Portal: ${d.online ? "online" : "offline"} (no check-in record).`);
-            }
-            const csr = asRecord(d.csr);
-            if (Object.keys(csr).length) {
-                lines.push("");
-                lines.push(`CSR desk: ${csr.total ?? 0} leads`);
-                lines.push(`Pending ${csr.pending ?? 0} · interested ${csr.interested ?? 0} · closed ${csr.closed ?? 0}`);
-            }
-            const est = asRecord(d.estimator);
-            if (Object.keys(est).length) {
-                lines.push("");
-                lines.push(`Projects covering now: ${est.assigned ?? 0}`);
-                lines.push(`Pending ${est.pending ?? 0} · done ${est.completed ?? 0} · overdue ${est.overdue ?? 0}`);
-                lines.push(`This month deadlines (${est.month || "now"}): ${est.monthCount ?? 0} · score ${est.score ?? 0} · logged ${est.logged ?? "0h"}`);
-                const jobs = Array.isArray(est.projects) ? est.projects : [];
-                if (jobs.length) {
-                    lines.push("");
-                    jobs.slice(0, 8).forEach((p, i) => {
-                        lines.push(`${i + 1}. ${p.code || "—"} — ${p.title || "Untitled"} · takeoff ${p.takeoffDone ? "done" : "open"}${p.overdue ? " · OVERDUE" : ""}`);
-                    });
-                }
-            }
+            lines.push(formatPerson(d, String(asRecord(r.args).intent || "")));
             continue;
         }
         if (d.estimator) {
@@ -334,11 +364,8 @@ function formatFallback(results) {
     }
     return lines.join("\n") || "I could not find that in the CRM.";
 }
-function shouldSkipOllama(results) {
-    return results.some(raw => {
-        const d = asRecord(asRecord(raw).data);
-        return d.compose === true || d.needPick === true || d.found === false;
-    });
+function shouldSkipOllama(_results) {
+    return true;
 }
 async function runAssistantChat(opts) {
     if (opts.role !== "admin") {
@@ -398,19 +425,20 @@ async function runAssistantChat(opts) {
         }
     }
     const firstData = asRecord(asRecord(results[0]).data);
-    if (firstData.found === false &&
-        focus.length >= 3 &&
-        planned[0]?.tool === "getClientHistory") {
-        const out = await tools_1.TOOL_HANDLERS.getPersonSnapshot(actor, {
-            query: focus,
-            intent: opts.message,
-            month: "",
-            day: "",
-        });
-        if (out.ok) {
-            const pd = asRecord(out.data);
-            if (pd.person) {
-                results.splice(0, results.length, { tool: "getPersonSnapshot", args: { query: focus }, ...out });
+    if (firstData.found === false && planned[0]?.tool === "getClientHistory") {
+        const q = String(planned[0].args.query || focus).trim();
+        if (q.length >= 3) {
+            const out = await tools_1.TOOL_HANDLERS.getPersonSnapshot(actor, {
+                query: q,
+                intent: opts.message,
+                month: "",
+                day: "",
+            });
+            if (out.ok) {
+                const pd = asRecord(out.data);
+                if (pd.person) {
+                    results.splice(0, results.length, { tool: "getPersonSnapshot", args: { query: q, intent: opts.message }, ...out });
+                }
             }
         }
     }
