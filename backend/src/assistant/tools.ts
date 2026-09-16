@@ -835,14 +835,38 @@ export async function getTechnicalOverview(actor: AssistantActor, args: { query?
   ]);
   const { kpi } = snap;
   const q = `${args.query ?? ""} ${args.focus ?? ""}`.toLowerCase();
+  const wantsLive =
+    args.focus === "live" ||
+    /\b(chief\s*estimator|technical\s*manager|tech\s*manager|live projects|dashboard)\b/.test(q);
   const focus =
-    args.focus === "count" || args.focus === "scoreboard" || args.focus === "full" || args.focus === "pipeline"
-      ? args.focus
-      : /\b(kitn[aeiy]|how many|count|kitny)\b/.test(q) && /\bprojects?\b/.test(q)
-        ? "count"
-        : /\b(full|snapshot|overview)\b/.test(q)
-          ? "full"
-          : "pipeline";
+    wantsLive
+      ? "live"
+      : args.focus === "count" || args.focus === "scoreboard" || args.focus === "full" || args.focus === "pipeline"
+        ? args.focus
+        : /\b(kitn[aeiy]|how many|count|kitny)\b/.test(q) && /\bprojects?\b/.test(q)
+          ? "count"
+          : /\b(full|snapshot|overview)\b/.test(q)
+            ? "full"
+            : "pipeline";
+  const live =
+    focus === "live" || focus === "full"
+      ? (snap.live ?? []).map(p => ({
+          code: p.projectCode || "—",
+          title: p.projectTitle || "Untitled",
+          phase: phaseLabel(p.projectPhase),
+          workStatus: p.workStatus || "",
+          estimators: p.estimators.map(e => ({
+            name: e.name,
+            code: e.code,
+            manHours: e.manHours || "—",
+            logged: hoursLabel(e.loggedSeconds),
+            takeoffDone: e.takeoffDone,
+            overdue: e.overdue,
+            timerRunning: e.timerRunning,
+            deadline: e.deadline || "",
+          })),
+        }))
+      : [];
   return {
     ok: true as const,
     data: {
@@ -850,6 +874,7 @@ export async function getTechnicalOverview(actor: AssistantActor, args: { query?
       focus,
       generatedAt: snap.generatedAt,
       pipeline: kpi.pipeline,
+      live,
       summary: {
         totalAssignments: kpi.summary.totalAssignments,
         pending: kpi.summary.pendingAssignments,
@@ -1218,17 +1243,21 @@ export async function getPersonSnapshot(
             overdue: linkedEst.overdue,
             timers: linkedEst.timersRunning,
             logged: hoursLabel(linkedEst.loggedSeconds),
+            plannedHours: linkedEst.plannedHours,
             score: linkedEst.score,
             month,
             monthCount: monthProjects.length,
-            projects: linkedEst.projects.slice(0, 12).map(p => ({
+            projects: linkedEst.projects.map(p => ({
               code: p.projectCode,
               title: p.projectTitle,
-              phase: p.projectPhase,
+              phase: phaseLabel(p.projectPhase),
               deadline: p.deadline,
               takeoffDone: p.takeoffDone,
               overdue: p.overdue,
               timerRunning: p.timerRunning,
+              manHours: p.manHours || "—",
+              logged: hoursLabel(p.loggedSeconds),
+              scopes: p.scopes,
             })),
           }
         : null,

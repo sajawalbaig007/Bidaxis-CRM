@@ -128,7 +128,23 @@ export type TechnicalTeamMember = {
   projects: TechnicalTeamProjectRow[];
 };
 
-export type TechnicalKpiPayload = {
+export type TechnicalLiveProject = {
+  leadId: string;
+  projectCode: string | null;
+  projectTitle: string | null;
+  projectPhase: string | null;
+  workStatus: string | null;
+  estimators: Array<{
+    name: string;
+    code: string;
+    manHours: string;
+    loggedSeconds: number;
+    takeoffDone: boolean;
+    overdue: boolean;
+    timerRunning: boolean;
+    deadline: string;
+  }>;
+};
   pipeline: {
     total: number;
     notAssigned: number;
@@ -189,6 +205,7 @@ export async function buildTechnicalMonitoring(): Promise<{
   generatedAt: string;
   kpi: TechnicalKpiPayload;
   team: TechnicalTeamMember[];
+  live: TechnicalLiveProject[];
 }> {
   const now = Date.now();
   const today = startOfToday();
@@ -255,6 +272,18 @@ export async function buildTechnicalMonitoring(): Promise<{
     return created;
   };
 
+  const liveByLead = new Map<string, TechnicalLiveProject>();
+  for (const lead of leads) {
+    liveByLead.set(lead.id, {
+      leadId: lead.id,
+      projectCode: lead.projectCode ?? null,
+      projectTitle: lead.projectTitle ?? null,
+      projectPhase: lead.projectPhase ?? null,
+      workStatus: lead.projectWorkStatus ?? null,
+      estimators: [],
+    });
+  }
+
   let emergencyMorning = 0;
   let emergencyCob = 0;
 
@@ -264,6 +293,7 @@ export async function buildTechnicalMonitoring(): Promise<{
     if (timing === "cob") emergencyCob += 1;
 
     const assignments = parseTechnicalAssignments(lead.technicalAssignments);
+    const live = liveByLead.get(lead.id);
     for (const a of assignments) {
       const member = ensureMember(a);
       const logged = assignmentElapsedSeconds(a, now);
@@ -295,6 +325,16 @@ export async function buildTechnicalMonitoring(): Promise<{
         overdue,
         timerRunning: running,
         deadlineTiming: timing === "morning" || timing === "cob" ? timing : null,
+      });
+      live?.estimators.push({
+        name: member.name,
+        code: member.code,
+        manHours: a.manHours || "—",
+        loggedSeconds: logged,
+        takeoffDone: a.takeoffDone,
+        overdue,
+        timerRunning: running,
+        deadline: a.deadline || "",
       });
     }
   }
@@ -354,5 +394,6 @@ export async function buildTechnicalMonitoring(): Promise<{
     generatedAt: new Date().toISOString(),
     kpi: { pipeline, summary, scoreboard },
     team,
+    live: [...liveByLead.values()],
   };
 }

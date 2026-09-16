@@ -82,6 +82,25 @@ function formatHistory(d: Record<string, unknown>, focus: ClientFocus): string {
   return lines.join("\n");
 }
 
+function jobLine(p: Record<string, unknown>, i: number): string {
+  const bits = [
+    `Status: ${p.phase || "—"}`,
+    p.takeoffDone ? "takeoff done" : "takeoff open",
+    p.overdue ? "OVERDUE" : "",
+    p.timerRunning ? "timer on" : "",
+  ].filter(Boolean);
+  const hours = [
+    p.manHours ? `planned ${p.manHours}` : "",
+    p.logged ? `logged ${p.logged}` : "",
+  ].filter(Boolean);
+  const extra = [
+    bits.join(" · "),
+    hours.length ? `Man-hours: ${hours.join(" · ")}` : "",
+    p.deadline ? `Deadline: ${p.deadline}` : "",
+  ].filter(Boolean);
+  return `${i}. ${p.code || "—"} — ${p.title || "Untitled"}\n   ${extra.join("\n   ")}`;
+}
+
 function formatPerson(d: Record<string, unknown>, asked: string): string {
   const role = d.role ? String(d.role).replace(/_/g, " ") : "";
   const title = heading(`${d.name}${d.code ? ` (${d.code})` : ""}${role ? ` · ${role}` : ""}`);
@@ -89,13 +108,25 @@ function formatPerson(d: Record<string, unknown>, asked: string): string {
   const est = asRecord(d.estimator);
   const csr = asRecord(d.csr);
   const ck = asRecord(d.checkin);
+  const jobs = Array.isArray(est.projects) ? (est.projects as Array<Record<string, unknown>>) : [];
   const lines: string[] = [title, ""];
+
+  const pushEstimatorJobs = () => {
+    if (!jobs.length) {
+      lines.push("No live assignments on the technical dashboard.");
+      return;
+    }
+    lines.push("");
+    jobs.forEach((p, i) => lines.push(jobLine(p, i + 1), ""));
+  };
 
   if (focus === "count") {
     if (Object.keys(est).length) {
       lines.push(`Projects covering now: ${est.assigned ?? 0}`);
       lines.push(`Pending ${est.pending ?? 0} · done ${est.completed ?? 0} · overdue ${est.overdue ?? 0}`);
-      return lines.join("\n");
+      lines.push(`Logged ${est.logged ?? "0h"}${est.plannedHours != null ? ` · planned ${est.plannedHours}h` : ""}`);
+      pushEstimatorJobs();
+      return lines.join("\n").trim();
     }
     if (Object.keys(csr).length) {
       lines.push(`CSR leads: ${csr.total ?? 0}`);
@@ -146,17 +177,9 @@ function formatPerson(d: Record<string, unknown>, asked: string): string {
     lines.push(`Projects covering now: ${est.assigned ?? 0}`);
     lines.push(`Pending ${est.pending ?? 0} · done ${est.completed ?? 0} · overdue ${est.overdue ?? 0}`);
     lines.push(`This month deadlines (${est.month || "now"}): ${est.monthCount ?? 0} · score ${est.score ?? 0} · logged ${est.logged ?? "0h"}`);
-    const jobs = Array.isArray(est.projects) ? (est.projects as Array<Record<string, unknown>>) : [];
-    if (jobs.length) {
-      lines.push("");
-      jobs.slice(0, 8).forEach((p, i) => {
-        lines.push(
-          `${i + 1}. ${p.code || "—"} — ${p.title || "Untitled"} · takeoff ${p.takeoffDone ? "done" : "open"}${p.overdue ? " · OVERDUE" : ""}`,
-        );
-      });
-    }
+    pushEstimatorJobs();
   }
-  return lines.join("\n");
+  return lines.join("\n").trim();
 }
 
 function formatFallback(results: unknown[]): string {
@@ -186,6 +209,29 @@ function formatFallback(results: unknown[]): string {
       const p = asRecord(d.pipeline);
       const s = asRecord(d.summary);
       const focus = String(d.focus || "pipeline");
+      const live = Array.isArray(d.live) ? (d.live as Array<Record<string, unknown>>) : [];
+      if (focus === "live") {
+        lines.push(heading("Chief estimator dashboard (Technical Manager)"));
+        lines.push("");
+        lines.push(`Live projects: ${p.total ?? live.length}`);
+        lines.push(`Not assigned ${p.notAssigned ?? 0} · assigned ${p.assigned ?? 0} · takeoff ready ${p.takeoffDone ?? 0}`);
+        lines.push(`Pricing ${p.pricing ?? 0} · QA/delivery ${p.finalSubmission ?? 0}`);
+        lines.push("");
+        live.forEach((job, i) => {
+          const estimators = Array.isArray(job.estimators) ? (job.estimators as Array<Record<string, unknown>>) : [];
+          const who = estimators.length
+            ? estimators.map(e => {
+                const hrs = [e.manHours ? `planned ${e.manHours}` : "", e.logged ? `logged ${e.logged}` : ""].filter(Boolean).join(", ");
+                return `${e.name}${e.code && e.code !== "—" ? ` (${e.code})` : ""}${hrs ? ` · ${hrs}` : ""}${e.takeoffDone ? " · takeoff done" : ""}${e.overdue ? " · OVERDUE" : ""}`;
+              }).join("; ")
+            : "Unassigned";
+          lines.push(`${i + 1}. ${job.code || "—"} — ${job.title || "Untitled"}`);
+          lines.push(`   Status: ${job.phase || "—"}`);
+          lines.push(`   Estimator: ${who}`);
+          lines.push("");
+        });
+        continue;
+      }
       if (focus === "count") {
         lines.push(heading("Technical projects"));
         lines.push("");
