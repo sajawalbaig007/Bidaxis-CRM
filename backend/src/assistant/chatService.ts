@@ -90,7 +90,7 @@ function formatFallback(results: unknown[]): string {
         lines.push(String(d.body));
       }
       lines.push("");
-      lines.push("When you send, pick which email to send through: Devcon, BIM Design Studio, or PS Estimating.");
+      lines.push("When you send, pick Devcon, BIM Design Studio, or PS Estimating. That mailbox’s signature is added to the footer automatically.");
       continue;
     }
     if (d.technical) {

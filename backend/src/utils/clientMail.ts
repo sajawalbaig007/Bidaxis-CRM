@@ -1,12 +1,24 @@
 import nodemailer from "nodemailer";
+import {
+  getMailSignature,
+  resolveMailBrand,
+  signatureLabel,
+  stripMailSignOff,
+  type MailSignature,
+} from "./mailSignatures";
 
 export type MailSenderPublic = {
   id: string;
   email: string;
   name: string;
+  signatureBrand: ReturnType<typeof resolveMailBrand>;
+  signatureLabel: string | null;
 };
 
-type MailSender = MailSenderPublic & {
+type MailSender = {
+  id: string;
+  email: string;
+  name: string;
   pass: string;
   host?: string;
   port?: number;
@@ -103,7 +115,13 @@ export function listConfiguredSenders(): MailSender[] {
 }
 
 export function publicSenders(): MailSenderPublic[] {
-  return listConfiguredSenders().map(({ id, email, name }) => ({ id, email, name }));
+  return listConfiguredSenders().map(({ id, email, name }) => ({
+    id,
+    email,
+    name,
+    signatureBrand: resolveMailBrand(email, name),
+    signatureLabel: signatureLabel(email, name),
+  }));
 }
 
 export function findSender(id: string): MailSender | null {
@@ -124,14 +142,30 @@ export async function sendClientMail(opts: {
   subject: string;
   body: string;
 }): Promise<void> {
-  const html = escapeHtml(opts.body).replace(/\r\n|\n|\r/g, "<br>");
-  const mail = {
+  const signature = getMailSignature(opts.sender.email, opts.sender.name);
+  const bodyText = signature ? stripMailSignOff(opts.body) : opts.body;
+  const htmlBody = escapeHtml(bodyText).replace(/\r\n|\n|\r/g, "<br>");
+  const html = [
+    `<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.6;color:#111">${htmlBody}</div>`,
+    signature
+      ? `<div style="margin-top:22px;padding-top:8px">${signature.html}</div>`
+      : "",
+  ].join("");
+  const mail: {
+    from: string;
+    to: string;
+    subject: string;
+    text: string;
+    html: string;
+    attachments?: MailSignature["attachments"];
+  } = {
     from: `"${opts.sender.name.replace(/"/g, "")}" <${opts.sender.email}>`,
     to: opts.to.trim(),
     subject: opts.subject.trim(),
-    text: opts.body,
-    html: `<div style="font-family:Arial,sans-serif;font-size:14px;line-height:1.6;color:#111">${html}</div>`,
+    text: bodyText,
+    html,
   };
+  if (signature?.attachments.length) mail.attachments = signature.attachments;
 
   if (isGmailAddress(opts.sender.email) && !opts.sender.host) {
     const transporter = nodemailer.createTransport({
@@ -251,13 +285,16 @@ export async function draftClientMail(opts: {
   const client = (opts.clientName || "there").trim();
   const intent = opts.intent.trim();
   const who = greetName(client === "the client" ? "" : client);
-  const sign = opts.fromName.trim()
-    ? [`Thanks,`, opts.fromName.trim(), opts.fromEmail.trim()].filter(Boolean).join("\n")
-    : "Thanks,";
+  const branded = !!resolveMailBrand(opts.fromEmail, opts.fromName);
+  const sign = branded
+    ? ""
+    : opts.fromName.trim()
+      ? [`Thanks,`, opts.fromName.trim(), opts.fromEmail.trim()].filter(Boolean).join("\n")
+      : "Thanks,";
   const written = englishFromPurpose(intent, who);
   return {
     subject: written.subject,
-    body: `${written.opening}\n\n${sign}`,
+    body: sign ? `${written.opening}\n\n${sign}` : written.opening,
     source: "template",
   };
 }
