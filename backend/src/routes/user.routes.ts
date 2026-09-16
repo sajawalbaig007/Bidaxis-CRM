@@ -15,9 +15,9 @@ import {
   adminSetUserPassword,
   adminLogoutAllDevices,
 } from "../controllers/user.controller";
-
+/* ================= ROUTERS — user routes ================== */
 const router = express.Router();
-
+/* ================= MIDDLEWARE — authenticated users ================= */
 router.use(verifyToken);
 
 /* ================= GET ALL USERS — admin + csr (chat) ================= */
