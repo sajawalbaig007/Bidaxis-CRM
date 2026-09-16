@@ -203,6 +203,20 @@ const PURPOSE_STRIP = new Set([
 ]);
 
 export function extractEmailPurpose(text: string): string {
+  const lower = text.toLowerCase().replace(/\s+/g, " ");
+  if (/\b(hogya|hogaya|ho\s*gaya|ho\s*gya|tayar|tayyar|project is ready|project ready)\b/.test(lower)) {
+    return "project is ready";
+  }
+  if (/\b(payment|invoice|outstanding|due|unpaid|bill|paisa)\b/.test(lower)) {
+    return "follow up on payment";
+  }
+  if (/\b(quote|quotation|pricing|price)\b/.test(lower)) {
+    return "follow up on the quote";
+  }
+  if (/\b(meeting|call|schedule|zoom)\b/.test(lower) && !/\b(email|mail|compose|bhej)\b/.test(lower)) {
+    return "schedule a call";
+  }
+
   let t = text;
   const email = parseEmail(t);
   if (email) t = t.replace(new RegExp(email.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "ig"), " ");
