@@ -79,7 +79,7 @@ async function reconcileOpenSessions(userId) {
     const now = new Date();
     const [newest, ...older] = sessions;
     for (const session of older) {
-        await finalizeOpenSession(session, "session_replaced", now);
+        await finalizeOpenSession(session, "session_replaced", newest.loginAt);
     }
     if (isStaleOpenSession(newest.loginAt, now)) {
         await finalizeOpenSession(newest, "stale_timeout", now);
@@ -324,6 +324,52 @@ function liveTotals(session) {
     }
     return { dashboardMs, awayMs, pausedMs, totalMs };
 }
+/** One row per person per calendar day: first check-in, last check-out or still in, times summed. */
+function mergeSessionsByCalendarDay(sessions, timeZone) {
+    const map = new Map();
+    const ordered = [...sessions].sort((a, b) => a.loginAt.localeCompare(b.loginAt));
+    for (const s of ordered) {
+        const day = (0, estTime_1.estDateYmd)(new Date(s.loginAt), timeZone);
+        const key = `${s.csrId}:${day}`;
+        const hit = map.get(key);
+        if (!hit) {
+            map.set(key, { ...s, sessionCount: s.sessionCount || 1 });
+            continue;
+        }
+        hit.sessionCount += s.sessionCount || 1;
+        hit.dashboardMs += s.dashboardMs;
+        hit.awayMs += s.awayMs;
+        hit.totalMs += s.totalMs;
+        hit.dashboardDuration = (0, estTime_1.formatDurationMs)(hit.dashboardMs);
+        hit.awayDuration = (0, estTime_1.formatDurationMs)(hit.awayMs);
+        hit.totalDuration = (0, estTime_1.formatDurationMs)(hit.totalMs);
+        if (s.status === "active") {
+            hit.status = "active";
+            hit.logoutAt = null;
+            hit.logoutAtEst = "Still checked in";
+            hit.checkOutAtEst = "Still checked in";
+            hit.closedReason = null;
+            hit.closedReasonLabel = "Still checked in";
+            hit.id = s.id;
+        }
+        else if (hit.status !== "active") {
+            if (s.logoutAt && (!hit.logoutAt || s.logoutAt > hit.logoutAt)) {
+                hit.logoutAt = s.logoutAt;
+                hit.logoutAtEst = s.logoutAtEst;
+                hit.checkOutAtEst = s.checkOutAtEst;
+                hit.closedReason = s.closedReason;
+                hit.closedReasonLabel = s.closedReasonLabel;
+                hit.id = s.id;
+            }
+        }
+    }
+    return [...map.values()].sort((a, b) => {
+        const t = b.loginAt.localeCompare(a.loginAt);
+        if (t)
+            return t;
+        return a.csrName.localeCompare(b.csrName);
+    });
+}
 async function buildCsrSessionReport(opts) {
     const staffRole = opts.role === "estimator" ? "estimator" : "csr";
     const tz = opts.timeZone;
@@ -340,13 +386,18 @@ async function buildCsrSessionReport(opts) {
             take: 2000,
         });
         const now = new Date();
-        const seen = new Set();
+        const newestLogin = new Map();
         for (const row of openRows) {
-            if (seen.has(row.userId) || isStaleOpenSession(row.loginAt, now)) {
-                await finalizeOpenSession(row, seen.has(row.userId) ? "session_replaced" : "stale_timeout", now);
+            const kept = newestLogin.get(row.userId);
+            if (kept) {
+                await finalizeOpenSession(row, "session_replaced", kept);
                 continue;
             }
-            seen.add(row.userId);
+            if (isStaleOpenSession(row.loginAt, now)) {
+                await finalizeOpenSession(row, "stale_timeout", now);
+                continue;
+            }
+            newestLogin.set(row.userId, row.loginAt);
         }
     }
     catch (err) {
@@ -395,47 +446,34 @@ async function buildCsrSessionReport(opts) {
             ip: row.ip,
             closedReason: row.closedReason,
             closedReasonLabel: closedReasonLabel(row.closedReason, !!row.logoutAt),
+            sessionCount: 1,
         };
     });
-    const summaryMap = new Map();
-    for (const s of sessions) {
-        const hit = summaryMap.get(s.csrId);
-        if (!hit) {
-            summaryMap.set(s.csrId, {
-                csrId: s.csrId,
-                csrName: s.csrName,
-                csrCode: s.csrCode,
-                sessions: 1,
-                dashboardMs: s.dashboardMs,
-                awayMs: s.awayMs,
-                totalMs: s.totalMs,
-                dashboardDuration: (0, estTime_1.formatDurationMs)(s.dashboardMs),
-                awayDuration: (0, estTime_1.formatDurationMs)(s.awayMs),
-                totalDuration: (0, estTime_1.formatDurationMs)(s.totalMs),
-                firstLoginAt: s.loginAt,
-                lastLogoutAt: s.logoutAt,
-                stillOpen: s.status === "active",
-            });
-            continue;
-        }
-        hit.sessions += 1;
-        hit.dashboardMs += s.dashboardMs;
-        hit.awayMs += s.awayMs;
-        hit.totalMs += s.totalMs;
-        hit.dashboardDuration = (0, estTime_1.formatDurationMs)(hit.dashboardMs);
-        hit.awayDuration = (0, estTime_1.formatDurationMs)(hit.awayMs);
-        hit.totalDuration = (0, estTime_1.formatDurationMs)(hit.totalMs);
-        if (s.loginAt < hit.firstLoginAt)
-            hit.firstLoginAt = s.loginAt;
-        if (s.status === "active")
-            hit.stillOpen = true;
-        if (s.logoutAt && (!hit.lastLogoutAt || s.logoutAt > hit.lastLogoutAt)) {
-            hit.lastLogoutAt = s.logoutAt;
-        }
-    }
+    const merged = mergeSessionsByCalendarDay(sessions, tz);
+    const summary = merged.map(s => ({
+        csrId: s.csrId,
+        csrName: s.csrName,
+        csrCode: s.csrCode,
+        sessions: s.sessionCount,
+        dashboardMs: s.dashboardMs,
+        awayMs: s.awayMs,
+        totalMs: s.totalMs,
+        dashboardDuration: s.dashboardDuration,
+        awayDuration: s.awayDuration,
+        totalDuration: s.totalDuration,
+        firstLoginAt: s.loginAt,
+        lastLogoutAt: s.logoutAt,
+        stillOpen: s.status === "active",
+        day: (0, estTime_1.estDateYmd)(new Date(s.loginAt), tz),
+    })).sort((a, b) => {
+        const name = a.csrName.localeCompare(b.csrName);
+        if (name)
+            return name;
+        return b.firstLoginAt.localeCompare(a.firstLoginAt);
+    });
     return {
-        sessions,
-        summary: [...summaryMap.values()].sort((a, b) => a.csrName.localeCompare(b.csrName)),
+        sessions: merged,
+        summary,
     };
 }
 /** Admin override of check-in / check-out times (EST wall-clock → stored UTC). */

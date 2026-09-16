@@ -155,6 +155,17 @@ async function buildTechnicalMonitoring() {
         byId.set(a.estimatorId, created);
         return created;
     };
+    const liveByLead = new Map();
+    for (const lead of leads) {
+        liveByLead.set(lead.id, {
+            leadId: lead.id,
+            projectCode: lead.projectCode ?? null,
+            projectTitle: lead.projectTitle ?? null,
+            projectPhase: lead.projectPhase ?? null,
+            workStatus: lead.projectWorkStatus ?? null,
+            estimators: [],
+        });
+    }
     let emergencyMorning = 0;
     let emergencyCob = 0;
     for (const lead of leads) {
@@ -164,6 +175,7 @@ async function buildTechnicalMonitoring() {
         if (timing === "cob")
             emergencyCob += 1;
         const assignments = (0, technicalEstimators_1.parseTechnicalAssignments)(lead.technicalAssignments);
+        const live = liveByLead.get(lead.id);
         for (const a of assignments) {
             const member = ensureMember(a);
             const logged = (0, technicalEstimators_1.assignmentElapsedSeconds)(a, now);
@@ -197,6 +209,16 @@ async function buildTechnicalMonitoring() {
                 overdue,
                 timerRunning: running,
                 deadlineTiming: timing === "morning" || timing === "cob" ? timing : null,
+            });
+            live?.estimators.push({
+                name: member.name,
+                code: member.code,
+                manHours: a.manHours || "—",
+                loggedSeconds: logged,
+                takeoffDone: a.takeoffDone,
+                overdue,
+                timerRunning: running,
+                deadline: a.deadline || "",
             });
         }
     }
@@ -255,5 +277,6 @@ async function buildTechnicalMonitoring() {
         generatedAt: new Date().toISOString(),
         kpi: { pipeline, summary, scoreboard },
         team,
+        live: [...liveByLead.values()],
     };
 }

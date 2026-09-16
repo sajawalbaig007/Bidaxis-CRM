@@ -1,7 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import prisma from "../config/db";
 import { detectBrowser } from "./sessions";
-import { formatDurationMs, formatEstDateTime } from "./estTime";
+import { formatDurationMs, formatEstDateTime, estDateYmd } from "./estTime";
 
 const MAX_TICK_MS = 5 * 60 * 1000;
 /**
@@ -85,7 +85,7 @@ async function reconcileOpenSessions(userId: string) {
   const [newest, ...older] = sessions;
 
   for (const session of older) {
-    await finalizeOpenSession(session, "session_replaced", now);
+    await finalizeOpenSession(session, "session_replaced", newest.loginAt);
   }
 
   if (isStaleOpenSession(newest.loginAt, now)) {
@@ -342,6 +342,7 @@ export type CsrSessionReportRow = {
   ip: string | null;
   closedReason: string | null;
   closedReasonLabel: string;
+  sessionCount: number;
 };
 
 function closedReasonLabel(reason: string | null, hasLogout: boolean): string {
@@ -371,6 +372,7 @@ export type CsrSessionSummary = {
   firstLoginAt: string;
   lastLogoutAt: string | null;
   stillOpen: boolean;
+  day: string;
 };
 
 function liveTotals(session: {
@@ -420,6 +422,54 @@ function liveTotals(session: {
   return { dashboardMs, awayMs, pausedMs, totalMs };
 }
 
+/** One row per person per calendar day: first check-in, last check-out or still in, times summed. */
+function mergeSessionsByCalendarDay(
+  sessions: CsrSessionReportRow[],
+  timeZone?: string,
+): CsrSessionReportRow[] {
+  const map = new Map<string, CsrSessionReportRow>();
+  const ordered = [...sessions].sort((a, b) => a.loginAt.localeCompare(b.loginAt));
+  for (const s of ordered) {
+    const day = estDateYmd(new Date(s.loginAt), timeZone);
+    const key = `${s.csrId}:${day}`;
+    const hit = map.get(key);
+    if (!hit) {
+      map.set(key, { ...s, sessionCount: s.sessionCount || 1 });
+      continue;
+    }
+    hit.sessionCount += s.sessionCount || 1;
+    hit.dashboardMs += s.dashboardMs;
+    hit.awayMs += s.awayMs;
+    hit.totalMs += s.totalMs;
+    hit.dashboardDuration = formatDurationMs(hit.dashboardMs);
+    hit.awayDuration = formatDurationMs(hit.awayMs);
+    hit.totalDuration = formatDurationMs(hit.totalMs);
+    if (s.status === "active") {
+      hit.status = "active";
+      hit.logoutAt = null;
+      hit.logoutAtEst = "Still checked in";
+      hit.checkOutAtEst = "Still checked in";
+      hit.closedReason = null;
+      hit.closedReasonLabel = "Still checked in";
+      hit.id = s.id;
+    } else if (hit.status !== "active") {
+      if (s.logoutAt && (!hit.logoutAt || s.logoutAt > hit.logoutAt)) {
+        hit.logoutAt = s.logoutAt;
+        hit.logoutAtEst = s.logoutAtEst;
+        hit.checkOutAtEst = s.checkOutAtEst;
+        hit.closedReason = s.closedReason;
+        hit.closedReasonLabel = s.closedReasonLabel;
+        hit.id = s.id;
+      }
+    }
+  }
+  return [...map.values()].sort((a, b) => {
+    const t = b.loginAt.localeCompare(a.loginAt);
+    if (t) return t;
+    return a.csrName.localeCompare(b.csrName);
+  });
+}
+
 export async function buildCsrSessionReport(opts: {
   from?: Date;
   to?: Date;
@@ -442,13 +492,18 @@ export async function buildCsrSessionReport(opts: {
       take: 2000,
     });
     const now = new Date();
-    const seen = new Set<string>();
+    const newestLogin = new Map<string, Date>();
     for (const row of openRows) {
-      if (seen.has(row.userId) || isStaleOpenSession(row.loginAt, now)) {
-        await finalizeOpenSession(row, seen.has(row.userId) ? "session_replaced" : "stale_timeout", now);
+      const kept = newestLogin.get(row.userId);
+      if (kept) {
+        await finalizeOpenSession(row, "session_replaced", kept);
         continue;
       }
-      seen.add(row.userId);
+      if (isStaleOpenSession(row.loginAt, now)) {
+        await finalizeOpenSession(row, "stale_timeout", now);
+        continue;
+      }
+      newestLogin.set(row.userId, row.loginAt);
     }
   } catch (err) {
     console.log("[csr-session] report cleanup failed:", err);
@@ -498,47 +553,35 @@ export async function buildCsrSessionReport(opts: {
       ip: row.ip,
       closedReason: row.closedReason,
       closedReasonLabel: closedReasonLabel(row.closedReason, !!row.logoutAt),
+      sessionCount: 1,
     };
   });
 
-  const summaryMap = new Map<string, CsrSessionSummary>();
-  for (const s of sessions) {
-    const hit = summaryMap.get(s.csrId);
-    if (!hit) {
-      summaryMap.set(s.csrId, {
-        csrId: s.csrId,
-        csrName: s.csrName,
-        csrCode: s.csrCode,
-        sessions: 1,
-        dashboardMs: s.dashboardMs,
-        awayMs: s.awayMs,
-        totalMs: s.totalMs,
-        dashboardDuration: formatDurationMs(s.dashboardMs),
-        awayDuration: formatDurationMs(s.awayMs),
-        totalDuration: formatDurationMs(s.totalMs),
-        firstLoginAt: s.loginAt,
-        lastLogoutAt: s.logoutAt,
-        stillOpen: s.status === "active",
-      });
-      continue;
-    }
-    hit.sessions += 1;
-    hit.dashboardMs += s.dashboardMs;
-    hit.awayMs += s.awayMs;
-    hit.totalMs += s.totalMs;
-    hit.dashboardDuration = formatDurationMs(hit.dashboardMs);
-    hit.awayDuration = formatDurationMs(hit.awayMs);
-    hit.totalDuration = formatDurationMs(hit.totalMs);
-    if (s.loginAt < hit.firstLoginAt) hit.firstLoginAt = s.loginAt;
-    if (s.status === "active") hit.stillOpen = true;
-    if (s.logoutAt && (!hit.lastLogoutAt || s.logoutAt > hit.lastLogoutAt)) {
-      hit.lastLogoutAt = s.logoutAt;
-    }
-  }
+  const merged = mergeSessionsByCalendarDay(sessions, tz);
+  const summary: CsrSessionSummary[] = merged.map(s => ({
+    csrId: s.csrId,
+    csrName: s.csrName,
+    csrCode: s.csrCode,
+    sessions: s.sessionCount,
+    dashboardMs: s.dashboardMs,
+    awayMs: s.awayMs,
+    totalMs: s.totalMs,
+    dashboardDuration: s.dashboardDuration,
+    awayDuration: s.awayDuration,
+    totalDuration: s.totalDuration,
+    firstLoginAt: s.loginAt,
+    lastLogoutAt: s.logoutAt,
+    stillOpen: s.status === "active",
+    day: estDateYmd(new Date(s.loginAt), tz),
+  })).sort((a, b) => {
+    const name = a.csrName.localeCompare(b.csrName);
+    if (name) return name;
+    return b.firstLoginAt.localeCompare(a.firstLoginAt);
+  });
 
   return {
-    sessions,
-    summary: [...summaryMap.values()].sort((a, b) => a.csrName.localeCompare(b.csrName)),
+    sessions: merged,
+    summary,
   };
 }
 
