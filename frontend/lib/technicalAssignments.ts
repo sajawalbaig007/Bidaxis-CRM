@@ -510,3 +510,28 @@ export function parseTechnicalNotes(raw: unknown): TechnicalNoteEntry[] {
 export function parseEstimatorNotes(raw: unknown): TechnicalNoteEntry[] {
   return parseTechnicalNotesBundle(raw).estimator;
 }
+
+const TM_ROLES = new Set(["technical_manager", "admin", "manager"]);
+
+/** Remarks the Chief Estimator left for this estimator on a project. */
+export function chiefEstimatorRemarks(opts: {
+  technicalNotes?: unknown;
+  evaluationRemarks?: string | null;
+  currentUserId?: string | null;
+}): { evaluation: string; notes: TechnicalNoteEntry[] } {
+  const evaluation = String(opts.evaluationRemarks ?? "").trim();
+  const me = String(opts.currentUserId ?? "").trim();
+  const notes = parseEstimatorNotes(opts.technicalNotes)
+    .filter((n) => {
+      const role = String(n.authorRole ?? "").toLowerCase();
+      if (TM_ROLES.has(role)) return true;
+      if (me && n.authorId && n.authorId !== me && !role) return true;
+      return false;
+    })
+    .sort((a, b) => {
+      const ta = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const tb = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return tb - ta;
+    });
+  return { evaluation, notes };
+}

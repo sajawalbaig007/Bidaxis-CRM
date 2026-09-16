@@ -122,6 +122,7 @@ router.get("/dashboard", async (req, res) => {
                 projectDeadline: true,
                 projectPhase: true,
                 technicalAssignments: true,
+                technicalNotes: true,
                 updatedAt: true,
                 hiddenOnTechnical: true,
             },

@@ -16,6 +16,7 @@ const projectLeads_1 = require("./projectLeads");
 const binLeads_1 = require("./binLeads");
 const csrLeadSelect_1 = require("./csrLeadSelect");
 const potentialClientBuckets_1 = require("./potentialClientBuckets");
+const uniqueWonClients_1 = require("./uniqueWonClients");
 const STATUS_NI = "Not Interested";
 const STATUS_NP = ["not picked", "not completed"];
 function buildCsrTabWhere(csrId, tab) {
@@ -67,12 +68,15 @@ function withCreatedRange(where, from, to) {
 async function getCsrLeadStats(csrId, from, to) {
     const base = (0, binLeads_1.activeCsrLeadWhere)(csrId);
     const range = (where) => withCreatedRange(where, from, to);
-    const [pendingCount, importantOnlyCount, scheduledCount, interestedCount, projectWonCount, notInterestedCount, notPickedCount, noOwnerCount, notInServiceCount, inHouseCount, totalAssigned, mainPipelineCount,] = await Promise.all([
+    const [pendingCount, importantOnlyCount, scheduledCount, interestedCount, wonRows, notInterestedCount, notPickedCount, noOwnerCount, notInServiceCount, inHouseCount, totalAssigned, mainPipelineCount,] = await Promise.all([
         db_1.default.lead.count({ where: range((0, binLeads_1.pendingLeadWhere)(csrId)) }),
         db_1.default.lead.count({ where: range({ ...base, ...(0, adminClientQueries_1.importantOnlyWhere)() }) }),
         db_1.default.lead.count({ where: range({ ...base, ...(0, adminClientQueries_1.scheduledCallWhere)() }) }),
         db_1.default.lead.count({ where: range({ ...base, ...(0, adminClientQueries_1.isInterestedStatusWhere)() }) }),
-        db_1.default.lead.count({ where: range({ ...base, ...(0, projectLeads_1.wonClientStatusWhere)() }) }),
+        db_1.default.lead.findMany({
+            where: range({ ...base, ...(0, projectLeads_1.wonClientStatusWhere)() }),
+            select: { id: true, name: true, phone: true, company: true },
+        }),
         db_1.default.lead.count({ where: range(buildCsrTabWhere(csrId, "notinterested")) }),
         db_1.default.lead.count({ where: range(buildCsrTabWhere(csrId, "notpicked")) }),
         db_1.default.lead.count({ where: range(buildCsrTabWhere(csrId, "noowner")) }),
@@ -81,6 +85,7 @@ async function getCsrLeadStats(csrId, from, to) {
         db_1.default.lead.count({ where: range(base) }),
         db_1.default.lead.count({ where: range((0, binLeads_1.mainPipelineWhere)(csrId)) }),
     ]);
+    const projectWonCount = (0, uniqueWonClients_1.countUniqueWonClients)(wonRows);
     return {
         pendingCount,
         importantOnlyCount,

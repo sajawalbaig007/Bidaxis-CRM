@@ -16,7 +16,13 @@ export type CrmMailTarget = {
   notes?: string;
 };
 
-type MailSender = { id: string; email: string; name: string };
+type MailSender = {
+  id: string;
+  email: string;
+  name: string;
+  signatureBrand?: "bds" | "ps" | "devcon" | null;
+  signatureLabel?: string | null;
+};
 
 type CrmMailContextValue = {
   openCompose: (target: CrmMailTarget) => void;
@@ -34,7 +40,8 @@ export function useOpenCrmMail() {
 }
 
 function withSenderSignOff(body: string, sender: MailSender | null) {
-  const stripped = body.replace(/\n*(Thanks|Best regards|Kind regards|Regards),?\s*\n[\s\S]*$/i, "").trimEnd();
+  const stripped = body.replace(/\n*(Thanks|Thank you|Best regards|Kind regards|Warm regards|Regards),?\s*\n[\s\S]*$/i, "").trimEnd();
+  if (sender?.signatureBrand) return stripped;
   if (!sender) return `${stripped}\n\nThanks,`;
   return `${stripped}\n\nThanks,\n${sender.name}\n${sender.email}`;
 }
@@ -197,7 +204,9 @@ export default function CrmMailProvider({ children }: { children: React.ReactNod
                 <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#B8112D] mb-2">
                   Send through
                 </p>
-                <p className="text-xs text-gray-500 mb-2">Pick one of your emails. That account will send this message.</p>
+                <p className="text-xs text-gray-500 mb-2">
+                  Pick the mailbox. Its company signature is added to the footer automatically.
+                </p>
                 {senders.length === 0 ? (
                   <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
                     Your 3 From emails are not loaded. Refresh, then try again.
@@ -217,6 +226,11 @@ export default function CrmMailProvider({ children }: { children: React.ReactNod
                       >
                         <p className="text-sm font-semibold text-[#0F172A] truncate">{s.name}</p>
                         <p className="text-[11px] text-gray-500 truncate">{s.email}</p>
+                        {s.signatureLabel ? (
+                          <p className="text-[10px] font-semibold text-[#0878e8] mt-0.5">
+                            Footer: {s.signatureLabel}
+                          </p>
+                        ) : null}
                       </button>
                     ))}
                   </div>
@@ -228,8 +242,18 @@ export default function CrmMailProvider({ children }: { children: React.ReactNod
               {confirming ? (
                 <div className="rounded-xl bg-[#FFF1F3] border border-[#f5c5ce] px-3 py-2 text-xs text-[#7f1d1d]">
                   Send from <span className="font-semibold">{selectedFrom?.email}</span> to{" "}
-                  <span className="font-semibold">{to}</span>?
+                  <span className="font-semibold">{to}</span>
+                  {selectedFrom?.signatureLabel ? (
+                    <>
+                      {" "}with the <span className="font-semibold">{selectedFrom.signatureLabel}</span> footer
+                    </>
+                  ) : null}
+                  ?
                 </div>
+              ) : selectedFrom?.signatureLabel ? (
+                <p className="text-[11px] text-gray-500">
+                  Footer added on send: {selectedFrom.signatureLabel}
+                </p>
               ) : null}
               <div className="flex items-center justify-end gap-2">
                 {confirming ? (
