@@ -145,6 +145,8 @@ export type TechnicalLiveProject = {
     deadline: string;
   }>;
 };
+
+export type TechnicalKpiPayload = {
   pipeline: {
     total: number;
     notAssigned: number;
