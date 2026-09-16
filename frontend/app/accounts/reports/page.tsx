@@ -21,6 +21,7 @@ import {
   restoreExportButtons,
   triggerLocalDownload,
 } from "../utils/reportVisualExport";
+import { useAccountsVisualPdf } from "../utils/useAccountsVisualPdf";
 
 type CategoryGroup = {
   name: string;
@@ -873,6 +874,11 @@ export default function AccountsReportsPage() {
   const [exporting, setExporting] = useState(false);
   const exportRootRef = useRef<HTMLDivElement>(null);
 
+  useEffect(() => {
+    const m = new URLSearchParams(window.location.search).get("month");
+    if (m && /^\d{4}-\d{2}$/.test(m)) setMonth(m);
+  }, []);
+
   // Loading is derived – true until the fetched result matches the selected month
   const loading = result?.month !== month;
   const report = result?.month === month ? result.report : null;
@@ -931,6 +937,16 @@ export default function AccountsReportsPage() {
       setExporting(false);
     }
   };
+
+  const exportFnRef = useRef(handleExport);
+  exportFnRef.current = handleExport;
+  useAccountsVisualPdf({
+    ready: !!report && !loading,
+    rootRef: exportRootRef,
+    fileName: `Accounts-Report-${month}.pdf`,
+    footer: `BEM Solutions CRM · Accounts Report · ${monthLabel(month)}`,
+    exportFn: () => exportFnRef.current(),
+  });
 
   const ins = report ? buildInsights(report) : null;
   const label = monthLabel(month);

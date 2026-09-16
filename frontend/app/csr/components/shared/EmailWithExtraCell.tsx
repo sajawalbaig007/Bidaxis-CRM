@@ -3,6 +3,7 @@
 import { createPortal } from "react-dom";
 import { parseEmails } from "../../utils/parseEmails";
 import { useFixedPopover } from "../../hooks/useFixedPopover";
+import { useOpenCrmMail } from "@/app/components/mail/CrmMailProvider";
 
 interface EmailWithExtraCellProps {
   email: string;
@@ -11,25 +12,34 @@ interface EmailWithExtraCellProps {
   variant?: "plain" | "pill";
   className?: string;
   emptyLabel?: string;
+  clientName?: string;
+  company?: string;
 }
 
-/** Email + optional +N popup (same pattern as phone). */
+/** Email + optional +N popup (same pattern as phone). Click opens company-mail composer. */
 export default function EmailWithExtraCell({
   email,
   allEmails,
   variant = "plain",
   className = "",
   emptyLabel = "—",
+  clientName,
+  company,
 }: EmailWithExtraCellProps) {
+  const openCompose = useOpenCrmMail();
   const emails =
     allEmails && allEmails.length > 0
       ? allEmails
       : parseEmails(email);
   const primary = emails[0] ?? "";
   const extras = emails.length > 1 ? emails.length - 1 : 0;
-  const canOpen = emails.length > 1;
 
-  const { open, toggle, anchorRef, panelRef, style } = useFixedPopover(300, 160);
+  const { open, toggle, setOpen, anchorRef, panelRef, style } = useFixedPopover(300, 160);
+
+  const compose = (to: string) => {
+    if (!to || !openCompose) return;
+    openCompose({ to, toOptions: emails, clientName, company });
+  };
 
   if (!primary) {
     return <span className={`text-gray-300 text-xs ${className}`}>{emptyLabel}</span>;
@@ -51,7 +61,7 @@ export default function EmailWithExtraCell({
   const shellClass =
     variant === "pill"
       ? `inline-flex items-center gap-1 flex-nowrap bg-[#F0F7FF] text-[#0B84F3] px-2.5 sm:px-3 py-1.5 rounded-xl text-xs sm:text-sm font-medium min-w-0 max-w-full overflow-visible ${className}`
-      : `inline-flex items-center gap-1 flex-nowrap min-w-0 max-w-full overflow-visible text-xs sm:text-sm text-[#0F172A] ${className}`;
+      : `inline-flex items-center gap-1 flex-nowrap min-w-0 max-w-full overflow-visible text-xs sm:text-sm text-[#0B84F3] ${className}`;
 
   const popup =
     open &&
@@ -63,21 +73,22 @@ export default function EmailWithExtraCell({
         onClick={e => e.stopPropagation()}
       >
         {emails.map((em, idx) => (
-          <div
+          <button
             key={`${em}-${idx}`}
-            className="flex items-center gap-2 px-3 py-2 text-xs text-[#0B84F3] font-medium hover:bg-[#F0F7FF]"
+            type="button"
+            onClick={() => {
+              setOpen(false);
+              compose(em);
+            }}
+            className="w-full flex items-center gap-2 px-3 py-2 text-xs text-[#0B84F3] font-medium hover:bg-[#F0F7FF] text-left"
           >
             <span className="text-gray-300 text-[10px] shrink-0">{idx + 1}.</span>
             <span className="truncate">{em}</span>
-          </div>
+          </button>
         ))}
       </div>,
       document.body,
     );
-
-  if (!canOpen) {
-    return <div className={shellClass} title={primary}>{chip}</div>;
-  }
 
   return (
     <>
@@ -86,10 +97,11 @@ export default function EmailWithExtraCell({
         type="button"
         onClick={e => {
           e.stopPropagation();
-          toggle();
+          if (extras > 0) toggle();
+          else compose(primary);
         }}
-        className={`${shellClass} cursor-pointer hover:opacity-90 transition-opacity`}
-        title="Show all emails"
+        className={`${shellClass} cursor-pointer hover:underline hover:opacity-90 transition-opacity`}
+        title={openCompose ? "Send email" : primary}
         aria-expanded={open}
       >
         {chip}

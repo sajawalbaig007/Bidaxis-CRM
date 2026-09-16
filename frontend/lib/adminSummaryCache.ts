@@ -67,7 +67,28 @@ let inflight: Promise<AdminDashboardSummary> | null = null;
 let tabCountsInflight: Promise<AdminTabCounts> | null = null;
 const TTL_MS = 120_000;
 const TAB_COUNTS_TTL_MS = 60_000;
-const STORAGE_KEY = "crm_admin_summary_v6";
+const STORAGE_KEY = "crm_admin_summary_v7";
+
+function isAdminSummaryPayload(data: unknown): data is AdminDashboardSummary {
+  if (!data || typeof data !== "object") return false;
+  const d = data as AdminDashboardSummary & { success?: boolean };
+  if (d.success === false) return false;
+  return typeof d.stats === "object" && d.stats !== null;
+}
+
+export function isEmptyAdminSummary(data: AdminDashboardSummary | null | undefined): boolean {
+  if (!data?.stats) return true;
+  const s = data.stats;
+  return (
+    (s.totalLeads ?? 0) <= 0 &&
+    (s.pending ?? 0) <= 0 &&
+    (s.interested ?? 0) <= 0 &&
+    (s.projectWon ?? 0) <= 0 &&
+    (s.closed ?? 0) <= 0 &&
+    (s.completed ?? 0) <= 0 &&
+    (s.todayCompletedCalls ?? 0) <= 0
+  );
+}
 
 function readStorage(): { data: AdminDashboardSummary; at: number } | null {
   if (typeof window === "undefined") return null;
@@ -103,7 +124,8 @@ function clearStorage() {
 function hydrateFromStorage() {
   if (cached) return;
   const stored = readStorage();
-  if (stored) cached = stored;
+  if (stored && isAdminSummaryPayload(stored.data)) cached = stored;
+  else if (stored) clearStorage();
 }
 
 export function peekAdminSummary(): AdminDashboardSummary | null {
@@ -150,20 +172,30 @@ export function subscribeAdminSummaryStale(onStale: () => void): () => void {
 
 export async function getAdminSummary(force = false): Promise<AdminDashboardSummary> {
   hydrateFromStorage();
-  if (!force && cached && Date.now() - cached.at < TTL_MS) {
+  if (!force && cached && isAdminSummaryPayload(cached.data) && Date.now() - cached.at < TTL_MS) {
     return cached.data;
   }
   if (inflight) return inflight;
 
-  inflight = API.get("/admin/clients/summary")
+  inflight = API.get("/admin/clients/summary", { timeout: 60_000 })
     .then(res => {
       const data = res.data as AdminDashboardSummary;
+      if (!isAdminSummaryPayload(data)) {
+        throw new Error("Invalid admin summary payload");
+      }
       const entry = { data, at: Date.now() };
       cached = entry;
       /* Do not copy summary.tabCounts into the leads-page cache — dashboard
          summary used to poison Closed with raw document counts. */
       writeStorage(entry);
       return data;
+    })
+    .catch(err => {
+      /* Keep last good snapshot; never persist a failed/empty payload. */
+      if (cached && isAdminSummaryPayload(cached.data) && !isEmptyAdminSummary(cached.data)) {
+        return cached.data;
+      }
+      throw err;
     })
     .finally(() => { inflight = null; });
 

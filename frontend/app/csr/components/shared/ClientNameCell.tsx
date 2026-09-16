@@ -76,6 +76,8 @@ export default function ClientNameCell({
                 variant="plain"
                 className="text-[10px] sm:text-[11px] text-gray-500"
                 emptyLabel=""
+                clientName={lead.client}
+                company={co !== "—" ? co : undefined}
               />
             </div>
           )}

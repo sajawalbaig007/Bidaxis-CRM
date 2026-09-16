@@ -890,6 +890,8 @@ function ClientsPageContent() {
                                             variant="plain"
                                             className="text-[10px] sm:text-[11px] text-gray-500"
                                             emptyLabel=""
+                                            clientName={client.clientName}
+                                            company={company || undefined}
                                           />
                                         </div>
                                       ) : null}

@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { Cell, Pie, PieChart, Bar, BarChart, CartesianGrid, Tooltip, XAxis, YAxis } from "recharts";
 import API, { apiErrorMessage } from "@/lib/api";
+import { useOpenCrmMail } from "@/app/components/mail/CrmMailProvider";
 import { peekAuthMe } from "@/lib/authMeCache";
 import ProjectWorkbenchModal from "@/app/components/projects/ProjectWorkbenchModal";
 import {
@@ -350,6 +351,7 @@ function ProjectList({
   viewingLeadId?: string | null;
 }) {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const openCompose = useOpenCrmMail();
   const tableSum = rows.reduce((s, r) => {
     if (r.discarded) return s;
     const amt =
@@ -588,13 +590,19 @@ function ProjectList({
                               </td>
                               <td className="px-2.5 py-2.5 text-crm-text-secondary max-w-[160px] truncate align-top" title={p.clientEmail ?? undefined}>
                                 {p.clientEmail ? (
-                                  <a
-                                    href={`mailto:${p.clientEmail}`}
-                                    className="text-sky-700 hover:underline"
-                                    onClick={(e) => e.stopPropagation()}
+                                  <button
+                                    type="button"
+                                    className="text-sky-700 hover:underline text-left truncate max-w-full"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      openCompose?.({
+                                        to: p.clientEmail!,
+                                        clientName: p.clientName ?? undefined,
+                                      });
+                                    }}
                                   >
                                     {p.clientEmail}
-                                  </a>
+                                  </button>
                                 ) : (
                                   "—"
                                 )}

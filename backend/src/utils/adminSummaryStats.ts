@@ -329,6 +329,29 @@ export async function buildAdminTabCountsPayload(filters?: {
   };
 }
 
+/** Closed leads only — dashboard used to load every lead just to unique-count Close Client. */
+async function countUniqueClosedForSummary(): Promise<number | null> {
+  try {
+    const rows = await prisma.lead.findMany({
+      where: buildAdminClientListWhere("closed"),
+      select: {
+        id: true,
+        phone: true,
+        email: true,
+        company: true,
+        clientCode: true,
+        projectCode: true,
+        status: true,
+        nextSchedule: true,
+      },
+    });
+    return uniqueClosedLeadsByClientCode(rows).length;
+  } catch (err) {
+    console.log("[admin summary] unique closed count failed", err);
+    return null;
+  }
+}
+
 export async function buildAdminClientSummaryPayload() {
   const chartSince = businessChartSinceUtc(CHART_DAYS);
 
@@ -341,7 +364,7 @@ export async function buildAdminClientSummaryPayload() {
 
   const [
     pipeline,
-    uniqueTabCounts,
+    uniqueClosedCount,
     todayCompletedCalls,
     totalCompletedCalls,
     recent,
@@ -353,7 +376,7 @@ export async function buildAdminClientSummaryPayload() {
     totalOnline,
   ] = await Promise.all([
     pipelinePromise,
-    buildAdminTabCountsPayload(),
+    countUniqueClosedForSummary(),
     prisma.callLog.count({
       where: { createdAt: { gte: todayStart, lt: tomorrowStart } },
     }),
@@ -441,8 +464,8 @@ export async function buildAdminClientSummaryPayload() {
     inBin,
     legacyCompleted,
   } = pipeline;
-  const tabCounts = uniqueTabCounts.tabCounts;
-  const uniqueClosed = tabCounts.closed;
+  const uniqueClosed = uniqueClosedCount ?? pipeline.projectWon;
+  const tabCounts = { closed: uniqueClosed };
 
   const distribution: Record<string, number> = {
     Pending: pending,

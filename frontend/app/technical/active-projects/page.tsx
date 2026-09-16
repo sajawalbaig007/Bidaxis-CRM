@@ -41,7 +41,7 @@ import {
   PROJECT_TABLE_HEAD,
 } from "@/app/components/projects/ProjectTableCells";
 import AssignEstimatorsModal from "../components/AssignEstimatorsModal";
-import MoveTechnicalStageModal from "../components/MoveTechnicalStageModal";
+import MoveTechnicalStageModal, { type TechnicalMoveTarget } from "../components/MoveTechnicalStageModal";
 import TechnicalPageShell from "../components/TechnicalPageShell";
 import { STAFF_PAGE_PAD, BENTO_CARD } from "@/lib/staffPageLayout";
 import API, { apiErrorMessage } from "@/lib/api";
@@ -1227,12 +1227,22 @@ export function TechnicalActiveProjectsPageInner({
     patchProjectNotes(id, (list) => list.filter((n) => n.id !== noteId && n.parentId !== noteId));
   };
 
-  const moveTechnicalTab = async (tab: Exclude<TechnicalWorkflowTab, "all">) => {
+  const moveTechnicalTab = async (tab: TechnicalMoveTarget) => {
     if (!moveProject) return;
     setMoveSaving(true);
     try {
       const res = await API.put(`/admin/project/${moveProject.id}/move-technical-tab`, { tab });
       const lead = res.data.lead as Project;
+      if (tab === "revisions") {
+        setProjects((prev) =>
+          isRevisions
+            ? prev.map((p) => (p.id === lead.id ? { ...p, ...lead } : p))
+            : prev.filter((p) => p.id !== lead.id),
+        );
+        setMoveProject(null);
+        toast.success("Moved to Revisions");
+        return;
+      }
       setProjects((prev) => prev.map((p) => (p.id === lead.id ? { ...p, ...lead } : p)));
       setWorkflowTab(tab);
       setMoveProject(null);
@@ -2298,7 +2308,7 @@ export function TechnicalActiveProjectsPageInner({
           moveProject?.projectCode ||
           "Project"
         }
-        currentTab={workflowTab}
+        currentTab={isRevisions || moveProject?.needsRevision ? "revisions" : workflowTab}
         saving={moveSaving}
         onClose={() => setMoveProject(null)}
         onMove={(tab) => void moveTechnicalTab(tab)}

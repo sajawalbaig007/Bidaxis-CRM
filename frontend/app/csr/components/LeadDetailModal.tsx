@@ -9,6 +9,8 @@ import API, { apiErrorMessage } from "@/lib/api";
 import toast from "react-hot-toast";
 import { NoteEntry, SubContact } from "../hooks/useLeadsData";
 import { parseInterestedServices } from "../utils/parseInterestedServices";
+import { collectLeadEmails } from "../utils/parseEmails";
+import EmailWithExtraCell from "./shared/EmailWithExtraCell";
 
 export type DetailLead = {
   id: string;
@@ -500,7 +502,17 @@ export default function LeadDetailModal({ lead, onClose, onSaved, onNoteAdded, o
                         <Icon size={12} className="text-[#B8112D]"/>
                         <p className="text-gray-400 text-[11px]">{label}</p>
                       </div>
-                      {href ? (
+                      {label === "Email" ? (
+                        <EmailWithExtraCell
+                          email={lead.email || ""}
+                          allEmails={collectLeadEmails(lead.email, lead.subContacts)}
+                          variant="plain"
+                          className="text-[13px] font-semibold"
+                          emptyLabel="N/A"
+                          clientName={lead.name}
+                          company={lead.company}
+                        />
+                      ) : href ? (
                         <a
                           href={href}
                           target="_blank"

@@ -109,15 +109,9 @@ export default function LoginPortalForm({ portal: loginPortal }: { portal: Porta
         } else {
           const payload = JSON.parse(
             atob(part.replace(/-/g, "+").replace(/_/g, "/")),
-          ) as { role?: string; exp?: number; sid?: string };
+          ) as { exp?: number; sid?: string };
           if (!payload.sid || (payload.exp != null && payload.exp * 1000 < Date.now())) {
             setClientAuthToken(null);
-          } else {
-            const role = resolveLoginRole({ role: payload.role });
-            if (role) {
-              window.location.href = dashboardPathForRole(role);
-              return;
-            }
           }
         }
       } catch {

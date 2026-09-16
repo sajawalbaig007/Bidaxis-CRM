@@ -3,16 +3,19 @@ import StaffPresenceInit from "../components/StaffPresenceInit";
 import StaffChatNotifier from "../components/StaffChatNotifier";
 import SessionNotifierInit from "../components/SessionNotifierInit";
 import AdminSummaryRefreshListener from "./components/AdminSummaryRefreshListener";
+import CrmMailProvider from "../components/mail/CrmMailProvider";
+import CrmAssistantPanel from "../components/assistant/CrmAssistantPanel";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   return (
-    <>
+    <CrmMailProvider>
       <SessionNotifierInit />
       <StaffPresenceInit />
       <StaffChatNotifier />
       <AdminSummaryRefreshListener />
       <ChatLayoutCleanup />
       {children}
-    </>
+      <CrmAssistantPanel />
+    </CrmMailProvider>
   );
 }

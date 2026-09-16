@@ -549,6 +549,8 @@ export default function CSRProjectsPage() {
                         variant="pill"
                         className="px-2 py-0.5 text-[10px]"
                         emptyLabel=""
+                        clientName={project.client}
+                        company={project.company !== "N/A" ? project.company : undefined}
                       />
                     )}
                   </div>
