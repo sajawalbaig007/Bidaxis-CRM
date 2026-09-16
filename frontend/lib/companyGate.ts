@@ -62,11 +62,9 @@ export type CompanyGateSession = {
   token: string;
 };
 
-function readRaw(): CompanyGateSession | null {
-  if (typeof window === "undefined") return null;
+function parseGateRaw(raw: string | null): CompanyGateSession | null {
+  if (!raw) return null;
   try {
-    const raw = sessionStorage.getItem(STORAGE_KEY);
-    if (!raw) return null;
     const parsed = JSON.parse(raw) as { company?: string; token?: string };
     const company = parsed.company === "GPS" ? "GPS" : parsed.company === "BEM" ? "BEM" : null;
     const token = typeof parsed.token === "string" ? parsed.token.trim() : "";
@@ -77,18 +75,33 @@ function readRaw(): CompanyGateSession | null {
   }
 }
 
+function readRaw(): CompanyGateSession | null {
+  if (typeof window === "undefined") return null;
+  const fromSession = parseGateRaw(sessionStorage.getItem(STORAGE_KEY));
+  if (fromSession) return fromSession;
+  const fromLocal = parseGateRaw(localStorage.getItem(STORAGE_KEY));
+  if (fromLocal) {
+    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(fromLocal));
+    return fromLocal;
+  }
+  return null;
+}
+
 export function getCompanyGate(): CompanyGateSession | null {
   return readRaw();
 }
 
 export function setCompanyGate(company: PortalCompany, token: string) {
   if (typeof window === "undefined") return;
-  sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ company, token }));
+  const payload = JSON.stringify({ company, token });
+  sessionStorage.setItem(STORAGE_KEY, payload);
+  localStorage.setItem(STORAGE_KEY, payload);
 }
 
 export function clearCompanyGate() {
   if (typeof window === "undefined") return;
   sessionStorage.removeItem(STORAGE_KEY);
+  localStorage.removeItem(STORAGE_KEY);
 }
 
 export function hasCompanyGate(company: PortalCompany): boolean {

@@ -1,10 +1,12 @@
 "use client";
 
-import { ArrowRightLeft, X, UserPlus, ClipboardList, CheckCircle2, Calculator, Send, Layers } from "lucide-react";
+import { ArrowRightLeft, X, UserPlus, ClipboardList, CheckCircle2, Calculator, Send, Layers, GitBranch } from "lucide-react";
 import type { TechnicalWorkflowTab } from "@/lib/technicalAssignments";
 
+export type TechnicalMoveTarget = Exclude<TechnicalWorkflowTab, "all"> | "revisions";
+
 const MOVE_OPTIONS: {
-  tab: Exclude<TechnicalWorkflowTab, "all">;
+  tab: TechnicalMoveTarget;
   title: string;
   sub: string;
   Icon: typeof Layers;
@@ -52,15 +54,22 @@ const MOVE_OPTIONS: {
     Icon: CheckCircle2,
     iconBg: "bg-green-50 text-green-700",
   },
+  {
+    tab: "revisions",
+    title: "Revisions",
+    sub: "Move this project to the Revisions page",
+    Icon: GitBranch,
+    iconBg: "bg-violet-50 text-violet-700",
+  },
 ];
 
 type Props = {
   open: boolean;
   projectTitle: string;
-  currentTab?: TechnicalWorkflowTab;
+  currentTab?: TechnicalWorkflowTab | "revisions";
   saving?: boolean;
   onClose: () => void;
-  onMove: (tab: Exclude<TechnicalWorkflowTab, "all">) => void;
+  onMove: (tab: TechnicalMoveTarget) => void;
 };
 
 export default function MoveTechnicalStageModal({

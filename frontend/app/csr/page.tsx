@@ -195,6 +195,8 @@ export default function CSRPage() {
   const displayTotal = hasTableFilters ? tabSorted.length : tabTotal;
 
   const pillCount = (tab: string, stat: number) => {
+    /* Close Client rows live on Clients — unique count, not project rows / empty Call Data table. */
+    if (tab === "projectwon") return stat;
     const isActive = tab === "today"
       ? activeTab === "today" || activeTab === "pending"
       : activeTab === tab;

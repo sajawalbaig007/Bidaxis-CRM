@@ -560,6 +560,8 @@ export default function LeadsPage() {
                           allEmails={collectLeadEmails(lead.email, lead.contacts)}
                           variant="pill"
                           className="px-2 py-1 text-xs lg:text-sm"
+                          clientName={lead.client}
+                          company={lead.company !== "N/A" ? lead.company : undefined}
                         />
                       </div>
 
@@ -1066,7 +1068,17 @@ export default function LeadsPage() {
                               <Icon size={11} className="text-[#B8112D]" />
                               <p className="text-gray-400 text-[10px]">{label}</p>
                             </div>
-                            {href ? (
+                            {label === "Email" ? (
+                              <EmailWithExtraCell
+                                email={viewing.email || ""}
+                                allEmails={collectLeadEmails(viewing.email, viewing.contacts)}
+                                variant="plain"
+                                className="font-semibold text-[12px] sm:text-[13px]"
+                                emptyLabel="Not provided"
+                                clientName={viewing.client}
+                                company={viewing.company !== "N/A" ? viewing.company : undefined}
+                              />
+                            ) : href ? (
                               <a href={href} target="_blank" rel="noopener noreferrer" className="font-semibold text-[#B8112D] text-[12px] sm:text-[13px] break-words hover:underline">
                                 {value}
                               </a>

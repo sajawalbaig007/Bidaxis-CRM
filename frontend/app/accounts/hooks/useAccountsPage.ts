@@ -81,6 +81,12 @@ export function useAccountsPage<T extends Record<string, unknown>>({
     if (range.from) setRecordDate(range.from);
   }, []);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const m = new URLSearchParams(window.location.search).get("month");
+    if (m && /^\d{4}-\d{2}$/.test(m)) setFilterMonth(m);
+  }, [setFilterMonth]);
+
   /** Daily mode — one record per calendar day */
   const setFilterDay = useCallback((day: string) => {
     if (!day) return;

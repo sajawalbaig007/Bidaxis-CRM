@@ -9,7 +9,9 @@ import RecentActivity   from "./components/widgets/RecentActivity";
 import TopPerformers    from "./components/widgets/TopPerformer";
 import TopEstimatorsWidget from "./components/widgets/TopEstimatorsWidget";
 import ActiveProjectsWidget from "./components/widgets/ActiveProjectsWidget";
-import { getAdminSummary, peekAdminSummary, subscribeAdminSummaryStale, type AdminDashboardSummary } from "@/lib/adminSummaryCache";
+import { getAdminSummary, isEmptyAdminSummary, peekAdminSummary, subscribeAdminSummaryStale, type AdminDashboardSummary } from "@/lib/adminSummaryCache";
+import { apiErrorMessage } from "@/lib/api";
+import toast from "react-hot-toast";
 import {
   Users, PhoneCall, CheckCircle2, Clock3, Star,
   TrendingUp, Trophy, RefreshCw, Calculator, Ruler,
@@ -82,6 +84,7 @@ export default function DashboardPage() {
       setOverviewLoaded(true);
     } catch (err) {
       if (process.env.NODE_ENV === "development") console.error("[AdminDash]", err);
+      toast.error(apiErrorMessage(err, "Failed to load dashboard stats."));
     } finally {
       setLoadingOverview(false);
     }
@@ -89,13 +92,14 @@ export default function DashboardPage() {
 
   useEffect(() => {
     const cached = peekAdminSummary();
-    if (cached) {
+    const usable = cached && !isEmptyAdminSummary(cached);
+    if (usable) {
       setSummary(cached);
       setStats(statsFromSummary(cached));
       setOverviewLoaded(true);
-    } else {
-      void loadOverview(false);
     }
+    /* Always refetch — empty sessionStorage from a backend 502 used to stick as zeros. */
+    void loadOverview(true);
   }, [loadOverview]);
 
   useEffect(() => {

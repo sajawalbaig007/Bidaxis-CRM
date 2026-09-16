@@ -71,12 +71,20 @@ export function proxy(request: NextRequest) {
 
   const { role, ok } = parseToken(token);
 
-  // Landing + login must stay reachable. Stale cookies used to bounce /login → /
-  // and trap users on the portal picker.
-  if (pathname === "/" || pathname.startsWith("/login")) {
+  // Home can bounce logged-in users to their dashboard. Login pages must stay
+  // reachable so a stale cookie cannot trap CEO / portal sign-in in a loop.
+  if (pathname === "/") {
     if (ok && role) {
       return NextResponse.redirect(new URL(homeForRole(role), request.url));
     }
+    if (!ok) {
+      const res = NextResponse.next();
+      res.cookies.delete("token");
+      return res;
+    }
+    return NextResponse.next();
+  }
+  if (pathname.startsWith("/login")) {
     if (!ok) {
       const res = NextResponse.next();
       res.cookies.delete("token");

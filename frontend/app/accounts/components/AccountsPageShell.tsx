@@ -14,6 +14,7 @@ import {
   type AccountsPeriodPreset,
 } from "../utils/accountsPeriodFilters";
 import { STAFF_PAGE_PAD } from "@/lib/staffPageLayout";
+import { useAccountsVisualPdf } from "../utils/useAccountsVisualPdf";
 
 type AccountsPageShellProps = {
   title: string;
@@ -86,9 +87,18 @@ export default function AccountsPageShell({
   children,
 }: AccountsPageShellProps) {
   const fileRef = useRef<HTMLInputElement>(null);
+  const exportRef = useRef<HTMLDivElement>(null);
   const [filterOpen, setFilterOpen] = useState(false);
   const activePreset = normalizePeriodPreset(periodPreset);
   const periodSummary = formatPeriodSummary(periodPreset, filterFrom, filterTo, filterMonth, recordDate);
+  const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "page";
+  const monthKey = /^\d{4}-\d{2}/.test(filterMonth) ? filterMonth.slice(0, 7) : recordDate.slice(0, 7);
+  useAccountsVisualPdf({
+    ready: !loading,
+    rootRef: exportRef,
+    fileName: `Accounts-${slug}-${monthKey}.pdf`,
+    footer: `BEM Solutions CRM · ${title} · ${periodSummary || monthKey}`,
+  });
   const sortedSavedDays = [...savedDates].sort().reverse();
   const recentSavedDays = sortedSavedDays.slice(0, 7);
   const pickSavedDate = onSelectSavedDate ?? onRecordDateChange;
@@ -376,7 +386,9 @@ export default function AccountsPageShell({
           <p className="text-xs font-semibold text-crm-text-faint">Loading record...</p>
         </div>
       ) : (
-        children
+        <div ref={exportRef} data-report-block>
+          {children}
+        </div>
       )}
     </div>
   );

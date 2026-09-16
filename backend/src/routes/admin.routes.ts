@@ -382,7 +382,7 @@ router.get("/clients/tab-counts", verifyToken, allowRoles("admin", "manager", "t
 /* ================= CLIENT SUMMARY (fast — dashboard tiles & charts) ================= */
 router.get("/clients/summary", verifyToken, allowRoles("admin", "manager", "technical_manager"), async (_req, res) => {
   try {
-    const CACHE_KEY = "admin:clients:summary:v5";
+    const CACHE_KEY = "admin:clients:summary:v6";
     const cached = getCache<object>(CACHE_KEY);
     if (cached) return res.json(cached);
 
@@ -2796,7 +2796,7 @@ router.put(
     try {
       const leadId = String(req.params.id);
       const tabRaw = String((req.body as { tab?: string })?.tab ?? "").trim();
-      const allowed = ["not_assigned", "assigned", "takeoff_done", "pricing", "final_submission", "completed"] as const;
+      const allowed = ["not_assigned", "assigned", "takeoff_done", "pricing", "final_submission", "completed", "revisions"] as const;
       if (!allowed.includes(tabRaw as (typeof allowed)[number])) {
         return res.status(400).json({ success: false, message: "Invalid workflow tab." });
       }
@@ -2809,10 +2809,31 @@ router.put(
           projectPhase: true,
           technicalAssignments: true,
           assignedTo: true,
+          needsRevision: true,
         },
       });
       if (!existing) {
         return res.status(404).json({ success: false, message: "Project not found" });
+      }
+
+      if (tab === "revisions") {
+        const lead = await prisma.lead.update({
+          where: { id: leadId },
+          data: {
+            needsRevision: true,
+            revisionRequestedAt: new Date(),
+            hiddenOnTechnical: false,
+          },
+          include: {
+            csr: { select: { id: true, name: true, email: true, csrCode: true } },
+            notes: { orderBy: { createdAt: "asc" }, take: 20 },
+            uploadFile: { select: { companyName: true } },
+          },
+        });
+        flushAdminClientsCache();
+        invalidatePattern("admin:projects:");
+        if (lead.assignedTo) invalidateCache(`csr:projects:${lead.assignedTo}`);
+        return res.json({ success: true, lead, tab });
       }
 
       const previous = parseTechnicalAssignments(existing.technicalAssignments);

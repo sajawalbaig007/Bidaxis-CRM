@@ -12,6 +12,7 @@ import { CSR_DASHBOARD_LEAD_SELECT } from "./csrLeadSelect";
 import {
   isPotentialClientLead,
 } from "./potentialClientBuckets";
+import { countUniqueWonClients } from "./uniqueWonClients";
 
 const STATUS_NI = "Not Interested";
 const STATUS_NP = ["not picked", "not completed"] as const;
@@ -88,7 +89,7 @@ export async function getCsrLeadStats(csrId: string, from?: string, to?: string)
     importantOnlyCount,
     scheduledCount,
     interestedCount,
-    projectWonCount,
+    wonRows,
     notInterestedCount,
     notPickedCount,
     noOwnerCount,
@@ -101,7 +102,10 @@ export async function getCsrLeadStats(csrId: string, from?: string, to?: string)
     prisma.lead.count({ where: range({ ...base, ...importantOnlyWhere() }) }),
     prisma.lead.count({ where: range({ ...base, ...scheduledCallWhere() }) }),
     prisma.lead.count({ where: range({ ...base, ...isInterestedStatusWhere() }) }),
-    prisma.lead.count({ where: range({ ...base, ...wonClientStatusWhere() }) }),
+    prisma.lead.findMany({
+      where: range({ ...base, ...wonClientStatusWhere() }),
+      select: { id: true, name: true, phone: true, company: true },
+    }),
     prisma.lead.count({ where: range(buildCsrTabWhere(csrId, "notinterested")) }),
     prisma.lead.count({ where: range(buildCsrTabWhere(csrId, "notpicked")) }),
     prisma.lead.count({ where: range(buildCsrTabWhere(csrId, "noowner")) }),
@@ -110,6 +114,8 @@ export async function getCsrLeadStats(csrId: string, from?: string, to?: string)
     prisma.lead.count({ where: range(base) }),
     prisma.lead.count({ where: range(mainPipelineWhere(csrId)) }),
   ]);
+
+  const projectWonCount = countUniqueWonClients(wonRows);
 
   return {
     pendingCount,
