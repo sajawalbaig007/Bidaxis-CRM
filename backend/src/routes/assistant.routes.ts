@@ -3,6 +3,20 @@ import rateLimit from "express-rate-limit";
 import { verifyToken, type AuthRequest } from "../middleware/auth.middleware";
 import { allowRoles } from "../middleware/role.middleware";
 import { runAssistantChat } from "../assistant/chatService";
+import type { ChatTurn } from "../assistant/intent";
+
+function parseHistory(raw: unknown): ChatTurn[] {
+  if (!Array.isArray(raw)) return [];
+  const out: ChatTurn[] = [];
+  for (const item of raw.slice(-8)) {
+    if (!item || typeof item !== "object") continue;
+    const role = String((item as { role?: string }).role ?? "");
+    const text = String((item as { text?: string }).text ?? "").trim();
+    if ((role !== "user" && role !== "assistant") || !text) continue;
+    out.push({ role, text: text.slice(0, 2000) });
+  }
+  return out;
+}
 
 const router = express.Router();
 
@@ -35,6 +49,7 @@ router.post("/chat", async (req: AuthRequest, res) => {
       userId: req.user.id,
       role: req.user.role,
       message,
+      history: parseHistory(req.body?.history),
     });
     return res.json({ success: true, ...result });
   } catch (err) {

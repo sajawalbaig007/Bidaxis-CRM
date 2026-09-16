@@ -10,6 +10,11 @@ exports.extractSearchQuery = extractSearchQuery;
 exports.extractProjectCode = extractProjectCode;
 exports.extractEmailPurpose = extractEmailPurpose;
 exports.clientFocus = clientFocus;
+exports.isFollowUp = isFollowUp;
+exports.lastFocusFromHistory = lastFocusFromHistory;
+exports.resolveWithHistory = resolveWithHistory;
+exports.preferFollowUpPlan = preferFollowUpPlan;
+exports.fallbackPlan = fallbackPlan;
 exports.planTools = planTools;
 const fuzzy_1 = require("./fuzzy");
 const MONTHS = {
@@ -58,6 +63,9 @@ const STOP = new Set([
     "compose", "composed", "composing", "note", "notes", "read", "padh", "padho",
     "purpose", "according", "kisi", "isky", "iske", "usky", "uske", "uski",
     "dena", "banao", "likho", "likhdo",
+    "uska", "uski", "uske", "usko", "usay", "usse",
+    "iska", "iski", "iske", "isko", "unka", "unki", "unke", "unko",
+    "nexa", "aur", "phr", "phir", "yeh",
 ]);
 const GREET_RE = /^(hi+|hii+|hello|hey+|yo|salam|salaam|assalamu?a?leikum|assalam|aoa|good\s+(morning|afternoon|evening)|what'?s\s+up|how\s+are\s+you|how\s+r\s+u|hows\s+it\s+going)([\s!.,?]*(there|bro|sir|ceo|ji)?)*[\s!.,?]*$/i;
 const THANKS_RE = /^(thanks?|thank\s+you|thx|shukriya|shukria|mehrbani|ok|okay|theek|theek\s+hai|acha|cool|great|bye|goodbye|allah\s+hafiz|khuda\s+hafiz)[\s!.,?]*$/i;
@@ -212,11 +220,34 @@ const PURPOSE_STRIP = new Set([
     "based", "file", "crm", "dashboard", "specific", "purpose", "according", "also", "then", "just",
     "bhej", "bhejo", "bhejni", "likh", "likho", "banao", "bnao", "bna", "kro", "kr", "karo", "karna", "krni",
     "do", "dena", "dekho", "dekhen", "dekha", "padh", "padho", "karke", "mjhy", "mujhe", "mujh",
-    "iski", "iske", "iska", "isse", "usky", "uske", "uski", "isky", "kisi", "tmhara", "tumhara", "tumhari",
-    "apka", "apki", "apna", "ko", "ki", "ke", "ka", "se", "k", "ha", "hai", "hain", "ho", "aur", "phr", "phir",
-    "batao", "btana", "btado", "btao",
+    "iski", "iske", "iska", "isse", "usky", "uske", "uski", "isky", "kisi", "tmhara", "tmhari", "tmhare",
+    "tumhara", "tumhari", "tumhare",
+    "apka", "apki", "apna", "apko", "ko", "ki", "ke", "ka", "se", "k", "ha", "hai", "hain", "ho", "aur", "phr", "phir",
+    "batao", "btana", "btado", "btao", "kia", "kiya", "kardiya", "krdiya", "krdi",
 ]);
 function extractEmailPurpose(text) {
+    const lower = text.toLowerCase().replace(/\s+/g, " ");
+    const done = /\b(hogya|hogaya|hogai|ho\s*gaya|ho\s*gya|tayar|tayyar|kia|kiya|kardiya|krdiya|ready|done|complete|completed|finished)\b/.test(lower);
+    if (/\brequirement/.test(lower) && done)
+        return "requirements are complete";
+    if (/\b(drawing|drawings|plans?)\b/.test(lower) && done)
+        return "drawings are ready";
+    if (/\b(estimate|estimation|bid)\b/.test(lower) && done)
+        return "estimate is ready";
+    if (/\btakeoff\b/.test(lower) && done)
+        return "takeoff is complete";
+    if (/\b(hogya|hogaya|ho\s*gaya|ho\s*gya|tayar|tayyar|project is ready|project ready)\b/.test(lower)) {
+        return "project is ready";
+    }
+    if (/\b(payment|invoice|outstanding|due|unpaid|bill|paisa)\b/.test(lower)) {
+        return "follow up on payment";
+    }
+    if (/\b(quote|quotation|pricing|price)\b/.test(lower)) {
+        return "follow up on the quote";
+    }
+    if (/\b(meeting|call|schedule|zoom)\b/.test(lower) && !/\b(email|mail|compose|bhej)\b/.test(lower)) {
+        return "schedule a call";
+    }
     let t = text;
     const email = parseEmail(t);
     if (email)
@@ -279,6 +310,109 @@ function wantsClientLookup(lower, search, email, phone, raw, projectCode) {
         return false;
     return search.length >= 2;
 }
+const FOLLOW_RE = /\b(uska|uski|uske|usko|usay|usse|iska|iski|iske|isko|unka|unki|unke|unko|his|her|their|that client|this client|same client|wo wala|woh wala)\b/i;
+const FOLLOW_ATTR_RE = /^(email|e-mail|mail|phone|number|contact|projects?|history|details?|status|quoted|paid|kitn[aeiy].*|how many.*|batao|btado|btana)\b/i;
+function isFollowUp(text) {
+    const q = text.trim();
+    if (!q || q.length > 160)
+        return false;
+    if (FOLLOW_RE.test(q))
+        return true;
+    if (extractSearchQuery(q))
+        return false;
+    const stripped = q.replace(/[?!.,]/g, " ").replace(/\s+/g, " ").trim();
+    return FOLLOW_ATTR_RE.test(stripped);
+}
+function lastFocusFromHistory(history) {
+    for (let i = history.length - 1; i >= 0; i--) {
+        const m = history[i];
+        if (m.role === "user") {
+            const code = extractProjectCode(m.text);
+            if (code)
+                return code;
+            const email = parseEmail(m.text);
+            if (email)
+                return email;
+            const s = extractSearchQuery(m.text);
+            if (s && !FOLLOW_RE.test(s))
+                return s;
+            continue;
+        }
+        const heading = m.text.match(/\*\*([^*]{2,80})\*\*/);
+        if (!heading)
+            continue;
+        const name = heading[1].replace(/\s*[·(].*$/, "").trim();
+        if (name.length < 2)
+            continue;
+        if (/^(email ready|technical|payments|staff|csrs|estimator scoreboard|assignment mix)/i.test(name))
+            continue;
+        return name;
+    }
+    return "";
+}
+function resolveWithHistory(message, history) {
+    const focus = lastFocusFromHistory(history);
+    if (!focus || !isFollowUp(message))
+        return message;
+    if (message.toLowerCase().includes(focus.toLowerCase()))
+        return message;
+    return `${focus} ${message}`.trim();
+}
+function wantsEmailIntent(lower) {
+    return ((/\b(email|e-mail|mail|msg|message)\b/.test(lower) &&
+        /\b(send|bhej|bhejo|bhejni|krni|karo|likh|likho|write|draft|prepare|compose|banao|dena)\b/.test(lower)) ||
+        /\b(email bhej|mail bhej|mail karo|email karo|email send|compose email|email compose)\b/.test(lower) ||
+        (/\bnotes?\b/.test(lower) && /\b(email|mail|compose|draft)\b/.test(lower)));
+}
+/** Follow-ups like “uska email” / “mail bhejo” keep the last client or person. */
+function preferFollowUpPlan(message, focus) {
+    if (!focus || !isFollowUp(message))
+        return null;
+    const lower = message.toLowerCase();
+    const month = parseMonth(message);
+    const day = parseDay(message);
+    const email = parseEmail(message);
+    const phone = parsePhone(message);
+    if (wantsEmailIntent(lower)) {
+        return [{
+                tool: "prepareClientEmail",
+                args: { query: email || focus, phone: phone ?? "", intent: extractEmailPurpose(message) },
+            }];
+    }
+    if (/\b(check[- ]?in|checkin|chekin|check[- ]?out|attendance|checked\s*in)\b/.test(lower)) {
+        return [{
+                tool: "getPersonSnapshot",
+                args: { query: focus, intent: message, month: month ?? "", day: day ?? "" },
+            }];
+    }
+    return [{
+            tool: "getClientHistory",
+            args: {
+                query: focus,
+                phone: phone ?? "",
+                email: email ?? "",
+                focus: clientFocus(message),
+            },
+        }];
+}
+function fallbackPlan(text, lastFocus) {
+    const email = parseEmail(text);
+    const phone = parsePhone(text);
+    const projectCode = extractProjectCode(text);
+    const search = extractSearchQuery(text) || lastFocus;
+    if (search || email || phone || projectCode) {
+        return [{
+                tool: "getClientHistory",
+                args: {
+                    query: search || email || projectCode || "",
+                    phone: phone ?? "",
+                    email: email ?? "",
+                    focus: clientFocus(text),
+                },
+            }];
+    }
+    return [{ tool: "getCrmStatistics", args: { month: parseMonth(text) ?? "" } }];
+}
 function planTools(text) {
     const q = text.trim();
     if (detectChatter(q))
@@ -292,10 +426,7 @@ function planTools(text) {
     const search = extractSearchQuery(q);
     const clientHint = wantsClientLookup(lower, search, email, phone, q, projectCode);
     const accountsPage = parseAccountsPage(q);
-    const wantsEmail = (/\b(email|e-mail|mail|msg|message)\b/.test(lower) &&
-        /\b(send|bhej|bhejo|bhejni|krni|karo|likh|likho|write|draft|prepare|compose|banao|dena)\b/.test(lower)) ||
-        /\b(email bhej|mail bhej|mail karo|email karo|email send|compose email|email compose)\b/.test(lower) ||
-        (/\bnotes?\b/.test(lower) && /\b(email|mail|compose|draft)\b/.test(lower));
+    const wantsEmail = wantsEmailIntent(lower);
     const wantsAccounts = /\b(account|accounts|profit|loss|opex|payroll|revenue|revnue|revenu|income statement|p&l|pnl|nuqsan|faida|executive summary)\b/.test(lower) ||
         (/\breports?\b/.test(lower) && !!month && !email && !phone);
     const wantsProjectStage = !email &&

@@ -1,6 +1,17 @@
 import prisma from "../config/db";
 import type { AssistantActor } from "./permissions";
-import { detectChatter, planTools, type ClientFocus } from "./intent";
+import {
+  detectChatter,
+  fallbackPlan,
+  isFollowUp,
+  lastFocusFromHistory,
+  planTools,
+  preferFollowUpPlan,
+  resolveWithHistory,
+  type ChatTurn,
+  type ClientFocus,
+} from "./intent";
+import { ollamaSummarize } from "./ollama";
 import { TOOL_HANDLERS } from "./tools";
 
 export type AssistantAction = {
@@ -342,10 +353,18 @@ function formatFallback(results: unknown[]): string {
   return lines.join("\n") || "I could not find that in the CRM.";
 }
 
+function shouldSkipOllama(results: unknown[]): boolean {
+  return results.some(raw => {
+    const d = asRecord(asRecord(raw).data);
+    return d.compose === true || d.needPick === true || d.found === false;
+  });
+}
+
 export async function runAssistantChat(opts: {
   userId: string;
   role: string;
   message: string;
+  history?: ChatTurn[];
 }): Promise<{ reply: string; actions: AssistantAction[]; usedOllama: boolean }> {
   if (opts.role !== "admin") {
     return {
@@ -373,7 +392,14 @@ export async function runAssistantChat(opts: {
     };
   }
 
-  const planned = planTools(opts.message);
+  const history = opts.history ?? [];
+  const focus = lastFocusFromHistory(history);
+  const resolved = resolveWithHistory(opts.message, history);
+  let planned = preferFollowUpPlan(opts.message, focus) ?? planTools(resolved);
+  if (!planned.length) {
+    planned = fallbackPlan(resolved, isFollowUp(opts.message) ? focus : "");
+  }
+
   const results: unknown[] = [];
   const actions: AssistantAction[] = [];
 
@@ -416,26 +442,39 @@ export async function runAssistantChat(opts: {
     }
   }
 
-  if (!planned.length) {
-    return {
-      reply:
-        "Ask any CRM detail — client name/email, CSR, technical/estimator, payments, accounts month, staff, or stats.",
-      actions: [],
-      usedOllama: false,
-    };
+  const firstData = asRecord(asRecord(results[0]).data);
+  if (
+    firstData.found === false &&
+    focus.length >= 3 &&
+    planned[0]?.tool === "getClientHistory"
+  ) {
+    const out = await TOOL_HANDLERS.getPersonSnapshot(actor, {
+      query: focus,
+      intent: opts.message,
+      month: "",
+      day: "",
+    });
+    if (out.ok) {
+      const pd = asRecord(out.data);
+      if (pd.person) {
+        results.splice(0, results.length, { tool: "getPersonSnapshot", args: { query: focus }, ...out });
+      }
+    }
   }
 
-  const skipModel = results.some(raw => {
-    const r = asRecord(raw);
-    const d = asRecord(r.data);
-    return d.history === true || d.needPick === true || d.found === false || d.compose === true || d.accountsReport === true;
-  });
-  if (skipModel) {
-    return { reply: formatFallback(results), actions, usedOllama: false };
+  const templated = formatFallback(results);
+  if (!shouldSkipOllama(results)) {
+    const drafted = await ollamaSummarize({
+      userMessage: opts.message,
+      toolResults: results,
+    });
+    if (drafted) {
+      return { reply: drafted, actions, usedOllama: true };
+    }
   }
 
   return {
-    reply: formatFallback(results),
+    reply: templated,
     actions,
     usedOllama: false,
   };
