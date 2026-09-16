@@ -560,7 +560,7 @@ export default function LeadsPage() {
                           allEmails={collectLeadEmails(lead.email, lead.contacts)}
                           variant="pill"
                           className="px-2 py-1 text-xs lg:text-sm"
-                          clientName={lead.client}
+                          clientName={lead.name}
                           company={lead.company !== "N/A" ? lead.company : undefined}
                         />
                       </div>
@@ -1075,7 +1075,7 @@ export default function LeadsPage() {
                                 variant="plain"
                                 className="font-semibold text-[12px] sm:text-[13px]"
                                 emptyLabel="Not provided"
-                                clientName={viewing.client}
+                                clientName={viewing.name}
                                 company={viewing.company !== "N/A" ? viewing.company : undefined}
                               />
                             ) : href ? (
