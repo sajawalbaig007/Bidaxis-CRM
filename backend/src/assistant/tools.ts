@@ -1131,7 +1131,9 @@ export async function getPersonSnapshot(
     : null;
 
   if (!user && !est) {
-    if (canSearchClients(actor.role)) {
+    const asked = (args.intent ?? "").toLowerCase();
+    const staffAsk = /\b(estimator|csr|accounts|staff|employee|check[- ]?in|checkin|kitn[aeiy]|kitny|how many)\b/.test(asked);
+    if (!staffAsk && canSearchClients(actor.role)) {
       return getClientHistory(actor, { query: q });
     }
     return {

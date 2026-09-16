@@ -37,10 +37,26 @@ export function isNearFiller(token: string, stop: Set<string>): boolean {
   return false;
 }
 
+const COMPANY_NAME_TOKENS = new Set([
+  "ps", "bds", "bem", "gps", "bim", "pacific", "sunshine", "estimating", "studio", "design",
+  "construction", "llc", "inc", "ltd", "company", "co",
+]);
+
+/** First/last name tokens only — drop “ps”, “k”, company words. */
+export function extractPersonName(search: string): string {
+  const parts = search
+    .trim()
+    .split(/\s+/)
+    .filter(p => {
+      const k = p.toLowerCase().replace(/[^a-z]/g, "");
+      if (!k || COMPANY_NAME_TOKENS.has(k)) return false;
+      return /^[a-z][a-z.'-]{2,}$/i.test(p);
+    });
+  return parts.slice(0, 3).join(" ");
+}
+
 export function looksLikePersonName(search: string): boolean {
-  const parts = search.trim().split(/\s+/).filter(Boolean);
-  if (parts.length < 1 || parts.length > 4) return false;
-  return parts.every(p => /^[a-z][a-z.'-]{2,}$/i.test(p));
+  return extractPersonName(search).length >= 3;
 }
 
 function collapseRepeats(s: string) {
