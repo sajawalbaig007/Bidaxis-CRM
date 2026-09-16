@@ -51,6 +51,7 @@ type SessionRow = {
   ip: string | null;
   closedReason: string | null;
   closedReasonLabel?: string;
+  sessionCount?: number;
 };
 
 type SummaryRow = {
@@ -64,6 +65,7 @@ type SummaryRow = {
   firstLoginAt?: string;
   lastLogoutAt?: string | null;
   stillOpen?: boolean;
+  day?: string;
 };
 
 type ReportResponse = {
@@ -609,6 +611,11 @@ export default function CsrActivityReport({
                       <td className="px-3 py-3">
                         <div className="font-semibold text-sm text-[#111827]">{row.csrName}</div>
                         {row.csrCode && <div className="text-[10px] text-gray-400">{row.csrCode}</div>}
+                        {(row.sessionCount ?? 1) > 1 ? (
+                          <div className="text-[10px] font-semibold text-[#B8112D] mt-0.5">
+                            {row.sessionCount} check-ins combined
+                          </div>
+                        ) : null}
                       </td>
                       <td className="px-3 py-3 text-xs sm:text-sm text-gray-700 whitespace-nowrap">
                         <span className="inline-flex items-center gap-1"><LogIn size={12} className="text-green-500" />{formatSessionStamp(row.loginAt, clock.tz)}</span>
@@ -702,10 +709,15 @@ export default function CsrActivityReport({
                       </td>
                     </tr>
                   ) : summary.map(row => (
-                    <tr key={row.csrId} className="border-b border-gray-50 hover:bg-[#FAFAFB]">
+                    <tr key={`${row.csrId}-${row.day ?? row.firstLoginAt}`} className="border-b border-gray-50 hover:bg-[#FAFAFB]">
                       <td className="px-3 py-3">
                         <div className="font-semibold text-sm text-[#111827]">{row.csrName}</div>
                         {row.csrCode ? <div className="text-[10px] text-gray-400">{row.csrCode}</div> : null}
+                        {(row.sessions ?? 1) > 1 ? (
+                          <div className="text-[10px] font-semibold text-[#B8112D] mt-0.5">
+                            {row.sessions} check-ins combined
+                          </div>
+                        ) : null}
                       </td>
                       <td className="px-3 py-3 text-xs sm:text-sm text-gray-700 whitespace-nowrap">
                         <span className="inline-flex items-center gap-1">
