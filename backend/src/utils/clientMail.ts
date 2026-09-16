@@ -49,18 +49,26 @@ function readSlot(n: 1 | 2 | 3 | 4): MailSender | null {
 function passwordVariants(pass: string): string[] {
   const spaced = pass.trim();
   const compact = spaced.replace(/\s/g, "");
-  const noDash = compact.replace(/-/g, "");
-  return [...new Set([compact, noDash, spaced].filter(Boolean))];
+  const swapped =
+    compact.startsWith("I") ? `l${compact.slice(1)}`
+    : compact.startsWith("l") ? `I${compact.slice(1)}`
+    : "";
+  const seeds = [compact, compact.toLowerCase(), swapped, swapped.toLowerCase(), spaced];
+  const out: string[] = [];
+  for (const s of seeds) {
+    if (!s) continue;
+    out.push(s, s.replace(/-/g, ""));
+  }
+  return [...new Set(out)];
 }
 
-function hostVariants(sender: MailSender): string[] {
+
+function smtpHosts(sender: MailSender): string[] {
   const envHost = (process.env.CRM_SMTP_HOST ?? "").trim();
-  return [...new Set(
-    [sender.host, envHost, "smtp.hostinger.com", "smtp.titan.email"].filter((h): h is string => !!h),
-  )];
+  return [...new Set([sender.host, envHost, "smtp.hostinger.com"].filter((h): h is string => !!h))];
 }
 
-function portVariants(sender: MailSender): Array<{ port: number; secure: boolean; requireTLS?: boolean }> {
+function smtpPorts(sender: MailSender): Array<{ port: number; secure: boolean; requireTLS?: boolean }> {
   const envPort = readOptionalPort(process.env.CRM_SMTP_PORT ?? "");
   const envSecureRaw = (process.env.CRM_SMTP_SECURE ?? "").trim().toLowerCase();
   const envSecure = envSecureRaw === "true" ? true : envSecureRaw === "false" ? false : undefined;
@@ -78,24 +86,6 @@ function portVariants(sender: MailSender): Array<{ port: number; secure: boolean
     seen.add(key);
     return true;
   });
-}
-
-function transportAttempts(sender: MailSender) {
-  const attempts: Array<{ host: string; port: number; secure: boolean; requireTLS?: boolean; auth: { user: string; pass: string } }> = [];
-  for (const host of hostVariants(sender)) {
-    for (const port of portVariants(sender)) {
-      for (const pass of passwordVariants(sender.pass)) {
-        attempts.push({
-          host,
-          port: port.port,
-          secure: port.secure,
-          requireTLS: port.requireTLS,
-          auth: { user: sender.email, pass },
-        });
-      }
-    }
-  }
-  return attempts;
 }
 
 export function listConfiguredSenders(): MailSender[] {
@@ -143,25 +133,39 @@ export async function sendClientMail(opts: {
   }
 
   let lastErr: unknown;
-  for (const attempt of transportAttempts(opts.sender)) {
-    try {
-      const transporter = nodemailer.createTransport({
-        host: attempt.host,
-        port: attempt.port,
-        secure: attempt.secure,
-        requireTLS: attempt.requireTLS,
-        auth: attempt.auth,
-        authMethod: "LOGIN",
-        tls: { minVersion: "TLSv1.2" },
-      });
-      await transporter.sendMail(mail);
-      console.info(`[mail/send] smtp=${attempt.host}:${attempt.port} from=${opts.sender.email}`);
-      return;
-    } catch (err) {
-      lastErr = err;
-      const code = (err as { code?: string }).code ?? "";
-      if (code !== "EAUTH" && code !== "ESOCKET" && code !== "ETIMEDOUT" && code !== "ECONNECTION") {
-        throw err;
+  const passwords = passwordVariants(opts.sender.pass);
+  const hosts = smtpHosts(opts.sender);
+  const ports = smtpPorts(opts.sender);
+
+  passLoop: for (const pass of passwords) {
+    for (const host of hosts) {
+      for (const port of ports) {
+        try {
+          const transporter = nodemailer.createTransport({
+            host,
+            port: port.port,
+            secure: port.secure,
+            requireTLS: port.requireTLS,
+            auth: { user: opts.sender.email, pass },
+            authMethod: "LOGIN",
+            connectionTimeout: 12_000,
+            greetingTimeout: 12_000,
+            socketTimeout: 20_000,
+            tls: { minVersion: "TLSv1.2" },
+          });
+          await transporter.sendMail(mail);
+          console.info(`[mail/send] smtp=${host}:${port.port} from=${opts.sender.email}`);
+          return;
+        } catch (err) {
+          lastErr = err;
+          const code = (err as { code?: string }).code ?? "";
+          if (code === "EAUTH") {
+            continue passLoop;
+          }
+          if (code !== "ESOCKET" && code !== "ETIMEDOUT" && code !== "ECONNECTION") {
+            throw err;
+          }
+        }
       }
     }
   }
@@ -176,17 +180,24 @@ function greetName(clientName: string): string {
   return first;
 }
 
+function looksRomanUrdu(text: string): boolean {
+  return /\b(hogya|hogaya|ho\s*gaya|tayar|tayyar|tmhara|tumhara|tumhari|bhej|bhejo|kro|karo|krdo|mjhy|mujhe|iski|isse|dekho|likh|bnao|banao|ha|hai|hain|apna|apka)\b/i.test(text);
+}
+
 function englishFromPurpose(purpose: string, who: string): { subject: string; opening: string } {
   const p = purpose.trim().toLowerCase().replace(/\s+/g, " ");
+  const ready =
+    /\b(ready|hogya|hogaya|ho\s*gaya|tayar|tayyar|completed|finished)\b/.test(p)
+    || (/\bproject\b/.test(p) && /\b(done|finish|complete)\b/.test(p));
 
-  if (/\bready\b/.test(p) && /\bproject\b/.test(p)) {
+  if (ready) {
     return {
       subject: "Your project is ready",
       opening:
         `Hi ${who},\n\nGood news — your project is ready.\n\nPlease take a look when you have a moment and let me know if you need any changes from our side.`,
     };
   }
-  if (/\b(payment|invoice|outstanding|due|unpaid)\b/.test(p)) {
+  if (/\b(payment|invoice|outstanding|due|unpaid|bill)\b/.test(p)) {
     return {
       subject: "Quick note on payment",
       opening:
@@ -207,7 +218,7 @@ function englishFromPurpose(purpose: string, who: string): { subject: string; op
         `Hi ${who},\n\nWould you have a few minutes for a quick call so we can align on next steps?\n\nShare a time that works for you and I’ll lock it in.`,
     };
   }
-  if (/\b(revision|revise|changes?|update the)\b/.test(p)) {
+  if (/\b(revision|revise|changes?)\b/.test(p)) {
     return {
       subject: "Revision update",
       opening:
@@ -223,12 +234,15 @@ function englishFromPurpose(purpose: string, who: string): { subject: string; op
   }
 
   const clean = purpose.trim().replace(/[.]+$/, "");
-  const mostlyEnglish = /^[a-z0-9 ,.'&+-]+$/i.test(clean) && clean.split(/\s+/).length <= 12;
+  const mostlyEnglish = /^[a-z0-9 ,.'&+-]+$/i.test(clean)
+    && clean.split(/\s+/).length <= 12
+    && !looksRomanUrdu(clean);
   if (mostlyEnglish && clean.length >= 8) {
+    const sentence = /[.?!]$/.test(clean) ? clean : `${clean}.`;
     return {
       subject: clean.replace(/^./, c => c.toUpperCase()),
       opening:
-        `Hi ${who},\n\n${clean.endsWith(".") ? clean : `${clean}.`}\n\nPlease let me know if you have any questions.`,
+        `Hi ${who},\n\n${sentence}\n\nPlease let me know if you have any questions.`,
     };
   }
 
