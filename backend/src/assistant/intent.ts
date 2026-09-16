@@ -48,6 +48,9 @@ const STOP = new Set([
   "compose", "composed", "composing", "note", "notes", "read", "padh", "padho",
   "purpose", "according", "kisi", "isky", "iske", "usky", "uske", "uski",
   "dena", "banao", "likho", "likhdo",
+  "uska", "uski", "uske", "usko", "usay", "usse",
+  "iska", "iski", "iske", "isko", "unka", "unki", "unke", "unko",
+  "nexa", "aur", "phr", "phir", "yeh",
 ]);
 
 const GREET_RE =
@@ -303,6 +306,111 @@ function wantsClientLookup(
 
 export type PlannedCall = { tool: ToolName; args: Record<string, string> };
 
+export type ChatTurn = { role: "user" | "assistant"; text: string };
+
+const FOLLOW_RE =
+  /\b(uska|uski|uske|usko|usay|usse|iska|iski|iske|isko|unka|unki|unke|unko|his|her|their|that client|this client|same client|wo wala|woh wala)\b/i;
+
+const FOLLOW_ATTR_RE =
+  /^(email|e-mail|mail|phone|number|contact|projects?|history|details?|status|quoted|paid|kitn[aeiy].*|how many.*|batao|btado|btana)\b/i;
+
+export function isFollowUp(text: string): boolean {
+  const q = text.trim();
+  if (!q || q.length > 160) return false;
+  if (FOLLOW_RE.test(q)) return true;
+  if (extractSearchQuery(q)) return false;
+  const stripped = q.replace(/[?!.,]/g, " ").replace(/\s+/g, " ").trim();
+  return FOLLOW_ATTR_RE.test(stripped);
+}
+
+export function lastFocusFromHistory(history: ChatTurn[]): string {
+  for (let i = history.length - 1; i >= 0; i--) {
+    const m = history[i]!;
+    if (m.role === "user") {
+      const code = extractProjectCode(m.text);
+      if (code) return code;
+      const email = parseEmail(m.text);
+      if (email) return email;
+      const s = extractSearchQuery(m.text);
+      if (s && !FOLLOW_RE.test(s)) return s;
+      continue;
+    }
+    const heading = m.text.match(/\*\*([^*]{2,80})\*\*/);
+    if (!heading) continue;
+    const name = heading[1]!.replace(/\s*[·(].*$/, "").trim();
+    if (name.length < 2) continue;
+    if (/^(email ready|technical|payments|staff|csrs|estimator scoreboard|assignment mix)/i.test(name)) continue;
+    return name;
+  }
+  return "";
+}
+
+export function resolveWithHistory(message: string, history: ChatTurn[]): string {
+  const focus = lastFocusFromHistory(history);
+  if (!focus || !isFollowUp(message)) return message;
+  if (message.toLowerCase().includes(focus.toLowerCase())) return message;
+  return `${focus} ${message}`.trim();
+}
+
+function wantsEmailIntent(lower: string): boolean {
+  return (
+    (/\b(email|e-mail|mail|msg|message)\b/.test(lower) &&
+      /\b(send|bhej|bhejo|bhejni|krni|karo|likh|likho|write|draft|prepare|compose|banao|dena)\b/.test(lower)) ||
+    /\b(email bhej|mail bhej|mail karo|email karo|email send|compose email|email compose)\b/.test(lower) ||
+    (/\bnotes?\b/.test(lower) && /\b(email|mail|compose|draft)\b/.test(lower))
+  );
+}
+
+/** Follow-ups like “uska email” / “mail bhejo” keep the last client or person. */
+export function preferFollowUpPlan(message: string, focus: string): PlannedCall[] | null {
+  if (!focus || !isFollowUp(message)) return null;
+  const lower = message.toLowerCase();
+  const month = parseMonth(message);
+  const day = parseDay(message);
+  const email = parseEmail(message);
+  const phone = parsePhone(message);
+  if (wantsEmailIntent(lower)) {
+    return [{
+      tool: "prepareClientEmail",
+      args: { query: email || focus, phone: phone ?? "", intent: extractEmailPurpose(message) },
+    }];
+  }
+  if (/\b(check[- ]?in|checkin|chekin|check[- ]?out|attendance|checked\s*in)\b/.test(lower)) {
+    return [{
+      tool: "getPersonSnapshot",
+      args: { query: focus, intent: message, month: month ?? "", day: day ?? "" },
+    }];
+  }
+  return [{
+    tool: "getClientHistory",
+    args: {
+      query: focus,
+      phone: phone ?? "",
+      email: email ?? "",
+      focus: clientFocus(message),
+    },
+  }];
+}
+
+export function fallbackPlan(text: string, lastFocus: string): PlannedCall[] {
+  const email = parseEmail(text);
+  const phone = parsePhone(text);
+  const projectCode = extractProjectCode(text);
+  const search = extractSearchQuery(text) || lastFocus;
+  if (search || email || phone || projectCode) {
+    return [{
+      tool: "getClientHistory",
+      args: {
+        query: search || email || projectCode || "",
+        phone: phone ?? "",
+        email: email ?? "",
+        focus: clientFocus(text),
+      },
+    }];
+  }
+  return [{ tool: "getCrmStatistics", args: { month: parseMonth(text) ?? "" } }];
+}
+
 export function planTools(text: string): PlannedCall[] {
   const q = text.trim();
   if (detectChatter(q)) return [];
@@ -317,11 +425,7 @@ export function planTools(text: string): PlannedCall[] {
   const clientHint = wantsClientLookup(lower, search, email, phone, q, projectCode);
   const accountsPage = parseAccountsPage(q);
 
-  const wantsEmail =
-    (/\b(email|e-mail|mail|msg|message)\b/.test(lower) &&
-      /\b(send|bhej|bhejo|bhejni|krni|karo|likh|likho|write|draft|prepare|compose|banao|dena)\b/.test(lower)) ||
-    /\b(email bhej|mail bhej|mail karo|email karo|email send|compose email|email compose)\b/.test(lower) ||
-    (/\bnotes?\b/.test(lower) && /\b(email|mail|compose|draft)\b/.test(lower));
+  const wantsEmail = wantsEmailIntent(lower);
 
   const wantsAccounts =
     /\b(account|accounts|profit|loss|opex|payroll|revenue|revnue|revenu|income statement|p&l|pnl|nuqsan|faida|executive summary)\b/.test(lower) ||

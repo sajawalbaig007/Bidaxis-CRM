@@ -42,14 +42,23 @@ function readSlot(n) {
 function passwordVariants(pass) {
     const spaced = pass.trim();
     const compact = spaced.replace(/\s/g, "");
-    const noDash = compact.replace(/-/g, "");
-    return [...new Set([compact, noDash, spaced].filter(Boolean))];
+    const swapped = compact.startsWith("I") ? `l${compact.slice(1)}`
+        : compact.startsWith("l") ? `I${compact.slice(1)}`
+            : "";
+    const seeds = [compact, compact.toLowerCase(), swapped, swapped.toLowerCase(), spaced];
+    const out = [];
+    for (const s of seeds) {
+        if (!s)
+            continue;
+        out.push(s, s.replace(/-/g, ""));
+    }
+    return [...new Set(out)];
 }
-function hostVariants(sender) {
+function smtpHosts(sender) {
     const envHost = (process.env.CRM_SMTP_HOST ?? "").trim();
-    return [...new Set([sender.host, envHost, "smtp.hostinger.com", "smtp.titan.email"].filter((h) => !!h))];
+    return [...new Set([sender.host, envHost, "smtp.hostinger.com"].filter((h) => !!h))];
 }
-function portVariants(sender) {
+function smtpPorts(sender) {
     const envPort = readOptionalPort(process.env.CRM_SMTP_PORT ?? "");
     const envSecureRaw = (process.env.CRM_SMTP_SECURE ?? "").trim().toLowerCase();
     const envSecure = envSecureRaw === "true" ? true : envSecureRaw === "false" ? false : undefined;
@@ -68,23 +77,6 @@ function portVariants(sender) {
         seen.add(key);
         return true;
     });
-}
-function transportAttempts(sender) {
-    const attempts = [];
-    for (const host of hostVariants(sender)) {
-        for (const port of portVariants(sender)) {
-            for (const pass of passwordVariants(sender.pass)) {
-                attempts.push({
-                    host,
-                    port: port.port,
-                    secure: port.secure,
-                    requireTLS: port.requireTLS,
-                    auth: { user: sender.email, pass },
-                });
-            }
-        }
-    }
-    return attempts;
 }
 function listConfiguredSenders() {
     return [1, 2, 3, 4].map(n => readSlot(n)).filter((s) => !!s);
@@ -136,26 +128,39 @@ async function sendClientMail(opts) {
         return;
     }
     let lastErr;
-    for (const attempt of transportAttempts(opts.sender)) {
-        try {
-            const transporter = nodemailer_1.default.createTransport({
-                host: attempt.host,
-                port: attempt.port,
-                secure: attempt.secure,
-                requireTLS: attempt.requireTLS,
-                auth: attempt.auth,
-                authMethod: "LOGIN",
-                tls: { minVersion: "TLSv1.2" },
-            });
-            await transporter.sendMail(mail);
-            console.info(`[mail/send] smtp=${attempt.host}:${attempt.port} from=${opts.sender.email}`);
-            return;
-        }
-        catch (err) {
-            lastErr = err;
-            const code = err.code ?? "";
-            if (code !== "EAUTH" && code !== "ESOCKET" && code !== "ETIMEDOUT" && code !== "ECONNECTION") {
-                throw err;
+    const passwords = passwordVariants(opts.sender.pass);
+    const hosts = smtpHosts(opts.sender);
+    const ports = smtpPorts(opts.sender);
+    passLoop: for (const pass of passwords) {
+        for (const host of hosts) {
+            for (const port of ports) {
+                try {
+                    const transporter = nodemailer_1.default.createTransport({
+                        host,
+                        port: port.port,
+                        secure: port.secure,
+                        requireTLS: port.requireTLS,
+                        auth: { user: opts.sender.email, pass },
+                        authMethod: "LOGIN",
+                        connectionTimeout: 12000,
+                        greetingTimeout: 12000,
+                        socketTimeout: 20000,
+                        tls: { minVersion: "TLSv1.2" },
+                    });
+                    await transporter.sendMail(mail);
+                    console.info(`[mail/send] smtp=${host}:${port.port} from=${opts.sender.email}`);
+                    return;
+                }
+                catch (err) {
+                    lastErr = err;
+                    const code = err.code ?? "";
+                    if (code === "EAUTH") {
+                        continue passLoop;
+                    }
+                    if (code !== "ESOCKET" && code !== "ETIMEDOUT" && code !== "ECONNECTION") {
+                        throw err;
+                    }
+                }
             }
         }
     }
@@ -170,15 +175,51 @@ function greetName(clientName) {
         return "there";
     return first;
 }
+const DONE_RE = /\b(ready|done|complete|completed|finished|finish|hogya|hogaya|hogai|hogayi|ho\s*gaya|ho\s*gya|tayar|tayyar|kia|kiya|kardiya|krdiya|kar\s*diya|kar\s*di|krdi)\b/;
+function looksRomanUrdu(text) {
+    return /\b(hogya|hogaya|hogai|hogayi|ho\s*gaya|ho\s*gya|tayar|tayyar|tmhara|tmhari|tmhare|tumhara|tumhari|tumhare|apka|apki|apna|apko|bhej|bhejo|kro|karo|krdo|krdiya|kardiya|kia|kiya|mjhy|mujhe|iski|isse|dekho|likh|likho|bnao|banao|ha|hai|hain|chahiye|chahye|jaldi|abhi|zaroor|krna|karna|dena|lena|gaya|gyi|gye)\b/i.test(text);
+}
+const ENGLISH_HINT = new Set([
+    "project", "projects", "requirement", "requirements", "payment", "invoice", "quote", "quotation",
+    "call", "meeting", "drawing", "drawings", "estimate", "estimation", "takeoff", "revision", "update",
+    "review", "need", "needed", "needs", "contract", "photos", "photo", "site", "file", "files",
+    "document", "documents", "signed", "pending", "ready", "complete", "completed", "follow",
+    "tomorrow", "today", "week", "info", "information", "missing", "attached", "attachment", "bid",
+    "proposal", "deadline", "delay", "thank", "thanks", "confirm", "confirmation", "schedule",
+    "available", "please", "share", "send", "sent", "request", "requested", "change", "changes",
+    "price", "pricing", "cost", "budget", "paid", "unpaid", "due", "outstanding", "walkthrough",
+]);
+function isProbablyEnglish(text) {
+    if (looksRomanUrdu(text))
+        return false;
+    const words = text.toLowerCase().split(/[^a-z0-9]+/).filter(w => w.length >= 2);
+    if (!words.length)
+        return false;
+    const hits = words.filter(w => ENGLISH_HINT.has(w) || /^(the|your|our|this|that|with|from|about|for)$/.test(w) || /(?:ed|ing|ment|tion)$/.test(w));
+    return hits.length >= Math.max(1, Math.ceil(words.length * 0.4));
+}
+function readyMail(who, subject, news) {
+    return {
+        subject,
+        opening: `Hi ${who},\n\n${news}\n\nPlease take a look when you have a moment and let me know if you need any changes from our side.`,
+    };
+}
 function englishFromPurpose(purpose, who) {
     const p = purpose.trim().toLowerCase().replace(/\s+/g, " ");
-    if (/\bready\b/.test(p) && /\bproject\b/.test(p)) {
-        return {
-            subject: "Your project is ready",
-            opening: `Hi ${who},\n\nGood news — your project is ready.\n\nPlease take a look when you have a moment and let me know if you need any changes from our side.`,
-        };
+    const done = DONE_RE.test(p);
+    if (/\brequirement/.test(p) && done) {
+        return readyMail(who, "Your requirements are complete", "We've completed the requirements you shared.");
     }
-    if (/\b(payment|invoice|outstanding|due|unpaid)\b/.test(p)) {
+    if (/\b(drawing|drawings|plans?)\b/.test(p) && done) {
+        return readyMail(who, "Your drawings are ready", "Good news — your drawings are ready.");
+    }
+    if (/\b(estimate|estimation|bid)\b/.test(p) && done) {
+        return readyMail(who, "Your estimate is ready", "Good news — your estimate is ready.");
+    }
+    if (/\btakeoff\b/.test(p) && done) {
+        return readyMail(who, "Takeoff is complete", "The takeoff is complete and ready for your review.");
+    }
+    if (/\b(payment|invoice|outstanding|due|unpaid|bill|paisa)\b/.test(p)) {
         return {
             subject: "Quick note on payment",
             opening: `Hi ${who},\n\nI wanted to follow up on the outstanding payment for your project.\n\nCould you please share an update when you get a chance?`,
@@ -196,24 +237,37 @@ function englishFromPurpose(purpose, who) {
             opening: `Hi ${who},\n\nWould you have a few minutes for a quick call so we can align on next steps?\n\nShare a time that works for you and I’ll lock it in.`,
         };
     }
-    if (/\b(revision|revise|changes?|update the)\b/.test(p)) {
+    if (/\b(revision|revise|changes?)\b/.test(p)) {
         return {
             subject: "Revision update",
             opening: `Hi ${who},\n\nI wanted to update you on the revision.\n\nPlease review and tell me if anything still needs to change.`,
         };
     }
-    if (/\b(follow\s*up|checking in|touch base)\b/.test(p)) {
+    if (done) {
+        return readyMail(who, "Your project is ready", "Good news — your project is ready.");
+    }
+    if (/\b(thank|thanks|shukriya|shukria)\b/.test(p)) {
+        return {
+            subject: "Thank you",
+            opening: `Hi ${who},\n\nThank you — we appreciate you taking the time.\n\nPlease let me know if you need anything else from our side.`,
+        };
+    }
+    if (/\b(follow\s*up|checking in|touch base|reminder|yaad)\b/.test(p)) {
         return {
             subject: "Checking in",
             opening: `Hi ${who},\n\nJust checking in to see how things are looking on your side.\n\nLet me know if you need anything from us.`,
         };
     }
-    const clean = purpose.trim().replace(/[.]+$/, "");
-    const mostlyEnglish = /^[a-z0-9 ,.'&+-]+$/i.test(clean) && clean.split(/\s+/).length <= 12;
-    if (mostlyEnglish && clean.length >= 8) {
+    const clean = purpose.trim().replace(/[.?!]+$/, "");
+    if (clean.length >= 6 && isProbablyEnglish(clean) && !looksRomanUrdu(clean)) {
+        const topic = clean.charAt(0).toLowerCase() + clean.slice(1);
+        const subject = clean.replace(/^./, c => c.toUpperCase()).slice(0, 80);
+        const news = /^(need|needed|missing)\b/i.test(topic)
+            ? `I wanted to follow up — we still ${topic.replace(/^needed\b/i, "need")}.`
+            : `I wanted to follow up regarding ${topic}.`;
         return {
-            subject: clean.replace(/^./, c => c.toUpperCase()),
-            opening: `Hi ${who},\n\n${clean.endsWith(".") ? clean : `${clean}.`}\n\nPlease let me know if you have any questions.`,
+            subject: /^(your |following |quick |can |update:)/i.test(subject) ? subject : `Update: ${subject}`,
+            opening: `Hi ${who},\n\n${news}\n\nPlease let me know if you have any questions or if you'd like me to walk you through anything.`,
         };
     }
     return {
@@ -232,9 +286,13 @@ async function draftClientMail(opts) {
             ? [`Thanks,`, opts.fromName.trim(), opts.fromEmail.trim()].filter(Boolean).join("\n")
             : "Thanks,";
     const written = englishFromPurpose(intent, who);
+    const safe = looksRomanUrdu(`${written.subject}\n${written.opening}`)
+        ? englishFromPurpose("a short project update", who)
+        : written;
+    const body = sign ? `${safe.opening}\n\n${sign}` : safe.opening;
     return {
-        subject: written.subject,
-        body: sign ? `${written.opening}\n\n${sign}` : written.opening,
+        subject: safe.subject,
+        body,
         source: "template",
     };
 }

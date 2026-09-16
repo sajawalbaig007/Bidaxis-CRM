@@ -8,6 +8,21 @@ const express_rate_limit_1 = __importDefault(require("express-rate-limit"));
 const auth_middleware_1 = require("../middleware/auth.middleware");
 const role_middleware_1 = require("../middleware/role.middleware");
 const chatService_1 = require("../assistant/chatService");
+function parseHistory(raw) {
+    if (!Array.isArray(raw))
+        return [];
+    const out = [];
+    for (const item of raw.slice(-8)) {
+        if (!item || typeof item !== "object")
+            continue;
+        const role = String(item.role ?? "");
+        const text = String(item.text ?? "").trim();
+        if ((role !== "user" && role !== "assistant") || !text)
+            continue;
+        out.push({ role, text: text.slice(0, 2000) });
+    }
+    return out;
+}
 const router = express_1.default.Router();
 const STAFF = ["admin"];
 const chatLimiter = (0, express_rate_limit_1.default)({
@@ -35,6 +50,7 @@ router.post("/chat", async (req, res) => {
             userId: req.user.id,
             role: req.user.role,
             message,
+            history: parseHistory(req.body?.history),
         });
         return res.json({ success: true, ...result });
     }

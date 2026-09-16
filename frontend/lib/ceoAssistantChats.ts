@@ -31,7 +31,7 @@ type Store = {
 };
 
 export const CEO_ASSISTANT_WELCOME =
-  "Hey — this is me, Nexa. Ask me anything on the CRM. Clients, projects, accounts, stats, email… say it in your own words.";
+  "Hey — this is me, Nexa. Ask in your own words. After a client or person, follow-ups work — “uska email”, “kitne projects”, “mail bhejo”.";
 
 const KEY = "crm_ceo_assistant_chats_v1";
 const MAX_CHATS = 40;

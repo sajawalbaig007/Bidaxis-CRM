@@ -47,7 +47,9 @@ const upload_middleware_1 = __importStar(require("../middleware/upload.middlewar
 const cloudinary_1 = __importDefault(require("../config/cloudinary"));
 const stream_1 = require("stream");
 const user_controller_1 = require("../controllers/user.controller");
+/* ================= ROUTERS — user routes ================== */
 const router = express_1.default.Router();
+/* ================= MIDDLEWARE — authenticated users ================= */
 router.use(auth_middleware_1.verifyToken);
 /* ================= GET ALL USERS — admin + csr (chat) ================= */
 router.get("/", (0, role_middleware_1.allowRoles)("admin", "csr", "manager"), async (req, res) => {

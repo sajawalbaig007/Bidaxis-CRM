@@ -228,7 +228,11 @@ export default function CrmAssistantPanel() {
     }));
     setBusy(true);
     try {
-      const res = await API.post("/assistant/chat", { message: q }, { timeout: 45_000 });
+      const history = msgs
+        .filter(m => m.id !== "welcome" && m.text.trim())
+        .slice(-8)
+        .map(m => ({ role: m.role, text: m.text.slice(0, 2000) }));
+      const res = await API.post("/assistant/chat", { message: q, history }, { timeout: 45_000 });
       const reply = String(res.data.reply ?? "No reply.");
       const actions = Array.isArray(res.data.actions) ? (res.data.actions as ChatAction[]) : [];
       const assistantMsg: ChatMsg = { id: newChatId(), role: "assistant", text: reply, actions };
