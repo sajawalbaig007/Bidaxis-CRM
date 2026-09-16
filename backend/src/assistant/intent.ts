@@ -197,13 +197,19 @@ const PURPOSE_STRIP = new Set([
   "based", "file", "crm", "dashboard", "specific", "purpose", "according", "also", "then", "just",
   "bhej", "bhejo", "bhejni", "likh", "likho", "banao", "bnao", "bna", "kro", "kr", "karo", "karna", "krni",
   "do", "dena", "dekho", "dekhen", "dekha", "padh", "padho", "karke", "mjhy", "mujhe", "mujh",
-  "iski", "iske", "iska", "isse", "usky", "uske", "uski", "isky", "kisi", "tmhara", "tumhara", "tumhari",
-  "apka", "apki", "apna", "ko", "ki", "ke", "ka", "se", "k", "ha", "hai", "hain", "ho", "aur", "phr", "phir",
-  "batao", "btana", "btado", "btao",
+  "iski", "iske", "iska", "isse", "usky", "uske", "uski", "isky", "kisi", "tmhara", "tmhari", "tmhare",
+  "tumhara", "tumhari", "tumhare",
+  "apka", "apki", "apna", "apko", "ko", "ki", "ke", "ka", "se", "k", "ha", "hai", "hain", "ho", "aur", "phr", "phir",
+  "batao", "btana", "btado", "btao", "kia", "kiya", "kardiya", "krdiya", "krdi",
 ]);
 
 export function extractEmailPurpose(text: string): string {
   const lower = text.toLowerCase().replace(/\s+/g, " ");
+  const done = /\b(hogya|hogaya|hogai|ho\s*gaya|ho\s*gya|tayar|tayyar|kia|kiya|kardiya|krdiya|ready|done|complete|completed|finished)\b/.test(lower);
+  if (/\brequirement/.test(lower) && done) return "requirements are complete";
+  if (/\b(drawing|drawings|plans?)\b/.test(lower) && done) return "drawings are ready";
+  if (/\b(estimate|estimation|bid)\b/.test(lower) && done) return "estimate is ready";
+  if (/\btakeoff\b/.test(lower) && done) return "takeoff is complete";
   if (/\b(hogya|hogaya|ho\s*gaya|ho\s*gya|tayar|tayyar|project is ready|project ready)\b/.test(lower)) {
     return "project is ready";
   }
