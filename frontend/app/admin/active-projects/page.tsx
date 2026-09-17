@@ -1340,7 +1340,7 @@ export default function AdminProjectsPage() {
         {/* HEADER */}
         <div className="mb-5 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
           <div className="flex items-start gap-3 min-w-0">
-            <span className="w-11 h-11 rounded-2xl bg-[#0B1220] text-white inline-flex items-center justify-center shrink-0 shadow-sm">
+            <span className="w-11 h-11 rounded-2xl bg-[#B8112D] text-white inline-flex items-center justify-center shrink-0 shadow-sm">
               <FolderKanban size={18} />
             </span>
             <div className="min-w-0">

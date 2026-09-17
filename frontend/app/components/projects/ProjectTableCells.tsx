@@ -99,7 +99,7 @@ export function ClientDetailCell({ p }: { p: ProjectTableRow }) {
 
   return (
     <div className="min-w-0 flex items-start gap-2">
-      <span className="mt-0.5 w-8 h-8 rounded-xl bg-[#0B1220] text-white text-[11px] font-extrabold inline-flex items-center justify-center shrink-0">
+      <span className="mt-0.5 w-8 h-8 rounded-xl bg-[#B8112D] text-white text-[11px] font-extrabold inline-flex items-center justify-center shrink-0">
         {initial}
       </span>
       <div className="min-w-0 space-y-0.5">
@@ -366,10 +366,10 @@ export const PROJECT_TABLE_CARD =
   "crm-table-card rounded-2xl sm:rounded-[28px] border border-slate-200/80 shadow-[0_12px_40px_rgba(15,23,42,0.06)] overflow-hidden";
 
 export const PROJECT_DB_THEAD =
-  "sticky top-0 z-20 bg-[#0B1220]";
+  "sticky top-0 z-20 bg-[#B8112D]";
 
 export const PROJECT_DB_TH =
-  "px-3 xl:px-3.5 py-3 text-left text-[10px] font-bold text-white/55 uppercase tracking-[0.14em] whitespace-nowrap";
+  "px-3 xl:px-3.5 py-3 text-left text-[10px] font-bold text-white/80 uppercase tracking-[0.14em] whitespace-nowrap";
 
 export const PROJECT_DB_TD =
   "px-3 xl:px-3.5 py-3.5 align-top min-w-0";

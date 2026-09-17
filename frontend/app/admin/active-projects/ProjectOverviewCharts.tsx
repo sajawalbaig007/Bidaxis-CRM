@@ -54,7 +54,7 @@ export default function ProjectOverviewCharts({
       value: stats.total,
       hint: "All CSR projects in the DB",
       icon: FolderKanban,
-      wrap: "from-[#0B1220] to-[#1E293B]",
+      wrap: "from-[#B8112D] to-[#8c0d22]",
       iconBg: "bg-white/10",
       iconColor: "text-white",
       valueCls: "text-white",
@@ -91,20 +91,22 @@ export default function ProjectOverviewCharts({
   ];
 
   return (
-    <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)] gap-5 lg:gap-6">
-      <div className="min-w-0">
+    <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)] gap-5 lg:gap-6 items-stretch">
+      <div className="min-w-0 flex flex-col">
         <div className="flex items-baseline justify-between mb-3">
           <h2 className="text-[11px] font-extrabold uppercase tracking-[0.16em] text-slate-400">Overview</h2>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-3 xl:grid-cols-1 gap-2.5">
+        <div className="grid grid-cols-1 sm:grid-cols-3 xl:grid-cols-1 gap-2.5 flex-1">
           {kpis.map((s) => {
             const Icon = s.icon;
             return (
               <div
                 key={s.label}
-                className={`relative overflow-hidden rounded-2xl bg-gradient-to-br ${s.wrap} border border-slate-200/70 p-3.5 sm:p-4`}
+                className={`relative overflow-hidden rounded-2xl bg-gradient-to-br ${s.wrap} p-3.5 sm:p-4 h-full ${
+                  s.wrap.includes("[#B8112D]") ? "border border-[#B8112D]/30" : "border border-slate-200/70"
+                }`}
               >
-                <div className="flex items-start gap-3">
+                <div className="flex items-start gap-3 w-full">
                   <span className={`w-9 h-9 rounded-xl ${s.iconBg} ${s.iconColor} inline-flex items-center justify-center shrink-0`}>
                     <Icon size={16} />
                   </span>
@@ -132,16 +134,16 @@ export default function ProjectOverviewCharts({
         </div>
       </div>
 
-      <div className="min-w-0">
+      <div className="min-w-0 flex flex-col">
         <div className="flex items-baseline justify-between mb-3">
           <h2 className="text-[11px] font-extrabold uppercase tracking-[0.16em] text-slate-400">By project phase</h2>
           {!loading && phaseTotal > 0 && (
             <p className="text-[11px] font-semibold text-slate-400 tabular-nums">{phaseTotal} in pipeline</p>
           )}
         </div>
-        <div className="rounded-2xl border border-slate-200/70 bg-slate-50/60 p-3 sm:p-4">
-          <div className="flex flex-col sm:flex-row items-center gap-4">
-            <div className="relative shrink-0 h-[200px] w-[200px]">
+        <div className="rounded-2xl border border-slate-200/70 bg-slate-50/60 p-3 sm:p-4 flex-1 flex flex-col min-h-0">
+          <div className="flex flex-col sm:flex-row items-center gap-4 flex-1 min-h-0">
+            <div className="relative shrink-0 h-[220px] w-[220px] sm:h-[240px] sm:w-[240px]">
               {loading ? (
                 <div className="h-full w-full rounded-full bg-slate-100 animate-pulse" />
               ) : phasePieData.length === 0 ? (
@@ -158,8 +160,8 @@ export default function ProjectOverviewCharts({
                         nameKey="name"
                         cx="50%"
                         cy="50%"
-                        innerRadius={58}
-                        outerRadius={88}
+                        innerRadius={68}
+                        outerRadius={102}
                         paddingAngle={3}
                         stroke="#fff"
                         strokeWidth={3}
@@ -188,13 +190,13 @@ export default function ProjectOverviewCharts({
                     </PieChart>
                   </ResponsiveContainer>
                   <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                    <p className="text-2xl font-extrabold text-[#0B1220] tabular-nums leading-none">{phaseTotal}</p>
+                    <p className="text-2xl font-extrabold text-[#B8112D] tabular-nums leading-none">{phaseTotal}</p>
                     <p className="text-[9px] font-bold uppercase tracking-[0.16em] text-slate-400 mt-1">Phases</p>
                   </div>
                 </>
               )}
             </div>
-            <div className="flex-1 w-full min-w-0 space-y-1.5 max-h-[220px] overflow-y-auto pr-0.5">
+            <div className="flex-1 w-full min-w-0 self-stretch flex flex-col justify-center gap-1.5 overflow-y-auto pr-0.5">
               {loading ? (
                 Array.from({ length: 4 }).map((_, i) => (
                   <div key={i} className="h-10 rounded-xl bg-white border border-slate-100 animate-pulse" />
@@ -206,7 +208,7 @@ export default function ProjectOverviewCharts({
                   const meta = phaseMeta(s.key, s.name);
                   const share = pct(s.value, phaseTotal);
                   return (
-                    <div key={s.key} className="rounded-xl bg-white border border-slate-100 px-3 py-2">
+                    <div key={s.key} className="rounded-xl bg-white border border-slate-100 px-3 py-2.5 flex-1 min-h-[48px] flex flex-col justify-center">
                       <div className="flex items-center gap-2.5">
                         <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: meta.color }} />
                         <p className="flex-1 min-w-0 text-[12px] font-semibold text-slate-700 truncate">{meta.label}</p>
