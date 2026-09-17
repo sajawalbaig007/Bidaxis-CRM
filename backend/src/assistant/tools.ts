@@ -16,7 +16,7 @@ import { publicSenders, draftClientMail } from "../utils/clientMail";
 import { estDateYmd, estDayBoundsUtc, formatDurationMs, formatEstDateTime } from "../utils/estTime";
 import { parseMoney, parseProjectPayments, paidTotalFromEntries } from "../utils/projectPayments";
 import { clientCodeFamilyKey } from "../utils/adminClientQueries";
-import { fuzzyNameHit, isNearFiller, bestNameMatch } from "./fuzzy";
+import { fuzzyNameHit, isNearFiller, bestNameMatch, nameScore } from "./fuzzy";
 import type { AssistantActor } from "./permissions";
 import {
   canEmailClients,
@@ -180,6 +180,27 @@ function isProjectRow(lead: { projectTitle?: string | null; projectCode?: string
 
 function usd(n: number) {
   return `$${Math.round(n).toLocaleString("en-US")}`;
+}
+
+function lastPaymentOf(lead: { projectPayments?: string | null; paidAmount?: string | null }) {
+  const entries = parseProjectPayments(lead.projectPayments).filter(e => e.isPaid);
+  if (!entries.length) {
+    const lump = parseMoney(lead.paidAmount);
+    return lump > 0
+      ? { amount: usd(lump), paidAt: null, type: "total-on-file", note: "No dated payment row; this is the paid total on the lead." }
+      : null;
+  }
+  entries.sort((a, b) => {
+    const tb = Date.parse(b.paidAt || b.createdAt || "") || 0;
+    const ta = Date.parse(a.paidAt || a.createdAt || "") || 0;
+    return tb - ta;
+  });
+  const e = entries[0]!;
+  return {
+    amount: usd(parseMoney(e.amount)),
+    paidAt: e.paidAt || e.createdAt || null,
+    type: e.type || "Payment",
+  };
 }
 
 function lineTotal(row: { amount?: number; totalSalary?: number; subHeads?: { amount?: number }[] }) {
@@ -359,13 +380,13 @@ export async function searchClients(actor: AssistantActor, args: { query?: strin
   return { ok: true as const, data: { matches: visible, count: visible.length } };
 }
 
-export async function getClientDetails(actor: AssistantActor, args: { leadId?: string; query?: string; phone?: string }) {
+export async function getClientDetails(actor: AssistantActor, args: { leadId?: string; query?: string; phone?: string; email?: string }) {
   if (!canSearchClients(actor.role)) return deny("Your role cannot view client details.");
   let lead: LeadRow = null;
   if (args.leadId) {
     lead = await prisma.lead.findUnique({ where: { id: args.leadId }, select: LEAD_SELECT });
   } else {
-    const found = await searchClients(actor, { query: args.query, phone: args.phone });
+    const found = await searchClients(actor, { query: args.query, phone: args.phone, email: args.email });
     if (!found.ok) return found;
     const matches = preferQueryHits(found.data.matches, args.query);
     if (matches.length === 0) return { ok: true as const, data: { found: false, message: "No matching client." } };
@@ -527,6 +548,7 @@ export async function getClientHistory(
       paid: m.paid,
       quotedLabel: usd(m.quoted),
       paidLabel: usd(m.paid),
+      lastPayment: lastPaymentOf(p),
       createdAt: p.createdAt,
     };
   });
@@ -587,6 +609,8 @@ export async function getProjectStatus(actor: AssistantActor, args: { projectCod
           takeoffStarted: s.estimators.length > 0,
           takeoffDone: takeoff,
           inPricing: pricing || (s.projectPhase ?? "").toLowerCase().includes("pricing"),
+          paidLabel: usd(moneyOf(l).paid),
+          lastPayment: lastPaymentOf(l),
         };
       }),
     },
@@ -749,10 +773,10 @@ function packClientNotes(
 
 export async function prepareClientEmail(
   actor: AssistantActor,
-  args: { query?: string; phone?: string; intent?: string },
+  args: { query?: string; phone?: string; intent?: string; email?: string },
 ) {
   if (!canEmailClients(actor.role)) return deny("Your role cannot email clients.");
-  const query = (args.query ?? "").trim();
+  const query = (args.email || args.query || "").trim();
   const phone = (args.phone ?? "").trim();
   if (query.length < 2 && phone.replace(/\D/g, "").length < 7) {
     return {
@@ -764,7 +788,7 @@ export async function prepareClientEmail(
       },
     };
   }
-  const found = await getClientDetails(actor, { query: args.query, phone: args.phone });
+  const found = await getClientDetails(actor, { query, phone: args.phone, email: args.email });
   if (!found.ok) return found;
   if (!("client" in found.data) || !found.data.found) return found;
   const client = found.data.client as {
@@ -989,40 +1013,63 @@ export async function getPaymentsSnapshot(actor: AssistantActor, args: { month?:
 
 export async function getStaffRoster(actor: AssistantActor) {
   if (!canReadStaff(actor.role)) return deny("Staff roster is only for CEO.");
-  const users = await prisma.user.findMany({
-    where: { isActive: true },
-    select: {
-      name: true,
-      role: true,
-      csrCode: true,
-      employeeCode: true,
-      isOnline: true,
-      lastActive: true,
-      lastLoginAt: true,
-    },
-    orderBy: [{ role: "asc" }, { name: "asc" }],
-    take: 80,
-  });
+  const [users, staffRows] = await Promise.all([
+    prisma.user.findMany({
+      select: {
+        id: true,
+        name: true,
+        role: true,
+        csrCode: true,
+        employeeCode: true,
+        isOnline: true,
+        lastActive: true,
+        lastLoginAt: true,
+        isActive: true,
+      },
+      orderBy: [{ role: "asc" }, { name: "asc" }],
+    }),
+    prisma.staffEmployee.findMany({
+      select: { userId: true, name: true, manualRole: true, employeeCode: true, company: true },
+    }),
+  ]);
   const byRole: Record<string, number> = {};
   let online = 0;
   for (const u of users) {
+    if (!u.isActive) continue;
     byRole[u.role] = (byRole[u.role] ?? 0) + 1;
     if (u.isOnline) online += 1;
   }
+  const people = [
+    ...users.map(u => ({
+      name: u.name,
+      role: roleLabel(u.role),
+      code: u.csrCode || u.employeeCode || "",
+      online: u.isOnline,
+      lastActive: u.lastActive,
+      hasDashboard: u.isActive,
+      status: u.isActive ? "Active" : "Inactive",
+    })),
+    ...staffRows
+      .filter(s => !s.userId && (s.name || "").trim())
+      .map(s => ({
+        name: s.name || "",
+        role: roleLabel(s.manualRole || "Staff"),
+        code: s.employeeCode || "",
+        online: false,
+        lastActive: null as Date | null,
+        hasDashboard: false,
+        status: "Employees list",
+        company: s.company || "",
+      })),
+  ];
   return {
     ok: true as const,
     data: {
       staff: true,
-      total: users.length,
+      total: people.length,
       online,
       byRole,
-      people: users.map(u => ({
-        name: u.name,
-        role: u.role,
-        code: u.csrCode || u.employeeCode || "",
-        online: u.isOnline,
-        lastActive: u.lastActive,
-      })),
+      people,
     },
   };
 }
@@ -1107,6 +1154,19 @@ function monthKeyFromDeadline(raw: string | null | undefined): string {
   return /^\d{4}-\d{2}$/.test(s) ? s : "";
 }
 
+const PORTAL_ROLES = new Set(["admin", "csr", "manager", "technical_manager", "accounts", "estimator"]);
+
+function roleLabel(role: string) {
+  const r = role.trim().toLowerCase().replace(/\s+/g, "_");
+  if (r === "admin") return "CEO";
+  if (r === "manager") return "Admin";
+  if (r === "technical_manager") return "Chief Estimator";
+  if (r === "csr") return "CSR";
+  if (r === "accounts") return "Accounts";
+  if (r === "estimator") return "Estimator";
+  return role.replace(/_/g, " ") || "Staff";
+}
+
 export async function getPersonSnapshot(
   actor: AssistantActor,
   args: { query?: string; intent?: string; month?: string; day?: string },
@@ -1117,7 +1177,7 @@ export async function getPersonSnapshot(
       ok: true as const,
       data: {
         needPick: true,
-        message: "Which person? Give an estimator or CSR name — e.g. Bariq, Zainab, or a CSR code.",
+        message: "Which person? Give an estimator, CSR, or employee name from Admin → Users.",
       },
     };
   }
@@ -1128,36 +1188,63 @@ export async function getPersonSnapshot(
   const isToday = dayYmd === todayYmd;
   const bounds = estDayBoundsUtc(dayYmd);
 
-  const [users, snap] = await Promise.all([
+  const [users, staffRows, snap] = await Promise.all([
     prisma.user.findMany({
-      where: { isActive: true },
       select: {
         id: true,
         name: true,
         role: true,
         csrCode: true,
         employeeCode: true,
+        fatherName: true,
+        currentAddress: true,
         contactNo: true,
+        cnic: true,
+        isActive: true,
         isOnline: true,
         lastActive: true,
         lastLoginAt: true,
         email: true,
       },
-      take: 200,
+    }),
+    prisma.staffEmployee.findMany({
+      select: {
+        id: true,
+        userId: true,
+        company: true,
+        manualRole: true,
+        name: true,
+        email: true,
+        employeeCode: true,
+        fatherName: true,
+        currentAddress: true,
+        contactNo: true,
+        notes: true,
+        payrollHead: true,
+        cnic: true,
+      },
     }),
     canReadTechnical(actor.role) || actor.role === "estimator"
       ? technicalSnapshot()
       : Promise.resolve(null),
   ]);
 
-  const user = bestNameMatch(q, users, u => `${u.name} ${u.csrCode || ""} ${u.employeeCode || ""}`);
+  const user = bestNameMatch(q, users, u => `${u.name} ${u.csrCode || ""} ${u.employeeCode || ""} ${u.email || ""}`);
+  const staff = user
+    ? (staffRows.find(s => s.userId === user.id) ?? bestNameMatch(q, staffRows, s => `${s.name || ""} ${s.employeeCode || ""}`))
+    : bestNameMatch(q, staffRows, s => `${s.name || ""} ${s.employeeCode || ""} ${s.email || ""}`);
+  let linkedUser = user;
+  if (!linkedUser && staff?.userId) {
+    linkedUser = users.find(u => u.id === staff.userId) ?? null;
+  }
+  const personLabel = linkedUser?.name || staff?.name || q;
   const est = snap
-    ? bestNameMatch(q, snap.team, m => `${m.name} ${m.code}`)
+    ? bestNameMatch(personLabel, snap.team, m => `${m.name} ${m.code}`)
     : null;
 
-  if (!user && !est) {
+  if (!linkedUser && !est && !staff) {
     const asked = (args.intent ?? "").toLowerCase();
-    const staffAsk = /\b(estimator|csr|accounts|staff|employee|check[- ]?in|checkin|kitn[aeiy]|kitny|how many)\b/.test(asked);
+    const staffAsk = /\b(estimator|csr|accounts|staff|employee|user|check[- ]?in|checkin|kitn[aeiy]|kitny|how many|dashboard)\b/.test(asked);
     if (!staffAsk && canSearchClients(actor.role)) {
       return getClientHistory(actor, { query: q });
     }
@@ -1165,16 +1252,25 @@ export async function getPersonSnapshot(
       ok: true as const,
       data: {
         found: false,
-        message: `No employee matching “${q}”. Try first name (Bariq, Hammad, Zainab) — spelling can be off.`,
+        message: `No employee matching “${q}” on Admin → Users. Try first name (Ahmer, Bariq, Zainab).`,
       },
     };
   }
 
+  const hasDashboard = !!(linkedUser && linkedUser.isActive && PORTAL_ROLES.has(linkedUser.role));
+  const noDashboardReason = hasDashboard
+    ? ""
+    : !linkedUser
+      ? "No CRM dashboard login. They are listed on Admin → Users / Employees only."
+      : !linkedUser.isActive
+        ? "Dashboard login is inactive. Profile is still on Admin → Users."
+        : "No CRM dashboard assigned for this role.";
+
   let checkin: Record<string, unknown> | null = null;
-  if (user && bounds) {
-    const live = isToday ? await getCsrWorkSessionStatus(user.id) : null;
+  if (linkedUser && bounds && hasDashboard) {
+    const live = isToday ? await getCsrWorkSessionStatus(linkedUser.id) : null;
     const dayRow = await prisma.csrWorkSession.findFirst({
-      where: { userId: user.id, loginAt: { gte: bounds.start, lte: bounds.end } },
+      where: { userId: linkedUser.id, loginAt: { gte: bounds.start, lte: bounds.end } },
       orderBy: { loginAt: "desc" },
     });
     checkin = {
@@ -1182,33 +1278,34 @@ export async function getPersonSnapshot(
       isToday,
       checkedIn: isToday ? !!live?.checkedIn : false,
       paused: isToday ? !!live?.paused : false,
-      online: user.isOnline,
+      online: linkedUser.isOnline,
       checkInAtEst: live?.session?.checkInAtEst ?? (dayRow ? formatEstDateTime(dayRow.loginAt) : null),
       duration: live?.session?.totalDuration ?? (dayRow ? formatDurationMs((dayRow.dashboardMs ?? 0) + (dayRow.awayMs ?? 0)) : null),
       checkedOutAtEst: dayRow?.logoutAt ? formatEstDateTime(dayRow.logoutAt) : null,
       hadSessionToday: !!dayRow || (isToday && !!live?.checkedIn),
-      lastLoginAt: user.lastLoginAt ? formatEstDateTime(user.lastLoginAt) : null,
-      lastActive: user.lastActive ? formatEstDateTime(user.lastActive) : null,
+      lastLoginAt: linkedUser.lastLoginAt ? formatEstDateTime(linkedUser.lastLoginAt) : null,
+      lastActive: linkedUser.lastActive ? formatEstDateTime(linkedUser.lastActive) : null,
     };
   }
 
+  const roleIsEstimator = linkedUser?.role === "estimator" || linkedUser?.role === "technical_manager";
+  const estNameClose = !!(est && nameScore(personLabel, est.name) >= 88);
   const linkedEst =
-    est ||
-    (user && snap ? bestNameMatch(user.name, snap.team, m => m.name) : null);
+    est && (roleIsEstimator || estNameClose || (!linkedUser && !staff)) ? est : null;
 
   let csr: Record<string, unknown> | null = null;
-  if (user?.role === "csr") {
+  if (linkedUser?.role === "csr" && hasDashboard) {
     const [total, pending, interested, closed] = await Promise.all([
-      prisma.lead.count({ where: { assignedTo: user.id, inBin: false } }),
+      prisma.lead.count({ where: { assignedTo: linkedUser.id, inBin: false } }),
       prisma.lead.count({
-        where: { assignedTo: user.id, inBin: false, status: { equals: "pending", mode: "insensitive" } },
+        where: { assignedTo: linkedUser.id, inBin: false, status: { equals: "pending", mode: "insensitive" } },
       }),
       prisma.lead.count({
-        where: { assignedTo: user.id, inBin: false, status: { equals: "interested", mode: "insensitive" } },
+        where: { assignedTo: linkedUser.id, inBin: false, status: { equals: "interested", mode: "insensitive" } },
       }),
       prisma.lead.count({
         where: {
-          assignedTo: user.id,
+          assignedTo: linkedUser.id,
           inBin: false,
           status: { in: ["Close Client", "close client", "completed", "closed"] },
         },
@@ -1221,18 +1318,29 @@ export async function getPersonSnapshot(
     ? linkedEst.projects.filter(p => monthKeyFromDeadline(p.deadline) === month)
     : [];
 
+  const roleRaw = linkedUser?.role || staff?.manualRole || (linkedEst ? "estimator" : "");
+
   return {
     ok: true as const,
     data: {
       person: true,
-      name: user?.name || linkedEst?.name || q,
-      role: user?.role || (linkedEst ? "estimator" : ""),
-      code: user?.csrCode || user?.employeeCode || linkedEst?.code || "",
-      email: user?.email || "",
-      phone: user?.contactNo || "",
-      employeeCode: user?.employeeCode || "",
-      online: user?.isOnline ?? false,
-      lastLoginAt: user?.lastLoginAt ? formatEstDateTime(user.lastLoginAt) : null,
+      hasDashboard,
+      noDashboardReason: noDashboardReason || undefined,
+      name: linkedUser?.name || staff?.name || linkedEst?.name || q,
+      role: roleLabel(roleRaw),
+      status: linkedUser ? (linkedUser.isActive ? "Active" : "Inactive") : "Employees list",
+      company: staff?.company || "",
+      code: linkedUser?.csrCode || linkedUser?.employeeCode || staff?.employeeCode || linkedEst?.code || "",
+      email: linkedUser?.email || staff?.email || "",
+      phone: linkedUser?.contactNo || staff?.contactNo || "",
+      employeeCode: linkedUser?.employeeCode || staff?.employeeCode || "",
+      fatherName: linkedUser?.fatherName || staff?.fatherName || "",
+      address: linkedUser?.currentAddress || staff?.currentAddress || "",
+      cnic: linkedUser?.cnic || staff?.cnic || "",
+      notes: staff?.notes || "",
+      payrollHead: staff?.payrollHead || "",
+      online: linkedUser?.isOnline ?? false,
+      lastLoginAt: linkedUser?.lastLoginAt ? formatEstDateTime(linkedUser.lastLoginAt) : null,
       checkin,
       csr,
       estimator: linkedEst

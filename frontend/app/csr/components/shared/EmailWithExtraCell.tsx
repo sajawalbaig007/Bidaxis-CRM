@@ -63,6 +63,10 @@ export default function EmailWithExtraCell({
       ? `inline-flex items-center gap-1 flex-nowrap bg-[#F0F7FF] text-[#0B84F3] px-2.5 sm:px-3 py-1.5 rounded-xl text-xs sm:text-sm font-medium min-w-0 max-w-full overflow-visible ${className}`
       : `inline-flex items-center gap-1 flex-nowrap min-w-0 max-w-full overflow-visible text-xs sm:text-sm text-[#0B84F3] ${className}`;
 
+  if (!openCompose) {
+    return <span className={shellClass} title={primary}>{chip}</span>;
+  }
+
   const popup =
     open &&
     createPortal(
@@ -101,7 +105,7 @@ export default function EmailWithExtraCell({
           else compose(primary);
         }}
         className={`${shellClass} cursor-pointer hover:underline hover:opacity-90 transition-opacity`}
-        title={openCompose ? "Send email" : primary}
+        title="Send email"
         aria-expanded={open}
       >
         {chip}

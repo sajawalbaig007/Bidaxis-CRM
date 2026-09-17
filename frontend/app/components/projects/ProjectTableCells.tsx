@@ -32,6 +32,7 @@ import {
 import { User2, Briefcase, Building2, Phone, Mail, Calendar } from "lucide-react";
 import { useFixedPopover } from "@/app/csr/hooks/useFixedPopover";
 import { createPortal } from "react-dom";
+import EmailWithExtraCell from "@/app/csr/components/shared/EmailWithExtraCell";
 
 export type ProjectTableRow = {
   id: string;
@@ -119,9 +120,15 @@ export function ClientDetailCell({ p }: { p: ProjectTableRow }) {
           </DetailLine>
         )}
         {email && (
-          <DetailLine icon={<Mail size={9} className="text-slate-400 shrink-0" />} className="text-slate-500">
-            {email}
-          </DetailLine>
+          <div className="text-[10px] xl:text-[11px] truncate flex items-center gap-1 min-w-0 text-slate-500">
+            <Mail size={9} className="text-slate-400 shrink-0" />
+            <EmailWithExtraCell
+              email={email}
+              clientName={client || undefined}
+              company={company || undefined}
+              className="text-[10px] xl:text-[11px] text-[#0B84F3]"
+            />
+          </div>
         )}
         {addedOn && (
           <DetailLine icon={<Calendar size={9} className="text-[#B8112D] shrink-0" />} className="text-slate-500">

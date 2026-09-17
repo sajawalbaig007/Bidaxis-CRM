@@ -3,17 +3,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { usePathname } from "next/navigation";
-import { Bot, FileDown, History, Loader2, Mail, Plus, Send, Sparkles, Trash2, X } from "lucide-react";
+import { Bot, FileDown, History, Loader2, Mail, Plus, Reply, Send, Sparkles, ThumbsDown, ThumbsUp, Trash2, X } from "lucide-react";
 import API, { apiErrorMessage, getTokenUserId } from "@/lib/api";
 import { getAuthMe, peekAuthMe } from "@/lib/authMeCache";
 import { useOpenCrmMail } from "@/app/components/mail/CrmMailProvider";
 import {
-  buildAccountsMonthlyReportPdf,
-  type AccountsReportPdfInput,
-} from "@/app/accounts/utils/buildAccountsMonthlyReportPdf";
-import { triggerLocalDownload } from "@/app/accounts/utils/reportVisualExport";
-import {
-  ACCOUNTS_ASSISTANT_PAGES,
   downloadAccountsPageViaFrame,
 } from "@/app/accounts/utils/useAccountsVisualPdf";
 import {
@@ -22,10 +16,12 @@ import {
   newChatId,
   saveCeoChats,
   titleFromMessages,
+  chatMsgAt,
   type ChatAction,
   type ChatMsg,
   type CeoChat,
 } from "@/lib/ceoAssistantChats";
+import { formatEstTime } from "@/lib/estTime";
 
 function useCeoSession() {
   const pathname = usePathname();
@@ -54,6 +50,26 @@ function useCeoSession() {
   }, [pathname]);
 
   return isCeo;
+}
+
+function looksLikeWalkthrough(text: string) {
+  return /\b(go through|go thru|walk through|yeh chat|this chat|is chat|poori chat|saari chat|peechli chat|previous chat|chat context|remind (me|kr|karo)|is conversation)\b/i.test(
+    text,
+  );
+}
+
+function splitQuoteAndAsk(text: string): { quoted: string; ask: string } {
+  const quoted: string[] = [];
+  const ask: string[] = [];
+  for (const line of text.split("\n")) {
+    if (/^>\s?/.test(line)) quoted.push(line.replace(/^>\s?/, ""));
+    else ask.push(line);
+  }
+  return { quoted: quoted.join("\n").trim(), ask: ask.join("\n").trim() };
+}
+function nexaStamp(msg: ChatMsg) {
+  const at = chatMsgAt(msg);
+  return at ? formatEstTime(new Date(at)) : "";
 }
 
 function chatWhen(ts: number) {
@@ -105,10 +121,6 @@ function AssistantRichText({ text }: { text: string }) {
   );
 }
 
-function toPdfInput(raw: Record<string, unknown>): AccountsReportPdfInput {
-  return raw as unknown as AccountsReportPdfInput;
-}
-
 export default function CrmAssistantPanel() {
   const openCompose = useOpenCrmMail();
   const isCeo = useCeoSession();
@@ -122,6 +134,7 @@ export default function CrmAssistantPanel() {
   const [activeId, setActiveId] = useState("");
   const [historyOpen, setHistoryOpen] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
+  const quotedRef = useRef<{ role: "user" | "assistant"; text: string } | null>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -185,31 +198,28 @@ export default function CrmAssistantPanel() {
     });
   };
 
-  const downloadPdf = async (month: string, page = "reports") => {
-    const key = `${page}:${month}`;
+  const downloadPdf = async (month: string) => {
+    const key = `reports:${month}`;
     setPdfBusy(key);
-    const meta = ACCOUNTS_ASSISTANT_PAGES[page] ?? ACCOUNTS_ASSISTANT_PAGES.reports;
     try {
-      await downloadAccountsPageViaFrame(page, month);
-    } catch {
-      try {
-        const res = await API.get(`/accounts/reports/monthly?month=${month}`, { timeout: 60_000 });
-        const blob = buildAccountsMonthlyReportPdf(toPdfInput(res.data as Record<string, unknown>));
-        triggerLocalDownload(blob, `${meta.file}-${month}.pdf`);
-      } catch (err) {
-        patchActive(chat => ({
-          ...chat,
-          updatedAt: Date.now(),
-          messages: [
-            ...chat.messages,
-            {
-              id: newChatId(),
-              role: "assistant",
-              text: apiErrorMessage(err, "Could not download that Accounts page PDF."),
-            },
-          ],
-        }));
-      }
+      await downloadAccountsPageViaFrame("reports", month);
+    } catch (err) {
+      const detail = err instanceof Error && err.message.trim() ? err.message.trim() : "";
+      patchActive(chat => ({
+        ...chat,
+        updatedAt: Date.now(),
+        messages: [
+          ...chat.messages,
+          {
+            id: newChatId(),
+            role: "assistant",
+            at: Date.now(),
+            text:
+              detail ||
+              "Could not capture that Accounts PDF with graphs. Open the Accounts page and use Save as PDF.",
+          },
+        ],
+      }));
     } finally {
       setPdfBusy(null);
     }
@@ -220,7 +230,7 @@ export default function CrmAssistantPanel() {
     if (!q || busy || !active) return;
     const chatId = active.id;
     setInput("");
-    const userMsg: ChatMsg = { id: newChatId(), role: "user", text: q };
+    const userMsg: ChatMsg = { id: newChatId(), role: "user", text: q, at: Date.now() };
     setChats(prev => prev.map(c => {
       if (c.id !== chatId) return c;
       const messages = [...c.messages, userMsg];
@@ -228,23 +238,34 @@ export default function CrmAssistantPanel() {
     }));
     setBusy(true);
     try {
-      const history = msgs
-        .filter(m => m.id !== "welcome" && m.text.trim())
-        .slice(-8)
-        .map(m => ({ role: m.role, text: m.text.slice(0, 2000) }));
-      const res = await API.post("/assistant/chat", { message: q, history }, { timeout: 45_000 });
+      const { quoted, ask: askOnly } = splitQuoteAndAsk(q);
+      const payload = askOnly || q;
+      const history = quoted
+        ? [{
+            role: quotedRef.current?.role ?? "assistant",
+            text: (quotedRef.current?.text || quoted).slice(0, 2000),
+            tools: [] as string[],
+          }]
+        : looksLikeWalkthrough(q)
+          ? msgs
+              .filter(m => m.id !== "welcome" && m.text.trim())
+              .slice(-16)
+              .map(m => ({ role: m.role, text: m.text.slice(0, 2000), tools: m.tools ?? [] }))
+          : [];
+      quotedRef.current = null;
+      const res = await API.post("/assistant/chat", { message: payload, history }, { timeout: 45_000 });
       const reply = String(res.data.reply ?? "No reply.");
       const actions = Array.isArray(res.data.actions) ? (res.data.actions as ChatAction[]) : [];
-      const assistantMsg: ChatMsg = { id: newChatId(), role: "assistant", text: reply, actions };
+      const tools = Array.isArray(res.data.tools) ? (res.data.tools as string[]) : [];
+      const source = res.data.source === "agent" || res.data.source === "rules" ? res.data.source : undefined;
+      const assistantMsg: ChatMsg = { id: newChatId(), role: "assistant", text: reply, at: Date.now(), actions, tools, source };
       setChats(prev => prev.map(c => {
         if (c.id !== chatId) return c;
         const messages = [...c.messages, assistantMsg];
         return { ...c, title: titleFromMessages(messages), updatedAt: Date.now(), messages };
       }));
       const compose = actions.find(a => a.type === "compose_email" && a.to);
-      if (compose) openEmail(compose);
-      const pdf = actions.find(a => a.type === "download_accounts_pdf" && a.month);
-      if (pdf?.month) void downloadPdf(pdf.month, pdf.page || "reports");
+      if (compose) window.setTimeout(() => openEmail(compose), 30);
     } catch (err) {
       setChats(prev => prev.map(c => {
         if (c.id !== chatId) return c;
@@ -253,13 +274,51 @@ export default function CrmAssistantPanel() {
           updatedAt: Date.now(),
           messages: [
             ...c.messages,
-            { id: newChatId(), role: "assistant", text: apiErrorMessage(err, "Assistant failed. Try again.") },
+            { id: newChatId(), role: "assistant", at: Date.now(), text: apiErrorMessage(err, "Assistant failed. Try again.") },
           ],
         };
       }));
     } finally {
       setBusy(false);
     }
+  };
+
+  const rate = async (msg: ChatMsg, rating: "up" | "down") => {
+    if (msg.role !== "assistant" || msg.id === "welcome" || msg.feedback) return;
+    const idx = msgs.findIndex(m => m.id === msg.id);
+    const prevUser = [...msgs.slice(0, idx)].reverse().find(m => m.role === "user");
+    patchActive(chat => ({
+      ...chat,
+      messages: chat.messages.map(m => (m.id === msg.id ? { ...m, feedback: rating } : m)),
+    }));
+    try {
+      await API.post("/assistant/feedback", {
+        rating,
+        userMessage: prevUser?.text ?? "",
+        assistantReply: msg.text,
+        source: msg.source,
+        tools: msg.tools ?? [],
+      });
+    } catch {
+      /* dataset write is best-effort */
+    }
+  };
+
+  const quoteIntoInput = (msg: ChatMsg) => {
+    if (msg.id === "welcome") return;
+    const selected = typeof window !== "undefined" ? window.getSelection()?.toString().trim() : "";
+    const raw = (selected && msg.text.includes(selected) ? selected : msg.text).trim();
+    if (!raw) return;
+    quotedRef.current = { role: msg.role, text: raw };
+    const quoted = raw
+      .split("\n")
+      .slice(0, 16)
+      .map(line => `> ${line}`)
+      .join("\n");
+    setInput(prev => {
+      const rest = prev.replace(/^> .*(?:\n|$)/gm, "").trim();
+      return rest ? `${quoted}\n${rest}` : `${quoted}\n`;
+    });
   };
 
   if (!mounted || !isCeo) return null;
@@ -359,9 +418,24 @@ export default function CrmAssistantPanel() {
             <>
           <div ref={listRef} className="relative flex-1 min-h-0 overflow-y-auto px-3.5 py-1 space-y-3">
             {msgs.map(msg => (
-              <div key={msg.id} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
+              <div key={msg.id} className={`flex items-end gap-1 ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
+                {msg.role === "user" && msg.id !== "welcome" ? (
+                  <button
+                    type="button"
+                    onClick={e => {
+                      e.stopPropagation();
+                      quoteIntoInput(msg);
+                    }}
+                    className="h-7 w-7 mb-5 rounded-lg text-gray-400 hover:text-[#B8112D] hover:bg-[#FFF1F3] inline-flex items-center justify-center shrink-0"
+                    aria-label="Reply"
+                    title="Reply"
+                  >
+                    <Reply size={13} />
+                  </button>
+                ) : null}
+                <div className={`max-w-[88%] flex flex-col ${msg.role === "user" ? "items-end" : "items-start"}`}>
                 <div
-                  className={`max-w-[88%] px-3.5 py-2.5 text-[13px] leading-relaxed ${
+                  className={`px-3.5 py-2.5 text-[13px] leading-relaxed ${
                     msg.role === "user"
                       ? "bg-gradient-to-br from-[#B8112D] to-[#9d0e26] text-white rounded-[1.15rem] rounded-br-md whitespace-pre-wrap shadow-[0_8px_18px_rgba(184,17,45,0.22)]"
                       : "rounded-[1.15rem] rounded-bl-md bg-white/80 dark:bg-white/5 border border-gray-100/80 dark:border-white/10 text-[#0F172A] dark:text-gray-100 shadow-[0_8px_24px_-16px_rgba(15,23,42,0.35)]"
@@ -385,7 +459,7 @@ export default function CrmAssistantPanel() {
                       type="button"
                       onClick={() => {
                         const a = pdfAction(msg);
-                        if (a?.month) void downloadPdf(a.month, a.page || "reports");
+                        if (a?.month) void downloadPdf(a.month);
                       }}
                       disabled={!!pdfBusy}
                       className="mt-2 h-8 px-2.5 rounded-xl bg-[#FFF1F3] text-[#B8112D] text-xs font-semibold inline-flex items-center gap-1 disabled:opacity-50"
@@ -393,9 +467,55 @@ export default function CrmAssistantPanel() {
                       {pdfBusy ? <Loader2 size={12} className="animate-spin" /> : <FileDown size={12} />}
                       {pdfBusy
                         ? "Capturing..."
-                        : `Download ${ACCOUNTS_ASSISTANT_PAGES[pdfAction(msg)?.page || "reports"]?.label ?? "PDF"}`}
+                        : "Download Accounts Reports"}
                     </button>
                   ) : null}
+                  {msg.role === "assistant" && msg.id !== "welcome" ? (
+                    <div className="mt-2 flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={e => {
+                          e.stopPropagation();
+                          quoteIntoInput(msg);
+                        }}
+                        className="h-7 w-7 rounded-lg text-gray-400 hover:text-[#B8112D] hover:bg-[#FFF1F3] inline-flex items-center justify-center"
+                        aria-label="Reply"
+                        title="Reply"
+                      >
+                        <Reply size={12} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void rate(msg, "up")}
+                        className={`h-7 w-7 rounded-lg inline-flex items-center justify-center ${
+                          msg.feedback === "up" ? "bg-[#FFF1F3] text-[#B8112D]" : "text-gray-400 hover:text-[#B8112D]"
+                        }`}
+                        aria-label="Good answer"
+                        title="Good answer"
+                      >
+                        <ThumbsUp size={12} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void rate(msg, "down")}
+                        className={`h-7 w-7 rounded-lg inline-flex items-center justify-center ${
+                          msg.feedback === "down" ? "bg-[#FFF1F3] text-[#B8112D]" : "text-gray-400 hover:text-[#B8112D]"
+                        }`}
+                        aria-label="Needs work"
+                        title="Needs work"
+                      >
+                        <ThumbsDown size={12} />
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
+                {nexaStamp(msg) ? (
+                  <span className={`mt-0.5 px-1 text-[10px] font-medium ${
+                    msg.role === "user" ? "text-[#B8112D]/70" : "text-gray-400"
+                  }`}>
+                    {nexaStamp(msg)}
+                  </span>
+                ) : null}
                 </div>
               </div>
             ))}
@@ -424,7 +544,7 @@ export default function CrmAssistantPanel() {
                   }
                 }}
                 rows={1}
-                placeholder="Ask Nexa..."
+                placeholder="Ask Nexa…"
                 className="flex-1 resize-none bg-transparent py-2.5 text-sm text-[#0F172A] dark:text-white placeholder:text-gray-400 outline-none max-h-24"
               />
               <button
