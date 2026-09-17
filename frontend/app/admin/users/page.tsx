@@ -6,7 +6,7 @@ import toast, { Toaster } from "react-hot-toast";
 import {
   Search, Plus, Pencil, Trash2, Ban,
   MoreVertical, Eye, EyeOff, Wifi, WifiOff,
-  Globe, RotateCcw, User2, KeyRound, ChevronDown, MessageSquare, ArrowUpDown, LogOut,
+  Globe, RotateCcw, User2, Users, KeyRound, ChevronDown, MessageSquare, ArrowUpDown, LogOut,
 } from "lucide-react";
 
 import DashboardSidebar from "../components/layout/Sidebar";
@@ -1079,75 +1079,86 @@ export default function UsersPage() {
         <DashboardNavbar/>
 
         {/* USER ACTIVITY OVERVIEW */}
-        <div className="mb-6 space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
-            <div>
-              <h1 className="text-xl sm:text-2xl font-bold text-[#0F172A] tracking-tight">Users</h1>
-              <p className="text-xs sm:text-sm text-gray-500 mt-0.5">{activitySubtitle}</p>
+        <div className="mb-5 space-y-4">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+            <div className="flex items-start gap-3 min-w-0">
+              <span className="w-11 h-11 rounded-2xl bg-[#B8112D] text-white inline-flex items-center justify-center shrink-0 shadow-sm">
+                <Users size={18} />
+              </span>
+              <div className="min-w-0">
+                <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight text-[#0F172A]">Users</h1>
+                <p className="text-xs sm:text-sm text-slate-400 mt-0.5">{activitySubtitle}</p>
+              </div>
             </div>
-            <div className="flex items-center gap-2 text-[11px] font-semibold text-gray-500">
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100">
+            <div className="inline-flex items-center gap-1 rounded-2xl border border-slate-200 bg-white p-1 shadow-sm">
+              <span className="h-9 px-3 rounded-xl bg-emerald-50 text-emerald-700 text-[11px] font-semibold inline-flex items-center gap-1.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                 {onlineNow} online
               </span>
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-gray-100 text-gray-600 border border-gray-200">
+              <span className="h-9 px-3 rounded-xl text-slate-500 text-[11px] font-semibold inline-flex items-center gap-1.5">
                 {Math.max(0, totalUsers - onlineNow)} offline
               </span>
             </div>
           </div>
 
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            <div className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Total users</p>
-          {loading ? (
-                <div className="h-8 w-12 bg-gray-100 rounded-lg animate-pulse mt-2" />
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-[minmax(0,0.7fr)_minmax(0,0.7fr)_minmax(0,1.6fr)] gap-3 items-stretch">
+            <div className="rounded-2xl bg-gradient-to-br from-[#B8112D] to-[#8c0d22] border border-[#B8112D]/40 p-4 h-full">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-white/60">Total users</p>
+              {loading ? (
+                <div className="h-8 w-12 bg-white/20 rounded-lg animate-pulse mt-2" />
               ) : (
-                <p className="text-3xl font-bold text-[#0F172A] mt-1 tabular-nums">{totalUsers}</p>
+                <p className="text-3xl font-extrabold text-white mt-1 tabular-nums">{totalUsers}</p>
               )}
-              </div>
-            <div className="rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50 to-white p-4 shadow-sm">
+              <p className="text-[11px] text-white/55 mt-1">Dashboard logins in this portal</p>
+            </div>
+            <div className="rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50 to-white p-4 h-full">
               <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-700/70">Online now</p>
               {loading ? (
                 <div className="h-8 w-12 bg-emerald-100/60 rounded-lg animate-pulse mt-2" />
               ) : (
-                <p className="text-3xl font-bold text-emerald-700 mt-1 tabular-nums">{onlineNow}</p>
+                <p className="text-3xl font-extrabold text-emerald-700 mt-1 tabular-nums">{onlineNow}</p>
               )}
               {!loading && totalUsers > 0 && (
-                <div className="mt-3 h-1.5 rounded-full bg-emerald-100 overflow-hidden">
-                  <div
-                    className="h-full rounded-full bg-emerald-500 transition-all"
-                    style={{ width: `${Math.min(100, (onlineNow / totalUsers) * 100)}%` }}
-                  />
-                </div>
+                <>
+                  <p className="text-[11px] text-slate-400 mt-1">
+                    {Math.round((onlineNow / totalUsers) * 100)}% of the current list
+                  </p>
+                  <div className="mt-3 h-1.5 rounded-full bg-emerald-100 overflow-hidden">
+                    <div
+                      className="h-full rounded-full bg-emerald-500 transition-all"
+                      style={{ width: `${Math.min(100, (onlineNow / totalUsers) * 100)}%` }}
+                    />
+                  </div>
+                </>
               )}
             </div>
-            <div className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm col-span-2">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-3">Presence by role</p>
+            <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.04)] h-full flex flex-col min-h-0">
+              <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400 mb-3">Presence by role</p>
               {loading ? (
-                <div className="space-y-2">
+                <div className="space-y-2 flex-1">
                   {[1, 2, 3].map((i) => (
                     <div key={i} className="h-8 bg-gray-50 rounded-xl animate-pulse" />
                   ))}
                 </div>
               ) : (
-                <div className="space-y-2.5">
+                <div className="flex-1 flex flex-col justify-center gap-2.5">
                   {activityChartData.map((row) => {
                     const total = row.online + row.offline;
                     const pct = total > 0 ? (row.online / total) * 100 : 0;
                     return (
                       <div key={row.name} className="flex items-center gap-3">
-                        <span className="w-16 sm:w-20 text-[11px] font-bold text-gray-700 shrink-0 truncate">
+                        <span className="w-16 sm:w-20 text-[11px] font-bold text-slate-700 shrink-0 truncate">
                           {row.name}
                         </span>
-                        <div className="flex-1 h-2 rounded-full bg-gray-100 overflow-hidden flex">
+                        <div className="flex-1 h-2 rounded-full bg-slate-100 overflow-hidden flex">
                           <div
                             className="h-full bg-emerald-500 transition-all"
                             style={{ width: `${pct}%` }}
                           />
                         </div>
-                        <span className="text-[11px] font-semibold tabular-nums text-gray-500 w-14 text-right shrink-0">
+                        <span className="text-[11px] font-semibold tabular-nums text-slate-500 w-14 text-right shrink-0">
                           <span className="text-emerald-600">{row.online}</span>
-                          <span className="text-gray-300">/</span>
+                          <span className="text-slate-300">/</span>
                           {total}
                         </span>
                       </div>
@@ -1161,21 +1172,21 @@ export default function UsersPage() {
 
         {/* SEARCH + SORT + CREATE */}
         {!isEmployeesView && (
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
-          <div className="flex flex-col sm:flex-row gap-2.5 w-full sm:w-auto sm:flex-1">
-            <div className="relative w-full sm:w-[280px]">
+        <div className="mb-4 rounded-2xl border border-slate-200/80 bg-white p-3 shadow-sm">
+          <div className="grid w-full gap-2 grid-cols-1 sm:grid-cols-[1fr_200px_auto]">
+            <div className="relative min-w-0">
               <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400"/>
               <input type="text" placeholder="Search name, email, code…" value={search}
               onChange={e => { setSearch(e.target.value); setPage(1); }}
-                className="w-full bg-white border border-gray-200 rounded-2xl pl-10 pr-4 py-2.5 text-sm outline-none focus:border-[#B8112D]"/>
-          </div>
-            <div className="relative w-full sm:w-[200px]">
+                className="w-full h-11 bg-white border border-gray-200 rounded-xl pl-10 pr-4 text-sm outline-none focus:border-[#B8112D]"/>
+            </div>
+            <div className="relative min-w-0">
               <ArrowUpDown size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"/>
               <select
                 value={sortKey}
                 onChange={e => { setSortKey(e.target.value as UserSortKey); setPage(1); }}
                 aria-label="Sort users"
-                className="w-full appearance-none bg-white border border-gray-200 rounded-2xl pl-10 pr-9 py-2.5 text-sm outline-none focus:border-[#B8112D] cursor-pointer"
+                className="w-full h-11 appearance-none bg-white border border-gray-200 rounded-xl pl-10 pr-9 text-sm outline-none focus:border-[#B8112D] cursor-pointer"
               >
                 {USER_SORT_OPTIONS.map(opt => (
                   <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -1183,17 +1194,18 @@ export default function UsersPage() {
               </select>
               <ChevronDown size={14} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"/>
             </div>
+            <button onClick={() => { setEditingUser(null); setForm({ ...EMPTY_USER_FORM }); setShowModal(true); }}
+              className="h-11 px-5 rounded-xl bg-[#B8112D] text-white text-sm font-semibold inline-flex items-center justify-center gap-2 hover:bg-[#a30f27] w-full sm:w-auto">
+              <Plus size={16}/>Create User
+            </button>
           </div>
-          <button onClick={() => { setEditingUser(null); setForm({ ...EMPTY_USER_FORM }); setShowModal(true); }}
-            className="w-full sm:w-auto flex items-center justify-center gap-2 bg-[#B8112D] text-white px-5 py-2.5 rounded-2xl text-sm font-semibold shadow-sm shadow-[#B8112D]/20 hover:bg-[#a30f27] transition-all">
-            <Plus size={16}/>Create User
-          </button>
         </div>
         )}
 
         {/* COMPANY + ROLE TABS */}
         <div className="mb-5 space-y-3">
           <CapsuleTabs
+            stretch
             activeKey={companyFilter}
             onChange={key => {
               setCompanyFilter(key as CompanyFilter);
@@ -1209,6 +1221,7 @@ export default function UsersPage() {
           />
           {!isEmployeesView && (
             <CapsuleTabs
+              stretch
               activeKey={roleFilter}
               onChange={key => { setRoleFilter(key as "All" | UserRole); setPage(1); }}
               accent={companyFilter === "GPS" ? "#0F398A" : "#B8112D"}
@@ -1231,16 +1244,23 @@ export default function UsersPage() {
         <>
         <CompanyPortalAccessCard company={portalCompany} />
         {/* TABLE */}
-        <div className="bg-white border border-gray-100 rounded-3xl overflow-hidden shadow-sm">
+        <div className="bg-white border border-slate-200/80 rounded-[28px] overflow-hidden shadow-[0_12px_40px_rgba(15,23,42,0.06)]">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[720px]">
-              <thead>
-                <tr className="text-left text-[10px] font-bold uppercase tracking-wider text-gray-400 bg-[#FAFBFC] border-b border-gray-100">
-                  <th className="px-5 py-3.5">User</th>
-                  <th className="px-4 py-3.5">Role</th>
-                  <th className="px-4 py-3.5">Presence</th>
-                  <th className="px-4 py-3.5">Account</th>
-                  <th className="px-5 py-3.5 text-right">Actions</th>
+            <table className="w-full table-fixed min-w-[720px] border-collapse">
+              <colgroup>
+                <col style={{ width: "34%" }} />
+                <col style={{ width: "14%" }} />
+                <col style={{ width: "24%" }} />
+                <col style={{ width: "14%" }} />
+                <col style={{ width: "14%" }} />
+              </colgroup>
+              <thead className="sticky top-0 z-20 bg-[#B8112D]">
+                <tr className="text-left">
+                  <th className="px-5 py-3 text-[10px] font-bold text-white/80 uppercase tracking-[0.14em]">User</th>
+                  <th className="px-4 py-3 text-[10px] font-bold text-white/80 uppercase tracking-[0.14em]">Role</th>
+                  <th className="px-4 py-3 text-[10px] font-bold text-white/80 uppercase tracking-[0.14em]">Presence</th>
+                  <th className="px-4 py-3 text-[10px] font-bold text-white/80 uppercase tracking-[0.14em]">Account</th>
+                  <th className="px-5 py-3 text-[10px] font-bold text-white/80 uppercase tracking-[0.14em] text-right">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -1262,7 +1282,7 @@ export default function UsersPage() {
                     </tr>
                   ))
                 ) : paginatedUsers.length > 0 ? paginatedUsers.map(u => (
-                  <tr key={u.id} className="border-b border-gray-50 hover:bg-[#FAFBFC] transition-colors">
+                  <tr key={u.id} className="border-b border-slate-100/90 last:border-0 even:bg-slate-50/40 hover:bg-[#FFF8F9] hover:shadow-[inset_3px_0_0_#B8112D] transition-colors">
 
                     {/* USER */}
                     <td className="px-5 py-3.5">
@@ -1328,18 +1348,19 @@ export default function UsersPage() {
 
                     {/* ACTIONS — primary + overflow */}
                     <td className="px-5 py-3.5">
-                      <div className="flex items-center justify-end gap-1.5" onClick={e => e.stopPropagation()}>
+                      <div className="flex items-center justify-end" onClick={e => e.stopPropagation()}>
+                        <div className="inline-flex items-center gap-0.5 rounded-xl border border-slate-200 bg-white p-0.5 shadow-sm">
                         <button
                           type="button"
                           onClick={() => setDetailUser(users.find(x => x.id === u.id) ?? u)}
-                          className="h-8 px-3 rounded-xl text-[11px] font-bold bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
+                          className="h-8 px-3 rounded-lg text-[11px] font-bold text-slate-600 hover:bg-slate-50"
                         >
                           View
                         </button>
                         <button
                           type="button"
                           onClick={() => openEditUser(u)}
-                          className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 hover:bg-blue-100 flex items-center justify-center transition-colors"
+                          className="w-8 h-8 rounded-lg text-blue-600 hover:bg-blue-50 flex items-center justify-center"
                           title="Edit"
                           aria-label="Edit user"
                         >
@@ -1365,12 +1386,13 @@ export default function UsersPage() {
                               right: Math.max(8, window.innerWidth - rect.right),
                             });
                           }}
-                          className="w-8 h-8 rounded-xl border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 flex items-center justify-center transition-colors"
+                          className="w-8 h-8 rounded-lg text-slate-600 hover:bg-slate-50 flex items-center justify-center"
                           aria-label="More actions"
                           aria-expanded={openMenu?.id === u.id}
                         >
                           <MoreVertical size={16}/>
                         </button>
+                        </div>
                       </div>
                     </td>
                   </tr>
