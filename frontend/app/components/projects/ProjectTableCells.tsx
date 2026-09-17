@@ -369,7 +369,7 @@ export const PROJECT_DB_THEAD =
   "sticky top-0 z-20 bg-[#B8112D]";
 
 export const PROJECT_DB_TH =
-  "px-2 py-2.5 text-left text-[9px] font-bold text-white/80 uppercase tracking-[0.12em] whitespace-nowrap";
+  "px-1.5 py-2 text-left text-[9px] font-bold text-white/85 uppercase tracking-wide leading-tight overflow-hidden";
 
 export const PROJECT_DB_TD =
   "px-2 py-2.5 align-top min-w-0 overflow-hidden";

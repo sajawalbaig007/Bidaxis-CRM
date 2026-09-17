@@ -473,8 +473,26 @@ function ProjectsSection({
   const totalPages = Math.max(1, Math.ceil(projects.length / PAGE_SIZE));
   const paginated  = projects.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
   const headers = hideClientFinanceCols
-    ? ["Project Detail", "Client Deadline", "Bid Instruction", "Notes from TM", "Status", "Actions"]
-    : ["Client Detail", "Project Detail", "Quoted", "Payment Detail", "Client Deadline", "CSR", "Bid Instruction", "Notes from TM", "Status", "Actions"];
+    ? [
+        { label: "Project", title: "Project Detail" },
+        { label: "Deadline", title: "Client Deadline" },
+        { label: "Bid", title: "Bid Instruction" },
+        { label: "From TM", title: "Notes from TM" },
+        { label: "Status", title: "Status" },
+        { label: "Actions", title: "Actions" },
+      ]
+    : [
+        { label: "Client", title: "Client Detail" },
+        { label: "Project", title: "Project Detail" },
+        { label: "Quoted", title: "Quoted" },
+        { label: "Payment", title: "Payment Detail" },
+        { label: "Deadline", title: "Client Deadline" },
+        { label: "CSR", title: "CSR" },
+        { label: "Bid", title: "Bid Instruction" },
+        { label: "From TM", title: "Notes from TM" },
+        { label: "Status", title: "Status" },
+        { label: "Actions", title: "Actions" },
+      ];
   const colCount = headers.length;
   const colWidths = hideClientFinanceCols ? ADMIN_TECH_VIEW_COLS : ADMIN_PROJECT_COLS;
 
@@ -533,16 +551,13 @@ function ProjectsSection({
             <CsrColGroup widths={colWidths} />
             <thead className={PROJECT_DB_THEAD}>
               <tr>
-                {headers.map((h, i) => (
+                {headers.map((h) => (
                   <th
-                    key={i}
-                    className={`${PROJECT_DB_TH} ${i === colCount - 1 ? "text-right" : ""} ${
-                      h === "Notes from TM" || h === "Bid Instruction" || h === "Payment Detail" || h === "Client Deadline"
-                        ? "whitespace-normal leading-tight"
-                        : ""
-                    }`}
+                    key={h.title}
+                    title={h.title}
+                    className={PROJECT_DB_TH}
                   >
-                    {h}
+                    {h.label}
                   </th>
                 ))}
               </tr>
@@ -615,8 +630,8 @@ function ProjectsSection({
                         technicalAssignments={p.technicalAssignments}
                       />
                     </td>
-                    <td className={`${PROJECT_DB_TD} text-right`}>
-                      <div className="inline-flex items-center justify-end gap-0.5 rounded-lg border border-slate-200 bg-white p-0.5">
+                    <td className={`${PROJECT_DB_TD} overflow-visible whitespace-nowrap`}>
+                      <div className="inline-flex items-center gap-0.5 rounded-lg border border-slate-200 bg-white p-0.5">
                         {!hideClientFinanceCols && onMarkCompleted && (
                           <CompleteTickButton
                             completed={isProjectMarkedCompleted(p)}
