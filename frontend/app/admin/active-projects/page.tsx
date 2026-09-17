@@ -22,7 +22,7 @@ import { matchesStateLocationFilter, matchesPhoneAreaCodeFilter } from "@/lib/st
 import { NoteEntry } from "@/app/csr/hooks/useLeadsData";
 import { buildNoteHistory } from "@/app/csr/utils/noteHistory";
 import { useClientPhoneLookup, ClientLookupData } from "@/app/csr/hooks/useClientPhoneLookup";
-import { ADMIN_PROJECT_COLS, ADMIN_TECH_VIEW_COLS, CsrColGroup, CSR_THEAD } from "@/app/csr/components/shared/csrTableStyles";
+import { ADMIN_PROJECT_COLS, ADMIN_TECH_VIEW_COLS, CsrColGroup } from "@/app/csr/components/shared/csrTableStyles";
 import { parseTechnicalNotes, parseTechnicalNotesBundle, getTechnicalWorkflowStatus } from "@/lib/technicalAssignments";
 import { peekAuthMe } from "@/lib/authMeCache";
 import API from "@/lib/api";
@@ -35,7 +35,10 @@ import {
   QuotedAmountCell,
   TechnicalWorkflowStatusBadge,
   PROJECT_TABLE_CARD,
-  PROJECT_TABLE_HEAD,
+  PROJECT_DB_THEAD,
+  PROJECT_DB_TH,
+  PROJECT_DB_TD,
+  PROJECT_DB_ROW,
 } from "@/app/components/projects/ProjectTableCells";
 import {
   emptyWorkbench,
@@ -55,15 +58,19 @@ import {
 } from "@/lib/projectFields";
 
 function phaseLabel(value: string) {
-  return PROJECT_PHASE_OPTIONS.find(o => o.value === value)?.label ?? value;
+  const known = PROJECT_PHASE_OPTIONS.find(o => o.value === value)?.label;
+  if (known) return known;
+  if (value === "pricing_with_qa") return "Pricing · With QA";
+  if (value === "pricing_without_qa") return "Pricing · Without QA";
+  return value.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
 }
 
 const ProjectOverviewCharts = dynamic(() => import("./ProjectOverviewCharts"), {
   ssr: false,
   loading: () => (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-      <div className="h-[200px] bg-gray-50 rounded-2xl animate-pulse" />
-      <div className="h-[200px] bg-gray-50 rounded-2xl animate-pulse" />
+    <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+      <div className="h-[220px] bg-slate-50 rounded-2xl animate-pulse" />
+      <div className="h-[220px] bg-slate-50 rounded-2xl animate-pulse" />
     </div>
   ),
 });
@@ -434,8 +441,8 @@ function ProjectsSection({
   const totalPages = Math.max(1, Math.ceil(projects.length / PAGE_SIZE));
   const paginated  = projects.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
   const headers = hideClientFinanceCols
-    ? ["Project Detail", "Client Deadline", "Bid Instruction", "Notes for Technical", "Status", ""]
-    : ["Client Detail", "Project Detail", "Quoted", "Payment Detail", "Client Deadline", "CSR", "Bid Instruction", "Notes for Technical", "Status", ""];
+    ? ["Project Detail", "Client Deadline", "Bid Instruction", "Notes for Technical", "Status", "Actions"]
+    : ["Client Detail", "Project Detail", "Quoted", "Payment Detail", "Client Deadline", "CSR", "Bid Instruction", "Notes for Technical", "Status", "Actions"];
   const colCount = headers.length;
   const colWidths = hideClientFinanceCols ? ADMIN_TECH_VIEW_COLS : ADMIN_PROJECT_COLS;
 
@@ -491,17 +498,15 @@ function ProjectsSection({
         <div className="overflow-x-auto">
           <table
             className="w-full table-fixed border-collapse"
-            style={{ minWidth: hideClientFinanceCols ? "720px" : "1280px" }}
+            style={{ minWidth: hideClientFinanceCols ? "720px" : "1320px" }}
           >
             <CsrColGroup widths={colWidths} />
-            <thead className={CSR_THEAD}>
-              <tr className="text-left">
+            <thead className={PROJECT_DB_THEAD}>
+              <tr>
                 {headers.map((h, i) => (
                   <th
                     key={i}
-                    className={`px-3 xl:px-4 py-3 xl:py-4 whitespace-nowrap ${PROJECT_TABLE_HEAD} ${
-                      i === colCount - 1 ? "text-right" : ""
-                    }`}
+                    className={`${PROJECT_DB_TH} ${i === colCount - 1 ? "text-right" : ""}`}
                   >
                     {h}
                   </th>
@@ -511,39 +516,40 @@ function ProjectsSection({
             <tbody>
               {loading ? (
                 [1, 2, 3, 4, 5].map((i) => (
-                  <tr key={i} className="border-b border-[#F3F3F3]">
+                  <tr key={i} className={PROJECT_DB_ROW}>
                     {Array.from({ length: colCount }, (_, j) => (
-                      <td key={j} className="px-3 xl:px-4 py-4 xl:py-5">
-                        <div className="h-4 bg-gray-100 rounded animate-pulse w-16 xl:w-20" />
+                      <td key={j} className={PROJECT_DB_TD}>
+                        <div className="h-3.5 bg-slate-100 rounded-md animate-pulse w-16 xl:w-20" />
                       </td>
                     ))}
                   </tr>
                 ))
               ) : projects.length > 0 ? (
                 paginated.map((p) => (
-                  <tr key={p.id} className="border-b border-[#F3F3F3] hover:bg-[#FAFAFA] transition-all align-top">
+                  <tr key={p.id} className={PROJECT_DB_ROW}>
                     {!hideClientFinanceCols && (
-                      <td className="px-3 xl:px-4 py-3 xl:py-4"><ClientDetailCell p={projectAsRow(p)} /></td>
+                      <td className={PROJECT_DB_TD}><ClientDetailCell p={projectAsRow(p)} /></td>
                     )}
-                    <td className="px-3 xl:px-4 py-3 xl:py-4"><ProjectDetailCell p={projectAsRow(p)} /></td>
+                    <td className={PROJECT_DB_TD}><ProjectDetailCell p={projectAsRow(p)} /></td>
                     {!hideClientFinanceCols && (
                       <>
-                        <td className="px-3 xl:px-4 py-3 xl:py-4"><QuotedAmountCell p={projectAsRow(p)} /></td>
-                        <td className="px-3 xl:px-4 py-3 xl:py-4"><PaymentDetailCell p={projectAsRow(p)} /></td>
+                        <td className={PROJECT_DB_TD}><QuotedAmountCell p={projectAsRow(p)} /></td>
+                        <td className={PROJECT_DB_TD}><PaymentDetailCell p={projectAsRow(p)} /></td>
                       </>
                     )}
-                    <td className="px-3 xl:px-4 py-3 xl:py-4">
+                    <td className={PROJECT_DB_TD}>
                       <FulfillmentCell
                         p={projectAsRow(p)}
+                        hideCaption
                         onTimingChange={onTimingChange ? (next) => onTimingChange(p.id, next) : undefined}
                       />
                     </td>
                     {!hideClientFinanceCols && (
-                      <td className="px-2 xl:px-3 py-3 xl:py-4 min-w-0 overflow-hidden align-top">
+                      <td className={`${PROJECT_DB_TD} overflow-hidden`}>
                         <ProjectCsrCell p={p} />
                       </td>
                     )}
-                    <td className="px-2 xl:px-3 py-3 xl:py-4 min-w-0 overflow-hidden align-top">
+                    <td className={`${PROJECT_DB_TD} overflow-hidden`}>
                       <CommentCell
                         id={p.id}
                         apiRole="admin"
@@ -553,7 +559,7 @@ function ProjectsSection({
                         onSave={(id, text) => onSaveBidInstruction(id, text)}
                       />
                     </td>
-                    <td className="px-2 xl:px-3 py-3 xl:py-4 min-w-0 overflow-hidden align-top">
+                    <td className={`${PROJECT_DB_TD} overflow-hidden`}>
                       <CommentCell
                         id={p.id}
                         apiRole="admin"
@@ -566,7 +572,7 @@ function ProjectsSection({
                         onAddNote={async (_id, text) => onAddTechnicalNote(p.id, text)}
                       />
                     </td>
-                    <td className="px-2 xl:px-3 py-3 xl:py-4 min-w-0 overflow-hidden align-top">
+                    <td className={`${PROJECT_DB_TD} overflow-hidden`}>
                       <div className="flex flex-col items-start gap-1.5 min-w-0 max-w-full">
                         <TechnicalWorkflowStatusBadge
                           status={p.status}
@@ -588,29 +594,29 @@ function ProjectsSection({
                         )}
                       </div>
                     </td>
-                    <td className="px-2 xl:px-3 py-3 xl:py-4 text-right min-w-0 overflow-hidden align-top">
-                      <div className="inline-flex items-center justify-end gap-1 flex-wrap max-w-full">
+                    <td className={`${PROJECT_DB_TD} text-right overflow-hidden`}>
+                      <div className="inline-flex items-center justify-end gap-0.5 rounded-xl border border-slate-200 bg-white p-0.5 shadow-sm">
                         {!hideClientFinanceCols && onRequestRevision && (
                           <button
                             onClick={() => onRequestRevision(p)}
-                            className={`w-8 h-8 rounded-xl text-[10px] font-medium flex items-center justify-center shrink-0 ${
+                            className={`w-8 h-8 rounded-lg text-[10px] font-medium flex items-center justify-center shrink-0 ${
                               p.needsRevision
                                 ? "bg-violet-100 text-violet-700"
-                                : "bg-violet-50 text-violet-600 hover:bg-violet-100"
+                                : "text-violet-600 hover:bg-violet-50"
                             }`}
                             title={p.needsRevision ? "In revision queue" : "Send for revision"}
                           >
-                            <GitBranch size={12} />
+                            <GitBranch size={13} />
                           </button>
                         )}
                         {!hideClientFinanceCols && onToggleTechnical && (
                           <button
                             type="button"
                             onClick={() => onToggleTechnical(p)}
-                            className={`h-8 px-2 rounded-xl text-[10px] font-bold inline-flex items-center justify-center gap-1 shrink-0 ${
+                            className={`h-8 px-2 rounded-lg text-[10px] font-bold inline-flex items-center justify-center gap-1 shrink-0 ${
                               p.hiddenOnTechnical
-                                ? "bg-gray-100 text-gray-500 hover:bg-gray-200"
-                                : "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                                ? "text-slate-500 hover:bg-slate-100"
+                                : "text-emerald-700 hover:bg-emerald-50"
                             }`}
                             title={
                               p.hiddenOnTechnical
@@ -625,15 +631,15 @@ function ProjectsSection({
                         {!hideClientFinanceCols && (
                           <button
                             onClick={() => void onReassign(p)}
-                            className="w-8 h-8 rounded-xl bg-blue-100 text-blue-700 text-[10px] font-medium hover:bg-blue-200 flex items-center justify-center shrink-0"
+                            className="w-8 h-8 rounded-lg text-blue-700 hover:bg-blue-50 flex items-center justify-center shrink-0"
                             title="Reassign"
                           >
-                            <ArrowRightLeft size={12} />
+                            <ArrowRightLeft size={13} />
                           </button>
                         )}
                         <button
                           onClick={() => onView(p)}
-                          className="w-8 h-8 rounded-xl bg-[#EAF5FF] text-[#0B84F3] flex items-center justify-center hover:opacity-80 shrink-0"
+                          className="w-8 h-8 rounded-lg bg-[#0B84F3] text-white flex items-center justify-center hover:opacity-90 shrink-0"
                           title="View / Edit"
                         >
                           <Eye size={14} />
@@ -657,16 +663,16 @@ function ProjectsSection({
           </table>
         </div>
         {totalPages > 1 && (
-          <div className="flex items-center justify-between px-6 py-4 border-t border-gray-100">
-            <p className="text-xs text-gray-400">
-              {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, projects.length)} of {projects.length}
+          <div className="flex items-center justify-between px-5 py-3.5 border-t border-slate-100 bg-slate-50/70">
+            <p className="text-xs font-medium text-slate-500">
+              Showing {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, projects.length)} of {projects.length}
             </p>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5">
               <button onClick={() => setPage(Math.max(1, page - 1))} disabled={page === 1}
-                className="w-9 h-9 rounded-xl bg-gray-100 text-gray-600 hover:bg-gray-200 disabled:opacity-40 flex items-center justify-center text-lg transition-all">‹</button>
-              <span className="text-sm font-semibold text-gray-700 min-w-[60px] text-center">{page} / {totalPages}</span>
+                className="w-8 h-8 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-40 flex items-center justify-center text-base transition-all">‹</button>
+              <span className="text-xs font-bold text-slate-700 min-w-[52px] text-center tabular-nums">{page} / {totalPages}</span>
               <button onClick={() => setPage(Math.min(totalPages, page + 1))} disabled={page === totalPages}
-                className="w-9 h-9 rounded-xl bg-gray-100 text-gray-600 hover:bg-gray-200 disabled:opacity-40 flex items-center justify-center text-lg transition-all">›</button>
+                className="w-8 h-8 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-40 flex items-center justify-center text-base transition-all">›</button>
             </div>
           </div>
         )}
@@ -687,7 +693,7 @@ function projectAssigneeLabel(p: Project): string {
 function ProjectCsrCell({ p }: { p: Project }) {
   if (p.projectSource?.trim()) {
     return (
-      <span className="text-xs font-semibold text-gray-600 break-words" title={p.projectSource.trim()}>
+      <span className="inline-flex max-w-full text-xs font-semibold text-slate-600 break-words" title={p.projectSource.trim()}>
         {p.projectSource.trim()}
       </span>
     );
@@ -695,10 +701,17 @@ function ProjectCsrCell({ p }: { p: Project }) {
   if (p.csr?.csrCode) {
     return (
       <span
-        className="inline-flex bg-[#B8112D]/10 text-[#B8112D] text-[10px] xl:text-[11px] font-bold px-1.5 py-0.5 rounded-md tabular-nums"
+        className="inline-flex bg-[#B8112D]/10 text-[#B8112D] text-[10px] xl:text-[11px] font-bold px-2 py-1 rounded-lg tabular-nums"
         title={p.csr.name ? `${p.csr.csrCode} — ${p.csr.name}` : p.csr.csrCode}
       >
         {p.csr.csrCode}
+      </span>
+    );
+  }
+  if (p.csr?.name) {
+    return (
+      <span className="text-xs font-semibold text-slate-700 truncate" title={p.csr.name}>
+        {p.csr.name}
       </span>
     );
   }
@@ -1325,23 +1338,28 @@ export default function AdminProjectsPage() {
         <DashboardNavbar />
 
         {/* HEADER */}
-        <div className="mb-4 sm:mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <div>
-            <h1 className="text-xl sm:text-2xl lg:text-3xl font-semibold text-gray-800">
-              Project DB
-            </h1>
-            <p className="text-xs sm:text-sm text-gray-400 mt-0.5 sm:mt-1">
-              {hideClientFinanceCols
-                ? "Active projects — filter by date, view all or active only."
-                : "All CSR projects — All / Active / Completed. Final Submission → Mark Complete."}
-            </p>
+        <div className="mb-5 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+          <div className="flex items-start gap-3 min-w-0">
+            <span className="w-11 h-11 rounded-2xl bg-[#0B1220] text-white inline-flex items-center justify-center shrink-0 shadow-sm">
+              <FolderKanban size={18} />
+            </span>
+            <div className="min-w-0">
+              <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight text-[#0B1220]">
+                Project DB
+              </h1>
+              <p className="text-xs sm:text-sm text-slate-400 mt-0.5">
+                {hideClientFinanceCols
+                  ? "Active projects — filter by date, view all or active only."
+                  : "All CSR projects — All / Active / Completed. Final Submission → Mark Complete."}
+              </p>
+            </div>
           </div>
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className="inline-flex items-center gap-1 flex-wrap rounded-2xl border border-slate-200 bg-white p-1 shadow-sm">
             <button
               type="button"
               onClick={() => void fetchProjects()}
               disabled={loading}
-              className="h-10 sm:h-11 px-3 sm:px-4 rounded-xl sm:rounded-2xl border border-gray-200 bg-white text-gray-700 text-xs sm:text-sm font-semibold inline-flex items-center gap-2 hover:border-[#B8112D]/40 hover:text-[#B8112D] disabled:opacity-60"
+              className="h-10 px-3 rounded-xl text-slate-600 text-xs sm:text-sm font-semibold inline-flex items-center gap-2 hover:bg-slate-50 disabled:opacity-60"
               title="Refresh projects"
             >
               <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
@@ -1362,7 +1380,7 @@ export default function AdminProjectsPage() {
                 <button
                   type="button"
                   onClick={() => void downloadProjectDbTemplate()}
-                  className="flex items-center justify-center gap-2 h-10 sm:h-11 px-3 sm:px-4 rounded-xl sm:rounded-2xl border border-gray-200 bg-white text-gray-700 text-xs sm:text-sm font-semibold hover:border-[#B8112D]/40 hover:text-[#B8112D] transition-colors"
+                  className="h-10 px-3 rounded-xl text-slate-600 text-xs sm:text-sm font-semibold inline-flex items-center gap-2 hover:bg-slate-50"
                   title="Download Excel template (same fields as Add New Project)"
                 >
                   <Download size={14} /> Template
@@ -1371,7 +1389,7 @@ export default function AdminProjectsPage() {
                   type="button"
                   disabled={excelUploading}
                   onClick={() => excelInputRef.current?.click()}
-                  className="flex items-center justify-center gap-2 h-10 sm:h-11 px-3 sm:px-4 rounded-xl sm:rounded-2xl border border-emerald-200 bg-emerald-50 text-emerald-800 text-xs sm:text-sm font-semibold hover:bg-emerald-100 disabled:opacity-60 transition-colors"
+                  className="h-10 px-3 rounded-xl text-emerald-700 text-xs sm:text-sm font-semibold inline-flex items-center gap-2 hover:bg-emerald-50 disabled:opacity-60"
                   title="Upload previous projects Excel (any date range)"
                 >
                   <Upload size={14} className={excelUploading ? "animate-pulse" : ""} />
@@ -1380,61 +1398,61 @@ export default function AdminProjectsPage() {
                 <button
                   type="button"
                   onClick={openAddModal}
-                  className="flex items-center justify-center gap-2 h-10 sm:h-11 px-4 sm:px-5 rounded-xl sm:rounded-2xl bg-[#B8112D] text-white text-xs sm:text-sm font-semibold shadow-md shadow-red-200 hover:bg-[#a30f27] transition-colors"
+                  className="h-10 px-4 rounded-xl bg-[#B8112D] text-white text-xs sm:text-sm font-semibold inline-flex items-center gap-2 hover:bg-[#a30f27]"
                 >
                   <Plus size={14} /> Add New Project
                 </button>
               </>
             )}
-            <div className="flex items-center gap-2 bg-[#ECFDF5] text-[#065F46] px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-semibold w-fit">
-              <div className="w-2 h-2 rounded-full bg-[#12B76A] animate-pulse" />
+            <span className="h-10 px-3 rounded-xl bg-emerald-50 text-emerald-700 text-xs sm:text-sm font-semibold inline-flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-[#12B76A] animate-pulse" />
               Live Data
-            </div>
+            </span>
           </div>
         </div>
 
         {/* PROJECTS OVERVIEW */}
-        <div className="bg-white rounded-2xl lg:rounded-3xl border border-gray-100 shadow-sm p-4 sm:p-5 mb-4 sm:mb-6">
+        <div className="rounded-[28px] border border-slate-200/80 bg-white shadow-[0_12px_40px_rgba(15,23,42,0.06)] p-4 sm:p-5 mb-4 sm:mb-6">
           <ProjectOverviewCharts loading={loading} stats={stats} phasePieData={phasePieData} />
         </div>
 
         {/* SEARCH + FILTER */}
-        <div className="flex flex-col gap-2 sm:gap-3 mb-4 sm:mb-5">
-          <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
-            <div className="relative flex-1 sm:max-w-sm lg:max-w-md">
-              <Search size={15} className="absolute left-3.5 sm:left-4 top-1/2 -translate-y-1/2 text-gray-400" />
+        <div className="mb-4 sm:mb-5 rounded-2xl border border-slate-200/80 bg-white p-3 sm:p-3.5 shadow-sm space-y-2.5">
+          <div className={`grid w-full gap-2 ${hideClientFinanceCols ? "grid-cols-1 sm:grid-cols-3" : "grid-cols-1 sm:grid-cols-2 xl:grid-cols-4"}`}>
+            <div className="relative min-w-0">
+              <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
               <input
                 type="text"
                 placeholder="Search by project name, client, project code..."
                 value={search}
                 onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-                className="w-full bg-white border border-gray-200 rounded-xl sm:rounded-2xl pl-10 sm:pl-11 pr-4 py-2.5 sm:py-3 text-sm outline-none focus:border-[#B8112D]"
+                className="w-full h-11 bg-white border border-gray-200 rounded-xl pl-10 pr-4 text-sm outline-none focus:border-[#B8112D]"
               />
             </div>
 
             {!hideClientFinanceCols && (
-              <div className="relative w-full sm:w-auto">
-                <User2 size={15} className="absolute left-3.5 sm:left-4 top-1/2 -translate-y-1/2 text-gray-400" />
+              <div className="relative min-w-0">
+                <User2 size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
                 <select
                   value={filterCSR}
                   onChange={(e) => { setFilterCSR(e.target.value); setPage(1); }}
-                  className="appearance-none w-full sm:min-w-[200px] lg:min-w-[220px] h-10 sm:h-12 bg-white border border-gray-200 rounded-xl sm:rounded-2xl pl-10 sm:pl-11 pr-9 sm:pr-10 text-sm outline-none focus:border-[#B8112D]"
+                  className="appearance-none w-full h-11 bg-white border border-gray-200 rounded-xl pl-10 pr-9 text-sm outline-none focus:border-[#B8112D]"
                 >
                   <option value="all">All CSRs</option>
                   {csrList.map(([id, name]) => (
                     <option key={id} value={id}>{name}</option>
                   ))}
                 </select>
-                <ChevronDown size={15} className="absolute right-3 sm:right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                <ChevronDown size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
               </div>
             )}
 
-            <StateFilterDropdown value={stateFilter} onChange={v => { setStateFilter(v); setPage(1); }} />
-            <PhoneAreaCodeFilterInput value={phoneFilter} onChange={v => { setPhoneFilter(v); setPage(1); }} />
+            <StateFilterDropdown fullWidth value={stateFilter} onChange={v => { setStateFilter(v); setPage(1); }} />
+            <PhoneAreaCodeFilterInput fullWidth value={phoneFilter} onChange={v => { setPhoneFilter(v); setPage(1); }} />
           </div>
 
-          <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 sm:items-center">
-            <div className="flex items-center gap-2 flex-1 sm:max-w-lg">
+          <div className={`grid w-full gap-2 ${hideClientFinanceCols ? "grid-cols-1" : "grid-cols-1 sm:grid-cols-2 xl:grid-cols-3"}`}>
+            <div className="flex items-center gap-2 min-w-0 h-11 px-3 rounded-xl border border-gray-200 bg-white">
               <Calendar size={15} className="text-gray-400 shrink-0" />
               <span className="text-[10px] font-bold uppercase tracking-wide text-gray-400 shrink-0">Deadline</span>
               <input
@@ -1442,7 +1460,7 @@ export default function AdminProjectsPage() {
                 value={dateFrom}
                 onChange={(e) => { setDateFrom(e.target.value); setPage(1); }}
                 aria-label="Client deadline from"
-                className="flex-1 h-10 sm:h-11 bg-white border border-gray-200 rounded-xl px-3 text-sm outline-none focus:border-[#B8112D]"
+                className="flex-1 min-w-0 h-full bg-transparent text-sm outline-none"
               />
               <span className="text-xs text-gray-400 shrink-0">to</span>
               <input
@@ -1450,72 +1468,65 @@ export default function AdminProjectsPage() {
                 value={dateTo}
                 onChange={(e) => { setDateTo(e.target.value); setPage(1); }}
                 aria-label="Client deadline to"
-                className="flex-1 h-10 sm:h-11 bg-white border border-gray-200 rounded-xl px-3 text-sm outline-none focus:border-[#B8112D]"
+                className="flex-1 min-w-0 h-full bg-transparent text-sm outline-none"
               />
-            </div>
-            {(dateFrom || dateTo) && (
-              <button
-                onClick={() => { setDateFrom(""); setDateTo(""); setPage(1); }}
-                className="h-10 px-4 rounded-xl bg-gray-100 text-gray-600 text-sm font-semibold hover:bg-gray-200 transition-all"
-              >
-                Clear dates
-              </button>
-            )}
-          </div>
-
-          {!hideClientFinanceCols && (
-            <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 sm:items-center">
-              <div className="relative flex items-center gap-2 h-10 sm:h-11 px-3 rounded-xl border border-gray-200 bg-white shadow-sm w-full sm:w-auto sm:min-w-[220px]">
-                <Calendar size={14} className="text-gray-400 shrink-0" />
-                <span className="text-[10px] font-bold uppercase tracking-wide text-gray-400 shrink-0">Deadline</span>
-                <input
-                  type="month"
-                  value={monthFilter}
-                  onChange={(e) => { setMonthFilter(e.target.value); setPage(1); }}
-                  aria-label="Filter by client deadline month"
-                  className="outline-none bg-transparent text-sm font-semibold text-[#0F172A] min-w-0 flex-1"
-                />
-                {monthFilter ? (
-                  <button
-                    type="button"
-                    onClick={() => { setMonthFilter(""); setPage(1); }}
-                    className="text-[10px] font-bold text-[#B8112D] hover:underline shrink-0"
-                  >
-                    Clear
-                  </button>
-                ) : null}
-              </div>
-              <div className="relative w-full sm:w-auto">
-                <select
-                  value={paymentTypeFilter}
-                  onChange={(e) => { setPaymentTypeFilter(e.target.value); setPage(1); }}
-                  className="appearance-none w-full sm:min-w-[180px] h-10 sm:h-11 bg-white border border-gray-200 rounded-xl pl-3.5 pr-9 text-sm outline-none focus:border-[#B8112D] font-semibold text-gray-700"
-                >
-                  <option value="">All payments</option>
-                  {PAYMENT_TYPE_FILTER_OPTIONS.map((t) => (
-                    <option key={t} value={t}>
-                      {t === "Full" ? "Full payment" : t === "Unpaid" ? "Unpaid amounts" : "Partial"}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-              </div>
-              {(monthFilter || paymentTypeFilter) && (
+              {(dateFrom || dateTo) && (
                 <button
                   type="button"
-                  onClick={() => { setMonthFilter(""); setPaymentTypeFilter(""); setPage(1); }}
-                  className="h-10 px-4 rounded-xl bg-gray-100 text-gray-600 text-sm font-semibold hover:bg-gray-200 transition-all w-fit"
+                  onClick={() => { setDateFrom(""); setDateTo(""); setPage(1); }}
+                  className="text-[10px] font-bold text-[#B8112D] hover:underline shrink-0"
                 >
-                  Clear filters
+                  Clear
                 </button>
               )}
             </div>
-          )}
+
+            {!hideClientFinanceCols && (
+              <>
+                <div className="relative flex items-center gap-2 h-11 px-3 rounded-xl border border-gray-200 bg-white min-w-0">
+                  <Calendar size={14} className="text-gray-400 shrink-0" />
+                  <span className="text-[10px] font-bold uppercase tracking-wide text-gray-400 shrink-0">Month</span>
+                  <input
+                    type="month"
+                    value={monthFilter}
+                    onChange={(e) => { setMonthFilter(e.target.value); setPage(1); }}
+                    aria-label="Filter by client deadline month"
+                    className="outline-none bg-transparent text-sm font-semibold text-[#0F172A] min-w-0 flex-1"
+                  />
+                  {monthFilter ? (
+                    <button
+                      type="button"
+                      onClick={() => { setMonthFilter(""); setPage(1); }}
+                      className="text-[10px] font-bold text-[#B8112D] hover:underline shrink-0"
+                    >
+                      Clear
+                    </button>
+                  ) : null}
+                </div>
+                <div className="relative min-w-0">
+                  <select
+                    value={paymentTypeFilter}
+                    onChange={(e) => { setPaymentTypeFilter(e.target.value); setPage(1); }}
+                    className="appearance-none w-full h-11 bg-white border border-gray-200 rounded-xl pl-3.5 pr-9 text-sm outline-none focus:border-[#B8112D] font-semibold text-gray-700"
+                  >
+                    <option value="">All payments</option>
+                    {PAYMENT_TYPE_FILTER_OPTIONS.map((t) => (
+                      <option key={t} value={t}>
+                        {t === "Full" ? "Full payment" : t === "Unpaid" ? "Unpaid amounts" : "Partial"}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                </div>
+              </>
+            )}
+          </div>
         </div>
 
         {/* ALL / ACTIVE / COMPLETED — sliding capsule */}
         <div className="mb-4 sm:mb-5">
           <CapsuleTabs
+            stretch
             activeKey={projectTab}
             onChange={(key) => { setProjectTab(key); setPage(1); }}
             accent="#B8112D"

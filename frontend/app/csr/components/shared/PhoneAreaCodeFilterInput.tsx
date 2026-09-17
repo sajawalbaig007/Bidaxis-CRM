@@ -6,15 +6,17 @@ interface PhoneAreaCodeFilterInputProps {
   value: string;
   onChange: (v: string) => void;
   className?: string;
+  fullWidth?: boolean;
 }
 
 export default function PhoneAreaCodeFilterInput({
   value,
   onChange,
   className = "",
+  fullWidth = false,
 }: PhoneAreaCodeFilterInputProps) {
   return (
-    <div className={`relative shrink-0 ${className}`}>
+    <div className={`relative ${fullWidth ? "w-full min-w-0" : "shrink-0"} ${className}`}>
       <Phone size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
       <input
         type="text"
@@ -23,7 +25,7 @@ export default function PhoneAreaCodeFilterInput({
         onChange={e => onChange(e.target.value)}
         placeholder="Area code..."
         title="Search by phone area code (e.g. 214, 416)"
-        className={`h-10 sm:h-[42px] pl-8 pr-8 rounded-xl sm:rounded-2xl border text-xs sm:text-sm outline-none w-full min-w-0 sm:w-[150px] ${
+        className={`${fullWidth ? "h-11" : "h-10 sm:h-[42px]"} pl-8 pr-8 rounded-xl sm:rounded-2xl border text-xs sm:text-sm outline-none w-full min-w-0 ${fullWidth ? "" : "sm:w-[150px]"} ${
           value
             ? "border-[#B8112D] bg-[#FFF1F3] text-[#B8112D]"
             : "border-gray-200 dark:border-crm-border bg-[#FAFAFA] dark:bg-crm-input text-gray-600 dark:text-crm-text-secondary"
