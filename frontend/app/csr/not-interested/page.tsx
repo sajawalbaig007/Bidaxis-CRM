@@ -3,11 +3,12 @@
 import { useMemo, useState, Fragment } from "react";
 import {
   ThumbsDown, PhoneOff, Search,
-  X, ArrowRightLeft, RefreshCw,
+  X, RefreshCw,
   ChevronDown, ChevronUp, Eye, Users,
   Check,
   History, UserX, Ban, Home, Layers,
 } from "lucide-react";
+import toast from "react-hot-toast";
 
 import TopNavbar from "../components/navigation/TopNavbar";
 import LeadDetailModal from "../components/LeadDetailModal";
@@ -119,12 +120,6 @@ export default function NotInterestedPage() {
   const [paidAmount,          setPaidAmount]          = useState("");
   const [email,               setEmail]               = useState("");
 
-  const [toast, setToast] = useState<{ msg: string; type: "success" | "warn" } | null>(null);
-  const showToast = (msg: string, type: "success" | "warn" = "success") => {
-    setToast({ msg, type });
-    setTimeout(() => setToast(null), 3500);
-  };
-
   /* ── Derived lists (unique-by-phone so pills match the table) ── */
   const notInterested = useMemo(() => uniqueLeadsByPhone(leads.filter(l => isNotInterestedStatus(l.status))), [leads]);
   const notPicked     = useMemo(() => uniqueLeadsByPhone(leads.filter(l => isNotPickedStatus(l.status))), [leads]);
@@ -208,7 +203,7 @@ export default function NotInterestedPage() {
       } else {
         const triesLeft    = res.data.triesLeft ?? 0;
         const updatedNotes = res.data.lead?.followUpNotes ?? lead.followUpNotes ?? "";
-        showToast(`Retried. ${triesLeft} attempt${triesLeft !== 1 ? "s" : ""} left.`);
+        toast.success(`Retried. ${triesLeft} attempt${triesLeft !== 1 ? "s" : ""} left.`);
         const key = meta.countKey;
         setLeads(prev => prev.map(l =>
           l.id === lead.id
@@ -225,11 +220,11 @@ export default function NotInterestedPage() {
     try {
       await API.put(`/csr/lead/${assignLead.id}/assign`, { csrId: selectedCsrId });
       const csrName = csrList.find(c => c.id === selectedCsrId)?.name ?? "another CSR";
-      showToast(`Lead assigned to ${csrName}.`, "warn");
+      toast.success(`Lead assigned to ${csrName}.`);
       setLeads(prev => prev.filter(l => l.id !== assignLead.id));
       setShowAssignModal(false);
       setAssignLead(null);
-    } catch { showToast("Failed to assign lead.", "warn"); }
+    } catch { toast.error("Failed to assign lead."); }
     finally { setIsAssigning(false); }
   };
 
@@ -243,7 +238,7 @@ export default function NotInterestedPage() {
       await API.put(`/csr/lead/${lead.id}`, { followUpNotes: updated });
       setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, followUpNotes: updated } : l));
       setEditingNote(null);
-    } catch { showToast("Failed to save note.", "warn"); }
+    } catch { toast.error("Failed to save note."); }
     finally { setSavingNote(false); }
   };
 
@@ -294,12 +289,12 @@ export default function NotInterestedPage() {
         if (updated) {
           setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, ...updated, status } : l));
         }
-        showToast(`Status updated to "${statusDisplayLabel(status)}".`);
+        toast.success(`Status updated to "${statusDisplayLabel(status)}".`);
         return;
       }
       setLeads(prev => prev.filter(l => l.id !== lead.id));
-      showToast(`Status updated to "${statusDisplayLabel(status)}".`);
-    } catch { showToast("Failed to update status.", "warn"); }
+      toast.success(`Status updated to "${statusDisplayLabel(status)}".`);
+    } catch { toast.error("Failed to update status."); }
   };
 
   const saveImportant = async () => {
@@ -313,7 +308,7 @@ export default function NotInterestedPage() {
     setLeads(prev => prev.filter(l => l.id !== statusLead.id));
     setShowImportantModal(false);
     setPendingPipelineStatus("important");
-    showToast(nextStatus === "schedule call" ? "Moved to Schedule Call." : "Scheduled as Important Call.");
+    toast.success(nextStatus === "schedule call" ? "Moved to Schedule Call." : "Scheduled as Important Call.");
   };
 
   const saveInterested = async () => {
@@ -326,7 +321,7 @@ export default function NotInterestedPage() {
     setShowInterestedModal(false);
     setSelectedService("");
     setServiceSubtype("");
-    showToast("Marked as Interested.");
+    toast.success("Marked as Interested.");
   };
 
   const saveCloseClient = async () => {
@@ -339,7 +334,7 @@ export default function NotInterestedPage() {
     bustCaches();
     setLeads(prev => prev.filter(l => l.id !== statusLead.id));
     setShowCloseModal(false);
-    showToast("Client closed & moved to Projects.");
+    toast.success("Client closed & moved to Projects.");
   };
 
   const addNote = async (id: string, text: string, parentId?: string) => {
@@ -379,23 +374,6 @@ export default function NotInterestedPage() {
     <div className="min-h-screen bg-[#F5F6FA]">
       <TopNavbar />
       <main className="max-w-[1400px] mx-auto p-3 sm:p-4 md:p-5 lg:p-6">
-
-        {/* ── TOAST ── */}
-        {toast && (
-          <div className={`fixed top-4 sm:top-5 right-3 sm:right-5 z-[200] flex items-center gap-2 sm:gap-3 px-3 sm:px-5 py-2.5 sm:py-3.5 rounded-xl sm:rounded-2xl shadow-xl text-xs sm:text-sm font-semibold transition-all max-w-[90vw] sm:max-w-none ${
-            toast.type === "warn"
-              ? "bg-amber-50 border border-amber-300 text-amber-800"
-              : "bg-green-50 border border-green-300 text-green-800"
-          }`}>
-            {toast.type === "warn"
-              ? <ArrowRightLeft size={14} className="shrink-0 sm:w-4 sm:h-4" />
-              : <RefreshCw size={14} className="shrink-0 sm:w-4 sm:h-4" />}
-            <span className="truncate">{toast.msg}</span>
-            <button onClick={() => setToast(null)} className="ml-1 opacity-60 hover:opacity-100 shrink-0">
-              <X size={12} className="sm:w-[14px] sm:h-[14px]" />
-            </button>
-          </div>
-        )}
 
         {/* ── HEADER ── */}
         <div className="mt-1">

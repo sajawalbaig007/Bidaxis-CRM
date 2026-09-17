@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import API, { apiErrorMessage } from "@/lib/api";
-import { EST_TZ_ABBR, EST_TZ_LABEL, formatEstDateTimeLocalInput } from "@/lib/estTime";
+import { EST_TZ_ABBR, EST_TZ_LABEL } from "@/lib/estTime";
 import { ChevronDown, Clock, Download, LogIn, LogOut, Monitor, Pencil, Users, X } from "lucide-react";
 
 type ClockTz = "est" | "pkt";
@@ -52,6 +52,7 @@ type SessionRow = {
   closedReason: string | null;
   closedReasonLabel?: string;
   sessionCount?: number;
+  memberIds?: string[];
 };
 
 type SummaryRow = {
@@ -84,8 +85,22 @@ function calendarYmd(timeZone: string, value: Date = new Date()): string {
   }).format(value);
 }
 
-function toPktLocalInput(iso: string | null | undefined): string {
-  return formatEstDateTimeLocalInput(iso);
+function formatClockLocalInput(iso: string | null | undefined, timeZone: string): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(d);
+  const get = (t: string) => parts.find(p => p.type === t)?.value ?? "";
+  const hour = get("hour") === "24" ? "00" : get("hour");
+  return `${get("year")}-${get("month")}-${get("day")}T${hour}:${get("minute")}`;
 }
 
 function pktWeekStart(ymd: string): string {
@@ -260,8 +275,8 @@ export default function CsrActivityReport({
 
   const openEdit = (row: SessionRow) => {
     setEditing(row);
-    setEditCheckIn(toPktLocalInput(row.loginAt));
-    setEditCheckOut(toPktLocalInput(row.logoutAt));
+    setEditCheckIn(formatClockLocalInput(row.loginAt, CLOCKS[clockTz].tz));
+    setEditCheckOut(formatClockLocalInput(row.logoutAt, CLOCKS[clockTz].tz));
     setEditStillOpen(row.status === "active" || !row.logoutAt);
     setEditNote("admin_adjusted");
   };
@@ -287,6 +302,8 @@ export default function CsrActivityReport({
         checkOutAt: editStillOpen ? null : editCheckOut,
         clearCheckOut: editStillOpen,
         note: editNote.trim() || "admin_adjusted",
+        tz: clockTz === "pkt" ? "Asia/Karachi" : "America/New_York",
+        memberIds: editing.memberIds?.length ? editing.memberIds : [editing.id],
       });
       toast.success("Session times updated.");
       closeEdit();
@@ -755,7 +772,7 @@ export default function CsrActivityReport({
               <div>
                 <h3 className="text-base font-bold text-[#111827]">Adjust session times</h3>
                 <p className="text-xs text-gray-400 mt-0.5">
-                  {editing.csrName} · edit times in {EST_TZ_LABEL}
+                  {editing.csrName} · edit times in {timezoneLabel}
                 </p>
               </div>
               <button

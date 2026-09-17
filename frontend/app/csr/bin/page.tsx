@@ -3,8 +3,9 @@
 import { useMemo, useState } from "react";
 import {
   Search, RefreshCw, Phone, Briefcase,
-  Trash2, X, ArrowUpCircle, Star, ThumbsDown, PhoneOff,
+  Trash2, ArrowUpCircle, Star, ThumbsDown, PhoneOff,
 } from "lucide-react";
+import toast from "react-hot-toast";
 
 import TopNavbar from "../components/navigation/TopNavbar";
 import StackedHorizontalBarChart, { StackedBarRow } from "../components/shared/StackedHorizontalBarChart";
@@ -35,11 +36,6 @@ export default function CSRBinPage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [sourceFilter, setSourceFilter] = useState("all");
 
-  const [toast, setToast] = useState<{ msg: string; type: "success" | "warn" } | null>(null);
-  const showToast = (msg: string, type: "success" | "warn" = "success") => {
-    setToast({ msg, type });
-    setTimeout(() => setToast(null), 3500);
-  };
   const [restoringId, setRestoringId] = useState<string | null>(null);
 
   const sourceOptions = useMemo(() => {
@@ -94,8 +90,8 @@ export default function CSRBinPage() {
     try {
       await API.put(`/csr/lead/${id}`, { inBin: false });
       setLeads(prev => prev.filter(l => l.id !== id));
-      showToast(`${name} restored.`);
-    } catch { showToast("Failed to restore lead.", "warn"); }
+      toast.success(`${name} restored.`);
+    } catch { toast.error("Failed to restore lead."); }
     finally { setRestoringId(null); }
   };
 
@@ -113,19 +109,6 @@ export default function CSRBinPage() {
     <div className="min-h-screen bg-[#F5F6FA]">
       <TopNavbar />
       <main className="max-w-[1400px] mx-auto p-3 sm:p-4 md:p-5 lg:p-6">
-
-        {toast && (
-          <div className={`fixed top-4 sm:top-5 right-3 sm:right-5 z-[200] flex items-center gap-2 px-4 sm:px-5 py-2.5 sm:py-3.5 rounded-2xl shadow-xl text-xs sm:text-sm font-semibold max-w-[90vw] ${
-            toast.type === "warn"
-              ? "bg-amber-50 border border-amber-300 text-amber-800"
-              : "bg-green-50 border border-green-300 text-green-800"
-          }`}>
-            <span className="truncate">{toast.msg}</span>
-            <button onClick={() => setToast(null)} className="ml-1 opacity-60 hover:opacity-100 shrink-0">
-              <X size={12} />
-            </button>
-          </div>
-        )}
 
         <div className="mt-1 flex items-center gap-3">
           <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-[#FFF7E6] flex items-center justify-center shrink-0">

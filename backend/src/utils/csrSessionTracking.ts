@@ -343,6 +343,7 @@ export type CsrSessionReportRow = {
   closedReason: string | null;
   closedReasonLabel: string;
   sessionCount: number;
+  memberIds: string[];
 };
 
 function closedReasonLabel(reason: string | null, hasLogout: boolean): string {
@@ -434,10 +435,11 @@ function mergeSessionsByCalendarDay(
     const key = `${s.csrId}:${day}`;
     const hit = map.get(key);
     if (!hit) {
-      map.set(key, { ...s, sessionCount: s.sessionCount || 1 });
+      map.set(key, { ...s, sessionCount: s.sessionCount || 1, memberIds: s.memberIds?.length ? [...s.memberIds] : [s.id] });
       continue;
     }
     hit.sessionCount += s.sessionCount || 1;
+    hit.memberIds = [...new Set([...(hit.memberIds ?? [hit.id]), ...(s.memberIds?.length ? s.memberIds : [s.id])])];
     hit.dashboardMs += s.dashboardMs;
     hit.awayMs += s.awayMs;
     hit.totalMs += s.totalMs;
@@ -554,6 +556,7 @@ export async function buildCsrSessionReport(opts: {
       closedReason: row.closedReason,
       closedReasonLabel: closedReasonLabel(row.closedReason, !!row.logoutAt),
       sessionCount: 1,
+      memberIds: [row.id],
     };
   });
 
@@ -585,9 +588,10 @@ export async function buildCsrSessionReport(opts: {
   };
 }
 
-/** Admin override of check-in / check-out times (EST wall-clock → stored UTC). */
+/** Admin override of check-in / check-out times. */
 export async function adminAdjustCsrWorkSession(opts: {
   sessionId: string;
+  memberIds?: string[];
   checkInAt: Date;
   checkOutAt: Date | null;
   clearCheckOut?: boolean;
@@ -595,61 +599,100 @@ export async function adminAdjustCsrWorkSession(opts: {
   awayMs?: number;
   note?: string;
 }) {
-  const session = await prisma.csrWorkSession.findUnique({
-    where: { id: opts.sessionId },
+  const ids = [...new Set((opts.memberIds?.length ? opts.memberIds : [opts.sessionId]).filter(Boolean))];
+  const rows = await prisma.csrWorkSession.findMany({
+    where: { id: { in: ids } },
     include: { user: { select: { id: true, name: true, role: true } } },
   });
-  if (!session || (session.user.role !== "csr" && session.user.role !== "estimator")) {
+  if (!rows.length) {
+    return { ok: false as const, message: "Session not found." };
+  }
+  const user = rows[0]!.user;
+  if (user.role !== "csr" && user.role !== "estimator") {
+    return { ok: false as const, message: "Session not found." };
+  }
+  if (rows.some(r => r.userId !== user.id)) {
     return { ok: false as const, message: "Session not found." };
   }
 
+  const ordered = [...rows].sort((a, b) => a.loginAt.getTime() - b.loginAt.getTime());
+  const first = ordered[0]!;
+  const last = ordered[ordered.length - 1]!;
   const checkInAt = opts.checkInAt;
-  let checkOutAt: Date | null =
-    opts.clearCheckOut ? null : (opts.checkOutAt ?? session.logoutAt);
+  const checkOutAt: Date | null = opts.clearCheckOut ? null : (opts.checkOutAt ?? last.logoutAt);
 
   if (checkOutAt && checkOutAt.getTime() < checkInAt.getTime()) {
     return { ok: false as const, message: "Check-out must be after check-in." };
   }
 
-  const endAt = checkOutAt ?? new Date();
-  const totalMs = Math.max(0, endAt.getTime() - checkInAt.getTime());
+  const note = opts.note?.trim() || "admin_adjusted";
 
-  let dashboardMs = opts.dashboardMs;
-  let awayMs = opts.awayMs;
-
-  if (dashboardMs === undefined && awayMs === undefined) {
+  const scaleTimes = (
+    session: (typeof rows)[0],
+    loginAt: Date,
+    logoutAt: Date | null,
+  ) => {
+    const endAt = logoutAt ?? new Date();
+    const totalMs = Math.max(0, endAt.getTime() - loginAt.getTime());
     const prevTotal = Math.max(1, session.dashboardMs + session.awayMs);
+    if (opts.dashboardMs !== undefined || opts.awayMs !== undefined) {
+      return {
+        dashboardMs: Math.max(0, opts.dashboardMs ?? session.dashboardMs),
+        awayMs: Math.max(0, opts.awayMs ?? session.awayMs),
+      };
+    }
     if (session.dashboardMs + session.awayMs > 0 && totalMs > 0) {
       const ratio = session.dashboardMs / prevTotal;
-      dashboardMs = Math.round(totalMs * ratio);
-      awayMs = Math.max(0, totalMs - dashboardMs);
-    } else {
-      dashboardMs = totalMs;
-      awayMs = 0;
+      const dashboardMs = Math.round(totalMs * ratio);
+      return { dashboardMs, awayMs: Math.max(0, totalMs - dashboardMs) };
     }
-  } else {
-    dashboardMs = Math.max(0, dashboardMs ?? session.dashboardMs);
-    awayMs = Math.max(0, awayMs ?? session.awayMs);
+    return { dashboardMs: totalMs, awayMs: 0 };
+  };
+
+  if (first.id === last.id) {
+    const scaled = scaleTimes(first, checkInAt, checkOutAt);
+    const updated = await prisma.csrWorkSession.update({
+      where: { id: first.id },
+      data: {
+        loginAt: checkInAt,
+        logoutAt: checkOutAt,
+        dashboardMs: scaled.dashboardMs,
+        awayMs: scaled.awayMs,
+        lastHeartbeatAt: checkOutAt ?? new Date(),
+        lastVisible: true,
+        closedReason: checkOutAt ? note : null,
+      },
+    });
+    return { ok: true as const, session: updated, csrName: user.name };
   }
 
-  const updated = await prisma.csrWorkSession.update({
-    where: { id: session.id },
+  const firstScaled = scaleTimes(first, checkInAt, first.logoutAt);
+  await prisma.csrWorkSession.update({
+    where: { id: first.id },
     data: {
       loginAt: checkInAt,
+      dashboardMs: firstScaled.dashboardMs,
+      awayMs: firstScaled.awayMs,
+      closedReason: first.logoutAt ? (first.closedReason || note) : first.closedReason,
+    },
+  });
+
+  const lastScaled = scaleTimes(last, last.loginAt, checkOutAt);
+  const updated = await prisma.csrWorkSession.update({
+    where: { id: last.id },
+    data: {
       logoutAt: checkOutAt,
-      dashboardMs,
-      awayMs,
+      dashboardMs: lastScaled.dashboardMs,
+      awayMs: lastScaled.awayMs,
       lastHeartbeatAt: checkOutAt ?? new Date(),
       lastVisible: true,
-      closedReason: checkOutAt
-        ? (opts.note?.trim() || "admin_adjusted")
-        : null,
+      closedReason: checkOutAt ? note : null,
     },
   });
 
   return {
     ok: true as const,
     session: updated,
-    csrName: session.user.name,
+    csrName: user.name,
   };
 }

@@ -7,8 +7,8 @@ import toast, { Toaster } from "react-hot-toast";
 import {
   Search, FolderKanban, X, Eye,
   Calendar, Building2, User2,
-  ChevronDown, ArrowRightLeft, Check, RefreshCw,
-  Plus, GitBranch, CheckCircle2, Download, Upload,
+  ChevronDown, ArrowRightLeft, Check, RefreshCw, Plus,
+  GitBranch, CheckCircle2, Download, Upload, EyeOff, Monitor,
 } from "lucide-react";
 
 import CapsuleTabs from "@/app/components/CapsuleTabs";
@@ -99,6 +99,7 @@ type Project = {
   needsRevision?: boolean;
   revisionRequestedAt?: string | null;
   revisionNotes?: string | null;
+  hiddenOnTechnical?: boolean;
   isOldClient:       boolean;
   createdAt?:        string;
   updatedAt:         string;
@@ -225,6 +226,7 @@ function ProjectCard({
   onReassign,
   onRequestRevision,
   onMarkCompleted,
+  onToggleTechnical,
   onAddNote,
   onAddTechnicalNote,
   onSaveBidInstruction,
@@ -238,6 +240,7 @@ function ProjectCard({
   onReassign: () => void;
   onRequestRevision?: () => void;
   onMarkCompleted?: () => void;
+  onToggleTechnical?: () => void;
   onAddNote: (id: string, text: string) => Promise<unknown>;
   onAddTechnicalNote: (id: string, text: string) => Promise<unknown>;
   onSaveBidInstruction: (id: string, text: string) => Promise<void>;
@@ -279,6 +282,25 @@ function ProjectCard({
               title={p.needsRevision ? "In revision queue" : "Send for revision"}
             >
               <GitBranch size={13} />
+            </button>
+          )}
+          {!hideClientFinanceCols && onToggleTechnical && (
+            <button
+              type="button"
+              onClick={onToggleTechnical}
+              className={`h-8 px-2 rounded-xl text-[10px] font-bold inline-flex items-center gap-1 ${
+                p.hiddenOnTechnical
+                  ? "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                  : "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+              }`}
+              title={
+                p.hiddenOnTechnical
+                  ? "Hidden from Chief Estimator — click to show"
+                  : "Showing on Chief Estimator — click to hide"
+              }
+            >
+              {p.hiddenOnTechnical ? <EyeOff size={12} /> : <Monitor size={12} />}
+              {p.hiddenOnTechnical ? "TM Off" : "TM On"}
             </button>
           )}
           {!hideClientFinanceCols && (
@@ -382,6 +404,7 @@ function ProjectsSection({
   onReassign,
   onRequestRevision,
   onMarkCompleted,
+  onToggleTechnical,
   onAddNote,
   onAddTechnicalNote,
   onSaveBidInstruction,
@@ -399,6 +422,7 @@ function ProjectsSection({
   onReassign: (p: Project) => void;
   onRequestRevision?: (p: Project) => void;
   onMarkCompleted?: (p: Project) => void;
+  onToggleTechnical?: (p: Project) => void;
   onAddNote: (id: string, text: string) => Promise<unknown>;
   onAddTechnicalNote: (id: string, text: string) => Promise<unknown>;
   onSaveBidInstruction: (id: string, text: string) => Promise<void>;
@@ -431,6 +455,7 @@ function ProjectsSection({
               onReassign={() => void onReassign(p)}
               onRequestRevision={onRequestRevision ? () => onRequestRevision(p) : undefined}
               onMarkCompleted={onMarkCompleted ? () => onMarkCompleted(p) : undefined}
+              onToggleTechnical={onToggleTechnical ? () => onToggleTechnical(p) : undefined}
               onAddNote={onAddNote}
               onAddTechnicalNote={onAddTechnicalNote}
               onSaveBidInstruction={onSaveBidInstruction}
@@ -578,6 +603,25 @@ function ProjectsSection({
                             <GitBranch size={12} />
                           </button>
                         )}
+                        {!hideClientFinanceCols && onToggleTechnical && (
+                          <button
+                            type="button"
+                            onClick={() => onToggleTechnical(p)}
+                            className={`h-8 px-2 rounded-xl text-[10px] font-bold inline-flex items-center justify-center gap-1 shrink-0 ${
+                              p.hiddenOnTechnical
+                                ? "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                                : "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                            }`}
+                            title={
+                              p.hiddenOnTechnical
+                                ? "Hidden from Chief Estimator — click to show"
+                                : "Showing on Chief Estimator — click to hide"
+                            }
+                          >
+                            {p.hiddenOnTechnical ? <EyeOff size={12} /> : <Monitor size={12} />}
+                            {p.hiddenOnTechnical ? "Off" : "TM"}
+                          </button>
+                        )}
                         {!hideClientFinanceCols && (
                           <button
                             onClick={() => void onReassign(p)}
@@ -676,6 +720,7 @@ export default function AdminProjectsPage() {
   const [workbenchSaving, setWorkbenchSaving]   = useState(false);
   const [projectTab,  setProjectTab]  = useState<"all" | "active" | "completed">("all");
   const [markingCompletedId, setMarkingCompletedId] = useState<string | null>(null);
+  const [togglingTechnicalId, setTogglingTechnicalId] = useState<string | null>(null);
   const [excelUploading, setExcelUploading] = useState(false);
   const excelInputRef = useRef<HTMLInputElement>(null);
   const [page,        setPage]        = useState(1);
@@ -1065,6 +1110,25 @@ export default function AdminProjectsPage() {
       toast.error("Failed to send for revision");
     } finally {
       setRevisionSaving(false);
+    }
+  };
+
+  const toggleTechnicalVisibility = async (p: Project) => {
+    if (togglingTechnicalId) return;
+    const nextVisible = p.hiddenOnTechnical === true;
+    if (!window.confirm(`${nextVisible ? "Show" : "Hide"} "${p.projectTitle || p.projectCode || "this project"}" ${nextVisible ? "on" : "from"} Technical?`)) {
+      return;
+    }
+    setTogglingTechnicalId(p.id);
+    try {
+      const res = await API.put(`/admin/project/${p.id}/technical-visibility`, { visible: nextVisible });
+      const hidden = res.data.hiddenOnTechnical === true;
+      setProjects((prev) => prev.map((row) => (row.id === p.id ? { ...row, hiddenOnTechnical: hidden } : row)));
+      toast.success(hidden ? "Hidden from Chief Estimator portal" : "Now showing on Chief Estimator portal");
+    } catch {
+      toast.error("Failed to update Technical visibility");
+    } finally {
+      setTogglingTechnicalId(null);
     }
   };
 
@@ -1483,6 +1547,7 @@ export default function AdminProjectsPage() {
           onReassign={openReassign}
           onRequestRevision={hideClientFinanceCols ? undefined : openRevision}
           onMarkCompleted={hideClientFinanceCols ? undefined : (p) => void markProjectCompleted(p)}
+          onToggleTechnical={hideClientFinanceCols ? undefined : (p) => void toggleTechnicalVisibility(p)}
           onAddNote={addAdminNote}
           onAddTechnicalNote={addTechnicalNote}
           onSaveBidInstruction={saveBidInstruction}

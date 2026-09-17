@@ -12,7 +12,7 @@ async function getLiveFxRates(_req, res) {
         console.log(err);
         return res.status(502).json({
             success: false,
-            message: "Live FX rates fetch nahi ho saki. Thori der baad try karein.",
+            message: "Could not fetch live FX rates. Please try again in a moment.",
         });
     }
 }

@@ -2119,6 +2119,39 @@ router.put(
   },
 );
 
+/* Admin: show or hide a project on the Chief Estimator portal */
+router.put(
+  "/project/:id/technical-visibility",
+  verifyToken,
+  allowRoles("admin", "manager"),
+  async (req, res) => {
+    try {
+      const leadId = String(req.params.id);
+      const hidden = req.body?.visible === false || req.body?.hidden === true;
+      const lead = await prisma.lead.update({
+        where: { id: leadId },
+        data: { hiddenOnTechnical: hidden },
+        include: {
+          csr: { select: { id: true, name: true, email: true, csrCode: true } },
+        },
+      });
+      flushAdminClientsCache();
+      invalidatePattern("admin:projects:");
+      return res.json({
+        success: true,
+        hiddenOnTechnical: hidden,
+        lead,
+        message: hidden
+          ? "Hidden from Chief Estimator portal."
+          : "Now showing on Chief Estimator portal.",
+      });
+    } catch (error) {
+      console.log(error);
+      return res.status(500).json({ success: false, message: "Failed to update Technical visibility" });
+    }
+  },
+);
+
 /* ================= MARK COMPLETED (Admin: keep visible on Chief Estimator) ================= */
 router.put(
   "/project/:id/mark-completed",
@@ -3954,15 +3987,22 @@ router.put(
         dashboardMs,
         awayMs,
         note,
+        tz: tzRaw,
+        memberIds: memberIdsRaw,
       } = req.body ?? {};
 
       if (!checkInAt || typeof checkInAt !== "string") {
-        return res.status(400).json({ success: false, message: "checkInAt is required (EST datetime)." });
+        return res.status(400).json({ success: false, message: "checkInAt is required." });
       }
 
-      const checkInDate =
-        parseEstDateTimeLocal(checkInAt, ADMIN_SESSION_TIMEZONE) ??
-        (!Number.isNaN(Date.parse(checkInAt)) ? new Date(checkInAt) : null);
+      const tz =
+        String(tzRaw ?? "").toLowerCase() === "pkt" ||
+        String(tzRaw ?? "") === "Asia/Karachi" ||
+        String(tzRaw ?? "").toLowerCase() === "pakistan"
+          ? "Asia/Karachi"
+          : ADMIN_SESSION_TIMEZONE;
+
+      const checkInDate = parseEstDateTimeLocal(checkInAt, tz);
       if (!checkInDate) {
         return res.status(400).json({ success: false, message: "Invalid check-in time." });
       }
@@ -3972,16 +4012,19 @@ router.put(
         if (typeof checkOutAt !== "string") {
           return res.status(400).json({ success: false, message: "Invalid check-out time." });
         }
-        checkOutDate =
-          parseEstDateTimeLocal(checkOutAt, ADMIN_SESSION_TIMEZONE) ??
-          (!Number.isNaN(Date.parse(checkOutAt)) ? new Date(checkOutAt) : null);
+        checkOutDate = parseEstDateTimeLocal(checkOutAt, tz);
         if (!checkOutDate) {
           return res.status(400).json({ success: false, message: "Invalid check-out time." });
         }
       }
 
+      const memberIds = Array.isArray(memberIdsRaw)
+        ? memberIdsRaw.map((id: unknown) => String(id ?? "").trim()).filter(Boolean)
+        : [];
+
       const result = await adminAdjustCsrWorkSession({
         sessionId,
+        memberIds,
         checkInAt: checkInDate,
         checkOutAt: checkOutDate,
         clearCheckOut: !!clearCheckOut,
