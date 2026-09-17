@@ -74,7 +74,7 @@ export const PROJECT_GRID_ROW =
 
 /** Admin Project DB — Client…CSR, Bid Instruction, Notes for Technical, Status, Actions */
 export const ADMIN_PROJECT_COLS = [
-  "12%", "13%", "6%", "9%", "10%", "6%", "12%", "12%", "10%", "10%",
+  "14%", "15%", "7%", "10%", "9%", "6%", "11%", "11%", "9%", "8%",
 ] as const;
 
 /** Technical Active Projects — detail, receive, deadline, bid, notes sir, notes est, assign, status, actions */

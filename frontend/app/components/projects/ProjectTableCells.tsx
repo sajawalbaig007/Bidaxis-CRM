@@ -91,38 +91,56 @@ export function ClientDetailCell({ p }: { p: ProjectTableRow }) {
   const phone = cleanVal(p.phone);
   const email = cleanVal(p.email);
   const addedOn = formatAddedDate(p.createdAt);
+  const initial = (company || client || "?").charAt(0).toUpperCase();
+
+  if (!company && !client && !phone && !email && !addedOn) {
+    return <span className="text-[10px] text-gray-400">—</span>;
+  }
 
   return (
-    <div className="min-w-0 space-y-0.5">
-      {company && (
-        <DetailLine icon={<Building2 size={9} className="text-[#B8112D] shrink-0" />} className="font-semibold text-[#0F172A]">
-          {company}
-        </DetailLine>
-      )}
-      {client && (
-        <DetailLine icon={<User2 size={9} className="text-gray-400 shrink-0" />} className="font-medium text-[#0F172A]">
-          {client}
-        </DetailLine>
-      )}
-      {phone && (
-        <DetailLine icon={<Phone size={9} className="text-gray-400 shrink-0" />}>
-          {phone}
-        </DetailLine>
-      )}
-      {email && (
-        <DetailLine icon={<Mail size={9} className="text-gray-400 shrink-0" />} className="text-gray-500">
-          {email}
-        </DetailLine>
-      )}
-      {addedOn && (
-        <DetailLine icon={<Calendar size={9} className="text-[#B8112D] shrink-0" />} className="text-gray-500">
-          Added {addedOn}
-        </DetailLine>
-      )}
-      {!company && !client && !phone && !email && !addedOn && (
-        <span className="text-[10px] text-gray-400">—</span>
-      )}
+    <div className="min-w-0 flex items-start gap-2">
+      <span className="mt-0.5 w-8 h-8 rounded-xl bg-[#0B1220] text-white text-[11px] font-extrabold inline-flex items-center justify-center shrink-0">
+        {initial}
+      </span>
+      <div className="min-w-0 space-y-0.5">
+        {company && (
+          <DetailLine icon={<Building2 size={9} className="text-[#B8112D] shrink-0" />} className="font-bold text-[#0F172A]">
+            {company}
+          </DetailLine>
+        )}
+        {client && (
+          <DetailLine icon={<User2 size={9} className="text-slate-400 shrink-0" />} className="font-medium text-slate-700">
+            {client}
+          </DetailLine>
+        )}
+        {phone && (
+          <DetailLine icon={<Phone size={9} className="text-slate-400 shrink-0" />}>
+            {phone}
+          </DetailLine>
+        )}
+        {email && (
+          <DetailLine icon={<Mail size={9} className="text-slate-400 shrink-0" />} className="text-slate-500">
+            {email}
+          </DetailLine>
+        )}
+        {addedOn && (
+          <DetailLine icon={<Calendar size={9} className="text-[#B8112D] shrink-0" />} className="text-slate-500">
+            Added {addedOn}
+          </DetailLine>
+        )}
+      </div>
     </div>
+  );
+}
+
+function ProjectMetaLine({ label, value, accent = false }: { label: string; value: string; accent?: boolean }) {
+  return (
+    <p className="flex items-baseline gap-1.5 min-w-0 text-[11px] leading-snug">
+      <span className="shrink-0 text-[10px] font-semibold text-slate-400 w-[52px]">{label}</span>
+      <span className={`truncate font-bold ${accent ? "text-[#B8112D]" : "text-[#0F172A] dark:text-crm-text"}`}>
+        {value}
+      </span>
+    </p>
   );
 }
 
@@ -134,39 +152,17 @@ export function ProjectDetailCell({ p }: { p: ProjectTableRow }) {
   const division = cleanVal(p.interestedService);
 
   return (
-    <div className="min-w-0 bg-[#F8F9FC] dark:bg-crm-muted rounded-xl px-2.5 py-1.5 border border-gray-100/80 dark:border-crm-border-subtle space-y-0.5">
+    <div className="min-w-0 rounded-xl bg-slate-50 dark:bg-crm-muted border border-slate-100 dark:border-crm-border-subtle px-2.5 py-2 space-y-1">
       {title && (
-        <p className="text-xs font-semibold text-[#0F172A] dark:text-crm-text truncate flex items-center gap-1">
-          <Briefcase size={10} className="text-[#B8112D] shrink-0" />
+        <p className="text-xs font-extrabold text-[#0F172A] dark:text-crm-text truncate flex items-center gap-1.5">
+          <Briefcase size={11} className="text-[#B8112D] shrink-0" />
           {title}
         </p>
       )}
-      <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] xl:text-xs text-gray-700 dark:text-crm-text-muted">
-        {code && (
-          <span className="inline-flex items-center gap-1 min-w-0">
-            <span className="text-gray-600 font-semibold shrink-0">Code:</span>
-            <span className="font-bold text-[#B8112D] truncate">{code}</span>
-          </span>
-        )}
-        {scope && (
-          <span className="inline-flex items-center gap-1 min-w-0">
-            <span className="text-gray-600 font-semibold shrink-0">Scope:</span>
-            <span className="font-bold text-[#0F172A] dark:text-crm-text truncate">{scope}</span>
-          </span>
-        )}
-        {division && (
-          <span className="inline-flex items-center gap-1 min-w-0">
-            <span className="text-gray-600 font-semibold shrink-0">Division:</span>
-            <span className="font-bold text-[#0F172A] dark:text-crm-text truncate">{division}</span>
-          </span>
-        )}
-        {state && (
-          <span className="inline-flex items-center gap-1 min-w-0">
-            <span className="text-gray-600 font-semibold shrink-0">State:</span>
-            <span className="font-semibold truncate">{state}</span>
-          </span>
-        )}
-      </div>
+      {code && <ProjectMetaLine label="Code" value={code} accent />}
+      {scope && <ProjectMetaLine label="Scope" value={scope} />}
+      {division && <ProjectMetaLine label="Division" value={division} />}
+      {state && <ProjectMetaLine label="State" value={state} />}
       {!code && !title && !state && !scope && !division && (
         <span className="text-[10px] text-gray-400">—</span>
       )}
@@ -179,7 +175,7 @@ export function QuotedAmountCell({ p }: { p: ProjectTableRow }) {
   return (
     <div className="min-w-0">
       {amount > 0 ? (
-        <span className="inline-flex items-center bg-[#FFF1F3] text-[#B8112D] text-xs font-bold px-2.5 py-1 rounded-xl border border-[#f5c5ce] whitespace-nowrap">
+        <span className="inline-flex items-center bg-[#FFF1F3] text-[#B8112D] text-xs font-extrabold tabular-nums px-2.5 py-1 rounded-lg border border-[#f5c5ce] whitespace-nowrap shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]">
           {formatQuotedAmount(p.projectBudget)}
         </span>
       ) : (
@@ -295,10 +291,12 @@ export function PaymentDetailCell({ p }: { p: ProjectTableRow }) {
 export function FulfillmentCell({
   p,
   onTimingChange,
+  hideCaption = false,
 }: {
   p: ProjectTableRow;
   /** Admin quick-set: Morning / COB emergency submit signal for Technical */
   onTimingChange?: (next: "" | "morning" | "cob") => void;
+  hideCaption?: boolean;
 }) {
   const deadline = p.projectDeadline?.split("T")[0];
   const timing = normalizeDeadlineTiming(p.deadlineTiming);
@@ -306,10 +304,14 @@ export function FulfillmentCell({
 
   return (
     <div className="min-w-0 space-y-1.5">
-      <p className="text-[9px] font-bold uppercase tracking-wide text-gray-500">Client Deadline</p>
+      {!hideCaption && (
+        <p className="text-[9px] font-bold uppercase tracking-wide text-gray-500">Client Deadline</p>
+      )}
       {deadlineLabel ? (
-        <p className="text-[11px] xl:text-xs text-gray-800 font-bold flex items-center gap-1">
-          <Calendar size={11} className="text-[#B8112D] shrink-0" />
+        <p className="text-[11px] xl:text-xs text-[#0F172A] font-extrabold tabular-nums flex items-center gap-1.5">
+          <span className="w-6 h-6 rounded-lg bg-[#FFF1F3] text-[#B8112D] inline-flex items-center justify-center shrink-0">
+            <Calendar size={12} />
+          </span>
           {deadlineLabel}
         </p>
       ) : (
@@ -361,7 +363,19 @@ export const PROJECT_TABLE_HEAD =
   "text-[10px] xl:text-[11px] font-semibold text-crm-text-faint uppercase tracking-wider";
 
 export const PROJECT_TABLE_CARD =
-  "crm-table-card rounded-2xl sm:rounded-[30px] border shadow-sm overflow-hidden";
+  "crm-table-card rounded-2xl sm:rounded-[28px] border border-slate-200/80 shadow-[0_12px_40px_rgba(15,23,42,0.06)] overflow-hidden";
+
+export const PROJECT_DB_THEAD =
+  "sticky top-0 z-20 bg-[#0B1220]";
+
+export const PROJECT_DB_TH =
+  "px-3 xl:px-3.5 py-3 text-left text-[10px] font-bold text-white/55 uppercase tracking-[0.14em] whitespace-nowrap";
+
+export const PROJECT_DB_TD =
+  "px-3 xl:px-3.5 py-3.5 align-top min-w-0";
+
+export const PROJECT_DB_ROW =
+  "group border-b border-slate-100/90 last:border-0 even:bg-slate-50/50 hover:bg-[#F8FBFF] dark:even:bg-white/[0.02] dark:hover:bg-white/[0.04] hover:shadow-[inset_3px_0_0_#B8112D] transition-colors align-top";
 
 export function DeadlineTimingBadge({ timing }: { timing?: string | null }) {
   const t = normalizeDeadlineTiming(timing);

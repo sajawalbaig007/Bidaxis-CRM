@@ -19,6 +19,8 @@ type CapsuleTabsProps<K extends string> = {
   accent?: string;
   size?: "sm" | "md" | "lg";
   className?: string;
+  /** Stretch chips across the full track so leftover empty space is gone. */
+  stretch?: boolean;
 };
 
 const SIZES = {
@@ -38,6 +40,7 @@ export default function CapsuleTabs<K extends string>({
   accent = "#B8112D",
   size = "md",
   className = "",
+  stretch = false,
 }: CapsuleTabsProps<K>) {
   const activeIndex = Math.max(0, tabs.findIndex(t => t.key === activeKey));
   const s = SIZES[size];
@@ -55,7 +58,9 @@ export default function CapsuleTabs<K extends string>({
     >
       <div
         ref={trackRef}
-        className="relative inline-flex w-max items-center gap-1 p-1 rounded-full bg-crm-nav-pill border border-crm-border shadow-[inset_0_1px_0_rgba(255,255,255,0.5)] dark:bg-crm-surface-raised dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]"
+        className={`relative items-center gap-1 p-1 rounded-full bg-crm-nav-pill border border-crm-border shadow-[inset_0_1px_0_rgba(255,255,255,0.5)] dark:bg-crm-surface-raised dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] ${
+          stretch ? "flex w-full" : "inline-flex w-max"
+        }`}
       >
         <span
           aria-hidden
@@ -72,7 +77,7 @@ export default function CapsuleTabs<K extends string>({
               ref={registerChip(i)}
               onClick={() => onChange(tab.key)}
               title={tab.label}
-              className={`relative z-[1] inline-flex items-center justify-center rounded-full font-bold whitespace-nowrap shrink-0 transition-colors duration-300 ${s.chip} ${
+              className={`relative z-[1] inline-flex items-center justify-center rounded-full font-bold whitespace-nowrap transition-colors duration-300 ${stretch ? "flex-1 min-w-0" : "shrink-0"} ${s.chip} ${
                 active
                   ? "text-white"
                   : "text-crm-text-muted hover:text-crm-text hover:bg-crm-surface/60 dark:hover:bg-white/5"

@@ -8,11 +8,12 @@ interface StateFilterDropdownProps {
   value: string;
   onChange: (v: string) => void;
   compact?: boolean;
+  fullWidth?: boolean;
 }
 
 type Country = "all" | "usa" | "canada";
 
-export default function StateFilterDropdown({ value, onChange, compact = false }: StateFilterDropdownProps) {
+export default function StateFilterDropdown({ value, onChange, compact = false, fullWidth = false }: StateFilterDropdownProps) {
   const [search,  setSearch]  = useState("");
   const [open,    setOpen]    = useState(false);
   const [country, setCountry] = useState<Country>("all");
@@ -48,10 +49,10 @@ export default function StateFilterDropdown({ value, onChange, compact = false }
   ];
 
   return (
-    <div className="relative" ref={ref}>
+    <div className={`relative ${fullWidth ? "w-full min-w-0" : ""}`} ref={ref}>
       <button
         onClick={() => setOpen(v => !v)}
-        className={`h-10 sm:h-[42px] px-3 sm:px-4 rounded-xl sm:rounded-2xl border flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm font-medium transition-colors ${compact ? "min-w-[140px] sm:min-w-[168px]" : "min-w-[160px] sm:min-w-[200px]"} ${
+        className={`px-3 sm:px-4 rounded-xl sm:rounded-2xl border flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm font-medium transition-colors ${fullWidth ? "h-11 w-full min-w-0" : compact ? "h-10 sm:h-[42px] min-w-[140px] sm:min-w-[168px]" : "h-10 sm:h-[42px] min-w-[160px] sm:min-w-[200px]"} ${
           value
             ? "border-[#B8112D] bg-[#FFF1F3] text-[#B8112D]"
             : "border-gray-200 dark:border-crm-border bg-[#FAFAFA] dark:bg-crm-input text-gray-600 dark:text-crm-text-secondary hover:border-gray-300 dark:hover:border-crm-border"
