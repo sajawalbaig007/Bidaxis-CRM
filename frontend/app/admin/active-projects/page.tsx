@@ -22,8 +22,7 @@ import { matchesStateLocationFilter, matchesPhoneAreaCodeFilter } from "@/lib/st
 import { NoteEntry } from "@/app/csr/hooks/useLeadsData";
 import { buildNoteHistory } from "@/app/csr/utils/noteHistory";
 import { useClientPhoneLookup, ClientLookupData } from "@/app/csr/hooks/useClientPhoneLookup";
-import { ADMIN_PROJECT_COLS, ADMIN_TECH_VIEW_COLS, CsrColGroup } from "@/app/csr/components/shared/csrTableStyles";
-import { parseTechnicalNotes, parseTechnicalNotesBundle, getTechnicalWorkflowStatus } from "@/lib/technicalAssignments";
+import { parseTechnicalNotes, parseTechnicalNotesBundle } from "@/lib/technicalAssignments";
 import { peekAuthMe } from "@/lib/authMeCache";
 import API from "@/lib/api";
 import { fetchAllAdminProjects } from "@/lib/fetchAdminProjects";
@@ -223,8 +222,40 @@ function projectAsRow(p: Project) {
 }
 
 /* ── Projects Card (mobile / tablet) ── */
-function canMarkProjectCompleted(p: Project) {
-  return getTechnicalWorkflowStatus(p).key === "final_submission";
+function isProjectMarkedCompleted(p: Project) {
+  return getProjectWorkStatus(p).key === "completed";
+}
+
+function CompleteTickButton({
+  completed,
+  busy,
+  onClick,
+}: {
+  completed: boolean;
+  busy?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      disabled={busy}
+      onClick={onClick}
+      className={`w-8 h-8 rounded-lg inline-flex items-center justify-center shrink-0 transition-colors disabled:opacity-50 ${
+        completed
+          ? "bg-emerald-600 text-white hover:bg-emerald-700"
+          : "text-slate-400 hover:text-emerald-700 hover:bg-emerald-50"
+      }`}
+      title={
+        completed
+          ? "Completed — click to untick (revision / reopen)"
+          : "Mark as completed"
+      }
+      aria-label={completed ? "Untick completed" : "Mark as completed"}
+      aria-pressed={completed}
+    >
+      <CheckCircle2 size={15} className={completed ? "fill-current" : ""} />
+    </button>
+  );
 }
 
 function ProjectCard({
@@ -233,6 +264,7 @@ function ProjectCard({
   onReassign,
   onRequestRevision,
   onMarkCompleted,
+  markingCompleted,
   onToggleTechnical,
   onAddNote,
   onAddTechnicalNote,
@@ -247,6 +279,7 @@ function ProjectCard({
   onReassign: () => void;
   onRequestRevision?: () => void;
   onMarkCompleted?: () => void;
+  markingCompleted?: boolean;
   onToggleTechnical?: () => void;
   onAddNote: (id: string, text: string) => Promise<unknown>;
   onAddTechnicalNote: (id: string, text: string) => Promise<unknown>;
@@ -267,16 +300,12 @@ function ProjectCard({
           )}
         </div>
         <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
-          {!hideClientFinanceCols && onMarkCompleted && canMarkProjectCompleted(p) && (
-            <button
-              type="button"
+          {!hideClientFinanceCols && onMarkCompleted && (
+            <CompleteTickButton
+              completed={isProjectMarkedCompleted(p)}
+              busy={markingCompleted}
               onClick={onMarkCompleted}
-              className="h-8 px-2.5 rounded-xl bg-emerald-50 text-emerald-700 text-[10px] font-bold inline-flex items-center gap-1 hover:bg-emerald-100"
-              title="Mark as completed — stays on Chief Estimator"
-            >
-              <CheckCircle2 size={12} />
-              Complete
-            </button>
+            />
           )}
           {!hideClientFinanceCols && onRequestRevision && (
             <button
@@ -411,6 +440,7 @@ function ProjectsSection({
   onReassign,
   onRequestRevision,
   onMarkCompleted,
+  markingCompletedId,
   onToggleTechnical,
   onAddNote,
   onAddTechnicalNote,
@@ -429,6 +459,7 @@ function ProjectsSection({
   onReassign: (p: Project) => void;
   onRequestRevision?: (p: Project) => void;
   onMarkCompleted?: (p: Project) => void;
+  markingCompletedId?: string | null;
   onToggleTechnical?: (p: Project) => void;
   onAddNote: (id: string, text: string) => Promise<unknown>;
   onAddTechnicalNote: (id: string, text: string) => Promise<unknown>;
@@ -444,11 +475,13 @@ function ProjectsSection({
     ? ["Project Detail", "Client Deadline", "Bid Instruction", "Notes for Technical", "Status", "Actions"]
     : ["Client Detail", "Project Detail", "Quoted", "Payment Detail", "Client Deadline", "CSR", "Bid Instruction", "Notes for Technical", "Status", "Actions"];
   const colCount = headers.length;
-  const colWidths = hideClientFinanceCols ? ADMIN_TECH_VIEW_COLS : ADMIN_PROJECT_COLS;
+  const headerClass = hideClientFinanceCols
+    ? ["", "", "", "", "", ""]
+    : ["min-w-[160px]", "min-w-[160px]", "hidden xl:table-cell min-w-[88px]", "hidden xl:table-cell min-w-[120px]", "min-w-[110px]", "hidden 2xl:table-cell", "hidden 2xl:table-cell min-w-[140px]", "hidden 2xl:table-cell min-w-[140px]", "min-w-[100px]", "w-[1%] whitespace-nowrap"];
 
   return (
     <div>
-      <div className="lg:hidden space-y-3">
+      <div className="xl:hidden space-y-3">
         {loading ? (
           [1, 2, 3].map((i) => (
             <div key={i} className="bg-white rounded-2xl border border-gray-100 p-4 h-32 animate-pulse" />
@@ -462,6 +495,7 @@ function ProjectsSection({
               onReassign={() => void onReassign(p)}
               onRequestRevision={onRequestRevision ? () => onRequestRevision(p) : undefined}
               onMarkCompleted={onMarkCompleted ? () => onMarkCompleted(p) : undefined}
+              markingCompleted={markingCompletedId === p.id}
               onToggleTechnical={onToggleTechnical ? () => onToggleTechnical(p) : undefined}
               onAddNote={onAddNote}
               onAddTechnicalNote={onAddTechnicalNote}
@@ -494,19 +528,15 @@ function ProjectsSection({
         )}
       </div>
 
-      <div className={`hidden lg:block ${PROJECT_TABLE_CARD}`}>
+      <div className={`hidden xl:block ${PROJECT_TABLE_CARD}`}>
         <div className="overflow-x-auto">
-          <table
-            className="w-full table-fixed border-collapse"
-            style={{ minWidth: hideClientFinanceCols ? "720px" : "1320px" }}
-          >
-            <CsrColGroup widths={colWidths} />
+          <table className="w-full min-w-[720px] border-collapse">
             <thead className={PROJECT_DB_THEAD}>
               <tr>
                 {headers.map((h, i) => (
                   <th
                     key={i}
-                    className={`${PROJECT_DB_TH} ${i === colCount - 1 ? "text-right" : ""}`}
+                    className={`${PROJECT_DB_TH} ${i === colCount - 1 ? "text-right" : ""} ${headerClass[i] ?? ""}`}
                   >
                     {h}
                   </th>
@@ -518,7 +548,7 @@ function ProjectsSection({
                 [1, 2, 3, 4, 5].map((i) => (
                   <tr key={i} className={PROJECT_DB_ROW}>
                     {Array.from({ length: colCount }, (_, j) => (
-                      <td key={j} className={PROJECT_DB_TD}>
+                      <td key={j} className={`${PROJECT_DB_TD} ${headerClass[j] ?? ""}`}>
                         <div className="h-3.5 bg-slate-100 rounded-md animate-pulse w-16 xl:w-20" />
                       </td>
                     ))}
@@ -533,8 +563,8 @@ function ProjectsSection({
                     <td className={PROJECT_DB_TD}><ProjectDetailCell p={projectAsRow(p)} /></td>
                     {!hideClientFinanceCols && (
                       <>
-                        <td className={PROJECT_DB_TD}><QuotedAmountCell p={projectAsRow(p)} /></td>
-                        <td className={PROJECT_DB_TD}><PaymentDetailCell p={projectAsRow(p)} /></td>
+                        <td className={`${PROJECT_DB_TD} hidden xl:table-cell`}><QuotedAmountCell p={projectAsRow(p)} /></td>
+                        <td className={`${PROJECT_DB_TD} hidden xl:table-cell`}><PaymentDetailCell p={projectAsRow(p)} /></td>
                       </>
                     )}
                     <td className={PROJECT_DB_TD}>
@@ -545,11 +575,11 @@ function ProjectsSection({
                       />
                     </td>
                     {!hideClientFinanceCols && (
-                      <td className={`${PROJECT_DB_TD} overflow-hidden`}>
+                      <td className={`${PROJECT_DB_TD} hidden 2xl:table-cell`}>
                         <ProjectCsrCell p={p} />
                       </td>
                     )}
-                    <td className={`${PROJECT_DB_TD} overflow-hidden`}>
+                    <td className={`${PROJECT_DB_TD} ${hideClientFinanceCols ? "" : "hidden 2xl:table-cell"}`}>
                       <CommentCell
                         id={p.id}
                         apiRole="admin"
@@ -559,7 +589,7 @@ function ProjectsSection({
                         onSave={(id, text) => onSaveBidInstruction(id, text)}
                       />
                     </td>
-                    <td className={`${PROJECT_DB_TD} overflow-hidden`}>
+                    <td className={`${PROJECT_DB_TD} ${hideClientFinanceCols ? "" : "hidden 2xl:table-cell"}`}>
                       <CommentCell
                         id={p.id}
                         apiRole="admin"
@@ -572,30 +602,24 @@ function ProjectsSection({
                         onAddNote={async (_id, text) => onAddTechnicalNote(p.id, text)}
                       />
                     </td>
-                    <td className={`${PROJECT_DB_TD} overflow-hidden`}>
-                      <div className="flex flex-col items-start gap-1.5 min-w-0 max-w-full">
-                        <TechnicalWorkflowStatusBadge
-                          status={p.status}
-                          projectDeadline={p.projectDeadline}
-                          projectWorkStatus={p.projectWorkStatus}
-                          projectPhase={p.projectPhase}
-                          technicalAssignments={p.technicalAssignments}
-                        />
-                        {!hideClientFinanceCols && onMarkCompleted && canMarkProjectCompleted(p) && (
-                          <button
-                            type="button"
-                            onClick={() => onMarkCompleted(p)}
-                            className="h-7 px-2 rounded-lg bg-emerald-50 text-emerald-700 text-[10px] font-bold hover:bg-emerald-100 inline-flex items-center gap-1 shrink-0 border border-emerald-200"
-                            title="Mark as completed — stays on Chief Estimator"
-                          >
-                            <CheckCircle2 size={12} />
-                            Complete
-                          </button>
-                        )}
-                      </div>
+                    <td className={PROJECT_DB_TD}>
+                      <TechnicalWorkflowStatusBadge
+                        status={p.status}
+                        projectDeadline={p.projectDeadline}
+                        projectWorkStatus={p.projectWorkStatus}
+                        projectPhase={p.projectPhase}
+                        technicalAssignments={p.technicalAssignments}
+                      />
                     </td>
-                    <td className={`${PROJECT_DB_TD} text-right overflow-hidden`}>
+                    <td className={`${PROJECT_DB_TD} text-right`}>
                       <div className="inline-flex items-center justify-end gap-0.5 rounded-xl border border-slate-200 bg-white p-0.5 shadow-sm">
+                        {!hideClientFinanceCols && onMarkCompleted && (
+                          <CompleteTickButton
+                            completed={isProjectMarkedCompleted(p)}
+                            busy={markingCompletedId === p.id}
+                            onClick={() => onMarkCompleted(p)}
+                          />
+                        )}
                         {!hideClientFinanceCols && onRequestRevision && (
                           <button
                             onClick={() => onRequestRevision(p)}
@@ -1115,6 +1139,8 @@ export default function AdminProjectsPage() {
       });
       const lead = res.data.lead as Project;
       setProjects((prev) => prev.map((p) => (p.id === lead.id ? { ...p, ...lead } : p)));
+      setProjectTab((tab) => (tab === "completed" ? "active" : tab));
+      setPage(1);
       toast.success("Sent to Chief Estimator → Revisions");
       setShowRevision(false);
       setRevisionProj(null);
@@ -1146,17 +1172,20 @@ export default function AdminProjectsPage() {
   };
 
   const markProjectCompleted = async (p: Project) => {
-    if (!canMarkProjectCompleted(p) || markingCompletedId) return;
+    if (markingCompletedId) return;
+    const nextCompleted = !isProjectMarkedCompleted(p);
     setMarkingCompletedId(p.id);
     try {
-      const res = await API.put(`/admin/project/${p.id}/mark-completed`);
+      const res = await API.put(`/admin/project/${p.id}/mark-completed`, { completed: nextCompleted });
       const lead = res.data.lead as Project;
       setProjects((prev) => prev.map((row) => (row.id === lead.id ? { ...row, ...lead } : row)));
-      toast.success("Marked completed — still on Chief Estimator");
+      setPage(1);
+      setProjectTab(nextCompleted ? "completed" : "active");
+      toast.success(nextCompleted ? "Moved to Completed" : "Unticked — moved back to Active");
     } catch (err: unknown) {
       const msg =
         (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
-        "Failed to mark completed";
+        "Failed to update completion";
       toast.error(msg);
     } finally {
       setMarkingCompletedId(null);
@@ -1350,7 +1379,7 @@ export default function AdminProjectsPage() {
               <p className="text-xs sm:text-sm text-slate-400 mt-0.5">
                 {hideClientFinanceCols
                   ? "Active projects — filter by date, view all or active only."
-                  : "All CSR projects — All / Active / Completed. Final Submission → Mark Complete."}
+                  : "All CSR projects — tick Complete to move into Completed. Untick if a revision comes in."}
               </p>
             </div>
           </div>
@@ -1541,7 +1570,7 @@ export default function AdminProjectsPage() {
               ? "New, old, completed & in-progress"
               : projectTab === "active"
                 ? "Currently in progress only"
-                : "Final submission marked done by Admin"}
+                  : "Tick Complete to move a project here. Untick if a revision comes in."}
           </p>
         </div>
 
@@ -1558,6 +1587,7 @@ export default function AdminProjectsPage() {
           onReassign={openReassign}
           onRequestRevision={hideClientFinanceCols ? undefined : openRevision}
           onMarkCompleted={hideClientFinanceCols ? undefined : (p) => void markProjectCompleted(p)}
+          markingCompletedId={markingCompletedId}
           onToggleTechnical={hideClientFinanceCols ? undefined : (p) => void toggleTechnicalVisibility(p)}
           onAddNote={addAdminNote}
           onAddTechnicalNote={addTechnicalNote}
