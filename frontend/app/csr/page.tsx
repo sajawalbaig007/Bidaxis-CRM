@@ -19,7 +19,7 @@ import TimezoneFilterDropdown from "./components/shared/TimezoneFilterDropdown";
 import SourceSudoFilterDropdown from "./components/shared/SourceSudoFilterDropdown";
 import TradeFilterDropdown from "./components/shared/TradeFilterDropdown";
 import CommentCell from "./components/shared/CommentCell";
-import { CsrColGroup, CSR_TABLE_CLASS, CSR_TH, CSR_TD, CSR_TD_TOP, CSR_TD_POPOVER, COL_6_DASHBOARD, COL_7_DASHBOARD } from "./components/shared/csrTableStyles";
+import { CsrColGroup, CSR_TABLE_CLASS, CSR_THEAD, CSR_TH, CSR_TD, CSR_TD_TOP, CSR_TD_POPOVER, COL_6_DASHBOARD, COL_7_DASHBOARD, CSR_PAGE_MAIN } from "./components/shared/csrTableStyles";
 import InterestedServicesCell from "./components/shared/InterestedServicesCell";
 import TradesCell from "./components/shared/TradesCell";
 import { decomposeInterestedServices, formatInterestedServices } from "./utils/parseInterestedServices";
@@ -386,11 +386,11 @@ export default function CSRPage() {
   const projectWonValid = projectTitle.trim() !== "" && projectDeadline !== "" && projectService !== "" && paidAmount.trim() !== "";
 
   return (
-    <div className="min-h-screen bg-[#F5F6FA] dark:bg-gray-950">
+    <div className="min-h-screen bg-[#F5F6FA] dark:bg-crm-bg">
       <TopNavbar />
       <UsaTimezoneClocks />
 
-      <main className="max-w-[1400px] mx-auto p-3 sm:p-4 md:p-5 lg:p-6">
+      <main className={CSR_PAGE_MAIN}>
 
         {/* ── TODAY IMPORTANT NOTIFICATION ── */}
         {!dismissedNotification && statCounts.scheduledCount > 0 && (
@@ -446,8 +446,8 @@ export default function CSRPage() {
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2 overflow-visible">
-              <div className="relative flex-1 min-w-[180px] max-w-full sm:max-w-[280px]">
+            <div className="grid w-full gap-2 grid-cols-2 md:grid-cols-3 xl:grid-cols-6">
+              <div className="relative min-w-0 col-span-2 md:col-span-3 xl:col-span-1">
                 <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
                 <input
                   type="text"
@@ -457,7 +457,7 @@ export default function CSRPage() {
                   className={`h-10 sm:h-[42px] w-full pl-8 pr-8 rounded-xl sm:rounded-2xl border text-xs sm:text-sm outline-none ${
                     searchQuery.trim()
                       ? "border-[#B8112D] bg-[#FFF1F3] text-[#B8112D]"
-                      : "border-gray-200 dark:border-crm-border bg-[#FAFAFA] dark:bg-crm-input text-gray-600"
+                      : "border-gray-200 dark:border-crm-border bg-[#FAFAFA] dark:bg-crm-input text-gray-600 dark:text-crm-text"
                   }`}
                 />
                 {searchQuery && (
@@ -466,12 +466,13 @@ export default function CSRPage() {
                   </button>
                 )}
               </div>
-              <StateFilterDropdown compact value={stateFilter} onChange={v => { setStateFilter(v); setPage(1); }} />
-              <TimezoneFilterDropdown compact value={timezoneFilter} onChange={v => { setTimezoneFilter(v); setPage(1); }} />
-              <SourceSudoFilterDropdown compact value={sourceFilter} options={sourceSudoOptions} onChange={v => { setSourceFilter(v); setPage(1); }} />
-              <PhoneAreaCodeFilterInput value={phoneFilter} onChange={v => { setPhoneFilter(v); setPage(1); }} />
+              <StateFilterDropdown compact fullWidth value={stateFilter} onChange={v => { setStateFilter(v); setPage(1); }} />
+              <TimezoneFilterDropdown compact fullWidth value={timezoneFilter} onChange={v => { setTimezoneFilter(v); setPage(1); }} />
+              <SourceSudoFilterDropdown compact fullWidth value={sourceFilter} options={sourceSudoOptions} onChange={v => { setSourceFilter(v); setPage(1); }} />
+              <PhoneAreaCodeFilterInput fullWidth value={phoneFilter} onChange={v => { setPhoneFilter(v); setPage(1); }} />
               <TradeFilterDropdown
                 compact
+                fullWidth
                 value={tradeFilter}
                 options={tradeFilterOptions}
                 onChange={v => { setTradeFilter(v); setPage(1); }}
@@ -553,7 +554,7 @@ export default function CSRPage() {
           <div className="overflow-x-hidden rounded-xl sm:rounded-2xl border border-gray-100 dark:border-crm-border">
             <table className={CSR_TABLE_CLASS}>
               <CsrColGroup widths={tableColWidths} />
-              <thead className="crm-thead bg-[#FAFAFA]">
+              <thead className={CSR_THEAD}>
                 <tr>
                   <th className={CSR_TH}>Client Name</th>
                   <th className={CSR_TH}>Trades</th>

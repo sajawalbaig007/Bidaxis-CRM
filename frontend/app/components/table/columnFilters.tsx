@@ -52,13 +52,13 @@ export function ColumnFilterInput({
         onChange={e => onChange(e.target.value)}
         placeholder={placeholder}
         onClick={e => e.stopPropagation()}
-        className="w-full h-6 px-1.5 pr-5 text-[9px] sm:text-[10px] rounded-md border border-gray-200 dark:border-crm-border bg-white dark:bg-crm-input text-crm-text outline-none focus:border-[#B8112D] placeholder:text-gray-400"
+        className="w-full h-6 px-1.5 pr-5 text-[9px] sm:text-[10px] rounded-md border border-white/25 bg-white/15 text-white outline-none focus:border-white/60 placeholder:text-white/55"
       />
       {value && (
         <button
           type="button"
           onClick={() => onChange("")}
-          className="absolute right-1 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-0.5"
+          className="absolute right-1 top-1/2 -translate-y-1/2 text-white/60 hover:text-white p-0.5"
           aria-label="Clear filter"
         >
           <X size={10} />

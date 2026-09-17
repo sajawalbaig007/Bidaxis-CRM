@@ -360,7 +360,7 @@ export function FulfillmentCell({
 }
 
 export const PROJECT_TABLE_HEAD =
-  "text-[10px] xl:text-[11px] font-semibold text-crm-text-faint uppercase tracking-wider";
+  "text-[10px] xl:text-[11px] font-semibold uppercase tracking-wider text-crm-text-faint [.crm-thead_&]:text-white/80 [.crm-grid-head_&]:text-white/80";
 
 export const PROJECT_TABLE_CARD =
   "crm-table-card rounded-2xl sm:rounded-[28px] border border-slate-200/80 shadow-[0_12px_40px_rgba(15,23,42,0.06)] overflow-hidden";

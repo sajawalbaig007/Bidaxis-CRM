@@ -21,7 +21,7 @@ import { collectLeadPhones } from "../utils/parsePhones";
 import StackedHorizontalBarChart, { StackedBarRow } from "../components/shared/StackedHorizontalBarChart";
 import TriesBar from "../components/shared/TriesBar";
 import Pagination from "../components/shared/Pagination";
-import { CsrColGroup, CSR_TABLE_CLASS, CSR_THEAD, CSR_TH, CSR_TD, CSR_TD_TOP, CSR_TD_POPOVER, COL_8_FOLLOWUP, CSR_TABLE_CARD, CSR_TABLE_WRAP, matchesLeadSearch } from "../components/shared/csrTableStyles";
+import { CsrColGroup, CSR_TABLE_CLASS, CSR_THEAD, CSR_TH, CSR_TD, CSR_TD_TOP, CSR_TD_POPOVER, COL_8_FOLLOWUP, CSR_TABLE_CARD, CSR_TABLE_WRAP, CSR_PAGE_MAIN, matchesLeadSearch } from "../components/shared/csrTableStyles";
 import StateFilterDropdown from "../components/shared/StateFilterDropdown";
 import PhoneAreaCodeFilterInput from "../components/shared/PhoneAreaCodeFilterInput";
 import { matchesStateLocationFilter, matchesPhoneAreaCodeFilter } from "@/lib/stateLocationFilter";
@@ -371,9 +371,9 @@ export default function NotInterestedPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F5F6FA]">
+    <div className="min-h-screen bg-[#F5F6FA] dark:bg-crm-bg">
       <TopNavbar />
-      <main className="max-w-[1400px] mx-auto p-3 sm:p-4 md:p-5 lg:p-6">
+      <main className={CSR_PAGE_MAIN}>
 
         {/* ── HEADER ── */}
         <div className="mt-1">
@@ -397,6 +397,7 @@ export default function NotInterestedPage() {
 
         {/* ── TAB BUTTONS ── */}
         <CapsuleTabs
+          stretch
           className="mt-4 sm:mt-7"
           activeKey={activeTab}
           onChange={key => { setActiveTab(key); setSearch(""); setPage(1); }}
@@ -434,27 +435,27 @@ export default function NotInterestedPage() {
                   )}
                 </p>
               </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <div className="relative flex-1 min-w-[150px] sm:flex-none sm:w-[220px] lg:w-[260px]">
+              <div className="grid w-full gap-2 grid-cols-2 sm:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,0.9fr)_auto_auto]">
+                <div className="relative min-w-0 col-span-2 sm:col-span-1">
                   <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 sm:w-[14px] sm:h-[14px]" />
                   <input
                     type="text"
                     placeholder="Search name, phone, company..."
                     value={search}
                     onChange={e => { setSearch(e.target.value); setPage(1); }}
-                    className="w-full h-9 sm:h-[40px] rounded-xl sm:rounded-2xl border border-gray-200 bg-[#FAFAFA] pl-8 sm:pl-9 pr-3 text-xs sm:text-[13px] outline-none focus:border-[#B8112D]"
+                    className="w-full h-9 sm:h-[40px] rounded-xl sm:rounded-2xl border border-gray-200 dark:border-crm-border bg-[#FAFAFA] dark:bg-crm-input pl-8 sm:pl-9 pr-3 text-xs sm:text-[13px] outline-none focus:border-[#B8112D] dark:text-crm-text"
                   />
                 </div>
-                <StateFilterDropdown value={stateFilter} onChange={v => { setStateFilter(v); setPage(1); }} />
-                <PhoneAreaCodeFilterInput value={phoneFilter} onChange={v => { setPhoneFilter(v); setPage(1); }} />
+                <StateFilterDropdown fullWidth value={stateFilter} onChange={v => { setStateFilter(v); setPage(1); }} />
+                <PhoneAreaCodeFilterInput fullWidth value={phoneFilter} onChange={v => { setPhoneFilter(v); setPage(1); }} />
                 <button
                   onClick={() => void refetch()}
-                  className="h-9 sm:h-[40px] w-9 sm:w-[40px] rounded-xl sm:rounded-2xl border border-gray-200 bg-[#FAFAFA] flex items-center justify-center hover:border-[#B8112D] hover:text-[#B8112D] transition-colors text-gray-500"
+                  className="h-9 sm:h-[40px] w-full sm:w-10 rounded-xl sm:rounded-2xl border border-gray-200 dark:border-crm-border bg-[#FAFAFA] dark:bg-crm-input flex items-center justify-center hover:border-[#B8112D] hover:text-[#B8112D] transition-colors text-gray-500"
                   title="Refresh"
                 >
                   <RefreshCw size={13} className="sm:w-[15px] sm:h-[15px]" />
                 </button>
-                <div className={`text-[11px] sm:text-sm font-semibold px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl sm:rounded-2xl whitespace-nowrap ${
+                <div className={`text-[11px] sm:text-sm font-semibold px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl sm:rounded-2xl whitespace-nowrap inline-flex items-center justify-center ${
                   activeTab === "notpicked" ? "bg-[#FFF7E6] text-[#B54708]" : "bg-[#FFF1F3] text-[#B8112D]"
                 }`}>
                   {searchFiltered.length} Leads
@@ -468,7 +469,7 @@ export default function NotInterestedPage() {
             <table className={CSR_TABLE_CLASS}>
               <CsrColGroup widths={COL_8_FOLLOWUP} />
               <thead className={CSR_THEAD}>
-                <tr className="border-b border-[#F1F1F1]">
+                <tr>
                   <th className={CSR_TH}>Client Name</th>
                   <th className={CSR_TH}>Phone</th>
                   <th className={CSR_TH}>Notes</th>

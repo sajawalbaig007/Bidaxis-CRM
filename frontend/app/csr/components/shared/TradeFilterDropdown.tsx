@@ -8,6 +8,7 @@ interface TradeFilterDropdownProps {
   options: string[];
   onChange: (v: string) => void;
   compact?: boolean;
+  fullWidth?: boolean;
 }
 
 export default function TradeFilterDropdown({
@@ -15,6 +16,7 @@ export default function TradeFilterDropdown({
   options,
   onChange,
   compact = false,
+  fullWidth = false,
 }: TradeFilterDropdownProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -54,11 +56,11 @@ export default function TradeFilterDropdown({
   };
 
   return (
-    <div className="relative z-30" ref={ref}>
+    <div className={`relative z-30 ${fullWidth ? "w-full min-w-0" : ""}`} ref={ref}>
       <button
         type="button"
         onClick={() => setOpen(o => !o)}
-        className={`h-10 sm:h-[42px] px-3 sm:px-4 rounded-xl sm:rounded-2xl border text-xs sm:text-sm font-medium flex items-center gap-1.5 sm:gap-2 transition-colors ${compact ? "min-w-[110px] sm:min-w-[140px]" : "min-w-[130px] sm:min-w-[168px]"} ${
+        className={`h-10 sm:h-[42px] px-3 sm:px-4 rounded-xl sm:rounded-2xl border text-xs sm:text-sm font-medium flex items-center gap-1.5 sm:gap-2 transition-colors ${fullWidth ? "w-full min-w-0" : compact ? "min-w-[110px] sm:min-w-[140px]" : "min-w-[130px] sm:min-w-[168px]"} ${
           value
             ? "border-[#B8112D] bg-[#FFF1F3] text-[#B8112D]"
             : "border-gray-200 dark:border-crm-border bg-[#FAFAFA] dark:bg-crm-input text-gray-600 dark:text-crm-text-secondary hover:border-gray-300"
@@ -66,7 +68,7 @@ export default function TradeFilterDropdown({
         title="Filter by trade"
       >
         <Hammer size={12} className={`shrink-0 sm:w-[14px] sm:h-[14px] ${value ? "text-[#B8112D]" : "text-gray-400"}`} />
-        <span className={`truncate ${compact ? "max-w-[72px] sm:max-w-[110px]" : "max-w-[100px] sm:max-w-[130px]"}`}>
+        <span className={`truncate ${fullWidth ? "flex-1 text-left" : compact ? "max-w-[72px] sm:max-w-[110px]" : "max-w-[100px] sm:max-w-[130px]"}`}>
           {value || (compact ? "Trades" : "All Trades")}
         </span>
         {value ? (

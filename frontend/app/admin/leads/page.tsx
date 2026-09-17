@@ -109,7 +109,7 @@ function SortPair({
         type="button"
         aria-label={`${field === "clientCode" ? "Client code" : "Notes"} ascending`}
         onClick={e => { e.stopPropagation(); onSort(field, "asc"); }}
-        className={`leading-none p-0 ${active && sortDir === "asc" ? "text-[#B8112D]" : "text-gray-300 hover:text-gray-500"}`}
+        className={`leading-none p-0 ${active && sortDir === "asc" ? "text-white" : "text-white/35 hover:text-white/80"}`}
       >
         <ChevronUp size={10} strokeWidth={2.5} />
       </button>
@@ -117,7 +117,7 @@ function SortPair({
         type="button"
         aria-label={`${field === "clientCode" ? "Client code" : "Notes"} descending`}
         onClick={e => { e.stopPropagation(); onSort(field, "desc"); }}
-        className={`leading-none p-0 -mt-0.5 ${active && sortDir === "desc" ? "text-[#B8112D]" : "text-gray-300 hover:text-gray-500"}`}
+        className={`leading-none p-0 -mt-0.5 ${active && sortDir === "desc" ? "text-white" : "text-white/35 hover:text-white/80"}`}
       >
         <ChevronDown size={10} strokeWidth={2.5} />
       </button>
@@ -131,7 +131,7 @@ function isClientView(v: string | null): v is ClientView {
 
 function LeadsPageFallback() {
   return (
-    <div className="flex min-h-screen bg-[#F5F6FA]">
+    <div className="flex min-h-screen bg-[#F5F6FA] dark:bg-crm-bg">
       <DashboardSidebar />
       <main className="flex-1 p-6 mt-[64px]">
         <DashboardNavbar />
@@ -560,7 +560,7 @@ function ClientsPageContent() {
 
   if (initialLoad) {
     return (
-      <div className="flex min-h-screen bg-[#F5F6FA]">
+      <div className="flex min-h-screen bg-[#F5F6FA] dark:bg-crm-bg">
         <StaffSidebar />
         <main className="flex-1 p-3 sm:p-4 md:p-6 overflow-x-hidden mt-[64px]">
           <DashboardNavbar />
@@ -576,7 +576,7 @@ function ClientsPageContent() {
   }
 
   return (
-    <div className="flex min-h-screen bg-[#F5F6FA]">
+    <div className="flex min-h-screen bg-[#F5F6FA] dark:bg-crm-bg">
       <Toaster position="top-right" reverseOrder={false} />
       <StaffSidebar />
 
@@ -586,20 +586,24 @@ function ClientsPageContent() {
         <DashboardNavbar />
 
         {/* ─── PAGE HEADER ─── */}
-        <div className="mb-4 sm:mb-5 lg:mb-6">
-          <h1 className="text-xl sm:text-2xl md:text-3xl font-semibold text-gray-800">
-            Client Management
-          </h1>
-          <p className="text-xs sm:text-sm text-gray-400 mt-1">
-            Manage clients, conversations, and company records.
-          </p>
-        </div>
+        <div className="mb-5 space-y-4">
+          <div className="flex items-start gap-3 min-w-0">
+            <span className="w-11 h-11 rounded-2xl bg-[#B8112D] text-white inline-flex items-center justify-center shrink-0 shadow-sm">
+              <HeartHandshake size={18} />
+            </span>
+            <div className="min-w-0">
+              <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight text-[#0F172A] dark:text-crm-text">
+                Client Management
+              </h1>
+              <p className="text-xs sm:text-sm text-slate-400 dark:text-crm-text-muted mt-0.5">
+                Manage clients, conversations, and company records.
+              </p>
+            </div>
+          </div>
 
-        {/* ─── LEAD STATUS CHART ─── */}
-        <div className="bg-white rounded-2xl sm:rounded-3xl border border-gray-100 shadow-sm p-4 sm:p-5 mb-4 sm:mb-5 lg:mb-6">
-          <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-            <div className="sm:w-[200px] shrink-0">
-              <div className="h-[160px] sm:h-[180px]">
+          <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] gap-3 items-stretch">
+            <div className="rounded-2xl border border-slate-200/80 dark:border-crm-border bg-white dark:bg-crm-surface p-4 shadow-[0_8px_24px_rgba(15,23,42,0.04)] h-full flex items-center justify-center min-h-[188px]">
+              <div className="relative w-[180px] h-[180px] sm:w-[200px] sm:h-[200px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
@@ -609,7 +613,7 @@ function ClientsPageContent() {
                         { name: "Interested", value: filteredTabCounts.interested || 0.001 },
                         { name: "Closed",     value: filteredTabCounts.closed     || 0.001 },
                       ]}
-                      cx="50%" cy="50%" innerRadius={52} outerRadius={80}
+                      cx="50%" cy="50%" innerRadius={58} outerRadius={86}
                       paddingAngle={3} dataKey="value"
                     >
                       <Cell fill="#B8112D"/>
@@ -631,22 +635,36 @@ function ClientsPageContent() {
                     />
                   </PieChart>
                 </ResponsiveContainer>
+                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                  <p className="text-2xl sm:text-3xl font-extrabold text-[#0F172A] dark:text-crm-text tabular-nums">
+                    {filteredTabCounts.important + filteredTabCounts.schedule + filteredTabCounts.interested + filteredTabCounts.closed}
+                  </p>
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Pipeline</p>
+                </div>
               </div>
             </div>
-            <div className="flex-1 grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-3">
               {[
-                { label:"Important",      value: filteredTabCounts.important, dot:"bg-[#B8112D]", sub:"flagged only"       },
-                { label:"Schedule Call",  value: filteredTabCounts.schedule,  dot:"bg-[#0B84F3]", sub:"meetings scheduled" },
-                { label:"Interested",     value: filteredTabCounts.interested, dot:"bg-[#027A48]", sub:"service interest"   },
-                { label:"Closed",         value: filteredTabCounts.closed,     dot:"bg-[#065F46]", sub:"closed deals"       },
+                { label:"Important",      value: filteredTabCounts.important,  sub:"flagged only",        tone:"red" },
+                { label:"Schedule Call",  value: filteredTabCounts.schedule,   sub:"meetings scheduled", tone:"blue" },
+                { label:"Interested",     value: filteredTabCounts.interested, sub:"service interest",   tone:"green" },
+                { label:"Closed",         value: filteredTabCounts.closed,     sub:"closed deals",       tone:"teal" },
               ].map(s => (
-                <div key={s.label} className="bg-[#FAFAFA] rounded-xl sm:rounded-2xl p-3 sm:p-4">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className={`w-2 h-2 rounded-full ${s.dot} shrink-0`}/>
-                    <p className="text-[11px] text-gray-500 font-medium">{s.label}</p>
-                  </div>
-                  <p className="text-2xl sm:text-3xl font-bold text-[#0F172A]">{s.value}</p>
-                  <p className="text-[10px] text-gray-400 mt-0.5">{s.sub}</p>
+                <div
+                  key={s.label}
+                  className={`rounded-2xl p-3 sm:p-4 h-full border ${
+                    s.tone === "red"
+                      ? "bg-gradient-to-br from-[#B8112D] to-[#8c0d22] border-[#B8112D]/40"
+                      : s.tone === "blue"
+                        ? "border-sky-100 dark:border-sky-500/20 bg-gradient-to-br from-sky-50 to-white dark:from-sky-950/30 dark:to-crm-surface"
+                        : s.tone === "green"
+                          ? "border-emerald-100 dark:border-emerald-500/20 bg-gradient-to-br from-emerald-50 to-white dark:from-emerald-950/30 dark:to-crm-surface"
+                          : "border-teal-100 dark:border-teal-500/20 bg-gradient-to-br from-teal-50 to-white dark:from-teal-950/30 dark:to-crm-surface"
+                  }`}
+                >
+                  <p className={`text-[10px] font-bold uppercase tracking-wider ${s.tone === "red" ? "text-white/60" : "text-slate-400"}`}>{s.label}</p>
+                  <p className={`text-2xl sm:text-3xl font-extrabold mt-1 tabular-nums ${s.tone === "red" ? "text-white" : "text-[#0F172A] dark:text-crm-text"}`}>{s.value}</p>
+                  <p className={`text-[10px] mt-0.5 ${s.tone === "red" ? "text-white/55" : "text-slate-400"}`}>{s.sub}</p>
                 </div>
               ))}
             </div>
@@ -654,10 +672,9 @@ function ClientsPageContent() {
         </div>
 
         {/* ─── TAB BAR ─── */}
-        {/* Horizontally scrollable on mobile, wraps on md+ */}
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm px-2 sm:px-3 py-2 sm:py-2.5 mb-4 sm:mb-5 overflow-x-auto">
-          <div className="flex items-center gap-1.5 sm:gap-2 min-w-max">
+        <div className="mb-4 grid w-full gap-2 grid-cols-1 lg:grid-cols-[minmax(0,1fr)_220px] items-center">
             <CapsuleTabs
+              stretch
               tabs={visibleTabs}
               activeKey={effectiveView as ClientView}
               onChange={key => {
@@ -672,10 +689,8 @@ function ClientsPageContent() {
               }}
             />
 
-            <div className="w-px h-6 bg-gray-200 mx-0.5 sm:mx-1 shrink-0" />
-
-            <div className="flex items-center gap-1.5 sm:gap-2 h-9 sm:h-10">
-              <Users size={13} className="text-gray-400 shrink-0 sm:w-[15px] sm:h-[15px]" />
+            <div className="relative min-w-0">
+              <Users size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
               <select
                 value={csrFilter}
                 onChange={(e) => {
@@ -685,7 +700,7 @@ function ClientsPageContent() {
                   setRecordsView(null);
                   hasRowsRef.current = false;
                 }}
-                className="h-9 sm:h-10 border border-gray-200 rounded-xl px-2 sm:px-3 text-xs sm:text-sm outline-none focus:border-[#B8112D] bg-white text-gray-700 font-medium"
+                className="h-11 w-full appearance-none border border-gray-200 dark:border-crm-border rounded-xl pl-10 pr-3 text-xs sm:text-sm outline-none focus:border-[#B8112D] bg-white dark:bg-crm-input text-gray-700 dark:text-crm-text font-medium"
               >
                 <option value="all">All CSR</option>
                 {csrOptions.map((csr) => (
@@ -695,15 +710,14 @@ function ClientsPageContent() {
                 ))}
               </select>
             </div>
-          </div>
         </div>
 
         {/* ─── TABLE VIEWS (all tabs — row layout) ─── */}
         <>
             {/* Search + filters */}
-            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 sm:gap-4 mb-4 sm:mb-5">
-              <div className="flex flex-col sm:flex-row flex-1 gap-2 sm:gap-3">
-                <div className="relative w-full sm:max-w-[360px]">
+            <div className="mb-4 rounded-2xl border border-slate-200/80 dark:border-crm-border bg-white dark:bg-crm-surface p-3 shadow-sm">
+              <div className={`grid w-full gap-2 ${effectiveView === "schedule" ? "grid-cols-1 sm:grid-cols-2 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto]" : "grid-cols-1 sm:grid-cols-2 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)_minmax(0,1fr)_auto]"}`}>
+                <div className="relative min-w-0">
                   <Search
                     size={15}
                     className="absolute left-3.5 sm:left-4 top-1/2 -translate-y-1/2 text-gray-400"
@@ -717,30 +731,29 @@ function ClientsPageContent() {
                       else setSearch(e.target.value);
                       setPage(1);
                     }}
-                    className="w-full bg-white border border-gray-200 rounded-xl sm:rounded-2xl pl-10 sm:pl-11 pr-4 py-2.5 sm:py-3 text-sm outline-none focus:border-[#B8112D]"
+                    className="w-full h-11 bg-white dark:bg-crm-input border border-gray-200 dark:border-crm-border rounded-xl pl-10 sm:pl-11 pr-4 text-sm outline-none focus:border-[#B8112D] dark:text-crm-text"
                   />
                 </div>
-                <StateFilterDropdown value={stateFilter} onChange={v => { setStateFilter(v); setPage(1); }} />
-                <PhoneAreaCodeFilterInput value={phoneFilter} onChange={v => { setPhoneFilter(v); setPage(1); }} />
+                <StateFilterDropdown fullWidth value={stateFilter} onChange={v => { setStateFilter(v); setPage(1); }} />
+                <PhoneAreaCodeFilterInput fullWidth value={phoneFilter} onChange={v => { setPhoneFilter(v); setPage(1); }} />
                 {effectiveView === "schedule" && (
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
                     <input
                       type="date"
                       value={impFilterDate}
                       onChange={(e) => { setImpFilterDate(e.target.value); setPage(1); }}
-                      className="h-10 sm:h-11 rounded-xl sm:rounded-2xl border border-gray-200 px-3 bg-white text-sm outline-none focus:border-[#B8112D]"
+                      className="h-11 flex-1 min-w-0 rounded-xl border border-gray-200 dark:border-crm-border px-3 bg-white dark:bg-crm-input text-sm outline-none focus:border-[#B8112D] dark:text-crm-text"
                     />
                     {impFilterDate && (
                       <button
                         onClick={() => { setImpFilterDate(""); setPage(1); }}
-                        className="h-10 px-3 rounded-xl border border-gray-200 text-sm text-gray-500 hover:text-[#B8112D]"
+                        className="h-11 px-3 rounded-xl border border-gray-200 dark:border-crm-border text-sm text-gray-500 hover:text-[#B8112D] shrink-0"
                       >
                         Clear
                       </button>
                     )}
                   </div>
                 )}
-              </div>
 
               <button
                 onClick={() => {
@@ -749,18 +762,19 @@ function ClientsPageContent() {
                   setNewClient(emptyClient);
                   setAddCsrId("");
                 }}
-                className="w-full lg:w-auto flex items-center justify-center gap-2 bg-[#B8112D] text-white px-4 sm:px-5 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl text-sm font-medium shadow-sm hover:bg-[#a30f27] transition-all"
+                className="h-11 w-full xl:w-auto px-5 rounded-xl bg-[#B8112D] text-white text-sm font-semibold inline-flex items-center justify-center gap-2 hover:bg-[#a30f27]"
               >
                 <Plus size={15} />
                 Add Client
               </button>
+              </div>
             </div>
 
             {/* ─── TABLE ─── */}
-            <div className="bg-white border border-gray-100 rounded-2xl sm:rounded-3xl overflow-hidden shadow-sm">
-              <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-100">
-                <h3 className="font-semibold text-gray-800 text-sm sm:text-base">{tableTitle}</h3>
-                <p className="text-[11px] sm:text-xs text-gray-400 mt-0.5">
+            <div className="bg-white dark:bg-crm-surface border border-slate-200/80 dark:border-crm-border rounded-2xl sm:rounded-[28px] overflow-hidden shadow-[0_12px_40px_rgba(15,23,42,0.06)]">
+              <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-100 dark:border-crm-border">
+                <h3 className="font-semibold text-gray-800 dark:text-crm-text text-sm sm:text-base">{tableTitle}</h3>
+                <p className="text-[11px] sm:text-xs text-gray-400 dark:text-crm-text-muted mt-0.5">
                   {displayCount} records
                   {tableRefreshing ? " · updating…" : ""}
                 </p>
@@ -770,7 +784,7 @@ function ClientsPageContent() {
                 <table className={CSR_TABLE_CLASS} style={{ minWidth: tableMinWidth }}>
                   <CsrColGroup widths={tableColWidths} />
                   <thead className={CSR_THEAD}>
-                    <tr className="text-left text-xs sm:text-sm text-gray-400">
+                    <tr>
                       {tableHeaders.map((h, i) => {
                         const fKey = headerFilterKey[h];
                         const thCls = `${CSR_TH} ${i === tableHeaders.length - 1 ? "text-right" : ""}`;
