@@ -28,10 +28,10 @@ export default function LeadStatusDonut({ leads, stats, loading }: LeadStatusDon
   const mounted = useMounted();
 
   return (
-    <div className="bg-white rounded-2xl sm:rounded-[28px] p-4 sm:p-5 lg:p-6 shadow-sm border border-white">
+    <div className="bg-white dark:bg-crm-surface rounded-2xl sm:rounded-[28px] p-4 sm:p-5 lg:p-6 shadow-sm border border-white dark:border-crm-border">
       <div>
-        <h3 className="text-base sm:text-[18px] font-bold text-[#0F172A]">Lead Status Distribution</h3>
-        <p className="text-gray-500 mt-0.5 text-xs sm:text-[13px]">Breakdown of all your assigned leads.</p>
+        <h3 className="text-base sm:text-[18px] font-bold text-[#0F172A] dark:text-crm-text">Lead Status Distribution</h3>
+        <p className="text-gray-500 dark:text-crm-text-muted mt-0.5 text-xs sm:text-[13px]">Breakdown of all your assigned leads.</p>
       </div>
 
       {loading ? (
@@ -73,15 +73,15 @@ export default function LeadStatusDonut({ leads, stats, loading }: LeadStatusDon
               </PieChart>
             )}
             <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-              <span className="text-3xl sm:text-4xl font-bold text-[#0F172A]">{total}</span>
-              <span className="text-[11px] sm:text-xs text-gray-500 mt-1">Total Leads</span>
+              <span className="text-3xl sm:text-4xl font-bold text-[#0F172A] dark:text-crm-text">{total}</span>
+              <span className="text-[11px] sm:text-xs text-gray-500 dark:text-crm-text-muted mt-1">Total Leads</span>
               {stats?.totalAssigned != null && stats.totalAssigned !== total && (
                 <span className="text-[10px] text-gray-400 mt-0.5">{stats.totalAssigned} assigned</span>
               )}
             </div>
           </div>
 
-          <div className="flex-1 min-w-0 flex flex-col gap-3 sm:gap-4 lg:px-6 lg:border-x lg:border-gray-100">
+          <div className="flex-1 min-w-0 flex flex-col gap-3 sm:gap-4 lg:px-6 lg:border-x lg:border-gray-100 dark:lg:border-crm-border">
             {data.map(slice => {
               const pct = total > 0 ? Math.round((slice.value / total) * 100) : 0;
               return (
@@ -89,14 +89,14 @@ export default function LeadStatusDonut({ leads, stats, loading }: LeadStatusDon
                   <div className="flex items-center justify-between mb-1.5">
                     <div className="flex items-center gap-2 min-w-0">
                       <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: slice.color }} />
-                      <p className="text-xs sm:text-[13px] font-medium text-gray-600 truncate">{slice.name}</p>
+                      <p className="text-xs sm:text-[13px] font-medium text-gray-600 dark:text-crm-text-secondary truncate">{slice.name}</p>
                     </div>
                     <p className="text-xs sm:text-[13px] shrink-0">
-                      <span className="font-bold text-[#0F172A]">{slice.value}</span>
-                      <span className="text-gray-400 ml-1.5">{pct}%</span>
+                      <span className="font-bold text-[#0F172A] dark:text-crm-text">{slice.value}</span>
+                      <span className="text-gray-400 dark:text-crm-text-faint ml-1.5">{pct}%</span>
                     </p>
                   </div>
-                  <div className="h-2 rounded-full bg-[#F1F2F6] overflow-hidden">
+                  <div className="h-2 rounded-full bg-[#F1F2F6] dark:bg-crm-muted overflow-hidden">
                     <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: slice.color }} />
                   </div>
                 </div>

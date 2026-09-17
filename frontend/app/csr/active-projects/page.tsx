@@ -12,7 +12,7 @@ import TopNavbar from "../components/navigation/TopNavbar";
 import ServicePicker from "../components/shared/ServicePicker";
 import StackedHorizontalBarChart, { StackedBarRow } from "../components/shared/StackedHorizontalBarChart";
 import Pagination from "../components/shared/Pagination";
-import { PROJECT_GRID_HEAD, CRM_GRID_HEAD_ROW, PROJECT_GRID_ROW, matchesLeadSearch } from "../components/shared/csrTableStyles";
+import { PROJECT_GRID_HEAD, CRM_GRID_HEAD_ROW, PROJECT_GRID_ROW, CSR_PAGE_MAIN, matchesLeadSearch } from "../components/shared/csrTableStyles";
 import { PROJECT_TABLE_HEAD } from "@/app/components/projects/ProjectTableCells";
 import PaymentStatusCircle from "../components/shared/PaymentStatusCircle";
 import CommentCell from "../components/shared/CommentCell";
@@ -383,9 +383,9 @@ export default function CSRProjectsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F5F6FA]">
+    <div className="min-h-screen bg-[#F5F6FA] dark:bg-crm-bg">
       <TopNavbar />
-      <main className="max-w-[1400px] mx-auto p-3 sm:p-4 md:p-5 lg:p-6">
+      <main className={CSR_PAGE_MAIN}>
 
         {/* ── HEADER ── */}
         <div className="mt-1 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
@@ -414,41 +414,39 @@ export default function CSRProjectsPage() {
         </div>
 
         {/* ── FILTERS — single row; scroll horizontally on narrow screens ── */}
-        <div className="bg-white rounded-2xl sm:rounded-[28px] shadow-sm p-3 sm:p-4 mt-4 sm:mt-7 border border-white">
-          <div className="flex flex-nowrap items-center gap-2 sm:gap-2.5 overflow-x-auto overscroll-x-contain pb-0.5 -mx-0.5 px-0.5 [scrollbar-width:thin]">
-            <div className="relative shrink-0 w-[min(100%,220px)] sm:w-[240px] lg:w-[260px] xl:w-[280px]">
+        <div className="bg-white dark:bg-crm-surface rounded-2xl sm:rounded-[28px] shadow-sm p-3 sm:p-4 mt-4 sm:mt-7 border border-white dark:border-crm-border">
+          <div className="grid w-full gap-2 grid-cols-1 sm:grid-cols-2 xl:grid-cols-[minmax(0,1.4fr)_auto_minmax(0,1fr)_minmax(0,0.9fr)_auto_minmax(0,1.1fr)_auto]">
+            <div className="relative min-w-0">
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
               <input
                 type="text"
                 placeholder="Search name, company, phone…"
                 value={search}
                 onChange={e => { setSearch(e.target.value); setPage(1); }}
-                className="w-full h-10 sm:h-11 rounded-xl border border-gray-200 bg-[#FAFAFA] pl-9 pr-3 text-xs sm:text-sm outline-none focus:border-[#B8112D]"
+                className="w-full h-10 sm:h-11 rounded-xl border border-gray-200 dark:border-crm-border bg-[#FAFAFA] dark:bg-crm-input pl-9 pr-3 text-xs sm:text-sm outline-none focus:border-[#B8112D] dark:text-crm-text"
               />
             </div>
             <ClientSortControls
-              className="shrink-0 flex-nowrap"
+              className="min-w-0"
               sortBy={sortBy}
               sortDir={sortDir}
               onSortBy={v => { setSortBy(v); setPage(1); }}
               onSortDir={v => { setSortDir(v); setPage(1); }}
             />
-            <div className="shrink-0 min-w-[160px] sm:min-w-[180px]">
-              <StateFilterDropdown value={stateFilter} onChange={v => { setStateFilter(v); setPage(1); }} />
-            </div>
-            <PhoneAreaCodeFilterInput value={phoneFilter} onChange={v => { setPhoneFilter(v); setPage(1); }} />
-            <div className="hidden sm:flex items-center gap-1 text-[#B8112D] font-semibold text-[11px] shrink-0 whitespace-nowrap pl-0.5">
+            <StateFilterDropdown fullWidth value={stateFilter} onChange={v => { setStateFilter(v); setPage(1); }} />
+            <PhoneAreaCodeFilterInput fullWidth value={phoneFilter} onChange={v => { setPhoneFilter(v); setPage(1); }} />
+            <div className="hidden xl:flex items-center gap-1 text-[#B8112D] font-semibold text-[11px] whitespace-nowrap">
               <Filter size={12} />
               <span>Deadline</span>
             </div>
-            <div className="flex items-center gap-1.5 shrink-0">
+            <div className="flex items-center gap-1.5 min-w-0">
               <CalendarDays size={14} className="text-gray-400 shrink-0 sm:hidden" />
               <input
                 type="date"
                 value={dateFrom}
                 title="Deadline from"
                 onChange={e => { setDateFrom(e.target.value); setPage(1); }}
-                className="h-10 sm:h-11 w-[132px] sm:w-[140px] rounded-xl border border-gray-200 px-2 sm:px-2.5 bg-[#FAFAFA] text-xs outline-none focus:border-[#B8112D]"
+                className="h-10 sm:h-11 flex-1 min-w-0 rounded-xl border border-gray-200 dark:border-crm-border px-2 sm:px-2.5 bg-[#FAFAFA] dark:bg-crm-input text-xs outline-none focus:border-[#B8112D] dark:text-crm-text"
               />
               <span className="text-[10px] text-gray-400 shrink-0">to</span>
               <input
@@ -456,7 +454,7 @@ export default function CSRProjectsPage() {
                 value={dateTo}
                 title="Deadline to"
                 onChange={e => { setDateTo(e.target.value); setPage(1); }}
-                className="h-10 sm:h-11 w-[132px] sm:w-[140px] rounded-xl border border-gray-200 px-2 sm:px-2.5 bg-[#FAFAFA] text-xs outline-none focus:border-[#B8112D]"
+                className="h-10 sm:h-11 flex-1 min-w-0 rounded-xl border border-gray-200 dark:border-crm-border px-2 sm:px-2.5 bg-[#FAFAFA] dark:bg-crm-input text-xs outline-none focus:border-[#B8112D] dark:text-crm-text"
               />
             </div>
             {(dateFrom || dateTo) && (

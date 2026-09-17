@@ -10,7 +10,7 @@ import toast from "react-hot-toast";
 import TopNavbar from "../components/navigation/TopNavbar";
 import StackedHorizontalBarChart, { StackedBarRow } from "../components/shared/StackedHorizontalBarChart";
 import Pagination from "../components/shared/Pagination";
-import { CSR_TABLE_CARD, CSR_TABLE_WRAP, CSR_THEAD, CSR_TABLE_CLASS, CsrColGroup, COL_9_BIN } from "../components/shared/csrTableStyles";
+import { CSR_TABLE_CARD, CSR_TABLE_WRAP, CSR_THEAD, CSR_TH, CSR_TABLE_CLASS, CsrColGroup, COL_9_BIN, CSR_PAGE_MAIN } from "../components/shared/csrTableStyles";
 import { getTimezoneAbbr, tzBadgeClass, getTimezoneAbbrFromPhone } from "../constants/timezoneAbbr";
 
 import { useBinData, binCategory, binReasonLabel } from "../hooks/useBinData";
@@ -106,9 +106,9 @@ export default function CSRBinPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-[#F5F6FA]">
+    <div className="min-h-screen bg-[#F5F6FA] dark:bg-crm-bg">
       <TopNavbar />
-      <main className="max-w-[1400px] mx-auto p-3 sm:p-4 md:p-5 lg:p-6">
+      <main className={CSR_PAGE_MAIN}>
 
         <div className="mt-1 flex items-center gap-3">
           <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-[#FFF7E6] flex items-center justify-center shrink-0">
@@ -132,6 +132,7 @@ export default function CSRBinPage() {
         </div>
 
         <CapsuleTabs
+          stretch
           className="mt-4 sm:mt-6"
           tabs={tabs}
           activeKey={tab}
@@ -142,9 +143,9 @@ export default function CSRBinPage() {
           <div className="p-4 sm:p-5 border-b border-[#F3F3F3]">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <h3 className="text-lg sm:text-[20px] font-bold text-[#0F172A]">Bin Leads</h3>
-              <div className="flex flex-wrap items-center gap-2">
+              <div className="grid w-full gap-2 grid-cols-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.4fr)_auto_auto]">
                 <select value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setPage(1); }}
-                  className="h-9 sm:h-[40px] rounded-xl border border-gray-200 bg-white px-3 text-xs outline-none focus:border-[#B8112D]">
+                  className="h-9 sm:h-[40px] w-full rounded-xl border border-gray-200 dark:border-crm-border bg-white dark:bg-crm-input px-3 text-xs outline-none focus:border-[#B8112D] dark:text-crm-text">
                   <option value="all">All Status</option>
                   <option value="notpicked">Not Picked</option>
                   <option value="notinterested">Not Interested</option>
@@ -154,28 +155,28 @@ export default function CSRBinPage() {
                   <option value="deleted">Deleted</option>
                 </select>
                 <select value={sourceFilter} onChange={e => { setSourceFilter(e.target.value); setPage(1); }}
-                  className="h-9 sm:h-[40px] rounded-xl border border-gray-200 bg-white px-3 text-xs outline-none focus:border-[#B8112D]">
+                  className="h-9 sm:h-[40px] w-full rounded-xl border border-gray-200 dark:border-crm-border bg-white dark:bg-crm-input px-3 text-xs outline-none focus:border-[#B8112D] dark:text-crm-text">
                   <option value="all">All Sources</option>
                   {sourceOptions.map(s => <option key={s} value={s}>{s}</option>)}
                 </select>
-                <StateFilterDropdown value={stateFilter} onChange={v => { setStateFilter(v); setPage(1); }} />
-                <PhoneAreaCodeFilterInput value={phoneFilter} onChange={v => { setPhoneFilter(v); setPage(1); }} />
-                <div className="relative flex-1 min-w-[150px] sm:w-[220px]">
+                <div className="relative min-w-0 col-span-2 sm:col-span-1">
                   <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                   <input
                     type="text" placeholder="Search..."
                     value={search} onChange={e => { setSearch(e.target.value); setPage(1); }}
-                    className="w-full h-9 sm:h-[40px] rounded-xl border border-gray-200 bg-[#FAFAFA] pl-8 pr-3 text-xs outline-none focus:border-[#B8112D]"
+                    className="w-full h-9 sm:h-[40px] rounded-xl border border-gray-200 dark:border-crm-border bg-[#FAFAFA] dark:bg-crm-input pl-8 pr-3 text-xs outline-none focus:border-[#B8112D] dark:text-crm-text"
                   />
                 </div>
                 <button onClick={() => void refetch(true)}
-                  className="h-9 sm:h-[40px] w-9 sm:w-[40px] rounded-xl border border-gray-200 bg-[#FAFAFA] flex items-center justify-center hover:border-[#B8112D] hover:text-[#B8112D] text-gray-500 transition-colors"
+                  className="h-9 sm:h-[40px] w-full sm:w-10 rounded-xl border border-gray-200 dark:border-crm-border bg-[#FAFAFA] dark:bg-crm-input flex items-center justify-center hover:border-[#B8112D] hover:text-[#B8112D] text-gray-500 transition-colors"
                   title="Refresh">
                   <RefreshCw size={13} />
                 </button>
-                <span className="text-xs font-semibold px-3 py-1.5 rounded-xl bg-[#FFF7E6] text-[#B54708] whitespace-nowrap">
+                <span className="text-xs font-semibold px-3 py-1.5 rounded-xl bg-[#FFF7E6] text-[#B54708] whitespace-nowrap inline-flex items-center justify-center">
                   {filtered.length} Leads
                 </span>
+                <StateFilterDropdown fullWidth value={stateFilter} onChange={v => { setStateFilter(v); setPage(1); }} />
+                <PhoneAreaCodeFilterInput fullWidth value={phoneFilter} onChange={v => { setPhoneFilter(v); setPage(1); }} />
               </div>
             </div>
           </div>
@@ -184,9 +185,9 @@ export default function CSRBinPage() {
             <table className={CSR_TABLE_CLASS}>
               <CsrColGroup widths={COL_9_BIN} />
               <thead className={CSR_THEAD}>
-                <tr className="border-b border-[#F1F1F1]">
+                <tr>
                   {["#","Client","Company","Phone","Sub Contacts","Service","Reason","Updated","Action"].map(h => (
-                    <th key={h} className={`text-left py-3 px-2 text-[11px] sm:text-[12px] font-semibold text-gray-500 whitespace-nowrap ${h === "Sub Contacts" ? "hidden lg:table-cell" : ""}`}>{h}</th>
+                    <th key={h} className={`${CSR_TH} ${h === "Sub Contacts" ? "hidden lg:table-cell" : ""}`}>{h}</th>
                   ))}
                 </tr>
               </thead>

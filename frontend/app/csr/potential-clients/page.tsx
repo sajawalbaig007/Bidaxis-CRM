@@ -10,7 +10,7 @@ import LeadDetailModal from "../components/LeadDetailModal";
 import CommentCell from "../components/shared/CommentCell";
 import StackedHorizontalBarChart, { StackedBarRow } from "../components/shared/StackedHorizontalBarChart";
 import Pagination from "../components/shared/Pagination";
-import { CsrColGroup, CSR_TABLE_CLASS, CSR_THEAD, CSR_TH, CSR_TD, CSR_TD_TOP, CSR_TD_POPOVER, COL_7_IMPORTANT_SUB, COL_9_SCHEDULE, COL_8_INTERESTED_SUB, CSR_TABLE_CARD, CSR_TABLE_WRAP, matchesLeadSearch } from "../components/shared/csrTableStyles";
+import { CsrColGroup, CSR_TABLE_CLASS, CSR_THEAD, CSR_TH, CSR_TD, CSR_TD_TOP, CSR_TD_POPOVER, COL_7_IMPORTANT_SUB, COL_9_SCHEDULE, COL_8_INTERESTED_SUB, CSR_TABLE_CARD, CSR_TABLE_WRAP, CSR_PAGE_MAIN, matchesLeadSearch } from "../components/shared/csrTableStyles";
 import EditClientModal, { EditAction } from "../components/modals/EditClientModal";
 import AddLeadModal from "../components/modals/AddLeadModal";
 import { matchesStateLocationFilter, matchesPhoneAreaCodeFilter } from "@/lib/stateLocationFilter";
@@ -371,9 +371,9 @@ export default function ImportantCallsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F5F6FA] dark:bg-gray-950">
+    <div className="min-h-screen bg-[#F5F6FA] dark:bg-crm-bg">
       <TopNavbar />
-      <main className="max-w-[1400px] mx-auto p-3 sm:p-4 md:p-5 lg:p-6">
+      <main className={CSR_PAGE_MAIN}>
 
         {/* ── HEADER ── */}
         <div className="mt-1 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -414,6 +414,7 @@ export default function ImportantCallsPage() {
 
         {/* ── TAB BUTTONS ── */}
         <CapsuleTabs
+          stretch
           className="mt-4 sm:mt-7"
           activeKey={activeTab}
           onChange={key => { setActiveTab(key as PotentialTab); setSearchQuery(""); setFilterDate(""); setPage(1); }}
@@ -425,9 +426,9 @@ export default function ImportantCallsPage() {
           ]}
         />
 
-        <div className="flex flex-wrap items-center gap-2 mt-3 sm:mt-4">
-          <StateFilterDropdown value={stateFilter} onChange={v => { setStateFilter(v); setPage(1); }} />
-          <PhoneAreaCodeFilterInput value={phoneFilter} onChange={v => { setPhoneFilter(v); setPage(1); }} />
+        <div className="grid w-full gap-2 grid-cols-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] mt-3 sm:mt-4">
+          <StateFilterDropdown fullWidth value={stateFilter} onChange={v => { setStateFilter(v); setPage(1); }} />
+          <PhoneAreaCodeFilterInput fullWidth value={phoneFilter} onChange={v => { setPhoneFilter(v); setPage(1); }} />
           <ClientSortControls
             sortBy="oldestNote"
             sortDir={sortDir}
@@ -474,7 +475,7 @@ export default function ImportantCallsPage() {
               <table className={CSR_TABLE_CLASS}>
                 <CsrColGroup widths={COL_7_IMPORTANT_SUB} />
                 <thead className={CSR_THEAD}>
-                  <tr className="border-b border-[#F1F1F1]">
+                  <tr>
                     <th className={CSR_TH}>Client Name</th>
                     <th className={CSR_TH}>Phone</th>
                     <th className={CSR_TH}>Interested In</th>
@@ -601,7 +602,7 @@ export default function ImportantCallsPage() {
               <table className={CSR_TABLE_CLASS}>
                 <CsrColGroup widths={COL_9_SCHEDULE} />
                 <thead className={CSR_THEAD}>
-                  <tr className="border-b border-[#F1F1F1]">
+                  <tr>
                     {["Client Name","Phone","Schedule","Notes","Status","Action"].map(h => (
                       <th key={h} className={CSR_TH}>{h}</th>
                     ))}
@@ -746,7 +747,7 @@ export default function ImportantCallsPage() {
               <table className={CSR_TABLE_CLASS}>
                 <CsrColGroup widths={COL_8_INTERESTED_SUB} />
                 <thead className={CSR_THEAD}>
-                  <tr className="border-b border-[#F1F1F1]">
+                  <tr>
                     <th className={CSR_TH}>Client Name</th>
                     <th className={CSR_TH}>Phone</th>
                     <th className={CSR_TH}>Interested In</th>
