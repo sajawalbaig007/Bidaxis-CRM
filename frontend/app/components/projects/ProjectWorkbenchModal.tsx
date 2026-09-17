@@ -873,7 +873,7 @@ export default function ProjectWorkbenchModal({
                 <div className="bg-[#FFF8F0] rounded-2xl border-2 border-amber-200 p-4">
                   <p className="text-[11px] font-bold text-amber-800 uppercase tracking-wider mb-2 flex items-center gap-1.5">
                     <StickyNote size={12} className="text-amber-700" />
-                    {hideClientFinanceSections ? "Notes for Sir" : "Notes for Technical"}
+                    {hideClientFinanceSections ? "Notes for Sir" : "Notes from TM"}
                   </p>
                   <CommentCell
                     id={data.id || "tech-thread"}
@@ -882,7 +882,7 @@ export default function ProjectWorkbenchModal({
                     chatStyle
                     notesKind="technical"
                     currentUserId={peekAuthMe()?.id}
-                    badgeLabel={hideClientFinanceSections ? "Notes for Sir" : "Notes for Technical"}
+                    badgeLabel={hideClientFinanceSections ? "Notes for Sir" : "Notes from TM"}
                     noteHistory={technicalNoteHistory ?? []}
                     onAddNote={
                       onAddTechnicalNote

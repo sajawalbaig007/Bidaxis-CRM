@@ -22,6 +22,7 @@ import { matchesStateLocationFilter, matchesPhoneAreaCodeFilter } from "@/lib/st
 import { NoteEntry } from "@/app/csr/hooks/useLeadsData";
 import { buildNoteHistory } from "@/app/csr/utils/noteHistory";
 import { useClientPhoneLookup, ClientLookupData } from "@/app/csr/hooks/useClientPhoneLookup";
+import { ADMIN_PROJECT_COLS, ADMIN_TECH_VIEW_COLS, CsrColGroup } from "@/app/csr/components/shared/csrTableStyles";
 import { parseTechnicalNotes, parseTechnicalNotesBundle } from "@/lib/technicalAssignments";
 import { peekAuthMe } from "@/lib/authMeCache";
 import API from "@/lib/api";
@@ -240,7 +241,7 @@ function CompleteTickButton({
       type="button"
       disabled={busy}
       onClick={onClick}
-      className={`w-8 h-8 rounded-lg inline-flex items-center justify-center shrink-0 transition-colors disabled:opacity-50 ${
+      className={`w-7 h-7 rounded-md inline-flex items-center justify-center shrink-0 transition-colors disabled:opacity-50 ${
         completed
           ? "bg-emerald-600 text-white hover:bg-emerald-700"
           : "text-slate-400 hover:text-emerald-700 hover:bg-emerald-50"
@@ -389,7 +390,7 @@ function ProjectCard({
           />
         </div>
         <div>
-          <p className="text-[10px] font-semibold text-amber-700 uppercase tracking-wider mb-1">Notes for Technical</p>
+          <p className="text-[10px] font-semibold text-amber-700 uppercase tracking-wider mb-1">Notes from TM</p>
           <CommentCell
             id={p.id}
             apiRole="admin"
@@ -397,7 +398,7 @@ function ProjectCard({
             chatStyle
             notesKind="technical"
             currentUserId={peekAuthMe()?.id}
-            badgeLabel="Notes for Technical"
+            badgeLabel="Notes from TM"
             noteHistory={sirNotesHistory(p)}
             onAddNote={async (_id, text) => onAddTechnicalNote(p.id, text)}
           />
@@ -472,12 +473,10 @@ function ProjectsSection({
   const totalPages = Math.max(1, Math.ceil(projects.length / PAGE_SIZE));
   const paginated  = projects.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
   const headers = hideClientFinanceCols
-    ? ["Project Detail", "Client Deadline", "Bid Instruction", "Notes for Technical", "Status", "Actions"]
-    : ["Client Detail", "Project Detail", "Quoted", "Payment Detail", "Client Deadline", "CSR", "Bid Instruction", "Notes for Technical", "Status", "Actions"];
+    ? ["Project Detail", "Client Deadline", "Bid Instruction", "Notes from TM", "Status", "Actions"]
+    : ["Client Detail", "Project Detail", "Quoted", "Payment Detail", "Client Deadline", "CSR", "Bid Instruction", "Notes from TM", "Status", "Actions"];
   const colCount = headers.length;
-  const headerClass = hideClientFinanceCols
-    ? ["", "", "", "", "", ""]
-    : ["min-w-[160px]", "min-w-[160px]", "hidden xl:table-cell min-w-[88px]", "hidden xl:table-cell min-w-[120px]", "min-w-[110px]", "hidden 2xl:table-cell", "hidden 2xl:table-cell min-w-[140px]", "hidden 2xl:table-cell min-w-[140px]", "min-w-[100px]", "w-[1%] whitespace-nowrap"];
+  const colWidths = hideClientFinanceCols ? ADMIN_TECH_VIEW_COLS : ADMIN_PROJECT_COLS;
 
   return (
     <div>
@@ -529,14 +528,19 @@ function ProjectsSection({
       </div>
 
       <div className={`hidden xl:block ${PROJECT_TABLE_CARD}`}>
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[720px] border-collapse">
+        <div className="overflow-x-hidden">
+          <table className="w-full table-fixed border-collapse">
+            <CsrColGroup widths={colWidths} />
             <thead className={PROJECT_DB_THEAD}>
               <tr>
                 {headers.map((h, i) => (
                   <th
                     key={i}
-                    className={`${PROJECT_DB_TH} ${i === colCount - 1 ? "text-right" : ""} ${headerClass[i] ?? ""}`}
+                    className={`${PROJECT_DB_TH} ${i === colCount - 1 ? "text-right" : ""} ${
+                      h === "Notes from TM" || h === "Bid Instruction" || h === "Payment Detail" || h === "Client Deadline"
+                        ? "whitespace-normal leading-tight"
+                        : ""
+                    }`}
                   >
                     {h}
                   </th>
@@ -548,7 +552,7 @@ function ProjectsSection({
                 [1, 2, 3, 4, 5].map((i) => (
                   <tr key={i} className={PROJECT_DB_ROW}>
                     {Array.from({ length: colCount }, (_, j) => (
-                      <td key={j} className={`${PROJECT_DB_TD} ${headerClass[j] ?? ""}`}>
+                      <td key={j} className={PROJECT_DB_TD}>
                         <div className="h-3.5 bg-slate-100 rounded-md animate-pulse w-16 xl:w-20" />
                       </td>
                     ))}
@@ -563,8 +567,8 @@ function ProjectsSection({
                     <td className={PROJECT_DB_TD}><ProjectDetailCell p={projectAsRow(p)} /></td>
                     {!hideClientFinanceCols && (
                       <>
-                        <td className={`${PROJECT_DB_TD} hidden xl:table-cell`}><QuotedAmountCell p={projectAsRow(p)} /></td>
-                        <td className={`${PROJECT_DB_TD} hidden xl:table-cell`}><PaymentDetailCell p={projectAsRow(p)} /></td>
+                        <td className={PROJECT_DB_TD}><QuotedAmountCell p={projectAsRow(p)} /></td>
+                        <td className={PROJECT_DB_TD}><PaymentDetailCell p={projectAsRow(p)} /></td>
                       </>
                     )}
                     <td className={PROJECT_DB_TD}>
@@ -575,11 +579,11 @@ function ProjectsSection({
                       />
                     </td>
                     {!hideClientFinanceCols && (
-                      <td className={`${PROJECT_DB_TD} hidden 2xl:table-cell`}>
+                      <td className={PROJECT_DB_TD}>
                         <ProjectCsrCell p={p} />
                       </td>
                     )}
-                    <td className={`${PROJECT_DB_TD} ${hideClientFinanceCols ? "" : "hidden 2xl:table-cell"}`}>
+                    <td className={PROJECT_DB_TD}>
                       <CommentCell
                         id={p.id}
                         apiRole="admin"
@@ -589,7 +593,7 @@ function ProjectsSection({
                         onSave={(id, text) => onSaveBidInstruction(id, text)}
                       />
                     </td>
-                    <td className={`${PROJECT_DB_TD} ${hideClientFinanceCols ? "" : "hidden 2xl:table-cell"}`}>
+                    <td className={PROJECT_DB_TD}>
                       <CommentCell
                         id={p.id}
                         apiRole="admin"
@@ -597,7 +601,7 @@ function ProjectsSection({
                         chatStyle
                         notesKind="technical"
                         currentUserId={peekAuthMe()?.id}
-                        badgeLabel="Notes for Technical"
+                        badgeLabel="Notes from TM"
                         noteHistory={sirNotesHistory(p)}
                         onAddNote={async (_id, text) => onAddTechnicalNote(p.id, text)}
                       />
@@ -612,7 +616,7 @@ function ProjectsSection({
                       />
                     </td>
                     <td className={`${PROJECT_DB_TD} text-right`}>
-                      <div className="inline-flex items-center justify-end gap-0.5 rounded-xl border border-slate-200 bg-white p-0.5 shadow-sm">
+                      <div className="inline-flex items-center justify-end gap-0.5 rounded-lg border border-slate-200 bg-white p-0.5">
                         {!hideClientFinanceCols && onMarkCompleted && (
                           <CompleteTickButton
                             completed={isProjectMarkedCompleted(p)}
@@ -623,21 +627,21 @@ function ProjectsSection({
                         {!hideClientFinanceCols && onRequestRevision && (
                           <button
                             onClick={() => onRequestRevision(p)}
-                            className={`w-8 h-8 rounded-lg text-[10px] font-medium flex items-center justify-center shrink-0 ${
+                            className={`w-7 h-7 rounded-md text-[10px] font-medium flex items-center justify-center shrink-0 ${
                               p.needsRevision
                                 ? "bg-violet-100 text-violet-700"
                                 : "text-violet-600 hover:bg-violet-50"
                             }`}
                             title={p.needsRevision ? "In revision queue" : "Send for revision"}
                           >
-                            <GitBranch size={13} />
+                            <GitBranch size={12} />
                           </button>
                         )}
                         {!hideClientFinanceCols && onToggleTechnical && (
                           <button
                             type="button"
                             onClick={() => onToggleTechnical(p)}
-                            className={`h-8 px-2 rounded-lg text-[10px] font-bold inline-flex items-center justify-center gap-1 shrink-0 ${
+                            className={`w-7 h-7 rounded-md inline-flex items-center justify-center shrink-0 ${
                               p.hiddenOnTechnical
                                 ? "text-slate-500 hover:bg-slate-100"
                                 : "text-emerald-700 hover:bg-emerald-50"
@@ -649,24 +653,23 @@ function ProjectsSection({
                             }
                           >
                             {p.hiddenOnTechnical ? <EyeOff size={12} /> : <Monitor size={12} />}
-                            {p.hiddenOnTechnical ? "Off" : "TM"}
                           </button>
                         )}
                         {!hideClientFinanceCols && (
                           <button
                             onClick={() => void onReassign(p)}
-                            className="w-8 h-8 rounded-lg text-blue-700 hover:bg-blue-50 flex items-center justify-center shrink-0"
+                            className="w-7 h-7 rounded-md text-blue-700 hover:bg-blue-50 flex items-center justify-center shrink-0"
                             title="Reassign"
                           >
-                            <ArrowRightLeft size={13} />
+                            <ArrowRightLeft size={12} />
                           </button>
                         )}
                         <button
                           onClick={() => onView(p)}
-                          className="w-8 h-8 rounded-lg bg-[#0B84F3] text-white flex items-center justify-center hover:opacity-90 shrink-0"
+                          className="w-7 h-7 rounded-md bg-[#0B84F3] text-white flex items-center justify-center hover:opacity-90 shrink-0"
                           title="View / Edit"
                         >
-                          <Eye size={14} />
+                          <Eye size={13} />
                         </button>
                       </div>
                     </td>

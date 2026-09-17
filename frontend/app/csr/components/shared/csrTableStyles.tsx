@@ -72,9 +72,9 @@ export const PROJECT_GRID_HEAD =
 export const PROJECT_GRID_ROW =
   "lg:grid-cols-[minmax(160px,1.4fr)_minmax(160px,1.3fr)_minmax(88px,88px)_minmax(130px,1fr)_minmax(120px,1fr)_minmax(110px,1fr)_minmax(72px,72px)]";
 
-/** Admin Project DB — Client…CSR, Bid Instruction, Notes for Technical, Status, Actions */
+/** Admin Project DB — Client…CSR, Bid, Notes from TM, Status, Actions */
 export const ADMIN_PROJECT_COLS = [
-  "14%", "15%", "7%", "10%", "9%", "6%", "11%", "11%", "9%", "8%",
+  "13%", "15%", "6%", "9%", "9%", "5%", "6%", "6%", "11%", "20%",
 ] as const;
 
 /** Technical Active Projects — detail, receive, deadline, bid, notes sir, notes est, assign, status, actions */

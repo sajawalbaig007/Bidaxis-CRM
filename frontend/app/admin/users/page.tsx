@@ -1088,7 +1088,7 @@ export default function UsersPage() {
               <div className="min-w-0">
                 <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight text-[#0F172A]">Users</h1>
                 <p className="text-xs sm:text-sm text-slate-400 mt-0.5">{activitySubtitle}</p>
-              </div>
+            </div>
             </div>
             <div className="inline-flex items-center gap-1 rounded-2xl border border-slate-200 bg-white p-1 shadow-sm">
               <span className="h-9 px-3 rounded-xl bg-emerald-50 text-emerald-700 text-[11px] font-semibold inline-flex items-center gap-1.5">
@@ -1098,19 +1098,19 @@ export default function UsersPage() {
               <span className="h-9 px-3 rounded-xl text-slate-500 text-[11px] font-semibold inline-flex items-center gap-1.5">
                 {Math.max(0, totalUsers - onlineNow)} offline
               </span>
-            </div>
+          </div>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-[minmax(0,0.7fr)_minmax(0,0.7fr)_minmax(0,1.6fr)] gap-3 items-stretch">
             <div className="rounded-2xl bg-gradient-to-br from-[#B8112D] to-[#8c0d22] border border-[#B8112D]/40 p-4 h-full">
               <p className="text-[10px] font-bold uppercase tracking-wider text-white/60">Total users</p>
-              {loading ? (
+          {loading ? (
                 <div className="h-8 w-12 bg-white/20 rounded-lg animate-pulse mt-2" />
               ) : (
                 <p className="text-3xl font-extrabold text-white mt-1 tabular-nums">{totalUsers}</p>
               )}
               <p className="text-[11px] text-white/55 mt-1">Dashboard logins in this portal</p>
-            </div>
+              </div>
             <div className="rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50 to-white p-4 h-full">
               <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-700/70">Online now</p>
               {loading ? (
@@ -1179,7 +1179,7 @@ export default function UsersPage() {
               <input type="text" placeholder="Search name, email, code…" value={search}
               onChange={e => { setSearch(e.target.value); setPage(1); }}
                 className="w-full h-11 bg-white border border-gray-200 rounded-xl pl-10 pr-4 text-sm outline-none focus:border-[#B8112D]"/>
-            </div>
+          </div>
             <div className="relative min-w-0">
               <ArrowUpDown size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"/>
               <select
@@ -1196,9 +1196,9 @@ export default function UsersPage() {
             </div>
             <button onClick={() => { setEditingUser(null); setForm({ ...EMPTY_USER_FORM }); setShowModal(true); }}
               className="h-11 px-5 rounded-xl bg-[#B8112D] text-white text-sm font-semibold inline-flex items-center justify-center gap-2 hover:bg-[#a30f27] w-full sm:w-auto">
-              <Plus size={16}/>Create User
-            </button>
-          </div>
+            <Plus size={16}/>Create User
+          </button>
+        </div>
         </div>
         )}
 
@@ -1392,7 +1392,7 @@ export default function UsersPage() {
                         >
                           <MoreVertical size={16}/>
                         </button>
-                        </div>
+                          </div>
                       </div>
                     </td>
                   </tr>
