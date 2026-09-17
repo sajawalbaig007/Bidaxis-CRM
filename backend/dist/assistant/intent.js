@@ -381,7 +381,7 @@ function wantsEmailIntent(lower) {
         /\b(email bhej|mail bhej|mail karo|email karo|email send|compose email|email compose)\b/.test(lower) ||
         (/\bnotes?\b/.test(lower) && /\b(email|mail|compose|draft)\b/.test(lower)));
 }
-/** Follow-ups like “uska email” / “mail bhejo” keep the last client or person. */
+/** Follow-ups like “their email” / “send mail” keep the last client or person. */
 function preferFollowUpPlan(message, focus) {
     if (!focus || !isFollowUp(message))
         return null;

@@ -287,16 +287,24 @@ export default function SalarySlipTemplateEditorModal({ open, kind, onClose }: P
   };
 
   const save = () => {
-    saveSlipTemplateForKind(kind, draft);
-    toast.success(`${draft.title} salary-slip template saved`);
-    onClose();
+    try {
+      saveSlipTemplateForKind(kind, draft);
+      toast.success(`${draft.title} salary-slip template saved.`);
+      onClose();
+    } catch {
+      toast.error("Could not save salary-slip template. Try again.");
+    }
   };
 
   const reset = () => {
-    const fresh = resetSlipTemplateForKind(kind);
-    setDraft(fresh);
-    setActiveTab("employee");
-    toast.success(`${DEFAULT_SLIP_TEMPLATES[kind].title} template reset to defaults`);
+    try {
+      const fresh = resetSlipTemplateForKind(kind);
+      setDraft(fresh);
+      setActiveTab("employee");
+      toast.success(`${DEFAULT_SLIP_TEMPLATES[kind].title} template reset to defaults.`);
+    } catch {
+      toast.error("Could not reset salary-slip template. Try again.");
+    }
   };
 
   const activeCustom = customSections.find(s => s.id === activeTab);

@@ -379,7 +379,7 @@ function wantsEmailIntent(lower: string): boolean {
   );
 }
 
-/** Follow-ups like “uska email” / “mail bhejo” keep the last client or person. */
+/** Follow-ups like “their email” / “send mail” keep the last client or person. */
 export function preferFollowUpPlan(message: string, focus: string): PlannedCall[] | null {
   if (!focus || !isFollowUp(message)) return null;
   const lower = message.toLowerCase();

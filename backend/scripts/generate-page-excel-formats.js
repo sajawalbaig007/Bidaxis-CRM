@@ -592,7 +592,7 @@ fs.writeFileSync(
    Page shows: Client Detail | Project Detail | Quoted | Payment | Fulfillment | Notes
    Payment / Fulfillment managed inside CRM after upload
 
-Upload sab Admin → Upload & Distribute Leads se hota hai.
+Uploads all go through Admin → Upload & Distribute Leads.
 
 Generated: ${new Date().toLocaleString()}
 `,

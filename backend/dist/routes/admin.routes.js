@@ -1861,6 +1861,34 @@ router.put("/project/:id/hide-technical", auth_middleware_1.verifyToken, (0, rol
         return res.status(500).json({ success: false, message: "Failed to remove from technical" });
     }
 });
+/* Admin: show or hide a project on the Chief Estimator portal */
+router.put("/project/:id/technical-visibility", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager"), async (req, res) => {
+    try {
+        const leadId = String(req.params.id);
+        const hidden = req.body?.visible === false || req.body?.hidden === true;
+        const lead = await db_1.default.lead.update({
+            where: { id: leadId },
+            data: { hiddenOnTechnical: hidden },
+            include: {
+                csr: { select: { id: true, name: true, email: true, csrCode: true } },
+            },
+        });
+        (0, cache_1.flushAdminClientsCache)();
+        (0, cache_1.invalidatePattern)("admin:projects:");
+        return res.json({
+            success: true,
+            hiddenOnTechnical: hidden,
+            lead,
+            message: hidden
+                ? "Hidden from Chief Estimator portal."
+                : "Now showing on Chief Estimator portal.",
+        });
+    }
+    catch (error) {
+        console.log(error);
+        return res.status(500).json({ success: false, message: "Failed to update Technical visibility" });
+    }
+});
 /* ================= MARK COMPLETED (Admin: keep visible on Chief Estimator) ================= */
 router.put("/project/:id/mark-completed", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager"), async (req, res) => {
     try {
@@ -3404,12 +3432,16 @@ router.put("/csr-work-session/:id", auth_middleware_1.verifyToken, (0, role_midd
         if (!sessionId) {
             return res.status(400).json({ success: false, message: "Session id required." });
         }
-        const { checkInAt, checkOutAt, clearCheckOut, dashboardMs, awayMs, note, } = req.body ?? {};
+        const { checkInAt, checkOutAt, clearCheckOut, dashboardMs, awayMs, note, tz: tzRaw, memberIds: memberIdsRaw, } = req.body ?? {};
         if (!checkInAt || typeof checkInAt !== "string") {
-            return res.status(400).json({ success: false, message: "checkInAt is required (EST datetime)." });
+            return res.status(400).json({ success: false, message: "checkInAt is required." });
         }
-        const checkInDate = (0, estTime_1.parseEstDateTimeLocal)(checkInAt, estTime_1.ADMIN_SESSION_TIMEZONE) ??
-            (!Number.isNaN(Date.parse(checkInAt)) ? new Date(checkInAt) : null);
+        const tz = String(tzRaw ?? "").toLowerCase() === "pkt" ||
+            String(tzRaw ?? "") === "Asia/Karachi" ||
+            String(tzRaw ?? "").toLowerCase() === "pakistan"
+            ? "Asia/Karachi"
+            : estTime_1.ADMIN_SESSION_TIMEZONE;
+        const checkInDate = (0, estTime_1.parseEstDateTimeLocal)(checkInAt, tz);
         if (!checkInDate) {
             return res.status(400).json({ success: false, message: "Invalid check-in time." });
         }
@@ -3418,15 +3450,17 @@ router.put("/csr-work-session/:id", auth_middleware_1.verifyToken, (0, role_midd
             if (typeof checkOutAt !== "string") {
                 return res.status(400).json({ success: false, message: "Invalid check-out time." });
             }
-            checkOutDate =
-                (0, estTime_1.parseEstDateTimeLocal)(checkOutAt, estTime_1.ADMIN_SESSION_TIMEZONE) ??
-                    (!Number.isNaN(Date.parse(checkOutAt)) ? new Date(checkOutAt) : null);
+            checkOutDate = (0, estTime_1.parseEstDateTimeLocal)(checkOutAt, tz);
             if (!checkOutDate) {
                 return res.status(400).json({ success: false, message: "Invalid check-out time." });
             }
         }
+        const memberIds = Array.isArray(memberIdsRaw)
+            ? memberIdsRaw.map((id) => String(id ?? "").trim()).filter(Boolean)
+            : [];
         const result = await (0, csrSessionTracking_1.adminAdjustCsrWorkSession)({
             sessionId,
+            memberIds,
             checkInAt: checkInDate,
             checkOutAt: checkOutDate,
             clearCheckOut: !!clearCheckOut,

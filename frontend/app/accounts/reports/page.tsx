@@ -1131,8 +1131,8 @@ export default function AccountsReportsPage() {
                     <BudgetVsActualBars data={report.budgetCompare} label={label} />
                   ) : (
                     <p className="px-3 py-8 text-xs text-crm-text-muted text-center">
-                      Is month ka Income Statement budget plan save nahi hai. Pehle Income Statement page par budget planner
-                      mein plan set karein.
+                      No Income Statement budget plan is saved for this month. Set a plan in the budget planner on the
+                      Income Statement page.
                     </p>
                   )}
                 </AccountsChartCard>
@@ -1227,8 +1227,8 @@ export default function AccountsReportsPage() {
                   <BudgetComparePanel data={report.budgetCompare} label={label} showChart={false} showMinis={false} />
                 ) : (
                   <p className="px-4 pb-4 text-xs text-crm-text-muted">
-                    Is month ka Income Statement budget plan save nahi hai. Pehle Income Statement page par budget planner
-                    mein plan set karein.
+                    No Income Statement budget plan is saved for this month. Set a plan in the budget planner on the
+                    Income Statement page.
                   </p>
                 )}
               </SectionCard>
