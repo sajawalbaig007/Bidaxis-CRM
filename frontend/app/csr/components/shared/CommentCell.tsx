@@ -1158,7 +1158,7 @@ export default function CommentCell({
           </span>
         ) : (
           <span className="text-[10px] font-bold leading-none whitespace-nowrap">
-            {badgeLabel ? `${badgeLabel}` : "Add"}
+            Add
           </span>
         )}
       </button>

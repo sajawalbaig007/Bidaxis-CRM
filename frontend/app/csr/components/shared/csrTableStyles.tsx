@@ -5,9 +5,9 @@ export const CSR_TABLE_CLASS = "w-full table-fixed border-collapse";
 export const CSR_TABLE_FLUID = "w-full border-collapse table-fixed";
 export const CSR_TD_FLUID = "py-2 px-1.5 sm:px-2 align-middle";
 export const CSR_THEAD =
-  "crm-thead sticky top-0 z-10 border-b border-crm-border-subtle bg-crm-surface-raised";
+  "crm-thead sticky top-0 z-20 bg-[#B8112D]";
 export const CSR_TH =
-  "text-left py-2 px-1.5 sm:px-2 text-[10px] sm:text-[11px] font-semibold text-crm-text-muted";
+  "text-left py-2.5 px-1.5 sm:px-2 text-[10px] sm:text-[11px] font-bold text-white/80 uppercase tracking-[0.14em]";
 export const CSR_TD = "py-3 px-1.5 sm:px-2 align-middle max-w-0 overflow-hidden";
 /** Phone / email cells — allow +N badge and popover menus to show */
 export const CSR_TD_POPOVER = "py-3 px-1.5 sm:px-2 align-middle max-w-0 overflow-visible";
@@ -64,7 +64,7 @@ export const CLIENT_GRID_ROW =
   "lg:grid-cols-[minmax(52px,64px)_minmax(150px,1.4fr)_minmax(110px,1fr)_minmax(120px,0.95fr)_minmax(90px,0.75fr)_minmax(130px,1fr)_minmax(90px,0.8fr)_minmax(120px,1fr)_minmax(124px,124px)]";
 
 export const CRM_GRID_HEAD_ROW =
-  "crm-grid-head border-b border-crm-border-subtle bg-crm-surface-raised";
+  "crm-grid-head border-b border-[#B8112D] bg-[#B8112D] [&>*]:!text-white/80";
 
 export const PROJECT_GRID_HEAD =
   "grid-cols-[minmax(160px,1.4fr)_minmax(160px,1.3fr)_minmax(88px,88px)_minmax(130px,1fr)_minmax(120px,1fr)_minmax(110px,1fr)_minmax(72px,72px)]";
@@ -72,9 +72,9 @@ export const PROJECT_GRID_HEAD =
 export const PROJECT_GRID_ROW =
   "lg:grid-cols-[minmax(160px,1.4fr)_minmax(160px,1.3fr)_minmax(88px,88px)_minmax(130px,1fr)_minmax(120px,1fr)_minmax(110px,1fr)_minmax(72px,72px)]";
 
-/** Admin Project DB — Client…CSR, Bid Instruction, Notes for Technical, Status, Actions */
+/** Admin Project DB — Client…CSR, Bid, Notes from TM, Status, Actions */
 export const ADMIN_PROJECT_COLS = [
-  "14%", "15%", "7%", "10%", "9%", "6%", "11%", "11%", "9%", "8%",
+  "16%", "17%", "6%", "10%", "9%", "5%", "7%", "7%", "13%", "10%",
 ] as const;
 
 /** Technical Active Projects — detail, receive, deadline, bid, notes sir, notes est, assign, status, actions */
@@ -102,9 +102,15 @@ export const ADMIN_TECH_VIEW_COLS = [
   "24%", "14%", "18%", "18%", "14%", "12%",
 ] as const;
 
+/** Full-bleed CSR pages — no leftover side gutters on wide screens */
+export const CSR_PAGE_MAIN =
+  "w-full max-w-none p-3 sm:p-4 md:p-5 lg:p-6 xl:px-8 2xl:px-10";
+export const CSR_PAGE_GUTTER =
+  "w-full px-3 sm:px-4 md:px-5 lg:px-6 xl:px-8 2xl:px-10";
+
 /** Table card — no inner vertical scroll; page scrolls instead */
 export const CSR_TABLE_CARD =
-  "crm-table-card rounded-2xl sm:rounded-[30px] border shadow-sm mt-4 sm:mt-7 min-w-0 overflow-hidden";
+  "crm-table-card rounded-2xl sm:rounded-[28px] border border-slate-200/80 shadow-[0_12px_40px_rgba(15,23,42,0.06)] mt-4 sm:mt-7 min-w-0 overflow-hidden";
 
 /** Table fits viewport — no inner horizontal scroll */
 export const CSR_TABLE_WRAP = "w-full min-w-0 overflow-x-hidden px-1.5 sm:px-3 lg:px-4 pb-3 sm:pb-4";

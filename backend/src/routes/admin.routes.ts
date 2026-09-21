@@ -2169,26 +2169,41 @@ router.put(
       }
       const work = String(existing.projectWorkStatus ?? "").toLowerCase();
       const st = String(existing.status ?? "").toLowerCase();
-      if (work === "completed" || st === "completed") {
+      const currentlyDone = work === "completed" || st === "completed";
+      const bodyCompleted = (req.body as { completed?: unknown } | undefined)?.completed;
+      const wantCompleted =
+        bodyCompleted === undefined
+          ? !currentlyDone
+          : bodyCompleted === true || bodyCompleted === "true";
+
+      const includeLead = {
+        csr: { select: { id: true, name: true, email: true, csrCode: true } },
+        notes: { orderBy: { createdAt: "asc" as const }, take: 20 },
+        uploadFile: { select: { companyName: true } },
+      };
+
+      if (wantCompleted === currentlyDone) {
         const lead = await prisma.lead.findUnique({
           where: { id: leadId },
-          include: {
-            csr: { select: { id: true, name: true, email: true, csrCode: true } },
-            notes: { orderBy: { createdAt: "asc" }, take: 20 },
-            uploadFile: { select: { companyName: true } },
-          },
+          include: includeLead,
         });
-        return res.json({ success: true, lead });
+        return res.json({ success: true, lead, completed: currentlyDone });
       }
+
       const lead = await prisma.lead.update({
         where: { id: leadId },
-        data: {
-          projectWorkStatus: "completed",
-          status: "completed",
-          projectPhase: "delivery_phase",
-          needsRevision: false,
-          hiddenOnTechnical: false,
-        },
+        data: wantCompleted
+          ? {
+              projectWorkStatus: "completed",
+              status: "completed",
+              projectPhase: "delivery_phase",
+              needsRevision: false,
+              hiddenOnTechnical: false,
+            }
+          : {
+              projectWorkStatus: "in_progress",
+              status: "Close Client",
+            },
         include: {
           csr: { select: { id: true, name: true, email: true, csrCode: true } },
           notes: { orderBy: { createdAt: "asc" }, take: 20 },
@@ -2198,10 +2213,10 @@ router.put(
       flushAdminClientsCache();
       invalidatePattern("admin:projects:");
       if (lead.assignedTo) invalidateCache(`csr:projects:${lead.assignedTo}`);
-      return res.json({ success: true, lead });
+      return res.json({ success: true, lead, completed: wantCompleted });
     } catch (error) {
       console.log(error);
-      return res.status(500).json({ success: false, message: "Failed to mark project completed" });
+      return res.status(500).json({ success: false, message: "Failed to update project completion" });
     }
   },
 );
@@ -2238,6 +2253,8 @@ router.put(
           revisionRequestedAt: new Date(),
           revisionNotes: revisionNotes || null,
           hiddenOnTechnical: false,
+          projectWorkStatus: "in_progress",
+          status: "Close Client",
         },
         include: {
           csr: { select: { id: true, name: true, email: true, csrCode: true } },

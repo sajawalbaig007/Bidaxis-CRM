@@ -1902,26 +1902,37 @@ router.put("/project/:id/mark-completed", auth_middleware_1.verifyToken, (0, rol
         }
         const work = String(existing.projectWorkStatus ?? "").toLowerCase();
         const st = String(existing.status ?? "").toLowerCase();
-        if (work === "completed" || st === "completed") {
+        const currentlyDone = work === "completed" || st === "completed";
+        const bodyCompleted = req.body?.completed;
+        const wantCompleted = bodyCompleted === undefined
+            ? !currentlyDone
+            : bodyCompleted === true || bodyCompleted === "true";
+        const includeLead = {
+            csr: { select: { id: true, name: true, email: true, csrCode: true } },
+            notes: { orderBy: { createdAt: "asc" }, take: 20 },
+            uploadFile: { select: { companyName: true } },
+        };
+        if (wantCompleted === currentlyDone) {
             const lead = await db_1.default.lead.findUnique({
                 where: { id: leadId },
-                include: {
-                    csr: { select: { id: true, name: true, email: true, csrCode: true } },
-                    notes: { orderBy: { createdAt: "asc" }, take: 20 },
-                    uploadFile: { select: { companyName: true } },
-                },
+                include: includeLead,
             });
-            return res.json({ success: true, lead });
+            return res.json({ success: true, lead, completed: currentlyDone });
         }
         const lead = await db_1.default.lead.update({
             where: { id: leadId },
-            data: {
-                projectWorkStatus: "completed",
-                status: "completed",
-                projectPhase: "delivery_phase",
-                needsRevision: false,
-                hiddenOnTechnical: false,
-            },
+            data: wantCompleted
+                ? {
+                    projectWorkStatus: "completed",
+                    status: "completed",
+                    projectPhase: "delivery_phase",
+                    needsRevision: false,
+                    hiddenOnTechnical: false,
+                }
+                : {
+                    projectWorkStatus: "in_progress",
+                    status: "Close Client",
+                },
             include: {
                 csr: { select: { id: true, name: true, email: true, csrCode: true } },
                 notes: { orderBy: { createdAt: "asc" }, take: 20 },
@@ -1932,11 +1943,11 @@ router.put("/project/:id/mark-completed", auth_middleware_1.verifyToken, (0, rol
         (0, cache_1.invalidatePattern)("admin:projects:");
         if (lead.assignedTo)
             (0, cache_1.invalidateCache)(`csr:projects:${lead.assignedTo}`);
-        return res.json({ success: true, lead });
+        return res.json({ success: true, lead, completed: wantCompleted });
     }
     catch (error) {
         console.log(error);
-        return res.status(500).json({ success: false, message: "Failed to mark project completed" });
+        return res.status(500).json({ success: false, message: "Failed to update project completion" });
     }
 });
 /* ================= ADMIN → TM REVISION QUEUE ================= */
@@ -1965,6 +1976,8 @@ router.put("/project/:id/request-revision", auth_middleware_1.verifyToken, (0, r
                 revisionRequestedAt: new Date(),
                 revisionNotes: revisionNotes || null,
                 hiddenOnTechnical: false,
+                projectWorkStatus: "in_progress",
+                status: "Close Client",
             },
             include: {
                 csr: { select: { id: true, name: true, email: true, csrCode: true } },

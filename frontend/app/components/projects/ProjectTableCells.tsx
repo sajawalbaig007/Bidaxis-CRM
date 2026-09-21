@@ -159,7 +159,7 @@ export function ProjectDetailCell({ p }: { p: ProjectTableRow }) {
   const division = cleanVal(p.interestedService);
 
   return (
-    <div className="min-w-0 rounded-xl bg-slate-50 dark:bg-crm-muted border border-slate-100 dark:border-crm-border-subtle px-2.5 py-2 space-y-1">
+    <div className="min-w-0 rounded-xl bg-slate-50 dark:bg-crm-muted border border-slate-100 dark:border-crm-border-subtle px-2 py-1.5 space-y-0.5">
       {title && (
         <p className="text-xs font-extrabold text-[#0F172A] dark:text-crm-text truncate flex items-center gap-1.5">
           <Briefcase size={11} className="text-[#B8112D] shrink-0" />
@@ -367,7 +367,7 @@ export function FulfillmentCell({
 }
 
 export const PROJECT_TABLE_HEAD =
-  "text-[10px] xl:text-[11px] font-semibold text-crm-text-faint uppercase tracking-wider";
+  "text-[10px] xl:text-[11px] font-semibold uppercase tracking-wider text-crm-text-faint [.crm-thead_&]:text-white/80 [.crm-grid-head_&]:text-white/80";
 
 export const PROJECT_TABLE_CARD =
   "crm-table-card rounded-2xl sm:rounded-[28px] border border-slate-200/80 shadow-[0_12px_40px_rgba(15,23,42,0.06)] overflow-hidden";
@@ -376,10 +376,10 @@ export const PROJECT_DB_THEAD =
   "sticky top-0 z-20 bg-[#B8112D]";
 
 export const PROJECT_DB_TH =
-  "px-3 xl:px-3.5 py-3 text-left text-[10px] font-bold text-white/80 uppercase tracking-[0.14em] whitespace-nowrap";
+  "px-1.5 py-2 text-left text-[9px] font-bold text-white/85 uppercase tracking-wide leading-tight overflow-hidden";
 
 export const PROJECT_DB_TD =
-  "px-3 xl:px-3.5 py-3.5 align-top min-w-0";
+  "px-2 py-2.5 align-top min-w-0 overflow-hidden";
 
 export const PROJECT_DB_ROW =
   "group border-b border-slate-100/90 last:border-0 even:bg-slate-50/50 hover:bg-[#F8FBFF] dark:even:bg-white/[0.02] dark:hover:bg-white/[0.04] hover:shadow-[inset_3px_0_0_#B8112D] transition-colors align-top";

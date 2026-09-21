@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Globe, X } from "lucide-react";
 import { useTheme } from "@/app/components/ThemeProvider";
 import { useMounted } from "@/lib/useMounted";
+import { CSR_PAGE_GUTTER } from "./csrTableStyles";
 const US_ZONES = [
   { tz: "America/New_York",    label: "Eastern",  abbr: "ET", city: "New York",    accent: "#3B82F6" },
   { tz: "America/Chicago",     label: "Central",  abbr: "CT", city: "Chicago",     accent: "#10B981" },
@@ -281,7 +282,7 @@ export default function UsaTimezoneClocks() {
   return (
     <>
       <div className="bg-crm-surface border-b border-crm-border-subtle shadow-sm overflow-hidden">
-        <div className="max-w-[1400px] mx-auto px-3 sm:px-4 md:px-5 lg:px-6 py-2">
+        <div className={`${CSR_PAGE_GUTTER} py-2`}>
           <div className="flex items-center gap-2 overflow-x-auto flex-nowrap [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             <RegionBadge flag="🇺🇸" label="US" />
             {US_ZONES.map(zone => (

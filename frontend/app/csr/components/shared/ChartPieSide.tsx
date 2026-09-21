@@ -18,7 +18,7 @@ export default function ChartPieSide({ data, title }: Props) {
   return (
     <div className="flex flex-col items-center">
       {title && (
-        <p className="text-xs sm:text-[13px] font-semibold text-gray-600 mb-2 text-center">{title}</p>
+        <p className="text-xs sm:text-[13px] font-semibold text-gray-600 dark:text-crm-text-secondary mb-2 text-center">{title}</p>
       )}
       <div
         className="w-44 h-44 sm:w-52 sm:h-52 lg:w-56 lg:h-56 shrink-0 flex items-center justify-center"

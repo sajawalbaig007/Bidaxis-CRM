@@ -8,9 +8,10 @@ interface TimezoneFilterDropdownProps {
   value: string;
   onChange: (v: string) => void;
   compact?: boolean;
+  fullWidth?: boolean;
 }
 
-export default function TimezoneFilterDropdown({ value, onChange, compact = false }: TimezoneFilterDropdownProps) {
+export default function TimezoneFilterDropdown({ value, onChange, compact = false, fullWidth = false }: TimezoneFilterDropdownProps) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -32,11 +33,11 @@ export default function TimezoneFilterDropdown({ value, onChange, compact = fals
   const clear = () => onChange("");
 
   return (
-    <div className="relative" ref={ref}>
+    <div className={`relative ${fullWidth ? "w-full min-w-0" : ""}`} ref={ref}>
       <button
         type="button"
         onClick={() => setOpen(v => !v)}
-        className={`h-10 sm:h-[42px] px-3 sm:px-4 rounded-xl sm:rounded-2xl border flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm font-medium transition-colors ${compact ? "min-w-[120px] sm:min-w-[148px]" : "min-w-[150px] sm:min-w-[190px]"} ${
+        className={`px-3 sm:px-4 rounded-xl sm:rounded-2xl border flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm font-medium transition-colors ${fullWidth ? "h-10 sm:h-[42px] w-full min-w-0" : compact ? "h-10 sm:h-[42px] min-w-[120px] sm:min-w-[148px]" : "h-10 sm:h-[42px] min-w-[150px] sm:min-w-[190px]"} ${
           value
             ? "border-[#B8112D] bg-[#FFF1F3] text-[#B8112D]"
             : "border-gray-200 dark:border-crm-border bg-[#FAFAFA] dark:bg-crm-input text-gray-600 dark:text-crm-text-secondary hover:border-gray-300 dark:hover:border-crm-border"

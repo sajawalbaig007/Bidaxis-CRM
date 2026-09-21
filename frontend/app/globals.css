@@ -96,7 +96,13 @@ body {
 .dark .bg-\[\#F5F6FA\] { background-color: var(--crm-bg) !important; }
 .dark .bg-\[\#F0F2F8\] { background-color: var(--crm-bg-subtle) !important; }
 .dark .bg-\[\#F0F2F7\] { background-color: var(--crm-bg-subtle) !important; }
-.dark .bg-\[\#FAFAFA\] { background-color: var(--crm-surface-raised) !important; }
+.dark .bg-\[\#FAFAFA\]:not(.crm-thead):not(.crm-grid-head) { background-color: var(--crm-surface-raised) !important; }
+html.dark .bg-\[\#B8112D\].crm-thead,
+html.dark .bg-\[\#B8112D\].crm-grid-head,
+html.dark .crm-thead,
+html.dark .crm-grid-head {
+  background-color: #B8112D !important;
+}
 .dark .bg-\[\#F8F9FC\] { background-color: var(--crm-surface-muted) !important; }
 .dark .bg-\[\#F8F8F8\] { background-color: var(--crm-surface-muted) !important; }
 .dark .bg-\[\#F8FAFC\] { background-color: var(--crm-muted) !important; }
@@ -290,69 +296,103 @@ html.dark textarea::placeholder {
 
 /* Table headers */
 .crm-thead {
-  background-color: var(--crm-surface-raised);
-  border-bottom-color: var(--crm-border-subtle);
+  background-color: #B8112D;
+  border-bottom-color: #B8112D;
 }
 
 .crm-thead th {
-  color: var(--crm-text-muted);
+  color: rgba(255, 255, 255, 0.82);
   background-color: transparent;
 }
 
+.crm-thead input {
+  background-color: rgba(255, 255, 255, 0.14);
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.28);
+}
+.crm-thead input::placeholder {
+  color: rgba(255, 255, 255, 0.55);
+}
+
 .crm-grid-head {
-  background-color: var(--crm-surface-raised);
-  border-bottom-color: var(--crm-border-subtle);
+  background-color: #B8112D;
+  border-bottom-color: #B8112D;
 }
 
 .crm-grid-head > * {
-  color: var(--crm-text-faint);
-  font-weight: 600;
+  color: rgba(255, 255, 255, 0.82);
+  font-weight: 700;
+}
+
+table:has(> thead.crm-thead) tbody > tr {
+  border-bottom: 1px solid rgba(15, 23, 42, 0.06);
+}
+table:has(> thead.crm-thead) tbody > tr:last-child {
+  border-bottom: none;
+}
+table:has(> thead.crm-thead) tbody > tr:nth-child(even) {
+  background-color: rgba(248, 250, 252, 0.65);
+}
+table:has(> thead.crm-thead) tbody > tr:hover {
+  background-color: #FFF8F9;
+  box-shadow: inset 3px 0 0 #B8112D;
 }
 
 html.dark .crm-thead,
 html.dark thead.crm-thead,
 html.dark thead[class*="crm-thead"] {
-  background-color: var(--crm-muted) !important;
+  background-color: #B8112D !important;
 }
 
-html.dark thead,
-html.dark thead.bg-white,
-html.dark thead.bg-\[\#FAFAFA\],
-html.dark thead.bg-\[\#FAFAFB\],
-html.dark thead[class*="bg-white"],
-html.dark thead[class*="bg-\[\#FAFA"] {
+html.dark thead:not(.crm-thead),
+html.dark thead:not(.crm-thead).bg-white,
+html.dark thead:not(.crm-thead).bg-\[\#FAFAFA\],
+html.dark thead:not(.crm-thead).bg-\[\#FAFAFB\],
+html.dark thead:not(.crm-thead)[class*="bg-white"],
+html.dark thead:not(.crm-thead)[class*="bg-\[\#FAFA"] {
   background-color: var(--crm-muted) !important;
   border-bottom-color: var(--crm-border) !important;
 }
 
-html.dark .crm-thead th,
-html.dark thead th,
-html.dark thead tr.text-gray-400,
-html.dark thead tr.text-gray-500,
-html.dark thead .text-gray-400,
-html.dark thead .text-gray-500 {
-  color: var(--crm-text) !important;
+html.dark .crm-thead th {
+  color: rgba(255, 255, 255, 0.88) !important;
   background-color: transparent !important;
-  opacity: 0.92;
+  opacity: 1 !important;
 }
 
-html.dark thead tr.border-b,
-html.dark thead tr[class*="border-"] {
+html.dark .crm-thead input {
+  background-color: rgba(255, 255, 255, 0.14) !important;
+  color: #fff !important;
+  border-color: rgba(255, 255, 255, 0.28) !important;
+}
+html.dark .crm-thead input::placeholder {
+  color: rgba(255, 255, 255, 0.55) !important;
+}
+
+html.dark table:has(> thead.crm-thead) tbody > tr {
+  border-bottom-color: var(--crm-border-subtle);
+}
+html.dark table:has(> thead.crm-thead) tbody > tr:nth-child(even) {
+  background-color: rgba(255, 255, 255, 0.03);
+}
+html.dark table:has(> thead.crm-thead) tbody > tr:hover {
+  background-color: #2f1820 !important;
+  box-shadow: inset 3px 0 0 #B8112D;
+}
+
+html.dark thead:not(.crm-thead) tr.border-b,
+html.dark thead:not(.crm-thead) tr[class*="border-"] {
   border-color: var(--crm-border) !important;
 }
 
-html.dark .crm-grid-head,
-html.dark div.bg-\[\#FAFAFA\].border-b,
-html.dark .bg-\[\#FAFAFA\].border-b.border-\[\#F3F3F3\] {
-  background-color: var(--crm-muted) !important;
-  border-color: var(--crm-border) !important;
+html.dark .crm-grid-head {
+  background-color: #B8112D !important;
+  border-color: #B8112D !important;
 }
 
-html.dark .crm-grid-head > *,
-html.dark div.bg-\[\#FAFAFA\].border-b .text-gray-400,
-html.dark div.bg-\[\#FAFAFA\].border-b .text-gray-500 {
-  color: var(--crm-text) !important;
-  opacity: 0.9;
+html.dark .crm-grid-head > * {
+  color: rgba(255, 255, 255, 0.88) !important;
+  opacity: 1 !important;
 }
 
 html.dark .crm-table-card > div.border-b {
@@ -363,8 +403,8 @@ html.dark .crm-table-card > div.border-b {
 .dark .border-\[\#F1F1F1\] { border-color: var(--crm-border) !important; }
 
 .dark .bg-\[\#FAFAFB\] { background-color: var(--crm-surface-raised) !important; }
-.dark thead.bg-\[\#FAFAFA\],
-.dark .bg-\[\#FAFAFA\].border-b { background-color: var(--crm-surface-raised) !important; }
+.dark thead:not(.crm-thead).bg-\[\#FAFAFA\],
+.dark .bg-\[\#FAFAFA\].border-b:not(.crm-thead):not(.crm-grid-head) { background-color: var(--crm-surface-raised) !important; }
 
 /* Table card token */
 .crm-table-card {
