@@ -22,6 +22,7 @@ export type ParsedLeadRow = {
   company: string;
   phone: string;
   email: string;
+  website: string;
   state: string;
   interestedService: string;
   clientCode: string | null;
@@ -215,6 +216,9 @@ export function parseLeadRows(
     projectTitle: resolveColumnKey(headerKeys, ["project detail","project title","project name","project"], ["code","client"]),
     projectBudget:resolveColumnKey(headerKeys, ["quotation","quote","budget"]),
     email:        resolveColumnKey(headerKeys, ["email","mail","e-mail"]),
+    website:      resolveColumnKey(headerKeys, [
+      "website", "web site", "website link", "web link", "company website", "url",
+    ], ["email"]),
     clientCode:   resolveColumnKey(headerKeys, ["client code","clientcode","project code","client_code"]),
     comments:     resolveColumnKey(headerKeys, [
       "notes", "note", "comments", "comment", "remarks", "remark",
@@ -263,6 +267,7 @@ export function parseLeadRows(
       company,
       phone,
       email: readCell(row, col.email),
+      website: readCell(row, col.website),
       state: readCell(row, col.state),
       interestedService: readInterestedService(row, col.service, headerKeys),
       clientCode: readCell(row, col.clientCode) || null,
@@ -291,6 +296,7 @@ type ExistingLeadMatch = {
   id: string;
   phone: string | null;
   email: string | null;
+  website: string | null;
   status: string;
   inBin: boolean;
   assignedTo: string;
@@ -342,6 +348,7 @@ export async function classifyRows(
   toRefresh: RefreshRow[];
   toRestore: RestoreRow[];
   emailUpdates: { id: string; email: string }[];
+  websiteUpdates: { id: string; website: string }[];
   preview: RowPreview[];
   previewCounts: { new: number; duplicate: number; updated: number; empty: number };
   existingCodeMap?: Map<string, string>;
@@ -411,6 +418,7 @@ export async function classifyRows(
       toRefresh: [],
       toRestore,
       emailUpdates: [],
+      websiteUpdates: [],
       preview,
       previewCounts,
       existingCodeMap,
@@ -427,7 +435,7 @@ export async function classifyRows(
     chunkedLookup(emails, CHUNK_LOOKUP, chunk =>
       prisma.lead.findMany({
         where: { email: { in: chunk } },
-        select: { email: true, id: true, phone: true, status: true, inBin: true, assignedTo: true },
+        select: { email: true, website: true, id: true, phone: true, status: true, inBin: true, assignedTo: true },
       }),
     ),
   ]);
@@ -439,6 +447,7 @@ export async function classifyRows(
   );
 
   const emailUpdates: { id: string; email: string }[] = [];
+  const websiteUpdates: { id: string; website: string }[] = [];
   const toPromote: PromoteRow[] = [];
   const toRefresh: RefreshRow[] = [];
   const toRestore: RestoreRow[] = [];
@@ -467,6 +476,7 @@ export async function classifyRows(
         id: l.id,
         phone: l.phone,
         email: l.email,
+        website: l.website ?? null,
         status: l.status,
         inBin: l.inBin,
         assignedTo: l.assignedTo,
@@ -504,6 +514,9 @@ export async function classifyRows(
         if (!exactExisting.email && hasValidEmail) {
           emailUpdates.push({ id: exactExisting.id, email: r.email });
         }
+        if (!exactExisting.website?.trim() && r.website.trim()) {
+          websiteUpdates.push({ id: exactExisting.id, website: r.website.trim() });
+        }
         pushPreview(r, "duplicate", "Already in database (matching phone)");
         continue;
       }
@@ -523,6 +536,9 @@ export async function classifyRows(
         pushPreview(r, "updated", `Moved to ${pageLabel(r.status)}`);
         continue;
       }
+      if (!emailHit.website?.trim() && r.website.trim()) {
+        websiteUpdates.push({ id: emailHit.id, website: r.website.trim() });
+      }
       pushPreview(r, "duplicate", "Already in database (matching email)");
       continue;
     }
@@ -531,5 +547,5 @@ export async function classifyRows(
     pushPreview(r, "new", `New contact — will be added to ${pageLabel(r.status)}`);
   }
 
-  return { fresh, toUpdate: [], toPromote, toRefresh, toRestore, emailUpdates, preview, previewCounts };
+  return { fresh, toUpdate: [], toPromote, toRefresh, toRestore, emailUpdates, websiteUpdates, preview, previewCounts };
 }
