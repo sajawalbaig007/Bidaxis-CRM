@@ -56,7 +56,7 @@ export default function TradeFilterDropdown({
   };
 
   return (
-    <div className={`relative z-30 ${fullWidth ? "w-full min-w-0" : ""}`} ref={ref}>
+    <div className={`relative ${fullWidth ? "w-full min-w-0" : ""}`} ref={ref}>
       <button
         type="button"
         onClick={() => setOpen(o => !o)}
@@ -85,7 +85,7 @@ export default function TradeFilterDropdown({
       </button>
 
       {open && (
-        <div className="absolute top-11 sm:top-12 right-0 z-[200] w-[240px] sm:w-[280px] bg-white dark:bg-crm-surface rounded-xl sm:rounded-2xl shadow-2xl border border-gray-100 dark:border-crm-border overflow-hidden">
+        <div className={`absolute top-full mt-1 z-[80] bg-white dark:bg-crm-surface rounded-xl sm:rounded-2xl shadow-2xl border border-gray-100 dark:border-crm-border overflow-hidden ${fullWidth ? "left-0 w-full" : "right-0 w-[240px] sm:w-[280px]"}`}>
           <div className="p-2 border-b border-gray-100 dark:border-crm-border-subtle">
             <div className="relative">
               <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />

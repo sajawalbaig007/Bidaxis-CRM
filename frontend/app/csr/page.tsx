@@ -446,8 +446,8 @@ export default function CSRPage() {
               </div>
             </div>
 
-            <div className="grid w-full gap-2 grid-cols-2 md:grid-cols-3 xl:grid-cols-6">
-              <div className="relative min-w-0 col-span-2 md:col-span-3 xl:col-span-1">
+            <div className="relative z-20 grid w-full gap-2 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
+              <div className="relative min-w-0 sm:col-span-2 lg:col-span-3 2xl:col-span-1">
                 <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
                 <input
                   type="text"
@@ -486,7 +486,7 @@ export default function CSRPage() {
           </div>
 
           {/* ── TABS ── */}
-          <div className="mt-4 sm:mt-7 mb-4 sm:mb-7 space-y-3">
+          <div className="relative z-0 mt-4 sm:mt-5 mb-4 sm:mb-7 space-y-3">
             {[
               {
                 label: "Today's queue",
@@ -508,16 +508,12 @@ export default function CSRPage() {
                   { tab:"projectwon",   label:"Close Client", short:"Closed",   count: pillCount("projectwon", statCounts.projectWonCount),   icon:<CircleCheckBig size={13}/>, active:"bg-emerald-600 text-white shadow-md shadow-emerald-500/30", inactive:"bg-emerald-100 text-emerald-800 dark:bg-emerald-500/25 dark:text-emerald-300 ring-1 ring-emerald-300/70 dark:ring-emerald-400/35"},
                 ],
               },
-            ].map((group, gi) => (
+            ].map(group => (
               <div key={group.label}>
                 <p className="text-[10px] sm:text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5 px-0.5">
                   {group.label}
                 </p>
-                <div className={`grid gap-1.5 sm:gap-2 ${
-                  gi === 0
-                    ? "grid-cols-3"
-                    : "grid-cols-2 sm:grid-cols-4 lg:grid-cols-7"
-                }`}>
+                <div className="flex flex-wrap gap-1.5 sm:gap-2">
                   {group.tabs.map(btn => {
                     const isActive =
                       btn.tab === "today"
@@ -532,13 +528,13 @@ export default function CSRPage() {
                           setPage(1);
                           setPhoneFilter("");
                         }}
-                        className={`min-h-[40px] sm:min-h-[42px] w-full px-2 sm:px-3 py-2 rounded-xl flex items-center justify-center gap-1.5 text-[11px] sm:text-[12px] font-semibold transition-all ${
+                        className={`min-h-[40px] sm:min-h-[42px] flex-1 basis-[9.5rem] min-w-[7.25rem] max-w-full px-2 sm:px-3 py-2 rounded-xl flex items-center justify-center gap-1.5 text-[11px] sm:text-[12px] font-semibold transition-all overflow-hidden ${
                           isActive ? btn.active : btn.inactive
                         }`}
                       >
                         <span className="shrink-0">{btn.icon}</span>
-                        <span className="truncate hidden md:inline">{btn.label}</span>
-                        <span className="truncate md:hidden">{btn.short}</span>
+                        <span className="truncate min-w-0 hidden sm:inline">{btn.label}</span>
+                        <span className="truncate min-w-0 sm:hidden">{btn.short}</span>
                         <span className={`px-1.5 py-0.5 rounded-md text-[9px] sm:text-[10px] font-bold shrink-0 ${
                           isActive ? "bg-white/25 text-white" : "bg-black/10 dark:bg-white/20"
                         }`}>{btn.count}</span>
