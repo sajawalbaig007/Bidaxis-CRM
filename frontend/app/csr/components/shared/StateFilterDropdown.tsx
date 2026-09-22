@@ -70,7 +70,7 @@ export default function StateFilterDropdown({ value, onChange, compact = false, 
       </button>
 
       {open && (
-        <div className={`absolute top-full mt-1 z-[80] bg-white dark:bg-crm-surface rounded-xl sm:rounded-2xl shadow-2xl border border-gray-100 dark:border-crm-border overflow-hidden ${fullWidth ? "left-0 w-full" : "right-0 w-[260px] sm:w-[290px]"}`}>
+        <div className={`bg-white dark:bg-crm-surface rounded-xl sm:rounded-2xl border border-gray-100 dark:border-crm-border overflow-hidden ${fullWidth ? "relative mt-1 w-full shadow-sm" : "absolute top-full mt-1 right-0 z-[80] w-[260px] sm:w-[290px] shadow-2xl"}`}>
 
           {/* Country tabs */}
           <div className="flex gap-1 p-2 border-b border-gray-100 dark:border-crm-border bg-[#FAFAFB] dark:bg-crm-surface-raised">

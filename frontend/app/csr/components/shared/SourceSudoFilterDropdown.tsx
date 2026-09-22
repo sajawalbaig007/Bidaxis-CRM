@@ -76,7 +76,7 @@ export default function SourceSudoFilterDropdown({
       </button>
 
       {open && (
-        <div className={`absolute top-full mt-1 z-[80] bg-white dark:bg-crm-surface rounded-xl sm:rounded-2xl shadow-2xl border border-gray-100 dark:border-crm-border-subtle overflow-hidden ${fullWidth ? "left-0 w-full" : "right-0 w-[240px] sm:w-[280px]"}`}>
+        <div className={`bg-white dark:bg-crm-surface rounded-xl sm:rounded-2xl border border-gray-100 dark:border-crm-border-subtle overflow-hidden ${fullWidth ? "relative mt-1 w-full shadow-sm" : "absolute top-full mt-1 right-0 z-[80] w-[240px] sm:w-[280px] shadow-2xl"}`}>
           <div className="px-3 py-2 border-b border-gray-100 dark:border-crm-border-subtle bg-[#FAFAFB] dark:bg-crm-muted">
             <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Upload source sudo</p>
           </div>
