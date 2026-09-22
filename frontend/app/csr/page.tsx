@@ -446,7 +446,7 @@ export default function CSRPage() {
               </div>
             </div>
 
-            <div className="relative z-20 grid w-full gap-2 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
+            <div className="grid w-full items-start gap-2 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
               <div className="relative min-w-0 sm:col-span-2 lg:col-span-3 2xl:col-span-1">
                 <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
                 <input
@@ -486,7 +486,7 @@ export default function CSRPage() {
           </div>
 
           {/* ── TABS ── */}
-          <div className="relative z-0 mt-4 sm:mt-5 mb-4 sm:mb-7 space-y-3">
+          <div className="mt-4 sm:mt-5 mb-4 sm:mb-7 space-y-3">
             {[
               {
                 label: "Today's queue",
