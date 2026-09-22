@@ -6,6 +6,7 @@ const LEAD_PHONE_SELECT = {
   id: true,
   phone: true,
   email: true,
+  website: true,
   status: true,
   inBin: true,
   assignedTo: true,
@@ -18,6 +19,7 @@ export type LeadPhoneMatch = {
   id: string;
   phone: string | null;
   email: string | null;
+  website?: string | null;
   status: string;
   inBin: boolean;
   assignedTo: string;

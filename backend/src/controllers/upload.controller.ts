@@ -336,7 +336,7 @@ export const uploadLeads = async (req: Request, res: Response) => {
       isSpecialUpload && (status ?? "").toLowerCase() !== "pending";
     const promoteWonClients = isSpecialUpload && initialStatuses.every(isWonClientUploadStatus);
 
-    const { fresh, toUpdate, toPromote, toRefresh, toRestore, emailUpdates, preview, previewCounts, existingCodeMap } =
+    const { fresh, toUpdate, toPromote, toRefresh, toRestore, emailUpdates, websiteUpdates, preview, previewCounts, existingCodeMap } =
       await classifyRows(parsed, isActiveUpload, uploadCategory, promoteWonClients);
 
     const distributionMap: Record<string, number> = {};
@@ -348,6 +348,7 @@ export const uploadLeads = async (req: Request, res: Response) => {
         company:           r.company           || null,
         phone:             r.phone             || null,
         email:             r.email             || null,
+        ...(r.website?.trim() ? { website: r.website.trim() } : {}),
         state:             r.state             || null,
         clientCode:        r.clientCode        || null,
         projectTitle:      r.projectTitle,
@@ -393,6 +394,12 @@ export const uploadLeads = async (req: Request, res: Response) => {
     if (!isActiveUpload && emailUpdates.length > 0) {
       await runBatched(emailUpdates, BATCH_UPDATE, ({ id, email }) =>
         prisma.lead.update({ where: { id }, data: { email } })
+      );
+    }
+
+    if (!isActiveUpload && websiteUpdates.length > 0) {
+      await runBatched(websiteUpdates, BATCH_UPDATE, ({ id, website }) =>
+        prisma.lead.update({ where: { id }, data: { website } })
       );
     }
 
@@ -476,6 +483,7 @@ export const uploadLeads = async (req: Request, res: Response) => {
         company:           r.company,
         phone:             r.phone,
         email:             r.email,
+        website:           r.website?.trim() || null,
         state:             r.state             || null,
         interestedService: r.interestedService?.trim() || null,
         clientCode:        r.clientCode        || null,

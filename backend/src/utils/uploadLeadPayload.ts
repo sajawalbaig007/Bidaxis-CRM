@@ -13,6 +13,7 @@ export function buildLeadFieldsFromUploadRow(
     company:           r.company || null,
     phone:             r.phone || null,
     email:             r.email || null,
+    website:           r.website?.trim() || null,
     state:             r.state || null,
     interestedService: r.interestedService || null,
     clientCode:        r.clientCode || null,
