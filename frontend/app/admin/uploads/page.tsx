@@ -884,7 +884,7 @@ export default function UploadPage() {
     try {
       const res = await API.post("/uploads", formData, {
         headers: { "Content-Type": "multipart/form-data" },
-        timeout: 900_000,
+        timeout: fileMb > 15 ? 1_800_000 : 900_000,
         onUploadProgress: (event) => {
           if (!event.total) return;
           const pct = Math.min(50, Math.round((event.loaded / event.total) * 50));
@@ -893,15 +893,17 @@ export default function UploadPage() {
           ));
           if (event.loaded >= event.total && !processingInterval) {
             let processing = 50;
+            const step = fileMb > 15 ? 0.35 : 1;
+            const tickMs = fileMb > 15 ? 2000 : 350;
             setFiles(prev => prev.map(f =>
               f.id === tempId ? { ...f, progress: processing, status: "Processing" } : f
             ));
             processingInterval = setInterval(() => {
-              processing = Math.min(92, processing + 1);
+              processing = Math.min(92, processing + step);
               setFiles(prev => prev.map(f =>
-                f.id === tempId ? { ...f, progress: processing, status: "Processing" } : f
+                f.id === tempId ? { ...f, progress: Math.round(processing), status: "Processing" } : f
               ));
-            }, 350);
+            }, tickMs);
           }
         },
       });
@@ -2904,7 +2906,7 @@ export default function UploadPage() {
                     </h3>
                     <p className="text-xs sm:text-sm text-gray-400 mt-0.5">
                       {previewLoading
-                        ? "Processing file on server — please wait…"
+                        ? "Processing file on server — large sheets can take several minutes."
                         : "Each row checked against the database before import."}
                     </p>
                   </div>

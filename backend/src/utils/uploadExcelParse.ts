@@ -120,11 +120,29 @@ async function chunkedLookup<T>(
   size: number,
   query: (chunk: string[]) => Promise<T[]>
 ): Promise<T[]> {
+  return chunkedLookupParallel(items, size, 1, query);
+}
+
+async function chunkedLookupParallel<T>(
+  items: string[],
+  size: number,
+  concurrency: number,
+  query: (chunk: string[]) => Promise<T[]>
+): Promise<T[]> {
   if (items.length === 0) return [];
+  const chunks: string[][] = [];
+  for (let i = 0; i < items.length; i += size) chunks.push(items.slice(i, i + size));
   const out: T[] = [];
-  for (let i = 0; i < items.length; i += size) {
-    out.push(...await query(items.slice(i, i + size)));
-  }
+  let cursor = 0;
+  const worker = async () => {
+    while (cursor < chunks.length) {
+      const chunk = chunks[cursor++];
+      if (!chunk) break;
+      out.push(...await query(chunk));
+    }
+  };
+  const workers = Math.max(1, Math.min(concurrency, chunks.length));
+  await Promise.all(Array.from({ length: workers }, () => worker()));
   return out;
 }
 
@@ -427,12 +445,14 @@ export async function classifyRows(
 
   const phones = [...new Set(parsed.map(r => r.phone).filter(p => p.length >= 7))];
   const emails = [...new Set(parsed.map(r => r.email).filter(e => e.includes("@")))];
-  const phoneChunk = phones.length > 5_000 ? 2_000 : CHUNK_LOOKUP;
+  const largeSheet = phones.length > 20_000 || emails.length > 20_000;
+  const phoneChunk = largeSheet ? 8_000 : phones.length > 5_000 ? 2_000 : CHUNK_LOOKUP;
+  const emailChunk = largeSheet ? 5_000 : CHUNK_LOOKUP;
 
-  /* Large sheets: skip fuzzy contains — variants cover common formats */
+  /* Large sheets: skip fuzzy contains — digit variants cover common formats */
   const [phoneMatchMap, existingByEmail] = await Promise.all([
     findLeadsByPhonesBulk(phones, phoneChunk, { fuzzy: phones.length <= 800 }),
-    chunkedLookup(emails, CHUNK_LOOKUP, chunk =>
+    chunkedLookupParallel(emails, emailChunk, largeSheet ? 4 : 1, chunk =>
       prisma.lead.findMany({
         where: { email: { in: chunk } },
         select: { email: true, website: true, id: true, phone: true, status: true, inBin: true, assignedTo: true },
