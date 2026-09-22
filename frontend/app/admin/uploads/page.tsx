@@ -101,6 +101,70 @@ type TradeRow = { id: string; name: string };
 
 const PRESET_COMPANIES = ["PS Estimating", "Devcon", "Other"];
 
+function UploadTradePicker({
+  trades,
+  value,
+  onChange,
+}: {
+  trades: TradeRow[];
+  value: string;
+  onChange: (name: string) => void;
+}) {
+  const [search, setSearch] = useState("");
+  const q = search.trim().toLowerCase();
+  const filtered = q ? trades.filter(t => t.name.toLowerCase().includes(q)) : trades;
+
+  return (
+    <div className="space-y-2">
+      <div className="relative">
+        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+        <input
+          type="text"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Search trades…"
+          className="w-full h-10 pl-9 pr-9 rounded-xl border border-gray-200 bg-[#FAFAFA] text-sm text-gray-800 placeholder:text-gray-400 outline-none focus:border-[#B8112D]"
+        />
+        {search && (
+          <button
+            type="button"
+            onClick={() => setSearch("")}
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full flex items-center justify-center text-gray-400 hover:bg-gray-200 hover:text-gray-600"
+            aria-label="Clear trade search"
+          >
+            <X size={13} />
+          </button>
+        )}
+      </div>
+      <div className="max-h-52 overflow-y-auto rounded-xl border border-gray-200 divide-y divide-gray-100">
+        {filtered.length === 0 ? (
+          <p className="px-3 py-6 text-center text-sm text-gray-400">No trades match</p>
+        ) : filtered.map(t => {
+          const sel = value === t.name;
+          return (
+            <button
+              key={t.id}
+              type="button"
+              title={t.name}
+              onClick={() => onChange(sel ? "" : t.name)}
+              className={`w-full text-left px-3 py-2.5 text-sm flex items-center gap-2 transition-colors ${
+                sel ? "bg-[#FFF1F3] text-[#B8112D] font-semibold" : "bg-white text-gray-800 hover:bg-gray-50"
+              }`}
+            >
+              <span className={`w-4 h-4 rounded-full border-2 shrink-0 flex items-center justify-center ${
+                sel ? "border-[#B8112D] bg-[#B8112D]" : "border-gray-300 bg-white"
+              }`}>
+                {sel && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
+              </span>
+              <span className="truncate">{t.name}</span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 const filterCsrsBySearch = (list: CSR[], query: string) => {
   const q = query.trim().toLowerCase();
   if (!q) return list;
@@ -1680,25 +1744,14 @@ export default function UploadPage() {
                     In the Excel Trades column, write names only (Concrete, HVAC, Plumbing) — no numbers. Unknown names are added automatically.
                   </p>
 
-                  {trades.length > 0 && (
-                    <div className="flex flex-wrap gap-2">
-                      {trades.map(t => {
-                        const sel = selectedTrade === t.name;
-                        return (
-                          <button
-                            key={t.id}
-                            onClick={() => setSelectedTrade(sel ? "" : t.name)}
-                            className={`px-3 py-1.5 rounded-full text-xs font-semibold border-2 transition-all ${
-                              sel
-                                ? "border-[#B8112D] bg-[#FFF1F3] text-[#B8112D]"
-                                : "border-gray-200 bg-gray-50 text-gray-700 hover:border-gray-400"
-                            }`}
-                          >
-                            {t.name}
-                          </button>
-                        );
-                      })}
-                    </div>
+                  {trades.length > 0 ? (
+                    <UploadTradePicker
+                      trades={trades}
+                      value={selectedTrade}
+                      onChange={setSelectedTrade}
+                    />
+                  ) : (
+                    <p className="text-sm text-gray-400 text-center py-2">No trades yet — add one below.</p>
                   )}
 
                   <div className="border border-dashed border-gray-200 rounded-xl p-3 space-y-2">
