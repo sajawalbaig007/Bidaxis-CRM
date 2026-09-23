@@ -3,3 +3,7 @@ node_modules
 .env
 
 /generated/prisma
+
+# Nexa feedback dataset (offline eval / future DPO — not live RL)
+/data
+

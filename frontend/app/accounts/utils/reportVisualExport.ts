@@ -195,11 +195,18 @@ async function captureOne(el: HTMLElement, scale = 2): Promise<ReportShot> {
 }
 
 /** One screenshot per report card — same look as the earlier Word/PDF export. */
+function collectCaptureBlocks(root: HTMLElement): HTMLElement[] {
+  const nested = Array.from(root.querySelectorAll<HTMLElement>("[data-report-block]")).filter(
+    el => !el.hasAttribute("data-export-skip") && !el.parentElement?.closest("[data-report-block]"),
+  );
+  if (nested.length) return nested;
+  if (root.matches("[data-report-block]") && !root.hasAttribute("data-export-skip")) return [root];
+  return [];
+}
+
 export async function captureReportBlocks(root: HTMLElement): Promise<ReportShot[]> {
   restoreExportButtons();
-  const blocks = Array.from(root.querySelectorAll<HTMLElement>("[data-report-block]")).filter(
-    el => !el.parentElement?.closest("[data-report-block]"),
-  );
+  const blocks = collectCaptureBlocks(root);
   const shots: ReportShot[] = [];
   for (const el of blocks) {
     try {
@@ -508,10 +515,13 @@ function inlineRgbColors(root: HTMLElement): () => void {
 }
 
 async function waitForCharts(root: HTMLElement) {
-  for (let i = 0; i < 30; i++) {
-    const svgs = Array.from(root.querySelectorAll<SVGElement>(".recharts-surface, .recharts-wrapper svg"));
-    if (
-      svgs.length === 0 ||
+  for (let i = 0; i < 60; i++) {
+    const svgs = Array.from(root.querySelectorAll<SVGElement>(".recharts-surface, .recharts-wrapper svg")).filter(
+      s => !s.closest("[data-export-skip], [data-export-hide]"),
+    );
+    if (svgs.length === 0) {
+      if (i >= 10) return;
+    } else if (
       svgs.every(s => {
         const r = s.getBoundingClientRect();
         return r.width > 8 && r.height > 8;
@@ -519,7 +529,7 @@ async function waitForCharts(root: HTMLElement) {
     ) {
       return;
     }
-    await new Promise<void>(r => window.setTimeout(r, 80));
+    await new Promise<void>(r => window.setTimeout(r, 100));
   }
 }
 
@@ -716,9 +726,7 @@ export async function captureReportVisualPdf(
     await new Promise<void>(r => window.setTimeout(r, 180));
     await waitForCharts(root);
 
-    const blocks = Array.from(root.querySelectorAll<HTMLElement>("[data-report-block]")).filter(
-      el => !el.parentElement?.closest("[data-report-block]") && !el.hasAttribute("data-export-skip"),
-    );
+    const blocks = collectCaptureBlocks(root);
     if (!blocks.length) throw new Error("Nothing on the report page to capture.");
 
     const canvases: HTMLCanvasElement[] = [];

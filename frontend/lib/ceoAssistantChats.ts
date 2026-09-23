@@ -15,7 +15,11 @@ export type ChatMsg = {
   id: string;
   role: "user" | "assistant";
   text: string;
+  at?: number;
   actions?: ChatAction[];
+  feedback?: "up" | "down";
+  source?: "agent" | "rules";
+  tools?: string[];
 };
 
 export type CeoChat = {
@@ -31,7 +35,7 @@ type Store = {
 };
 
 export const CEO_ASSISTANT_WELCOME =
-  "Hey — this is me, Nexa. Ask in your own words. After a client or person, follow-ups work — “their email”, “how many projects”, “send mail”.";
+  "Hey — this is me, Nexa. Each question stands alone. Quote a message with the reply arrow to answer from that, or say “go through this chat” to recap.";
 
 const KEY = "crm_ceo_assistant_chats_v1";
 const MAX_CHATS = 40;
@@ -42,7 +46,13 @@ export function newChatId() {
 }
 
 export function welcomeMsg(): ChatMsg {
-  return { id: "welcome", role: "assistant", text: CEO_ASSISTANT_WELCOME };
+  return { id: "welcome", role: "assistant", text: CEO_ASSISTANT_WELCOME, at: Date.now() };
+}
+
+export function chatMsgAt(msg: ChatMsg): number {
+  if (typeof msg.at === "number" && msg.at > 0) return msg.at;
+  const n = Number(String(msg.id).split("-")[0]);
+  return n > 1e12 ? n : 0;
 }
 
 export function emptyChat(): CeoChat {

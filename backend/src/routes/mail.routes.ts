@@ -9,6 +9,7 @@ import {
   publicSenders,
   sendClientMail,
 } from "../utils/clientMail";
+import { rewriteClientEmail } from "../assistant/emailRewrite";
 
 const router = express.Router();
 
@@ -59,6 +60,23 @@ router.post("/draft", async (req: AuthRequest, res) => {
   } catch (err) {
     console.error("[mail/draft]", err);
     return res.status(500).json({ success: false, message: "Could not draft the email." });
+  }
+});
+
+router.post("/rewrite", async (req: AuthRequest, res) => {
+  try {
+    const rewritten = await rewriteClientEmail({
+      mode: String(req.body?.mode ?? "").trim(),
+      subject: String(req.body?.subject ?? ""),
+      body: String(req.body?.body ?? ""),
+      instruction: String(req.body?.instruction ?? ""),
+      clientName: String(req.body?.clientName ?? ""),
+      company: String(req.body?.company ?? ""),
+    });
+    return res.json({ success: true, ...rewritten });
+  } catch (err) {
+    console.error("[mail/rewrite]", err);
+    return res.status(500).json({ success: false, message: "Nexa could not rewrite that email." });
   }
 });
 

@@ -2,18 +2,34 @@ import prisma from "../config/db";
 import type { AssistantActor } from "./permissions";
 import {
   detectChatter,
+  extractEmailPurpose,
+  extractSearchQuery,
   fallbackPlan,
   isFollowUp,
+  lastEntityKind,
   lastFocusFromHistory,
+  parseEmail,
   personFocus,
   planTools,
   preferFollowUpPlan,
   resolveWithHistory,
+  wantsEmailIntent,
+  wantsPdfDownload,
+  wantsWalkthrough,
   type ChatTurn,
   type ClientFocus,
 } from "./intent";
-import { ollamaSummarize } from "./ollama";
+import { extractPersonName } from "./fuzzy";
+import { ollamaIsUp } from "./ollama";
+import { runAgentLoop } from "./agent/loop";
+import { generateGroundedAnswer, looksLikeModelAnswer } from "./agent/answer";
 import { TOOL_HANDLERS } from "./tools";
+import {
+  isCrmScopedQuestion,
+  looksLikeWorldKnowledge,
+  normalizeLookupText,
+  OUT_OF_SCOPE_REPLY,
+} from "./scope";
 
 export type AssistantAction = {
   type: "compose_email" | "download_accounts_pdf";
@@ -110,6 +126,10 @@ function formatPerson(d: Record<string, unknown>, asked: string): string {
   const ck = asRecord(d.checkin);
   const jobs = Array.isArray(est.projects) ? (est.projects as Array<Record<string, unknown>>) : [];
   const lines: string[] = [title, ""];
+  if (d.hasDashboard === false) {
+    lines.push(String(d.noDashboardReason || "No CRM dashboard for this person."));
+    lines.push("");
+  }
 
   const pushEstimatorJobs = () => {
     if (!jobs.length) {
@@ -120,8 +140,28 @@ function formatPerson(d: Record<string, unknown>, asked: string): string {
     jobs.forEach((p, i) => lines.push(jobLine(p, i + 1), ""));
   };
 
+  const pushProfile = () => {
+    if (d.status) lines.push(`Status: ${d.status}`);
+    if (d.company) lines.push(`Company: ${d.company}`);
+    if (d.email) lines.push(`Email: ${d.email}`);
+    if (d.phone) lines.push(`Phone: ${d.phone}`);
+    if (d.employeeCode) lines.push(`Employee code: ${d.employeeCode}`);
+    if (d.fatherName) lines.push(`Father: ${d.fatherName}`);
+    if (d.address) lines.push(`Address: ${d.address}`);
+    if (d.cnic) lines.push(`CNIC: ${d.cnic}`);
+    if (d.payrollHead) lines.push(`Payroll: ${d.payrollHead}`);
+    if (d.notes) lines.push(`Notes: ${d.notes}`);
+  };
+
   if (focus === "count") {
+    pushProfile();
+    if (d.hasDashboard === false) {
+      lines.push("");
+      lines.push("No live project count — there is no dashboard login.");
+      return lines.join("\n").trim();
+    }
     if (Object.keys(est).length) {
+      lines.push("");
       lines.push(`Projects covering now: ${est.assigned ?? 0}`);
       lines.push(`Pending ${est.pending ?? 0} · done ${est.completed ?? 0} · overdue ${est.overdue ?? 0}`);
       lines.push(`Logged ${est.logged ?? "0h"}${est.plannedHours != null ? ` · planned ${est.plannedHours}h` : ""}`);
@@ -129,6 +169,7 @@ function formatPerson(d: Record<string, unknown>, asked: string): string {
       return lines.join("\n").trim();
     }
     if (Object.keys(csr).length) {
+      lines.push("");
       lines.push(`CSR leads: ${csr.total ?? 0}`);
       lines.push(`Pending ${csr.pending ?? 0} · interested ${csr.interested ?? 0} · closed ${csr.closed ?? 0}`);
       return lines.join("\n");
@@ -144,9 +185,7 @@ function formatPerson(d: Record<string, unknown>, asked: string): string {
     return lines.join("\n");
   }
 
-  if (d.email) lines.push(`Email: ${d.email}`);
-  if (d.phone) lines.push(`Phone: ${d.phone}`);
-  if (d.employeeCode) lines.push(`Employee code: ${d.employeeCode}`);
+  pushProfile();
   if (Object.keys(ck).length) {
     const when = ck.isToday === false && ck.day ? String(ck.day) : "today";
     if (ck.checkedIn) {
@@ -162,7 +201,7 @@ function formatPerson(d: Record<string, unknown>, asked: string): string {
     lines.push("");
     lines.push(`Portal: ${ck.online || d.online ? "online" : "offline"}`);
     if (ck.lastActive) lines.push(`Last active: ${ck.lastActive}`);
-  } else {
+  } else if (d.hasDashboard !== false) {
     lines.push(`Portal: ${d.online ? "online" : "offline"} (no check-in record).`);
   }
   if (focus === "checkin") return lines.join("\n");
@@ -300,7 +339,7 @@ function formatFallback(results: unknown[]): string {
     }
     if (d.staff) {
       const roles = asRecord(d.byRole);
-      lines.push(`Staff: ${d.total ?? 0} active · ${d.online ?? 0} online.`);
+      lines.push(`Staff: ${d.total ?? 0} on Admin → Users/Employees · ${d.online ?? 0} online.`);
       lines.push(
         Object.entries(roles)
           .map(([k, v]) => `${k}: ${v}`)
@@ -351,7 +390,7 @@ function formatFallback(results: unknown[]): string {
       lines.push(`Profit / Loss: ${result} · PKR ${Math.round(net).toLocaleString("en-US")}`);
       if (d.sourceDate) lines.push(`Snapshot: ${d.sourceDate}`);
       lines.push("");
-      lines.push(`Download PDF is the same visual as the ${pageLabel} page.`);
+      lines.push("Say “download pdf” for the Accounts Reports file (graphs included).");
       continue;
     }
     if (d.history) {
@@ -431,8 +470,173 @@ function formatFallback(results: unknown[]): string {
   return lines.join("\n") || "I could not find that in the CRM.";
 }
 
-function shouldSkipOllama(_results: unknown[]): boolean {
-  return true;
+function collectActions(results: unknown[], wantsPdf = false): AssistantAction[] {
+  const actions: AssistantAction[] = [];
+  for (const raw of results) {
+    const out = asRecord(raw);
+    const d = asRecord(out.data);
+    if (d.compose && d.to) {
+      actions.push({
+        type: "compose_email",
+        to: String(d.to),
+        clientName: d.clientName ? String(d.clientName) : undefined,
+        company: d.company ? String(d.company) : undefined,
+        intent: d.intent ? String(d.intent) : undefined,
+        subject: d.subject ? String(d.subject) : undefined,
+        body: d.body ? String(d.body) : undefined,
+        notes: d.notes ? String(d.notes) : undefined,
+      });
+    }
+    if (d.accountsReport && d.month && wantsPdf) {
+      actions.push({
+        type: "download_accounts_pdf",
+        month: String(d.month),
+        page: "reports",
+      });
+    }
+  }
+  return actions;
+}
+
+function toolsUsed(results: unknown[]): string[] {
+  const names: string[] = [];
+  for (const raw of results) {
+    const n = String(asRecord(raw).tool || "").trim();
+    if (n && !names.includes(n)) names.push(n);
+  }
+  return names;
+}
+
+async function ensureEmailDraft(
+  actor: AssistantActor,
+  message: string,
+  history: ChatTurn[],
+  results: unknown[],
+): Promise<unknown[]> {
+  if (!wantsEmailIntent(message.toLowerCase())) return results;
+  if (collectActions(results).some(a => a.type === "compose_email" && a.to)) return results;
+  const email = parseEmail(message);
+  const query = email || extractSearchQuery(message) || lastFocusFromHistory(history);
+  if (!query) {
+    return [
+      ...results,
+      {
+        tool: "prepareClientEmail",
+        ok: true,
+        args: {},
+        data: {
+          needPick: true,
+          message: "Which client should I email? Name, email, phone, or client code.",
+        },
+      },
+    ];
+  }
+  const out = await TOOL_HANDLERS.prepareClientEmail(actor, {
+    query,
+    intent: extractEmailPurpose(message) || message,
+  });
+  return [...results, { tool: "prepareClientEmail", args: { query }, ...out }];
+}
+
+function recapChat(history: ChatTurn[]): string {
+  const turns = history.filter(t => t.text.trim()).slice(-14);
+  if (!turns.length) return "This chat is empty so far. Ask about a staff member, client, or accounts month.";
+  const lines = [heading("This chat so far"), ""];
+  for (const t of turns) {
+    const who = t.role === "user" ? "You" : "Nexa";
+    const bit = t.text.replace(/\s+/g, " ").trim().slice(0, 220);
+    lines.push(`- **${who}:** ${bit}`);
+  }
+  lines.push("");
+  lines.push("I still have this context. Ask a follow-up — I will answer from this chat plus live CRM.");
+  return lines.join("\n");
+}
+
+function clientLookupMissed(results: unknown[]): boolean {
+  return results.some(raw => {
+    const r = asRecord(raw);
+    const tool = String(r.tool || "");
+    if (!/getClientHistory|searchClients|getClientDetails/.test(tool)) return false;
+    const d = asRecord(r.data);
+    if (d.found === false) return true;
+    if (Array.isArray(d.matches) && d.matches.length === 0) return true;
+    return /no (matching )?client/i.test(String(d.message || ""));
+  });
+}
+
+async function recoverStaffIfNeeded(
+  actor: AssistantActor,
+  message: string,
+  history: ChatTurn[],
+  results: unknown[],
+): Promise<unknown[]> {
+  if (parseEmail(message)) return results;
+  if (results.some(raw => asRecord(asRecord(raw).data).person === true)) return results;
+  const kind = lastEntityKind(history);
+  const q = (extractPersonName(extractSearchQuery(message) || lastFocusFromHistory(history))
+    || lastFocusFromHistory(history)).trim();
+  if (q.length < 3) return results;
+  const should = clientLookupMissed(results) || kind === "person";
+  if (!should) return results;
+  const out = await TOOL_HANDLERS.getPersonSnapshot(actor, {
+    query: q,
+    intent: message,
+    month: "",
+    day: "",
+  });
+  if (!out.ok) return results;
+  const pd = asRecord(out.data);
+  if (!pd.person) return results;
+  const kept = results.filter(raw => !/getClientHistory|searchClients|getClientDetails/.test(String(asRecord(raw).tool || "")));
+  return [{ tool: "getPersonSnapshot", args: { query: q, intent: message }, ...out }, ...kept];
+}
+
+async function runRegexTools(
+  actor: AssistantActor,
+  message: string,
+  history: ChatTurn[],
+): Promise<unknown[]> {
+  const focus = lastFocusFromHistory(history);
+  const resolved = resolveWithHistory(message, history);
+  let planned = preferFollowUpPlan(message, focus, lastEntityKind(history)) ?? planTools(resolved);
+  if (!planned.length) {
+    planned = fallbackPlan(resolved, isFollowUp(message) ? focus : "");
+  }
+
+  const results: unknown[] = [];
+  for (const call of planned.slice(0, 3)) {
+    const fn = TOOL_HANDLERS[call.tool];
+    const out = await (fn as (actor: AssistantActor, args: Record<string, string>) => ReturnType<typeof fn>)(
+      actor,
+      call.args,
+    );
+    results.push({ tool: call.tool, args: call.args, ...out });
+  }
+
+  return recoverStaffIfNeeded(actor, message, history, results);
+}
+
+function hasFastPlan(message: string, history: ChatTurn[]): boolean {
+  const focus = lastFocusFromHistory(history);
+  const planned = preferFollowUpPlan(message, focus, lastEntityKind(history))
+    ?? planTools(resolveWithHistory(message, history));
+  return planned.length > 0;
+}
+
+function structuredEnough(results: unknown[]): boolean {
+  return results.some(raw => {
+    const d = asRecord(asRecord(raw).data);
+    return !!(
+      d.person
+      || d.accountsReport
+      || d.compose
+      || d.history
+      || d.technical
+      || d.payments
+      || d.staff
+      || Array.isArray(d.matches)
+    );
+  });
 }
 
 export async function runAssistantChat(opts: {
@@ -440,12 +644,20 @@ export async function runAssistantChat(opts: {
   role: string;
   message: string;
   history?: ChatTurn[];
-}): Promise<{ reply: string; actions: AssistantAction[]; usedOllama: boolean }> {
+}): Promise<{
+  reply: string;
+  actions: AssistantAction[];
+  usedOllama: boolean;
+  source: "agent" | "rules";
+  tools: string[];
+}> {
   if (opts.role !== "admin") {
     return {
       reply: "This assistant is only available to the CEO.",
       actions: [],
       usedOllama: false,
+      source: "rules",
+      tools: [],
     };
   }
   const user = await prisma.user.findUnique({
@@ -458,98 +670,117 @@ export async function runAssistantChat(opts: {
     name: user?.name ?? "",
   };
 
-  const chatter = detectChatter(opts.message);
+  const message = normalizeLookupText(opts.message.trim());
+  const chatter = detectChatter(message);
   if (chatter) {
     return {
       reply: chatterReply(chatter, actor.name),
       actions: [],
       usedOllama: false,
+      source: "rules",
+      tools: [],
+    };
+  }
+
+  if (!isCrmScopedQuestion(message)) {
+    return {
+      reply: OUT_OF_SCOPE_REPLY,
+      actions: [],
+      usedOllama: false,
+      source: "rules",
+      tools: [],
     };
   }
 
   const history = opts.history ?? [];
-  const focus = lastFocusFromHistory(history);
-  const resolved = resolveWithHistory(opts.message, history);
-  let planned = preferFollowUpPlan(opts.message, focus) ?? planTools(resolved);
-  if (!planned.length) {
-    planned = fallbackPlan(resolved, isFollowUp(opts.message) ? focus : "");
+  const walkthroughOnly = wantsWalkthrough(message)
+    && !extractSearchQuery(message.replace(/\b(go through|go thru|walk through|yeh chat|this chat|is chat|poori chat|saari chat|peechli chat|previous chat|chat context|remind(?: me| kr| karo)?|is conversation)\b/gi, " "));
+  if (walkthroughOnly) {
+    return {
+      reply: recapChat(history),
+      actions: [],
+      usedOllama: false,
+      source: "rules",
+      tools: [],
+    };
   }
 
-  const results: unknown[] = [];
-  const actions: AssistantAction[] = [];
+  const pdf = wantsPdfDownload(message);
+  const live = hasFastPlan(message, history) ? false : await ollamaIsUp();
+  const agent = live ? await runAgentLoop({ actor, message, history }) : null;
+  let results: unknown[] = agent?.results?.length ? [...agent.results] : [];
+  if (!results.length) {
+    results = await runRegexTools(actor, message, history);
+  }
+  results = await recoverStaffIfNeeded(actor, message, history, results);
+  results = await ensureEmailDraft(actor, message, history, results);
 
-  for (const call of planned.slice(0, 3)) {
-    const fn = TOOL_HANDLERS[call.tool];
-    const out = await (fn as (actor: AssistantActor, args: Record<string, string>) => ReturnType<typeof fn>)(
-      actor,
-      call.args,
-    );
-    results.push({ tool: call.tool, args: call.args, ...out });
-    if (out.ok && out.data && typeof out.data === "object") {
-      const d = out.data as {
-        compose?: boolean;
-        accountsReport?: boolean;
-        month?: string;
-        page?: string;
-        to?: string;
-        clientName?: string;
-        company?: string;
-        intent?: string;
-        subject?: string;
-        body?: string;
-        notes?: string;
-      };
-      if (d.compose && d.to) {
-        actions.push({
-          type: "compose_email",
-          to: d.to,
-          clientName: d.clientName,
-          company: d.company,
-          intent: d.intent,
-          subject: d.subject,
-          body: d.body,
-          notes: d.notes,
-        });
-      }
-      if (d.accountsReport && d.month) {
-        actions.push({ type: "download_accounts_pdf", month: d.month, page: d.page || "reports" });
-      }
-    }
+  const mailActions = collectActions(results, pdf).filter(a => a.type === "compose_email" && a.to);
+  if (mailActions.length) {
+    return {
+      reply: "Composer is open with your draft. Review it, change it with Nexa if you want, then send.",
+      actions: mailActions,
+      usedOllama: !!agent,
+      source: "agent",
+      tools: toolsUsed(results),
+    };
   }
 
-  const firstData = asRecord(asRecord(results[0]).data);
-  if (firstData.found === false && planned[0]?.tool === "getClientHistory") {
-    const q = String(planned[0].args.query || focus).trim();
-    if (q.length >= 3) {
-      const out = await TOOL_HANDLERS.getPersonSnapshot(actor, {
-        query: q,
-        intent: opts.message,
-        month: "",
-        day: "",
-      });
-      if (out.ok) {
-        const pd = asRecord(out.data);
-        if (pd.person) {
-          results.splice(0, results.length, { tool: "getPersonSnapshot", args: { query: q, intent: opts.message }, ...out });
-        }
-      }
-    }
+  const accountsHit = results.some(raw => asRecord(asRecord(raw).data).accountsReport === true);
+  if (accountsHit || structuredEnough(results)) {
+    return {
+      reply: formatFallback(results),
+      actions: collectActions(results, pdf),
+      usedOllama: false,
+      source: "rules",
+      tools: toolsUsed(results),
+    };
   }
 
-  const templated = formatFallback(results);
-  if (!shouldSkipOllama(results)) {
-    const drafted = await ollamaSummarize({
-      userMessage: opts.message,
-      toolResults: results,
-    });
-    if (drafted) {
-      return { reply: drafted, actions, usedOllama: true };
+  if (results.length) {
+    const actions = collectActions(results, pdf);
+    const tools = toolsUsed(results);
+    const grounded = live
+      ? await generateGroundedAnswer({
+          message,
+          history,
+          results,
+        })
+      : null;
+    if (grounded && !looksLikeWorldKnowledge(grounded) && !/no (matching )?client/i.test(grounded)) {
+      return { reply: grounded, actions, usedOllama: true, source: "agent", tools };
     }
+    if (
+      agent?.clarification
+      && looksLikeModelAnswer(agent.clarification)
+      && !looksLikeWorldKnowledge(agent.clarification)
+      && !/no (matching )?client/i.test(agent.clarification)
+    ) {
+      return { reply: agent.clarification, actions, usedOllama: true, source: "agent", tools };
+    }
+    return {
+      reply: formatFallback(results),
+      actions,
+      usedOllama: !!agent,
+      source: "rules",
+      tools,
+    };
+  }
+  if (agent?.clarification && !looksLikeWorldKnowledge(agent.clarification)) {
+    return {
+      reply: agent.clarification,
+      actions: [],
+      usedOllama: true,
+      source: "agent",
+      tools: [],
+    };
   }
 
   return {
-    reply: templated,
-    actions,
+    reply: "I could not find that in the CRM.",
+    actions: [],
     usedOllama: false,
+    source: "rules",
+    tools: [],
   };
 }

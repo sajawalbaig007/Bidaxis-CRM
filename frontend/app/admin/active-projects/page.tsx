@@ -16,6 +16,7 @@ import { StaffSidebar } from "@/app/hooks/useStaffSidebar";
 import DashboardNavbar  from "../components/layout/Navbar";
 import ProjectWorkbenchModal from "@/app/components/projects/ProjectWorkbenchModal";
 import CommentCell from "@/app/csr/components/shared/CommentCell";
+import EmailWithExtraCell from "@/app/csr/components/shared/EmailWithExtraCell";
 import StateFilterDropdown from "@/app/csr/components/shared/StateFilterDropdown";
 import PhoneAreaCodeFilterInput from "@/app/csr/components/shared/PhoneAreaCodeFilterInput";
 import { matchesStateLocationFilter, matchesPhoneAreaCodeFilter } from "@/lib/stateLocationFilter";
@@ -423,7 +424,14 @@ function ProjectCard({
           <span className="font-medium truncate flex items-center gap-1.5 min-w-0">
             <ProjectCsrCell p={p} />
           </span>
-          {p.email && <span className="text-gray-400 truncate max-w-[140px] shrink-0">{p.email}</span>}
+          {p.email && (
+            <EmailWithExtraCell
+              email={p.email}
+              clientName={p.name || undefined}
+              company={p.company || undefined}
+              className="text-gray-400 truncate max-w-[140px] shrink-0"
+            />
+          )}
         </div>
       )}
     </div>

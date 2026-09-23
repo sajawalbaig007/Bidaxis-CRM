@@ -207,8 +207,30 @@ const PURPOSE_STRIP = new Set([
   "batao", "btana", "btado", "btao", "kia", "kiya", "kardiya", "krdiya", "krdi",
 ]);
 
+function stripLookupTokens(text: string): string {
+  let t = text;
+  const email = parseEmail(t);
+  if (email) t = t.replace(new RegExp(email.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "ig"), " ");
+  t = t.replace(/(?:\+?\d[\d\s().-]{6,18}\d)/g, " ");
+  const code = extractProjectCode(t);
+  if (code) t = t.replace(new RegExp(code.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "ig"), " ");
+  return t.replace(/\s+/g, " ").trim();
+}
+
+/** Prefer the actual message after “compose … that / k …”, not a canned topic. */
+function clauseAfterCompose(text: string): string {
+  const m = text.match(
+    /\b(?:compose|draft|write|email|mail|msg|message|likh|likho|banao|bnao|bhej|kro|karo)[\s\S]*?\b(?:k|ke|keh|kehke|bolke|saying|that)\s+(.+)/i,
+  );
+  const clause = (m?.[1] || "").replace(/\s+/g, " ").trim().replace(/[.?!]+$/g, "").trim();
+  return clause.length >= 6 ? clause : "";
+}
+
 export function extractEmailPurpose(text: string): string {
   const lower = text.toLowerCase().replace(/\s+/g, " ");
+  const said = clauseAfterCompose(stripLookupTokens(text));
+  if (said) return said;
+
   const done = /\b(hogya|hogaya|hogai|ho\s*gaya|ho\s*gya|tayar|tayyar|kia|kiya|kardiya|krdiya|ready|done|complete|completed|finished)\b/.test(lower);
   if (/\brequirement/.test(lower) && done) return "requirements are complete";
   if (/\b(drawing|drawings|plans?)\b/.test(lower) && done) return "drawings are ready";
@@ -217,8 +239,8 @@ export function extractEmailPurpose(text: string): string {
   if (/\b(hogya|hogaya|ho\s*gaya|ho\s*gya|tayar|tayyar|project is ready|project ready)\b/.test(lower)) {
     return "project is ready";
   }
-  if (/\b(payment|invoice|outstanding|due|unpaid|bill|paisa)\b/.test(lower)) {
-    return "follow up on payment";
+  if (/\b(payment|invoice|outstanding|dues?|overdue|unpaid|bill|paisa)\b/.test(lower)) {
+    return "you have pending dues. Please arrange payment at your earliest convenience";
   }
   if (/\b(quote|quotation|pricing|price)\b/.test(lower)) {
     return "follow up on the quote";
@@ -227,19 +249,7 @@ export function extractEmailPurpose(text: string): string {
     return "schedule a call";
   }
 
-  let t = text;
-  const email = parseEmail(t);
-  if (email) t = t.replace(new RegExp(email.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "ig"), " ");
-  t = t.replace(/(?:\+?\d[\d\s().-]{6,18}\d)/g, " ");
-  const code = extractProjectCode(t);
-  if (code) t = t.replace(new RegExp(code.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "ig"), " ");
-
-  const afterSay = t.match(
-    /\b(?:compose|draft|write|likh|likho|banao|bnao|bhej|kro|karo)[\s\S]*?\b(?:k|ke|keh|kehke|bolke|saying|that)\s+(.+)/i,
-  );
-  if (afterSay?.[1]) t = afterSay[1];
-
-  const kept = t
+  const kept = stripLookupTokens(text)
     .replace(/[?,!]+/g, " ")
     .split(/[\s/;]+/)
     .map(w => w.trim())
@@ -324,7 +334,9 @@ function wantsClientLookup(
 
 export type PlannedCall = { tool: ToolName; args: Record<string, string> };
 
-export type ChatTurn = { role: "user" | "assistant"; text: string };
+export type ChatTurn = { role: "user" | "assistant"; text: string; tools?: string[] };
+
+export type EntityKind = "person" | "client" | "";
 
 const FOLLOW_RE =
   /\b(uska|uski|uske|usko|usay|usse|iska|iski|iske|isko|unka|unki|unke|unko|his|her|their|that client|this client|same client|wo wala|woh wala)\b/i;
@@ -341,6 +353,26 @@ export function isFollowUp(text: string): boolean {
   return FOLLOW_ATTR_RE.test(stripped);
 }
 
+export function lastEntityKind(history: ChatTurn[]): EntityKind {
+  for (let i = history.length - 1; i >= 0; i--) {
+    const m = history[i]!;
+    if (m.role !== "assistant") continue;
+    const tools = m.tools ?? [];
+    if (tools.includes("getPersonSnapshot") || tools.includes("getCsrDesk") || tools.includes("getEstimatorWorkload")) {
+      return "person";
+    }
+    if (tools.includes("getClientHistory") || tools.includes("getClientDetails") || tools.includes("searchClients")) {
+      return "client";
+    }
+    const t = m.text;
+    if (/\b(estimator|csr|employee|staff|check-in|has \d+\s+projects?)\b/i.test(t) && !/\b(no client|no matching client)\b/i.test(t)) {
+      return "person";
+    }
+    if (/\b(quoted|paid|client code|lead)\b/i.test(t) && !/\bestimator\b/i.test(t)) return "client";
+  }
+  return "";
+}
+
 export function lastFocusFromHistory(history: ChatTurn[]): string {
   for (let i = history.length - 1; i >= 0; i--) {
     const m = history[i]!;
@@ -350,15 +382,18 @@ export function lastFocusFromHistory(history: ChatTurn[]): string {
       const email = parseEmail(m.text);
       if (email) return email;
       const s = extractSearchQuery(m.text);
-      if (s && !FOLLOW_RE.test(s)) return s;
+      if (s && !FOLLOW_RE.test(s) && !wantsWalkthrough(m.text)) return s;
       continue;
     }
     const heading = m.text.match(/\*\*([^*]{2,80})\*\*/);
-    if (!heading) continue;
-    const name = heading[1]!.replace(/\s*[·(].*$/, "").trim();
-    if (name.length < 2) continue;
-    if (/^(email ready|technical|payments|staff|csrs|estimator scoreboard|assignment mix)/i.test(name)) continue;
-    return name;
+    if (heading) {
+      const name = heading[1]!.replace(/\s*[·(].*$/, "").trim();
+      if (name.length >= 2 && !/^(email ready|technical|payments|staff|csrs|estimator scoreboard|assignment mix|accounts)/i.test(name)) {
+        return name;
+      }
+    }
+    const hasN = m.text.match(/\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\s+has\s+\d+/);
+    if (hasN?.[1]) return hasN[1];
   }
   return "";
 }
@@ -370,7 +405,7 @@ export function resolveWithHistory(message: string, history: ChatTurn[]): string
   return `${focus} ${message}`.trim();
 }
 
-function wantsEmailIntent(lower: string): boolean {
+export function wantsEmailIntent(lower: string): boolean {
   return (
     (/\b(email|e-mail|mail|msg|message)\b/.test(lower) &&
       /\b(send|bhej|bhejo|bhejni|krni|karo|likh|likho|write|draft|prepare|compose|banao|dena)\b/.test(lower)) ||
@@ -379,8 +414,18 @@ function wantsEmailIntent(lower: string): boolean {
   );
 }
 
-/** Follow-ups like “their email” / “send mail” keep the last client or person. */
-export function preferFollowUpPlan(message: string, focus: string): PlannedCall[] | null {
+/** Follow-ups like “uska email” / “mail bhejo” keep the last client or person. */
+export function wantsWalkthrough(text: string): boolean {
+  return /\b(go through|go thru|walk through|yeh chat|this chat|is chat|poori chat|saari chat|peechli chat|previous chat|chat context|remind (me|kr|karo)|is conversation)\b/i.test(
+    text,
+  );
+}
+
+export function wantsPdfDownload(text: string): boolean {
+  return /\b(pdf|download|export|print)\b/i.test(text);
+}
+
+export function preferFollowUpPlan(message: string, focus: string, kind: EntityKind = ""): PlannedCall[] | null {
   if (!focus || !isFollowUp(message)) return null;
   const lower = message.toLowerCase();
   const month = parseMonth(message);
@@ -393,7 +438,11 @@ export function preferFollowUpPlan(message: string, focus: string): PlannedCall[
       args: { query: email || focus, phone: phone ?? "", intent: extractEmailPurpose(message) },
     }];
   }
-  if (looksLikePersonName(focus) || /\b(check[- ]?in|checkin|chekin|estimator|csr|accounts|staff|employee)\b/.test(lower)) {
+  if (
+    kind === "person"
+    || looksLikePersonName(focus)
+    || /\b(check[- ]?in|checkin|chekin|estimator|csr|accounts|staff|employee)\b/.test(lower)
+  ) {
     return [{
       tool: "getPersonSnapshot",
       args: { query: extractPersonName(focus) || focus, intent: message, month: month ?? "", day: day ?? "" },

@@ -24,13 +24,12 @@ export function publicCredential(row: { company: string; username: string; updat
   };
 }
 
-/** First deploy only: if the collection is empty, create BEM + GPS defaults. */
+/** Create BEM / GPS defaults if that company row is missing. */
 export async function seedDefaultCompanyCredentials(): Promise<void> {
-  const count = await prisma.companyCredential.count();
-  if (count > 0) return;
-
   await Promise.all(
     COMPANY_KEYS.map(async (company) => {
+      const existing = await prisma.companyCredential.findUnique({ where: { company } });
+      if (existing) return;
       const def = DEFAULTS[company];
       await prisma.companyCredential.create({
         data: {

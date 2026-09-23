@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { Loader2, Mail, X } from "lucide-react";
+import { Loader2, Mail, Plus, Sparkles, Wand2, X } from "lucide-react";
 import toast from "react-hot-toast";
 import API, { apiErrorMessage } from "@/lib/api";
 
@@ -55,6 +55,8 @@ export default function CrmMailProvider({ children }: { children: React.ReactNod
   const [body, setBody] = useState("");
   const [confirming, setConfirming] = useState(false);
   const [sending, setSending] = useState(false);
+  const [aiBusy, setAiBusy] = useState<"enhance" | "add" | "write" | "paraphrase" | "rephrase" | "edit" | null>(null);
+  const [aiHint, setAiHint] = useState("");
 
   const loadSenders = useCallback(() => {
     API.get("/mail/from-accounts")
@@ -77,6 +79,8 @@ export default function CrmMailProvider({ children }: { children: React.ReactNod
     setSubject(next.subject ?? "");
     setBody(withSenderSignOff(next.body ?? "", null));
     setConfirming(false);
+    setAiHint("");
+    setAiBusy(null);
     loadSenders();
   }, [loadSenders]);
 
@@ -111,6 +115,52 @@ export default function CrmMailProvider({ children }: { children: React.ReactNod
     setConfirming(true);
   };
 
+  const rewrite = async (mode: "enhance" | "add" | "write" | "paraphrase" | "rephrase" | "edit") => {
+    const instruction = aiHint.trim();
+    if ((mode === "write" || mode === "edit") && !instruction) {
+      toast.error("Type what Nexa should do, then press Apply.");
+      return;
+    }
+    if (mode !== "write" && !subject.trim() && !body.trim() && !instruction) {
+      toast.error("Write something first, or tell Nexa what to change.");
+      return;
+    }
+    setAiBusy(mode);
+    try {
+      const res = await API.post(
+        "/mail/rewrite",
+        {
+          mode,
+          subject,
+          body,
+          instruction,
+          clientName: target?.clientName,
+          company: target?.company,
+        },
+        { timeout: 25_000 },
+      );
+      const nextSubject = String(res.data.subject ?? "").trim() || subject;
+      const nextBody = String(res.data.body ?? "").trim() || body;
+      const used = String(res.data.mode ?? mode);
+      setSubject(nextSubject);
+      setBody(withSenderSignOff(nextBody, selectedFrom));
+      setAiHint("");
+      setConfirming(false);
+      toast.success(
+        used === "add" ? "Nexa added more to this draft."
+        : used === "write" ? "Nexa wrote a new email from your note."
+        : used === "paraphrase" ? "Nexa paraphrased this draft."
+        : used === "rephrase" ? "Nexa rephrased this draft."
+        : used === "edit" ? "Nexa applied your change."
+        : "Nexa polished this draft.",
+      );
+    } catch (err) {
+      toast.error(apiErrorMessage(err, "Nexa could not rewrite that."));
+    } finally {
+      setAiBusy(null);
+    }
+  };
+
   const send = async () => {
     if (!selectedFrom) return;
     setSending(true);
@@ -140,7 +190,7 @@ export default function CrmMailProvider({ children }: { children: React.ReactNod
       {children}
       {target && (
         <div className="fixed inset-0 z-[120] bg-black/50 backdrop-blur-[2px] flex items-end sm:items-center justify-center p-3 sm:p-4">
-          <div className="w-full max-w-[min(100%,28rem)] sm:max-w-lg lg:max-w-xl max-h-[min(92dvh,40rem)] flex flex-col bg-white dark:bg-crm-surface rounded-2xl shadow-2xl overflow-hidden min-w-0">
+          <div className="w-full max-w-[min(100%,28rem)] sm:max-w-lg lg:max-w-xl max-h-[min(92dvh,52rem)] flex flex-col bg-white dark:bg-crm-surface rounded-2xl shadow-2xl overflow-hidden min-w-0">
             <div className="shrink-0 flex items-start justify-between gap-3 px-4 sm:px-5 py-3 sm:py-4 border-b border-gray-100 dark:border-crm-border">
               <div className="min-w-0">
                 <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#B8112D]">Send as you</p>
@@ -218,11 +268,76 @@ export default function CrmMailProvider({ children }: { children: React.ReactNod
                 <textarea
                   value={body}
                   onChange={e => { setBody(e.target.value); setConfirming(false); }}
-                  rows={6}
+                  rows={5}
                   className="mt-1 w-full min-w-0 rounded-xl border border-gray-200 px-3 py-2 text-sm text-[#0F172A] leading-relaxed"
                   placeholder="Your email..."
                 />
               </label>
+
+              <div className="rounded-xl border border-[#f5c5ce] bg-[#FFF8F9] px-3 py-2.5 space-y-2">
+                <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#B8112D]">Nexa</p>
+                <div className="flex flex-wrap gap-1.5">
+                  <button
+                    type="button"
+                    disabled={!!aiBusy}
+                    onClick={() => void rewrite("enhance")}
+                    className="h-8 px-2.5 rounded-lg bg-white border border-[#f5c5ce] text-[#B8112D] text-[11px] font-semibold inline-flex items-center gap-1 disabled:opacity-50"
+                  >
+                    {aiBusy === "enhance" ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
+                    Enhance
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!!aiBusy}
+                    onClick={() => void rewrite("paraphrase")}
+                    className="h-8 px-2.5 rounded-lg bg-white border border-[#f5c5ce] text-[#B8112D] text-[11px] font-semibold inline-flex items-center gap-1 disabled:opacity-50"
+                  >
+                    {aiBusy === "paraphrase" ? <Loader2 size={12} className="animate-spin" /> : <Wand2 size={12} />}
+                    Paraphrase
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!!aiBusy}
+                    onClick={() => void rewrite("rephrase")}
+                    className="h-8 px-2.5 rounded-lg bg-white border border-[#f5c5ce] text-[#B8112D] text-[11px] font-semibold inline-flex items-center gap-1 disabled:opacity-50"
+                  >
+                    {aiBusy === "rephrase" ? <Loader2 size={12} className="animate-spin" /> : <Wand2 size={12} />}
+                    Rephrase
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!!aiBusy}
+                    onClick={() => void rewrite("add")}
+                    className="h-8 px-2.5 rounded-lg bg-white border border-[#f5c5ce] text-[#B8112D] text-[11px] font-semibold inline-flex items-center gap-1 disabled:opacity-50"
+                  >
+                    {aiBusy === "add" ? <Loader2 size={12} className="animate-spin" /> : <Plus size={12} />}
+                    Add more
+                  </button>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <input
+                    value={aiHint}
+                    onChange={e => setAiHint(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        void rewrite(body.trim() ? "edit" : "write");
+                      }
+                    }}
+                    placeholder="shorter, more formal…"
+                    className="flex-1 h-8 min-w-0 rounded-lg border border-gray-200 bg-white px-2.5 text-[12px] text-[#0F172A] outline-none"
+                  />
+                  <button
+                    type="button"
+                    disabled={!!aiBusy}
+                    onClick={() => void rewrite(body.trim() ? "edit" : "write")}
+                    className="h-8 px-3 rounded-lg bg-[#B8112D] text-white text-[11px] font-semibold inline-flex items-center gap-1 disabled:opacity-50 shrink-0"
+                  >
+                    {aiBusy === "edit" || aiBusy === "write" ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
+                    Apply
+                  </button>
+                </div>
+              </div>
 
               <div className="min-w-0">
                 <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#B8112D] mb-2">
