@@ -684,7 +684,7 @@ router.put("/notifications/:id/read", async (req: AuthRequest, res) => {
   }
 });
 
-/* ================= CHECKED IN / CHECKED OUT (same CsrWorkSession ledger) ================= */
+/* ================= CHECKED IN / CHECKED OUT ( CsrWorkSession ledger) ================= */
 
 router.get("/work-session", async (req: AuthRequest, res) => {
   try {
