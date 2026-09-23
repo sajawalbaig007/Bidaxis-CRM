@@ -30,7 +30,9 @@ const isProd = process.env.NODE_ENV === "production";
 
 const allowedOrigins = [
   "http://localhost:3000",
+  "http://localhost:3001",
   "http://127.0.0.1:3000",
+  "http://127.0.0.1:3001",
   "https://crm-blond-theta.vercel.app",
   "https://dashboard.bemsolutions.io",
   process.env.FRONTEND_URL?.replace(/\/$/, ""),
@@ -58,6 +60,7 @@ app.use(
       if (allowedOrigins.includes(origin)) return callback(null, true);
       if (/^https:\/\/([a-z0-9-]+\.)?bemsolutions\.io$/i.test(origin)) return callback(null, true);
       if (/^https:\/\/[a-z0-9-]+\.vercel\.app$/i.test(origin)) return callback(null, true);
+      if (/^http:\/\/(localhost|127\.0\.0\.1):\d+$/i.test(origin)) return callback(null, true);
       callback(new Error("Not allowed by CORS"));
     },
     credentials: true,

@@ -1085,7 +1085,7 @@ router.delete(
 
       const lead = await prisma.lead.findFirst({
         where: { id: leadId },
-        select: { id: true, assignedTo: true, technicalNotes: true },
+        select: { id: true, assignedTo: true, technicalNotes: true }, 
       });
       if (!lead) return res.status(404).json({ success: false, message: "Lead not found" });
 

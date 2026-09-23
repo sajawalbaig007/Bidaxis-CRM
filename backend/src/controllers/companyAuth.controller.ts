@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import jwt from "jsonwebtoken";
 import prisma from "../config/db";
-import { comparePassword } from "../utils/hash";
+import { comparePassword, hashPassword } from "../utils/hash";
 import { getJwtSecret } from "../config/security";
 import {
   normalizeCompanyKey,
@@ -35,9 +35,17 @@ export async function companyLogin(req: Request, res: Response) {
     }
 
     const userOk = row.username.trim().toLowerCase() === username.toLowerCase();
-    const passOk = await comparePassword(password, row.password);
+    const stored = row.password || "";
+    const hashed = /^\$2[aby]\$/.test(stored);
+    const passOk = hashed ? await comparePassword(password, stored) : stored === password;
     if (!userOk || !passOk) {
       return res.status(401).json({ success: false, message: "Invalid company username or password." });
+    }
+    if (!hashed) {
+      await prisma.companyCredential.update({
+        where: { company },
+        data: { password: await hashPassword(password) },
+      });
     }
 
     const token = jwt.sign(

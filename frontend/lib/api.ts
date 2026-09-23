@@ -91,8 +91,14 @@ API.interceptors.request.use((config) => {
 
 API.interceptors.response.use(
   r => r,
-  err => {
+  async err => {
     const status = err?.response?.status;
+    const cfg = err?.config as (typeof err.config & { _retry404?: boolean }) | undefined;
+    // Turbopack can 404 the first /api/backend hit while the catch-all compiles.
+    if (status === 404 && isLocalHost() && cfg && !cfg._retry404) {
+      cfg._retry404 = true;
+      return API.request(cfg);
+    }
     const path = typeof window !== "undefined" ? window.location.pathname : "";
     const isProtected =
       path.startsWith("/admin") ||
@@ -135,10 +141,14 @@ export function apiErrorMessage(err: unknown, fallback = "Something went wrong."
   };
   if (e?.response?.data?.message) return e.response.data.message;
   if (e?.response?.status === 404) {
-    return "API not found. Redeploy frontend and set BACKEND_URL on Vercel.";
+    return isLocalHost()
+      ? "API route not ready. Refresh once and try again — backend should be on port 5000."
+      : "API not found. Redeploy frontend and set BACKEND_URL on Vercel.";
   }
   if (e?.response?.status === 502) {
-    return "API server unreachable. Set BACKEND_URL on Vercel to your Render backend URL.";
+    return isLocalHost()
+      ? "Cannot reach backend. Start it: cd backend && npm run dev"
+      : "API server unreachable. Set BACKEND_URL on Vercel to your Render backend URL.";
   }
   if (e?.response?.status === 429) return "Too many attempts. Please wait and try again.";
   if (!e?.response) {

@@ -9,7 +9,6 @@ import upload, { uploadPdf } from "../middleware/upload.middleware";
 import cloudinary from "../config/cloudinary";
 import { Readable } from "stream";
 import { SEED_USER_EMAILS } from "../constants/seedUsers";
-
 import {
   updateUser,
   deleteUser,
@@ -36,7 +35,7 @@ router.get("/", allowRoles("admin", "csr", "manager"), async (req: AuthRequest, 
         select: {
           id:         true,
           name:       true,
-          email:      true,
+          email:      true,  
           role:       true,
           csrCode:    true,
           employeeCode: true,

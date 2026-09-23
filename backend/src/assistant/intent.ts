@@ -207,8 +207,30 @@ const PURPOSE_STRIP = new Set([
   "batao", "btana", "btado", "btao", "kia", "kiya", "kardiya", "krdiya", "krdi",
 ]);
 
+function stripLookupTokens(text: string): string {
+  let t = text;
+  const email = parseEmail(t);
+  if (email) t = t.replace(new RegExp(email.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "ig"), " ");
+  t = t.replace(/(?:\+?\d[\d\s().-]{6,18}\d)/g, " ");
+  const code = extractProjectCode(t);
+  if (code) t = t.replace(new RegExp(code.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "ig"), " ");
+  return t.replace(/\s+/g, " ").trim();
+}
+
+/** Prefer the actual message after “compose … that / k …”, not a canned topic. */
+function clauseAfterCompose(text: string): string {
+  const m = text.match(
+    /\b(?:compose|draft|write|email|mail|msg|message|likh|likho|banao|bnao|bhej|kro|karo)[\s\S]*?\b(?:k|ke|keh|kehke|bolke|saying|that)\s+(.+)/i,
+  );
+  const clause = (m?.[1] || "").replace(/\s+/g, " ").trim().replace(/[.?!]+$/g, "").trim();
+  return clause.length >= 6 ? clause : "";
+}
+
 export function extractEmailPurpose(text: string): string {
   const lower = text.toLowerCase().replace(/\s+/g, " ");
+  const said = clauseAfterCompose(stripLookupTokens(text));
+  if (said) return said;
+
   const done = /\b(hogya|hogaya|hogai|ho\s*gaya|ho\s*gya|tayar|tayyar|kia|kiya|kardiya|krdiya|ready|done|complete|completed|finished)\b/.test(lower);
   if (/\brequirement/.test(lower) && done) return "requirements are complete";
   if (/\b(drawing|drawings|plans?)\b/.test(lower) && done) return "drawings are ready";
@@ -217,8 +239,8 @@ export function extractEmailPurpose(text: string): string {
   if (/\b(hogya|hogaya|ho\s*gaya|ho\s*gya|tayar|tayyar|project is ready|project ready)\b/.test(lower)) {
     return "project is ready";
   }
-  if (/\b(payment|invoice|outstanding|due|unpaid|bill|paisa)\b/.test(lower)) {
-    return "follow up on payment";
+  if (/\b(payment|invoice|outstanding|dues?|overdue|unpaid|bill|paisa)\b/.test(lower)) {
+    return "you have pending dues. Please arrange payment at your earliest convenience";
   }
   if (/\b(quote|quotation|pricing|price)\b/.test(lower)) {
     return "follow up on the quote";
@@ -227,19 +249,7 @@ export function extractEmailPurpose(text: string): string {
     return "schedule a call";
   }
 
-  let t = text;
-  const email = parseEmail(t);
-  if (email) t = t.replace(new RegExp(email.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "ig"), " ");
-  t = t.replace(/(?:\+?\d[\d\s().-]{6,18}\d)/g, " ");
-  const code = extractProjectCode(t);
-  if (code) t = t.replace(new RegExp(code.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "ig"), " ");
-
-  const afterSay = t.match(
-    /\b(?:compose|draft|write|likh|likho|banao|bnao|bhej|kro|karo)[\s\S]*?\b(?:k|ke|keh|kehke|bolke|saying|that)\s+(.+)/i,
-  );
-  if (afterSay?.[1]) t = afterSay[1];
-
-  const kept = t
+  const kept = stripLookupTokens(text)
     .replace(/[?,!]+/g, " ")
     .split(/[\s/;]+/)
     .map(w => w.trim())

@@ -231,7 +231,7 @@ const ENGLISH_HINT = new Set([
   "tomorrow", "today", "week", "info", "information", "missing", "attached", "attachment", "bid",
   "proposal", "deadline", "delay", "thank", "thanks", "confirm", "confirmation", "schedule",
   "available", "please", "share", "send", "sent", "request", "requested", "change", "changes",
-  "price", "pricing", "cost", "budget", "paid", "unpaid", "due", "outstanding", "walkthrough",
+  "price", "pricing", "cost", "budget", "paid", "unpaid", "due", "dues", "pay", "outstanding", "walkthrough",
 ]);
 
 function isProbablyEnglish(text: string): boolean {
@@ -252,8 +252,43 @@ function readyMail(who: string, subject: string, news: string): { subject: strin
   };
 }
 
+const PAY_RE = /\b(payment|invoice|outstanding|dues?|overdue|unpaid|bill|paisa|pay(?:ment)?s?)\b/;
+
+function toClientSentences(purpose: string): string {
+  let s = purpose.trim().replace(/\s+/g, " ");
+  s = s.replace(/^(that|please)\s+/i, "");
+  s = s.replace(/\bplease pay (it|this|them)?\b/i, "Please arrange payment at your earliest convenience");
+  s = s.replace(/\bpay (it|this|them)\b/i, "please arrange payment");
+  if (/\bPlease arrange payment/.test(s) && !/[.!?].*Please arrange/.test(s)) {
+    s = s.replace(/\s*Please arrange payment/, ". Please arrange payment");
+  }
+  if (!/^[A-Z]/.test(s)) s = s.charAt(0).toUpperCase() + s.slice(1);
+  if (!/[.!?]$/.test(s)) s += ".";
+  return s.replace(/\s+\./g, ".").replace(/\.{2,}/g, ".");
+}
+
+function subjectFromPurpose(purpose: string, lower: string): string {
+  if (PAY_RE.test(lower)) return "Reminder: pending dues";
+  const words = purpose.split(/\s+/).filter(Boolean).length;
+  if (words >= 6) {
+    const clipped = purpose.replace(/^(you |we |i |please )/i, "").trim().slice(0, 72);
+    if (clipped.length >= 8) {
+      const s = clipped.charAt(0).toUpperCase() + clipped.slice(1);
+      return /[.!?]$/.test(s) ? s.replace(/[.!?]$/, "") : s;
+    }
+  }
+  if (/\b(quote|quotation|pricing|price)\b/.test(lower)) return "Following up on your quote";
+  if (/\b(meeting|call|schedule|zoom)\b/.test(lower)) return "Can we jump on a call?";
+  if (/\b(revision|revise|changes?)\b/.test(lower)) return "Revision update";
+  const clipped = purpose.replace(/^(you |we |i |please )/i, "").trim().slice(0, 72);
+  if (clipped.length < 4) return "Quick update";
+  return clipped.charAt(0).toUpperCase() + clipped.slice(1);
+}
+
 function englishFromPurpose(purpose: string, who: string): { subject: string; opening: string } {
-  const p = purpose.trim().toLowerCase().replace(/\s+/g, " ");
+  const original = purpose.trim().replace(/\s+/g, " ");
+  const p = original.toLowerCase();
+  const generic = /^a short (professional )?project update$/i.test(original);
   const done = DONE_RE.test(p);
 
   if (/\brequirement/.test(p) && done) {
@@ -272,11 +307,37 @@ function englishFromPurpose(purpose: string, who: string): { subject: string; op
   if (/\btakeoff\b/.test(p) && done) {
     return readyMail(who, "Takeoff is complete", "The takeoff is complete and ready for your review.");
   }
-  if (/\b(payment|invoice|outstanding|due|unpaid|bill|paisa)\b/.test(p)) {
+  if (done && !generic && original.length < 40) {
+    return readyMail(who, "Your project is ready", "Good news — your project is ready.");
+  }
+  if (/\b(thank|thanks|shukriya|shukria)\b/.test(p) && original.length < 48) {
     return {
-      subject: "Quick note on payment",
+      subject: "Thank you",
       opening:
-        `Hi ${who},\n\nI wanted to follow up on the outstanding payment for your project.\n\nCould you please share an update when you get a chance?`,
+        `Hi ${who},\n\nThank you — we appreciate you taking the time.\n\nPlease let me know if you need anything else from our side.`,
+    };
+  }
+
+  const wordCount = original.split(/\s+/).filter(Boolean).length;
+  const specificAsk =
+    !generic
+    && (wordCount >= 6 || PAY_RE.test(p) || /\b(please|pay it|inform|keh|bolke)\b/i.test(p));
+  if (specificAsk) {
+    const news = toClientSentences(original);
+    const payClose = PAY_RE.test(p)
+      ? "If you have already paid, please ignore this note or share the receipt so we can update our records."
+      : "Please let me know if you have any questions.";
+    return {
+      subject: subjectFromPurpose(original, p),
+      opening: `Hi ${who},\n\n${news}\n\n${payClose}`,
+    };
+  }
+
+  if (PAY_RE.test(p)) {
+    return {
+      subject: "Reminder: pending dues",
+      opening:
+        `Hi ${who},\n\nThis is a reminder that you have pending dues. Please arrange payment at your earliest convenience.\n\nIf you have already paid, please ignore this note or share the receipt so we can update our records.`,
     };
   }
   if (/\b(quote|quotation|pricing|price)\b/.test(p)) {
@@ -300,16 +361,6 @@ function englishFromPurpose(purpose: string, who: string): { subject: string; op
         `Hi ${who},\n\nI wanted to update you on the revision.\n\nPlease review and tell me if anything still needs to change.`,
     };
   }
-  if (done) {
-    return readyMail(who, "Your project is ready", "Good news — your project is ready.");
-  }
-  if (/\b(thank|thanks|shukriya|shukria)\b/.test(p)) {
-    return {
-      subject: "Thank you",
-      opening:
-        `Hi ${who},\n\nThank you — we appreciate you taking the time.\n\nPlease let me know if you need anything else from our side.`,
-    };
-  }
   if (/\b(follow\s*up|checking in|touch base|reminder|yaad)\b/.test(p)) {
     return {
       subject: "Checking in",
@@ -318,7 +369,7 @@ function englishFromPurpose(purpose: string, who: string): { subject: string; op
     };
   }
 
-  const clean = purpose.trim().replace(/[.?!]+$/, "");
+  const clean = original.replace(/[.?!]+$/, "");
   if (clean.length >= 6 && isProbablyEnglish(clean) && !looksRomanUrdu(clean)) {
     const topic = clean.charAt(0).toLowerCase() + clean.slice(1);
     const subject = clean.replace(/^./, c => c.toUpperCase()).slice(0, 80);
@@ -326,7 +377,7 @@ function englishFromPurpose(purpose: string, who: string): { subject: string; op
       ? `I wanted to follow up — we still ${topic.replace(/^needed\b/i, "need")}.`
       : `I wanted to follow up regarding ${topic}.`;
     return {
-      subject: /^(your |following |quick |can |update:)/i.test(subject) ? subject : `Update: ${subject}`,
+      subject: /^(your |following |quick |can |update:|reminder:)/i.test(subject) ? subject : `Update: ${subject}`,
       opening:
         `Hi ${who},\n\n${news}\n\nPlease let me know if you have any questions or if you'd like me to walk you through anything.`,
     };
@@ -358,9 +409,16 @@ export async function draftClientMail(opts: {
       ? [`Thanks,`, opts.fromName.trim(), opts.fromEmail.trim()].filter(Boolean).join("\n")
       : "Thanks,";
   const written = englishFromPurpose(intent, who);
-  const safe = looksRomanUrdu(`${written.subject}\n${written.opening}`)
-    ? englishFromPurpose("a short project update", who)
-    : written;
+  let safe = written;
+  if (looksRomanUrdu(`${safe.subject}\n${safe.opening}`)) {
+    const lower = intent.toLowerCase();
+    const classified = PAY_RE.test(lower)
+      ? "you have pending dues. Please arrange payment at your earliest convenience"
+      : /\b(quote|quotation|pricing|price)\b/.test(lower)
+        ? "follow up on the quote"
+        : "a short project update";
+    safe = englishFromPurpose(classified, who);
+  }
   const body = sign ? `${safe.opening}\n\n${sign}` : safe.opening;
   return {
     subject: safe.subject,

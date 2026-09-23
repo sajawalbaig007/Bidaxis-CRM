@@ -117,12 +117,8 @@ export default function CrmMailProvider({ children }: { children: React.ReactNod
 
   const rewrite = async (mode: "enhance" | "add" | "write" | "paraphrase" | "rephrase" | "edit") => {
     const instruction = aiHint.trim();
-    if (mode === "write" && !instruction) {
-      toast.error("Type what the email should say, then press Write.");
-      return;
-    }
-    if (mode === "edit" && !instruction) {
-      toast.error("Type the change — paraphrase, shorter, more formal…");
+    if ((mode === "write" || mode === "edit") && !instruction) {
+      toast.error("Type what Nexa should do, then press Apply.");
       return;
     }
     if (mode !== "write" && !subject.trim() && !body.trim() && !instruction) {
@@ -279,10 +275,7 @@ export default function CrmMailProvider({ children }: { children: React.ReactNod
               </label>
 
               <div className="rounded-xl border border-[#f5c5ce] bg-[#FFF8F9] px-3 py-2.5 space-y-2">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#B8112D]">Nexa</p>
-                  <p className="text-[10px] text-gray-500 truncate">Apply = change this · Write = new</p>
-                </div>
+                <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#B8112D]">Nexa</p>
                 <div className="flex flex-wrap gap-1.5">
                   <button
                     type="button"
@@ -331,26 +324,17 @@ export default function CrmMailProvider({ children }: { children: React.ReactNod
                         void rewrite(body.trim() ? "edit" : "write");
                       }
                     }}
-                    placeholder="paraphrase, shorter, more formal…"
+                    placeholder="shorter, more formal…"
                     className="flex-1 h-8 min-w-0 rounded-lg border border-gray-200 bg-white px-2.5 text-[12px] text-[#0F172A] outline-none"
                   />
                   <button
                     type="button"
                     disabled={!!aiBusy}
-                    onClick={() => void rewrite("edit")}
-                    className="h-8 px-2.5 rounded-lg bg-white border border-[#B8112D] text-[#B8112D] text-[11px] font-semibold inline-flex items-center gap-1 disabled:opacity-50 shrink-0"
+                    onClick={() => void rewrite(body.trim() ? "edit" : "write")}
+                    className="h-8 px-3 rounded-lg bg-[#B8112D] text-white text-[11px] font-semibold inline-flex items-center gap-1 disabled:opacity-50 shrink-0"
                   >
-                    {aiBusy === "edit" ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
+                    {aiBusy === "edit" || aiBusy === "write" ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
                     Apply
-                  </button>
-                  <button
-                    type="button"
-                    disabled={!!aiBusy}
-                    onClick={() => void rewrite("write")}
-                    className="h-8 px-2.5 rounded-lg bg-[#B8112D] text-white text-[11px] font-semibold inline-flex items-center gap-1 disabled:opacity-50 shrink-0"
-                  >
-                    {aiBusy === "write" ? <Loader2 size={12} className="animate-spin" /> : <Wand2 size={12} />}
-                    Write
                   </button>
                 </div>
               </div>
