@@ -22,6 +22,7 @@ export type ParsedLeadRow = {
   company: string;
   phone: string;
   email: string;
+  website: string;
   state: string;
   interestedService: string;
   clientCode: string | null;
@@ -119,11 +120,29 @@ async function chunkedLookup<T>(
   size: number,
   query: (chunk: string[]) => Promise<T[]>
 ): Promise<T[]> {
+  return chunkedLookupParallel(items, size, 1, query);
+}
+
+async function chunkedLookupParallel<T>(
+  items: string[],
+  size: number,
+  concurrency: number,
+  query: (chunk: string[]) => Promise<T[]>
+): Promise<T[]> {
   if (items.length === 0) return [];
+  const chunks: string[][] = [];
+  for (let i = 0; i < items.length; i += size) chunks.push(items.slice(i, i + size));
   const out: T[] = [];
-  for (let i = 0; i < items.length; i += size) {
-    out.push(...await query(items.slice(i, i + size)));
-  }
+  let cursor = 0;
+  const worker = async () => {
+    while (cursor < chunks.length) {
+      const chunk = chunks[cursor++];
+      if (!chunk) break;
+      out.push(...await query(chunk));
+    }
+  };
+  const workers = Math.max(1, Math.min(concurrency, chunks.length));
+  await Promise.all(Array.from({ length: workers }, () => worker()));
   return out;
 }
 
@@ -215,6 +234,9 @@ export function parseLeadRows(
     projectTitle: resolveColumnKey(headerKeys, ["project detail","project title","project name","project"], ["code","client"]),
     projectBudget:resolveColumnKey(headerKeys, ["quotation","quote","budget"]),
     email:        resolveColumnKey(headerKeys, ["email","mail","e-mail"]),
+    website:      resolveColumnKey(headerKeys, [
+      "website", "web site", "website link", "web link", "company website", "url",
+    ], ["email"]),
     clientCode:   resolveColumnKey(headerKeys, ["client code","clientcode","project code","client_code"]),
     comments:     resolveColumnKey(headerKeys, [
       "notes", "note", "comments", "comment", "remarks", "remark",
@@ -263,6 +285,7 @@ export function parseLeadRows(
       company,
       phone,
       email: readCell(row, col.email),
+      website: readCell(row, col.website),
       state: readCell(row, col.state),
       interestedService: readInterestedService(row, col.service, headerKeys),
       clientCode: readCell(row, col.clientCode) || null,
@@ -291,6 +314,7 @@ type ExistingLeadMatch = {
   id: string;
   phone: string | null;
   email: string | null;
+  website: string | null;
   status: string;
   inBin: boolean;
   assignedTo: string;
@@ -342,6 +366,7 @@ export async function classifyRows(
   toRefresh: RefreshRow[];
   toRestore: RestoreRow[];
   emailUpdates: { id: string; email: string }[];
+  websiteUpdates: { id: string; website: string }[];
   preview: RowPreview[];
   previewCounts: { new: number; duplicate: number; updated: number; empty: number };
   existingCodeMap?: Map<string, string>;
@@ -411,6 +436,7 @@ export async function classifyRows(
       toRefresh: [],
       toRestore,
       emailUpdates: [],
+      websiteUpdates: [],
       preview,
       previewCounts,
       existingCodeMap,
@@ -419,15 +445,17 @@ export async function classifyRows(
 
   const phones = [...new Set(parsed.map(r => r.phone).filter(p => p.length >= 7))];
   const emails = [...new Set(parsed.map(r => r.email).filter(e => e.includes("@")))];
-  const phoneChunk = phones.length > 5_000 ? 2_000 : CHUNK_LOOKUP;
+  const largeSheet = phones.length > 20_000 || emails.length > 20_000;
+  const phoneChunk = largeSheet ? 8_000 : phones.length > 5_000 ? 2_000 : CHUNK_LOOKUP;
+  const emailChunk = largeSheet ? 5_000 : CHUNK_LOOKUP;
 
-  /* Large sheets: skip fuzzy contains — variants cover common formats */
+  /* Large sheets: skip fuzzy contains — digit variants cover common formats */
   const [phoneMatchMap, existingByEmail] = await Promise.all([
     findLeadsByPhonesBulk(phones, phoneChunk, { fuzzy: phones.length <= 800 }),
-    chunkedLookup(emails, CHUNK_LOOKUP, chunk =>
+    chunkedLookupParallel(emails, emailChunk, largeSheet ? 4 : 1, chunk =>
       prisma.lead.findMany({
         where: { email: { in: chunk } },
-        select: { email: true, id: true, phone: true, status: true, inBin: true, assignedTo: true },
+        select: { email: true, website: true, id: true, phone: true, status: true, inBin: true, assignedTo: true },
       }),
     ),
   ]);
@@ -439,6 +467,7 @@ export async function classifyRows(
   );
 
   const emailUpdates: { id: string; email: string }[] = [];
+  const websiteUpdates: { id: string; website: string }[] = [];
   const toPromote: PromoteRow[] = [];
   const toRefresh: RefreshRow[] = [];
   const toRestore: RestoreRow[] = [];
@@ -467,6 +496,7 @@ export async function classifyRows(
         id: l.id,
         phone: l.phone,
         email: l.email,
+        website: l.website ?? null,
         status: l.status,
         inBin: l.inBin,
         assignedTo: l.assignedTo,
@@ -504,6 +534,9 @@ export async function classifyRows(
         if (!exactExisting.email && hasValidEmail) {
           emailUpdates.push({ id: exactExisting.id, email: r.email });
         }
+        if (!exactExisting.website?.trim() && r.website.trim()) {
+          websiteUpdates.push({ id: exactExisting.id, website: r.website.trim() });
+        }
         pushPreview(r, "duplicate", "Already in database (matching phone)");
         continue;
       }
@@ -523,6 +556,9 @@ export async function classifyRows(
         pushPreview(r, "updated", `Moved to ${pageLabel(r.status)}`);
         continue;
       }
+      if (!emailHit.website?.trim() && r.website.trim()) {
+        websiteUpdates.push({ id: emailHit.id, website: r.website.trim() });
+      }
       pushPreview(r, "duplicate", "Already in database (matching email)");
       continue;
     }
@@ -531,5 +567,5 @@ export async function classifyRows(
     pushPreview(r, "new", `New contact — will be added to ${pageLabel(r.status)}`);
   }
 
-  return { fresh, toUpdate: [], toPromote, toRefresh, toRestore, emailUpdates, preview, previewCounts };
+  return { fresh, toUpdate: [], toPromote, toRefresh, toRestore, emailUpdates, websiteUpdates, preview, previewCounts };
 }

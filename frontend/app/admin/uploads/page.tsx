@@ -96,7 +96,7 @@ const CATEGORY_LABEL_MAP = Object.fromEntries(
   HISTORY_CATEGORIES.map(c => [c.key, c.label])
 ) as Record<UploadCategoryKey, string>;
 
-type ModalStep = "category" | "reset" | "company" | "source" | "trade" | "pane" | "csrs";
+type ModalStep = "category" | "reset" | "company" | "source" | "pane" | "csrs";
 type TradeRow = { id: string; name: string };
 
 const PRESET_COMPANIES = ["PS Estimating", "Devcon", "Other"];
@@ -260,7 +260,6 @@ export default function UploadPage() {
 
   /* Trades */
   const [trades,          setTrades]          = useState<TradeRow[]>([]);
-  const [selectedTrade,   setSelectedTrade]   = useState("");
   const [newTradeName,    setNewTradeName]    = useState("");
   const [addingTrade,     setAddingTrade]     = useState(false);
   const [deletingTradeId, setDeletingTradeId] = useState<string | null>(null);
@@ -304,10 +303,9 @@ export default function UploadPage() {
     if (!name) { toast.error("Enter a trade name"); return; }
     setAddingTrade(true);
     try {
-      const res = await API.post("/admin/trades", { name });
+      await API.post("/admin/trades", { name });
       toast.success(`"${name}" added`);
       setNewTradeName("");
-      setSelectedTrade(res.data.trade?.name ?? name);
       await fetchTrades();
     } catch { toast.error("Failed to add trade"); }
     finally { setAddingTrade(false); }
@@ -318,7 +316,6 @@ export default function UploadPage() {
     setDeletingTradeId(id);
     try {
       await API.delete(`/admin/trades/${id}`);
-      if (selectedTrade === name) setSelectedTrade("");
       await fetchTrades();
     } catch { toast.error("Failed to delete trade"); }
     finally { setDeletingTradeId(null); }
@@ -770,7 +767,6 @@ export default function UploadPage() {
       selectedLeadType
     );
     if (selectedSourceId) formData.append("sourceId", selectedSourceId);
-    if (selectedTrade) formData.append("trade", selectedTrade);
     return formData;
   };
 
@@ -820,7 +816,7 @@ export default function UploadPage() {
     try {
       const res = await API.post("/uploads", formData, {
         headers: { "Content-Type": "multipart/form-data" },
-        timeout: 900_000,
+        timeout: fileMb > 15 ? 1_800_000 : 900_000,
         onUploadProgress: (event) => {
           if (!event.total) return;
           const pct = Math.min(50, Math.round((event.loaded / event.total) * 50));
@@ -829,15 +825,17 @@ export default function UploadPage() {
           ));
           if (event.loaded >= event.total && !processingInterval) {
             let processing = 50;
+            const step = fileMb > 15 ? 0.35 : 1;
+            const tickMs = fileMb > 15 ? 2000 : 350;
             setFiles(prev => prev.map(f =>
               f.id === tempId ? { ...f, progress: processing, status: "Processing" } : f
             ));
             processingInterval = setInterval(() => {
-              processing = Math.min(92, processing + 1);
+              processing = Math.min(92, processing + step);
               setFiles(prev => prev.map(f =>
-                f.id === tempId ? { ...f, progress: processing, status: "Processing" } : f
+                f.id === tempId ? { ...f, progress: Math.round(processing), status: "Processing" } : f
               ));
-            }, 350);
+            }, tickMs);
           }
         },
       });
@@ -1243,7 +1241,6 @@ export default function UploadPage() {
                    : modalStep === "reset"   ? "Data Mode"
                    : modalStep === "company" ? "Select Company"
                    : modalStep === "source"  ? "Data Source"
-                   : modalStep === "trade"   ? "Trade Type"
                    : modalStep === "pane"    ? "Select CSR Pane"
                    : "Select CSRs"}
                 </h2>
@@ -1252,7 +1249,6 @@ export default function UploadPage() {
                    : modalStep === "reset"   ? "What should happen to existing call data?"
                    : modalStep === "company" ? "Which company does this data belong to?"
                    : modalStep === "source"  ? "Source name is admin-only. Sudo name is what CSRs see on leads."
-                   : modalStep === "trade"   ? "Tag this upload with a trade type — shown as a badge on CSR leads."
                    : modalStep === "pane"    ? "Which section should these leads appear in?"
                    : "Choose which CSRs should receive leads."}
                 </p>
@@ -1644,7 +1640,7 @@ export default function UploadPage() {
                       <button
                         onClick={() => {
                           setSelectedSourceId("");
-                          setModalStep("trade");
+                          goToCsrStep();
                         }}
                         className="h-10 sm:h-12 px-4 sm:px-5 rounded-xl sm:rounded-2xl border border-gray-200 text-gray-500 font-semibold text-sm hover:border-gray-300 hover:text-gray-700 transition-all"
                       >
@@ -1653,105 +1649,19 @@ export default function UploadPage() {
                       <button
                         onClick={() => {
                           if (!selectedSourceId) { toast.error("Please select or add a source"); return; }
-                          setModalStep("trade");
+                          goToCsrStep();
                         }}
                         disabled={!selectedSourceId}
                         className={`flex-1 h-10 sm:h-12 rounded-xl sm:rounded-2xl font-semibold text-sm transition-all ${
                           selectedSourceId ? "bg-[#B8112D] text-white hover:bg-[#a30f27]" : "bg-gray-100 text-gray-400 cursor-not-allowed"
                         }`}
                       >
-                        Next — Trade
+                        Next — Select CSRs
                       </button>
                     </div>
                     <p className="text-[10px] sm:text-[11px] text-gray-400 text-center">
                       Skip if you don&apos;t want to assign a source or sudo name for this upload.
                     </p>
-                  </div>
-                </div>
-              )}
-
-              {/* STEP — Trade */}
-              {modalStep === "trade" && (
-                <div className="space-y-3 sm:space-y-4">
-                  <p className="text-xs sm:text-sm text-gray-500 font-medium">
-                    Select the trade type for this upload. These badges will appear on CSR pending leads.
-                  </p>
-                  <p className="text-[11px] text-gray-400">
-                    In the Excel Trades column, write names only (Concrete, HVAC, Plumbing) — no numbers. Unknown names are added automatically.
-                  </p>
-
-                  {trades.length > 0 && (
-                    <div className="flex flex-wrap gap-2">
-                      {trades.map(t => {
-                        const sel = selectedTrade === t.name;
-                        return (
-                          <button
-                            key={t.id}
-                            onClick={() => setSelectedTrade(sel ? "" : t.name)}
-                            className={`px-3 py-1.5 rounded-full text-xs font-semibold border-2 transition-all ${
-                              sel
-                                ? "border-[#B8112D] bg-[#FFF1F3] text-[#B8112D]"
-                                : "border-gray-200 bg-gray-50 text-gray-700 hover:border-gray-400"
-                            }`}
-                          >
-                            {t.name}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-
-                  <div className="border border-dashed border-gray-200 rounded-xl p-3 space-y-2">
-                    <p className="text-xs font-semibold text-gray-600">Add new trade</p>
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        value={newTradeName}
-                        onChange={e => setNewTradeName(e.target.value)}
-                        placeholder="e.g. General Contractor, Electric Contractor..."
-                        className="flex-1 h-10 rounded-xl border border-gray-200 px-3 text-sm outline-none focus:border-[#B8112D]"
-                        onKeyDown={e => { if (e.key === "Enter") void addNewTrade(); }}
-                        list="trade-autocomplete"
-                      />
-                      <datalist id="trade-autocomplete">
-                        {trades.map(t => <option key={t.id} value={t.name} />)}
-                      </datalist>
-                      <button
-                        onClick={() => void addNewTrade()}
-                        disabled={addingTrade || !newTradeName.trim()}
-                        className="h-10 px-4 rounded-xl bg-[#111827] text-white text-sm font-semibold disabled:opacity-40 flex items-center gap-1.5"
-                      >
-                        {addingTrade ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />} Add
-                      </button>
-                    </div>
-                  </div>
-
-                  {selectedTrade && (
-                    <div className="flex items-center gap-2 bg-[#FFF1F3] text-[#B8112D] px-3 py-2 rounded-xl w-fit text-xs font-semibold">
-                      <Briefcase size={13} /> {selectedTrade}
-                      <button onClick={() => setSelectedTrade("")} className="ml-1 text-[#B8112D] hover:text-red-700"><X size={12} /></button>
-                    </div>
-                  )}
-
-                  <div className="flex gap-2 sm:gap-3">
-                    <button
-                      onClick={() => setModalStep("source")}
-                      className="flex-1 h-10 sm:h-12 rounded-xl sm:rounded-2xl bg-gray-100 text-gray-700 font-semibold text-sm hover:bg-gray-200 transition-all"
-                    >
-                      Back
-                    </button>
-                    <button
-                      onClick={() => { setSelectedTrade(""); goToCsrStep(); }}
-                      className="h-10 sm:h-12 px-4 sm:px-5 rounded-xl sm:rounded-2xl border border-gray-200 text-gray-500 font-semibold text-sm hover:border-gray-300 hover:text-gray-700 transition-all"
-                    >
-                      Skip
-                    </button>
-                    <button
-                      onClick={goToCsrStep}
-                      className="flex-1 h-10 sm:h-12 rounded-xl sm:rounded-2xl bg-[#B8112D] text-white font-semibold text-sm hover:bg-[#a30f27] transition-all"
-                    >
-                      Next — Select CSRs
-                    </button>
                   </div>
                 </div>
               )}
@@ -2851,7 +2761,7 @@ export default function UploadPage() {
                     </h3>
                     <p className="text-xs sm:text-sm text-gray-400 mt-0.5">
                       {previewLoading
-                        ? "Processing file on server — please wait…"
+                        ? "Processing file on server — large sheets can take several minutes."
                         : "Each row checked against the database before import."}
                     </p>
                   </div>

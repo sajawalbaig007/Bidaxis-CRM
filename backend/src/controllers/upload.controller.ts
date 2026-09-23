@@ -18,7 +18,43 @@ import type { ParsedLeadRow } from "../utils/uploadExcelParse";
 import { estDateYmd } from "../utils/estTime";
 
 const CHUNK_INSERT = 500;
+const CHUNK_INSERT_LARGE = 1500;
 const BATCH_UPDATE = 30;
+
+/** Many different values per id — one Mongo update command instead of N round-trips. */
+async function bulkSetLeadFields(updates: { id: string; data: Record<string, string> }[]) {
+  const CHUNK = 1000;
+  for (let i = 0; i < updates.length; i += CHUNK) {
+    const slice = updates.slice(i, i + CHUNK);
+    await prisma.$runCommandRaw({
+      update: "Lead",
+      updates: slice.map(u => ({
+        q: { _id: u.id },
+        u: { $set: u.data },
+      })),
+      ordered: false,
+    });
+  }
+}
+
+async function createLeadsChunked(
+  rows: Record<string, unknown>[],
+  chunk: number,
+  parallel: number,
+) {
+  const slices: Record<string, unknown>[][] = [];
+  for (let i = 0; i < rows.length; i += chunk) slices.push(rows.slice(i, i + chunk));
+  let cursor = 0;
+  const worker = async () => {
+    while (cursor < slices.length) {
+      const batch = slices[cursor++];
+      if (!batch?.length) break;
+      await prisma.lead.createMany({ data: batch as never });
+    }
+  };
+  const workers = Math.max(1, Math.min(parallel, slices.length));
+  await Promise.all(Array.from({ length: workers }, () => worker()));
+}
 
 async function upsertTradesFromRows(rawValues: (string | null | undefined)[]) {
   const names = new Set<string>();
@@ -38,16 +74,31 @@ async function attachExcelSubContacts(uploadedFileId: string, rows: ParsedLeadRo
     select: { id: true, phone: true, name: true, email: true },
   });
 
+  const byPhone = new Map<string, typeof created>();
+  const byNameEmail = new Map<string, typeof created>();
+  const byName = new Map<string, typeof created>();
+  const pushMap = (map: Map<string, typeof created>, key: string, lead: (typeof created)[number]) => {
+    const list = map.get(key);
+    if (list) list.push(lead);
+    else map.set(key, [lead]);
+  };
+  for (const lead of created) {
+    if (lead.phone) pushMap(byPhone, lead.phone, lead);
+    if (lead.name && lead.email) pushMap(byNameEmail, `${lead.name}::${lead.email}`, lead);
+    if (lead.name) pushMap(byName, lead.name, lead);
+  }
+
   const used = new Set<string>();
   const payloads: { leadId: string; name: string; designation?: string; phone?: string; email?: string }[] = [];
+  const takeUnused = (list: typeof created | undefined) => list?.find(l => !used.has(l.id));
 
   for (const row of withContacts) {
     const contacts = parseSubContactsCell(row.subContactsRaw);
     if (contacts.length === 0) continue;
     const lead =
-      created.find(l => row.phone && l.phone === row.phone && !used.has(l.id)) ||
-      created.find(l => row.name && l.name === row.name && row.email && l.email === row.email && !used.has(l.id)) ||
-      created.find(l => row.name && l.name === row.name && !used.has(l.id));
+      (row.phone ? takeUnused(byPhone.get(row.phone)) : undefined) ||
+      (row.name && row.email ? takeUnused(byNameEmail.get(`${row.name}::${row.email}`)) : undefined) ||
+      (row.name ? takeUnused(byName.get(row.name)) : undefined);
     if (!lead) continue;
     used.add(lead.id);
     for (const c of contacts) {
@@ -236,7 +287,15 @@ export const uploadLeads = async (req: Request, res: Response) => {
     const fileBuffer     = req.file.buffer;
     const rows        = readExcelRows(fileBuffer);
 
-    /* Parse + CSR lookup first — Cloudinary must not block / fail the whole 50k import */
+    /* Archive the sheet while rows are matched and inserted — do not block the import. */
+    const cloudPromise = uploadRawBuffer(fileBuffer, cloudFolder).then(
+      url => url,
+      (cloudErr: unknown) => {
+        console.log("[Upload] Cloudinary archive failed (non-fatal for import):", cloudErr);
+        return "";
+      },
+    );
+
     const csrs = await prisma.user.findMany({
       where: {
         role:     "csr",
@@ -249,13 +308,6 @@ export const uploadLeads = async (req: Request, res: Response) => {
 
     if (csrs.length === 0) {
       return res.status(400).json({ success: false, message: "No active CSR users found" });
-    }
-
-    let cloudinaryUrl = "";
-    try {
-      cloudinaryUrl = await uploadRawBuffer(fileBuffer, cloudFolder);
-    } catch (cloudErr) {
-      console.log("[Upload] Cloudinary archive failed (non-fatal for import):", cloudErr);
     }
 
     /* ── RESET MODE (call data only) ──
@@ -320,7 +372,7 @@ export const uploadLeads = async (req: Request, res: Response) => {
     const uploadedFile = await prisma.uploadFile.create({
       data: {
         fileName:      req.file.originalname,
-        cloudinaryUrl: cloudinaryUrl,
+        cloudinaryUrl: "",
         totalLeads:    rows.length,
         uploadedBy,
         companyName:    companyName || null,
@@ -336,7 +388,7 @@ export const uploadLeads = async (req: Request, res: Response) => {
       isSpecialUpload && (status ?? "").toLowerCase() !== "pending";
     const promoteWonClients = isSpecialUpload && initialStatuses.every(isWonClientUploadStatus);
 
-    const { fresh, toUpdate, toPromote, toRefresh, toRestore, emailUpdates, preview, previewCounts, existingCodeMap } =
+    const { fresh, toUpdate, toPromote, toRefresh, toRestore, emailUpdates, websiteUpdates, preview, previewCounts, existingCodeMap } =
       await classifyRows(parsed, isActiveUpload, uploadCategory, promoteWonClients);
 
     const distributionMap: Record<string, number> = {};
@@ -348,6 +400,7 @@ export const uploadLeads = async (req: Request, res: Response) => {
         company:           r.company           || null,
         phone:             r.phone             || null,
         email:             r.email             || null,
+        ...(r.website?.trim() ? { website: r.website.trim() } : {}),
         state:             r.state             || null,
         clientCode:        r.clientCode        || null,
         projectTitle:      r.projectTitle,
@@ -391,9 +444,23 @@ export const uploadLeads = async (req: Request, res: Response) => {
     }
 
     if (!isActiveUpload && emailUpdates.length > 0) {
-      await runBatched(emailUpdates, BATCH_UPDATE, ({ id, email }) =>
-        prisma.lead.update({ where: { id }, data: { email } })
-      );
+      if (emailUpdates.length > 200) {
+        await bulkSetLeadFields(emailUpdates.map(u => ({ id: u.id, data: { email: u.email } })));
+      } else {
+        await runBatched(emailUpdates, BATCH_UPDATE, ({ id, email }) =>
+          prisma.lead.update({ where: { id }, data: { email } })
+        );
+      }
+    }
+
+    if (!isActiveUpload && websiteUpdates.length > 0) {
+      if (websiteUpdates.length > 200) {
+        await bulkSetLeadFields(websiteUpdates.map(u => ({ id: u.id, data: { website: u.website } })));
+      } else {
+        await runBatched(websiteUpdates, BATCH_UPDATE, ({ id, website }) =>
+          prisma.lead.update({ where: { id }, data: { website } })
+        );
+      }
     }
 
     const skipEmptyService = (status: string) =>
@@ -476,6 +543,7 @@ export const uploadLeads = async (req: Request, res: Response) => {
         company:           r.company,
         phone:             r.phone,
         email:             r.email,
+        website:           r.website?.trim() || null,
         state:             r.state             || null,
         interestedService: r.interestedService?.trim() || null,
         clientCode:        r.clientCode        || null,
@@ -494,18 +562,12 @@ export const uploadLeads = async (req: Request, res: Response) => {
         subTrades:         r.subTrades?.trim() || null,
       }));
 
-      for (let i = 0; i < insertRows.length; i += CHUNK_INSERT) {
-        await prisma.lead.createMany({ data: insertRows.slice(i, i + CHUNK_INSERT) });
-      }
-
-      /* Mongo source of truth for how many rows actually landed */
-      const linkedNow = await prisma.lead.count({ where: { uploadedFileId: uploadedFile.id } });
-      if (linkedNow > 0) {
-        await prisma.uploadFile.update({
-          where: { id: uploadedFile.id },
-          data: { totalLeads: linkedNow },
-        });
-      }
+      const largeInsert = insertRows.length > 20_000;
+      await createLeadsChunked(
+        insertRows as Record<string, unknown>[],
+        largeInsert ? CHUNK_INSERT_LARGE : CHUNK_INSERT,
+        largeInsert ? 4 : 1,
+      );
 
       await attachExcelSubContacts(uploadedFile.id, fresh);
       await upsertTradesFromRows([...fresh.map(r => r.trade), tradeName]);
@@ -575,13 +637,30 @@ export const uploadLeads = async (req: Request, res: Response) => {
       /* keep addedCount */
     }
 
-    await seedLeadNotesFromCommentsForFile(uploadedFile.id);
+    const hasSheetComments = [
+      ...fresh,
+      ...toUpdate,
+      ...toPromote.map(x => x.row),
+      ...toRefresh.map(x => x.row),
+      ...toRestore.map(x => x.row),
+    ].some(r => r.comments?.trim());
+    if (hasSheetComments) {
+      await seedLeadNotesFromCommentsForFile(uploadedFile.id);
+    }
+
+    const cloudinaryUrl = await cloudPromise;
+    if (cloudinaryUrl) {
+      await prisma.uploadFile.update({
+        where: { id: uploadedFile.id },
+        data: { cloudinaryUrl },
+      });
+    }
 
     return res.json({
       success:       true,
       totalLeads:    addedCount,
       cloudinaryUrl: cloudinaryUrl,
-      file:          { ...uploadedFile, uploadCategory },
+      file:          { ...uploadedFile, cloudinaryUrl, uploadCategory },
       distribution,
       rowResults:    preview,
       summary: {

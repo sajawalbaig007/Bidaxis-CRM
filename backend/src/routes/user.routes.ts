@@ -8,6 +8,7 @@ import { getCache, setCache, invalidateCache } from "../utils/cache";
 import upload, { uploadPdf } from "../middleware/upload.middleware";
 import cloudinary from "../config/cloudinary";
 import { Readable } from "stream";
+import { SEED_USER_EMAILS } from "../constants/seedUsers";
 
 import {
   updateUser,
@@ -29,6 +30,9 @@ router.get("/", allowRoles("admin", "csr", "manager"), async (req: AuthRequest, 
     let users = getCache<Array<Record<string, unknown>>>(CACHE_KEY);
     if (!users) {
       users = await prisma.user.findMany({
+        where: viewerRole === "admin"
+          ? { email: { notIn: SEED_USER_EMAILS } }
+          : undefined,
         select: {
           id:         true,
           name:       true,

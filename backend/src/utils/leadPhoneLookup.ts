@@ -6,6 +6,7 @@ const LEAD_PHONE_SELECT = {
   id: true,
   phone: true,
   email: true,
+  website: true,
   status: true,
   inBin: true,
   assignedTo: true,
@@ -18,6 +19,7 @@ export type LeadPhoneMatch = {
   id: string;
   phone: string | null;
   email: string | null;
+  website?: string | null;
   status: string;
   inBin: boolean;
   assignedTo: string;
@@ -59,21 +61,37 @@ export async function findLeadsByPhonesBulk(
   };
 
   /* Expand each phone into common format variants so exact `in` catches more without fuzzy */
+  const large = unique.length > 20_000;
+  const compact = unique.length > 10_000;
+  const queryChunk = large ? Math.max(chunkSize, 8_000) : chunkSize;
+  const parallel = large ? 5 : 1;
+
   const queryValues = new Set<string>();
   for (const p of unique) {
-    for (const v of phoneQueryVariants(p)) queryValues.add(v);
+    for (const v of phoneQueryVariants(p, compact)) queryValues.add(v);
   }
   const queryList = [...queryValues];
-
-  for (let i = 0; i < queryList.length; i += chunkSize) {
-    const chunk = queryList.slice(i, i + chunkSize);
-    const exact = await prisma.lead.findMany({
-      where:   { phone: { in: chunk } },
-      select:  LEAD_PHONE_SELECT,
-      orderBy: { updatedAt: "desc" },
-    });
-    for (const l of exact) addLead(l);
+  const chunks: string[][] = [];
+  for (let i = 0; i < queryList.length; i += queryChunk) {
+    chunks.push(queryList.slice(i, i + queryChunk));
   }
+
+  let cursor = 0;
+  const worker = async () => {
+    while (cursor < chunks.length) {
+      const chunk = chunks[cursor++];
+      if (!chunk) break;
+      const exact = await prisma.lead.findMany({
+        where:  { phone: { in: chunk } },
+        select: LEAD_PHONE_SELECT,
+        /* Sort in memory below — orderBy on a huge $in skips the phone index. */
+        ...(large ? {} : { orderBy: { updatedAt: "desc" as const } }),
+      });
+      for (const l of exact) addLead(l);
+    }
+  };
+  const workers = Math.max(1, Math.min(parallel, chunks.length));
+  await Promise.all(Array.from({ length: workers }, () => worker()));
 
   /* Fuzzy contains is O(n) on Mongo — only for smaller sheets */
   const useFuzzy = fuzzy && unique.length <= 800;
@@ -119,7 +137,7 @@ export async function findLeadsByPhonesBulk(
   return result;
 }
 
-function phoneQueryVariants(phone: string): string[] {
+function phoneQueryVariants(phone: string, compact = false): string[] {
   const trimmed = phone.trim();
   const digits = normalizePhone(trimmed);
   const out = new Set<string>([trimmed]);
@@ -131,9 +149,11 @@ function phoneQueryVariants(phone: string): string[] {
   if (last10.length === 10) {
     out.add(`+1${last10}`);
     out.add(`1${last10}`);
-    out.add(`(${last10.slice(0, 3)}) ${last10.slice(3, 6)}-${last10.slice(6)}`);
-    out.add(`${last10.slice(0, 3)}-${last10.slice(3, 6)}-${last10.slice(6)}`);
-    out.add(`${last10.slice(0, 3)}.${last10.slice(3, 6)}.${last10.slice(6)}`);
+    if (!compact) {
+      out.add(`(${last10.slice(0, 3)}) ${last10.slice(3, 6)}-${last10.slice(6)}`);
+      out.add(`${last10.slice(0, 3)}-${last10.slice(3, 6)}-${last10.slice(6)}`);
+      out.add(`${last10.slice(0, 3)}.${last10.slice(3, 6)}.${last10.slice(6)}`);
+    }
   }
   return [...out];
 }

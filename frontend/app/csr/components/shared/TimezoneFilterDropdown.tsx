@@ -61,7 +61,7 @@ export default function TimezoneFilterDropdown({ value, onChange, compact = fals
       </button>
 
       {open && (
-        <div className="absolute top-11 sm:top-12 right-0 z-[120] w-[240px] sm:w-[270px] bg-white dark:bg-crm-surface rounded-xl sm:rounded-2xl shadow-2xl border border-gray-100 dark:border-crm-border overflow-hidden">
+        <div className={`bg-white dark:bg-crm-surface rounded-xl sm:rounded-2xl border border-gray-100 dark:border-crm-border overflow-hidden ${fullWidth ? "relative mt-1 w-full shadow-sm" : "absolute top-full mt-1 right-0 z-[80] w-[240px] sm:w-[270px] shadow-2xl"}`}>
           <div className="px-3 py-2 border-b border-gray-100 dark:border-crm-border bg-[#FAFAFB] dark:bg-crm-surface-raised">
             <p className="text-[10px] font-bold text-gray-400 dark:text-crm-text-muted uppercase tracking-wider">Phone area code → timezone</p>
           </div>
