@@ -4,6 +4,7 @@ import { getAdminAllowedIps } from "../config/env";
 import { getClientIp } from "./requestMeta";
 
 export const ATTENDANCE_REVISE_TOKEN = "r7k2m9qx4p8w3n6";
+export const CHIEF_ESTIMATOR_NAME = "Ayesha Ashraf";
 
 export const DEPT_ROSTER = {
   dev: [
