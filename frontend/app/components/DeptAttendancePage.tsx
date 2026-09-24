@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { LogIn, LogOut } from "lucide-react";
 import toast from "react-hot-toast";
 import API, { apiErrorMessage } from "@/lib/api";
@@ -30,8 +30,6 @@ export default function DeptAttendancePage({
   const [people, setPeople] = useState<Person[]>([]);
   const [rows, setRows] = useState<Row[]>([]);
   const [selected, setSelected] = useState("");
-  const [checkIn, setCheckIn] = useState("");
-  const [checkOut, setCheckOut] = useState("");
   const [blocked, setBlocked] = useState("");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -63,41 +61,11 @@ export default function DeptAttendancePage({
     void load();
   }, [load]);
 
-  const selectedRow = useMemo(
-    () => rows.find((r) => r.personKey === selected),
-    [rows, selected],
-  );
-
-  useEffect(() => {
-    setCheckIn(selectedRow?.checkIn ?? "");
-    setCheckOut(selectedRow?.checkOut ?? "");
-  }, [selectedRow?.personKey, selectedRow?.checkIn, selectedRow?.checkOut]);
-
   const punch = async (action: "in" | "out") => {
     if (!selected) return;
     setBusy(true);
     try {
       const res = await API.post("/attendance/punch", { department, personKey: selected, action });
-      toast.success(res.data.message || "Saved.");
-      await load(day);
-    } catch (err) {
-      toast.error(apiErrorMessage(err, "Could not save time."));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const saveTimes = async () => {
-    if (!selected || !day) return;
-    setBusy(true);
-    try {
-      const res = await API.post("/attendance/times", {
-        department,
-        personKey: selected,
-        day,
-        checkIn,
-        checkOut,
-      });
       toast.success(res.data.message || "Saved.");
       await load(day);
     } catch (err) {
@@ -173,25 +141,6 @@ export default function DeptAttendancePage({
                   className="h-11 px-4 rounded-xl bg-[#B8112D] text-white text-sm font-semibold inline-flex items-center gap-2 disabled:opacity-60"
                 >
                   <LogOut size={16} /> Check out
-                </button>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
-                <label className="text-xs font-semibold text-gray-500">
-                  Check-in time
-                  <input type="time" value={checkIn} onChange={(e) => setCheckIn(e.target.value)} className="mt-1 w-full h-11 rounded-xl border border-gray-200 px-3 text-sm" />
-                </label>
-                <label className="text-xs font-semibold text-gray-500">
-                  Check-out time
-                  <input type="time" value={checkOut} onChange={(e) => setCheckOut(e.target.value)} className="mt-1 w-full h-11 rounded-xl border border-gray-200 px-3 text-sm" />
-                </label>
-                <button
-                  type="button"
-                  disabled={busy || !checkIn}
-                  onClick={() => void saveTimes()}
-                  className="h-11 rounded-xl border border-gray-200 text-sm font-semibold hover:border-[#B8112D] hover:text-[#B8112D] disabled:opacity-60"
-                >
-                  Save daily time
                 </button>
               </div>
             </section>
