@@ -10,6 +10,7 @@ import {
   Bar, BarChart, CartesianGrid, Cell, LabelList, Pie, PieChart, Tooltip, XAxis, YAxis,
 } from "recharts";
 import TechnicalPageShell from "./components/TechnicalPageShell";
+import StaffDayCheckBar from "@/app/components/StaffDayCheckBar";
 import RechartsBox from "@/app/components/charts/RechartsBox";
 import { STAFF_PAGE_PAD } from "@/lib/staffPageLayout";
 import UploadActionBento, { type UploadBentoItem } from "@/app/admin/components/uploads/UploadActionBento";
@@ -423,6 +424,8 @@ export default function TechnicalDashboardPage() {
               {loading ? "Refreshing…" : "Refresh stats"}
             </button>
           </header>
+
+          <StaffDayCheckBar />
 
           <section aria-label="Quick stats">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 sm:gap-3">

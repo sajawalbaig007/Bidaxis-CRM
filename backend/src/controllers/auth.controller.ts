@@ -11,6 +11,7 @@ import { getJwtSecret, validatePassword } from "../config/security";
 import { getSessionHours, getAdminAllowedIps, isCaptchaConfigured, isSmtpConfigured } from "../config/env";
 import { getClientIp, getUserAgent } from "../utils/requestMeta";
 import { evaluateNetworkAccess, sanitizeIpList } from "../utils/networkAccess";
+import { officeNetworkMessage } from "../utils/staffAttendance";
 import { writeAuditLog, fetchRecentAuditLogs } from "../utils/auditLog";
 import { recordAccessHistory } from "../utils/accessHistory";
 import {
@@ -438,6 +439,14 @@ export const login = async (req: Request, res: Response) => {
       return res.status(403).json({ success: false, code: "NETWORK_POLICY_DENIED", message: networkError });
     }
 
+    if (user.role === "manager") {
+      const officeError = await officeNetworkMessage(req);
+      if (officeError) {
+        await writeAuditLog({ action: "login_blocked", userId: user.id, email: user.email, ip, userAgent: ua, meta: { reason: "office_ip" } });
+        return res.status(403).json({ success: false, code: "IP_NOT_ALLOWED", message: officeError });
+      }
+    }
+
     const isMatch = await comparePassword(password, user.password);
     if (!isMatch) {
       await recordFailedLogin(email, ip);
@@ -586,6 +595,13 @@ export const verifyOTP = async (req: Request, res: Response) => {
     const networkError = evaluateNetworkAccess(user, req);
     if (networkError) {
       return res.status(403).json({ success: false, code: "NETWORK_POLICY_DENIED", message: networkError });
+    }
+
+    if (user.role === "manager") {
+      const officeError = await officeNetworkMessage(req);
+      if (officeError) {
+        return res.status(403).json({ success: false, code: "IP_NOT_ALLOWED", message: officeError });
+      }
     }
 
     return finishLogin(req, res, user, !!rememberMe);
