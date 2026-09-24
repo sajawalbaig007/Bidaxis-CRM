@@ -644,6 +644,7 @@ router.get("/notifications", async (req: AuthRequest, res) => {
       where: {
         source: "tm_estimator",
         leadId: { in: myLeadIds },
+        OR: [{ recipientId: null }, { recipientId: me.id }],
       },
       orderBy: { createdAt: "desc" },
       take: 40,
@@ -674,7 +675,11 @@ router.put("/notifications/:id/read", async (req: AuthRequest, res) => {
     if (!me) return res.status(401).json({ success: false, message: "Unauthorized" });
     const id = String(req.params.id);
     await prisma.technicalNotification.updateMany({
-      where: { id, source: "tm_estimator" },
+      where: {
+        id,
+        source: "tm_estimator",
+        OR: [{ recipientId: null }, { recipientId: me.id }],
+      },
       data: { readAt: new Date() },
     });
     return res.json({ success: true });

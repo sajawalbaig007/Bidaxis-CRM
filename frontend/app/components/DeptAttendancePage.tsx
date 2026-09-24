@@ -21,7 +21,7 @@ export default function DeptAttendancePage({
   personKey,
   personName,
 }: {
-  department: "dev" | "office_boy" | "hr";
+  department: "dev" | "office_boy" | "hr" | "bim_modeler";
   title: string;
   personKey?: string;
   personName?: string;

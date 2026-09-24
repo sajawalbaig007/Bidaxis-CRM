@@ -206,7 +206,7 @@ export default function EstimatorSidebar() {
                     : "bg-crm-nav-pill text-crm-text-muted hover:text-[#7C3AED]"
                 }`}
                 style={bellOpen ? { background: ACCENT } : undefined}
-                title="Notes from Technical"
+                title="Notifications"
               >
                 <Bell size={16} />
                 {unreadCount > 0 && (
@@ -221,7 +221,7 @@ export default function EstimatorSidebar() {
                   <div className="flex items-center justify-between px-4 py-3 border-b border-crm-border-subtle">
                     <div className="flex items-center gap-2">
                       <Bell size={14} style={{ color: ACCENT }} />
-                      <span className="text-[13px] font-bold text-[#0F172A]">Tech notes</span>
+                      <span className="text-[13px] font-bold text-[#0F172A]">Notifications</span>
                     </div>
                     {unreadCount > 0 && (
                       <span className="text-[11px] bg-violet-100 text-violet-800 font-bold px-2 py-0.5 rounded-full">
@@ -234,7 +234,7 @@ export default function EstimatorSidebar() {
                       <div className="py-8 text-center">
                         <Bell size={24} className="text-gray-200 mx-auto mb-2" />
                         <p className="text-gray-400 text-[13px]">No notifications</p>
-                        <p className="text-gray-300 text-[11px] mt-1">Messages from Technical appear here</p>
+                        <p className="text-gray-300 text-[11px] mt-1">Assignments and messages from Technical appear here</p>
                       </div>
                     ) : (
                       notifications.map((n) => (

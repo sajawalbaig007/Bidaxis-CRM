@@ -36,8 +36,22 @@ export default function ReviseAttendancePage() {
 
   useEffect(() => {
     if (token !== TOKEN) return;
-    void load().catch(() => toast.error("Could not load times."));
-  }, [load, token]);
+    let cancelled = false;
+    API.get(`/attendance/revise/${token}`)
+      .then((res) => {
+        if (cancelled) return;
+        setDay(res.data.day);
+        setDev(res.data.dev ?? []);
+        setChiefs(res.data.chiefs ?? []);
+        setRows(res.data.rows ?? []);
+      })
+      .catch(() => {
+        if (!cancelled) toast.error("Could not load times.");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
 
   if (token !== TOKEN) {
     return (
@@ -95,15 +109,18 @@ export default function ReviseAttendancePage() {
             <h2 className="px-4 py-3 font-bold text-sm border-b border-gray-100">{group.title}</h2>
             {group.people.length === 0 ? (
               <p className="px-4 py-4 text-sm text-gray-400">No one in this list.</p>
-            ) : group.people.map((person) => (
+            ) : group.people.map((person) => {
+              const row = rows.find((r) => r.personKey === person.key && r.department === group.department);
+              return (
               <PersonRow
-                key={person.key}
+                key={`${person.key}:${row?.checkIn ?? ""}:${row?.checkOut ?? ""}`}
                 person={person}
-                row={rows.find((r) => r.personKey === person.key && r.department === group.department)}
+                row={row}
                 busy={busyKey === person.key}
                 onSave={(checkIn, checkOut) => void save(group.department, person, checkIn, checkOut)}
               />
-            ))}
+              );
+            })}
           </section>
         ))}
       </div>
@@ -124,11 +141,6 @@ function PersonRow({
 }) {
   const [checkIn, setCheckIn] = useState(row?.checkIn ?? "");
   const [checkOut, setCheckOut] = useState(row?.checkOut ?? "");
-
-  useEffect(() => {
-    setCheckIn(row?.checkIn ?? "");
-    setCheckOut(row?.checkOut ?? "");
-  }, [row?.checkIn, row?.checkOut, person.key]);
 
   return (
     <div className="px-4 py-3 border-t border-gray-50 grid grid-cols-1 sm:grid-cols-[1fr_auto_auto_auto] gap-2 items-center">

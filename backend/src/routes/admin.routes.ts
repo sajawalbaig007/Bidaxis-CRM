@@ -2799,6 +2799,9 @@ router.put(
           technicalReceivedAt: true,
           assignedTo: true,
           technicalAssignments: true,
+          projectTitle: true,
+          projectCode: true,
+          clientCode: true,
         },
       });
       if (!existing) {
@@ -2828,6 +2831,36 @@ router.put(
 
       invalidatePattern("admin:projects:");
       invalidateCache(`csr:projects:${lead.assignedTo}`);
+
+      const actor = (req as { user?: { id?: string; role?: string } }).user;
+      if (actor?.role === "technical_manager") {
+        const previousIds = new Set(
+          parseTechnicalAssignments(existing.technicalAssignments).map((a) => a.estimatorId),
+        );
+        const added = merged.filter((a) => a.estimatorId && !previousIds.has(a.estimatorId));
+        if (added.length > 0) {
+          const chief = actor.id
+            ? await prisma.user.findUnique({ where: { id: actor.id }, select: { name: true } })
+            : null;
+          const actorName = chief?.name?.trim() || "Chief Estimator";
+          const label = projectLabel(existing.projectCode || existing.clientCode, existing.projectTitle);
+          for (const person of added) {
+            void pushTechnicalNotification({
+              leadId,
+              projectTitle: existing.projectTitle,
+              projectCode: existing.projectCode || existing.clientCode,
+              source: "tm_estimator",
+              actorId: actor.id,
+              actorName,
+              actorRole: "technical_manager",
+              recipientId: person.estimatorId,
+              title: "Project assigned",
+              message: `${actorName} assigned you ${label}.`,
+              changes: ["Estimator assignments"],
+            });
+          }
+        }
+      }
 
       return res.json({ success: true, lead });
     } catch (error) {

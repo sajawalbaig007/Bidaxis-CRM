@@ -521,6 +521,8 @@ model TechnicalNotification {
   message       String
   /** JSON string[] of human-readable changed fields */
   changeSummary String?
+  /** Estimator user id. Empty = every estimator on the project (notes). Set = only that person (assignment). */
+  recipientId   String?
   readAt        DateTime?
   createdAt     DateTime  @default(now())
 
@@ -528,6 +530,7 @@ model TechnicalNotification {
   @@index([readAt])
   @@index([leadId])
   @@index([source, createdAt])
+  @@index([recipientId, createdAt])
   @@map("technical_notifications")
 }
 

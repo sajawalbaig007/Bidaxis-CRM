@@ -18,12 +18,15 @@ export const DEPT_ROSTER = {
   hr: [
     { key: "mahnoor-imran", name: "Mahnoor Imran" },
   ],
+  bim_modeler: [
+    { key: "ahmad-nadeem", name: "Ahmad Nadeem" },
+  ],
 } as const;
 
 export type RosterDept = keyof typeof DEPT_ROSTER;
 export type AttendanceDept = RosterDept | "chief_estimator" | "admin" | "accounts";
 
-const IP_GATED: AttendanceDept[] = ["office_boy", "hr"];
+const IP_GATED: AttendanceDept[] = ["office_boy", "hr", "bim_modeler"];
 
 export function pktNow(d = new Date()): { day: string; time: string } {
   const fmt = new Intl.DateTimeFormat("en-GB", {
@@ -103,6 +106,7 @@ export function publicRoster() {
     dev: { title: "Dev", people: DEPT_ROSTER.dev, officeOnly: false },
     office_boy: { title: "Office Boy", people: DEPT_ROSTER.office_boy, officeOnly: true },
     hr: { title: "HR", people: DEPT_ROSTER.hr, officeOnly: true },
+    bim_modeler: { title: "BIM Modeler", people: DEPT_ROSTER.bim_modeler, officeOnly: true },
   };
 }
 
