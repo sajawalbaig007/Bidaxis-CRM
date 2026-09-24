@@ -13,6 +13,7 @@ export type PushTechnicalNotificationInput = {
   title: string;
   message: string;
   changes?: string[];
+  recipientId?: string | null;
 };
 
 const WATCH_FIELDS: Array<{ key: string; label: string }> = [
@@ -76,6 +77,7 @@ export async function pushTechnicalNotification(
         title: input.title.trim().slice(0, 160),
         message: input.message.trim().slice(0, 800),
         changeSummary: changes.length ? JSON.stringify(changes) : null,
+        recipientId: (input.recipientId ?? "").trim() || null,
       },
     });
   } catch (err) {

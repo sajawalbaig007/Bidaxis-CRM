@@ -27,7 +27,7 @@ const ROLE_DEPT: Record<string, AttendanceDept> = {
 };
 
 function isRosterDept(value: string): value is RosterDept {
-  return value === "dev" || value === "office_boy" || value === "hr";
+  return value === "dev" || value === "office_boy" || value === "hr" || value === "bim_modeler";
 }
 
 async function gateOffice(req: AuthRequest, department: string) {

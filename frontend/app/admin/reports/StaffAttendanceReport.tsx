@@ -17,6 +17,7 @@ const DEPTS = [
   { key: "dev", title: "Dev Check In / Check Out", person: "Dev" },
   { key: "office_boy", title: "Office Boy Check In / Check Out", person: "Office Boy" },
   { key: "hr", title: "HR Check In / Check Out", person: "HR" },
+  { key: "bim_modeler", title: "BIM Modeler Check In / Check Out", person: "BIM Modeler" },
   { key: "chief_estimator", title: "Chief Estimator Check In / Check Out", person: "Chief Estimator" },
   { key: "admin", title: "Admin Check In / Check Out", person: "Admin" },
   { key: "accounts", title: "Accounts Check In / Check Out", person: "Accounts" },
