@@ -4,6 +4,7 @@ import { verifyToken, AuthRequest } from "../middleware/auth.middleware";
 import { allowRoles } from "../middleware/role.middleware";
 import {
   ATTENDANCE_REVISE_TOKEN,
+  CHIEF_ESTIMATOR_NAME,
   AttendanceDept,
   departmentNeedsOfficeIp,
   isValidDay,
@@ -234,11 +235,12 @@ router.get("/revise/:token", async (req, res) => {
       select: { id: true, name: true },
       orderBy: { name: "asc" },
     });
+    const ayesha = chiefs.find((c) => c.name.trim().toLowerCase() === CHIEF_ESTIMATOR_NAME.toLowerCase());
     return res.json({
       success: true,
       day,
       dev: publicRoster().dev.people,
-      chiefs: chiefs.map((c) => ({ key: c.id, name: c.name })),
+      chiefs: ayesha ? [{ key: ayesha.id, name: CHIEF_ESTIMATOR_NAME }] : [],
       rows: rows.map(toPublic),
     });
   } catch (error) {
@@ -265,6 +267,9 @@ router.post("/revise/:token", async (req, res) => {
       return res.status(400).json({ success: false, message: "Choose a person." });
     }
     if (department === "dev" && !rosterPerson("dev", personKey)) {
+      return res.status(400).json({ success: false, message: "Unknown person." });
+    }
+    if (department === "chief_estimator" && personName.trim().toLowerCase() !== CHIEF_ESTIMATOR_NAME.toLowerCase()) {
       return res.status(400).json({ success: false, message: "Unknown person." });
     }
     if (!isValidDay(day)) return res.status(400).json({ success: false, message: "Invalid date." });
