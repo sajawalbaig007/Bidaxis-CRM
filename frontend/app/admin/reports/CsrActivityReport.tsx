@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { usePathname } from "next/navigation";
 import toast from "react-hot-toast";
 import API, { apiErrorMessage } from "@/lib/api";
 import { EST_TZ_ABBR, EST_TZ_LABEL } from "@/lib/estTime";
@@ -245,6 +246,8 @@ export default function CsrActivityReport({
   allowEdit?: boolean;
   defaultOpen?: boolean;
 }) {
+  const pathname = usePathname();
+  const canEdit = allowEdit && pathname.startsWith("/admin");
   const today = calendarYmd(CLOCKS.est.tz);
   const isEstimator = staffRole === "estimator";
   const title = isEstimator ? "Estimator Check In / Check Out" : "CSR Check In / Check Out";
@@ -577,7 +580,7 @@ export default function CsrActivityReport({
               <table className="w-full" style={{ minWidth: "980px" }}>
                 <thead>
                   <tr className="border-b border-gray-100 bg-white">
-                    <th colSpan={allowEdit ? 9 : 8} className="px-3 py-2 text-left">
+                    <th colSpan={canEdit ? 9 : 8} className="px-3 py-2 text-left">
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">Times</span>
                         {(["est", "pkt"] as const).map(key => (
@@ -599,7 +602,7 @@ export default function CsrActivityReport({
                     </th>
                   </tr>
                   <tr className="border-b border-gray-100 text-left bg-[#FAFAFB]">
-                    {[personLabel, `Check In (${clock.abbr})`, `Check Out (${clock.abbr})`, "On Dashboard", "Away", "Total", "Status", "Closed By", ...(allowEdit ? [""] : [])].map(h => (
+                    {[personLabel, `Check In (${clock.abbr})`, `Check Out (${clock.abbr})`, "On Dashboard", "Away", "Total", "Status", "Closed By", ...(canEdit ? [""] : [])].map(h => (
                       <th key={h || "actions"} className="px-3 py-2.5 text-[10px] sm:text-xs font-semibold text-gray-400 uppercase tracking-wide whitespace-nowrap">
                         {h}
                       </th>
@@ -658,7 +661,7 @@ export default function CsrActivityReport({
                       <td className="px-3 py-3 text-[11px] text-gray-500 whitespace-nowrap">
                         {row.closedReasonLabel ?? (row.status === "active" ? "—" : (row.closedReason ?? "—"))}
                       </td>
-                      {allowEdit ? (
+                      {canEdit ? (
                       <td className="px-3 py-3">
                         <button
                           type="button"
@@ -765,7 +768,7 @@ export default function CsrActivityReport({
         </div>
       </div>
 
-      {editing && allowEdit && (
+      {editing && canEdit && (
         <div className="fixed inset-0 z-[120] bg-black/45 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
           <div className="w-full sm:max-w-md bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl overflow-hidden">
             <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">

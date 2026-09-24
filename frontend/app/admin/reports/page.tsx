@@ -23,6 +23,11 @@ const CsrActivityReport = dynamic(() => import("./CsrActivityReport"), {
   loading: () => <div className="h-48 rounded-xl bg-gray-100 animate-pulse" />,
 });
 
+const StaffAttendanceReport = dynamic(() => import("./StaffAttendanceReport"), {
+  ssr: false,
+  loading: () => <div className="h-48 rounded-xl bg-gray-100 animate-pulse" />,
+});
+
 type ReportResponse = ReportsData;
 type CsrActualStats = {
   totalLeads: number;
@@ -472,6 +477,9 @@ export default function ReportsPage() {
             </div>
             <div className="md:col-span-12 min-w-0">
               <CsrActivityReport staffRole="estimator" />
+            </div>
+            <div className="md:col-span-12 min-w-0">
+              <StaffAttendanceReport />
             </div>
 
             <div className={`md:col-span-12 ${BENTO} p-4 sm:p-5 min-w-0`}>

@@ -607,3 +607,22 @@ model CompanyCredential {
 
   @@map("company_credentials")
 }
+
+/** Daily check-in / check-out. Stored times are what reports show. */
+model StaffDayAttendance {
+  id         String   @id @default(cuid()) @map("_id")
+  personKey  String
+  personName String
+  department String
+  day        String
+  checkIn    String?
+  checkOut   String?
+  userId     String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([personKey, day])
+  @@index([department, day])
+  @@index([day])
+  @@map("staff_day_attendance")
+}

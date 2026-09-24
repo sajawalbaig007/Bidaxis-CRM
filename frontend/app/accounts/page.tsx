@@ -56,6 +56,7 @@ import { normalizePeriodPreset } from "./utils/accountsPeriodFilters";
 import type { CurrencyTabKey, DashboardCurrency, DashboardCurrencyTab, DashboardData, FormulasState } from "./types";
 import { CURRENCY_TAB_LABELS, CURRENCY_TAB_SHORT, currency, isLocalPaymentTab, todayIso } from "./types";
 import { BENTO_CARD } from "@/lib/staffPageLayout";
+import StaffDayCheckBar from "@/app/components/StaffDayCheckBar";
 
 function fmtFx(n: number, ccy: "USD" | "CAD" | "PKR"): string {
   const prefix = ccy === "USD" ? "$" : ccy === "CAD" ? "CAD " : "PKR ";
@@ -549,6 +550,7 @@ export default function AccountsDashboardPage() {
             </button>
           }
         >
+          <StaffDayCheckBar />
           <section className="rounded-2xl border border-gray-100 dark:border-crm-border bg-crm-surface p-4 sm:p-5">
             <div className="flex flex-col lg:flex-row lg:items-end gap-4 lg:gap-8">
               <div className="min-w-0 flex-1">

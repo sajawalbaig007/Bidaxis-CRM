@@ -16,6 +16,7 @@ import {
   Users, PhoneCall, CheckCircle2, Clock3, Star,
   TrendingUp, Trophy, RefreshCw, Calculator, Ruler,
 } from "lucide-react";
+import StaffDayCheckBar from "@/app/components/StaffDayCheckBar";
 
 const PerformanceChart = dynamic(() => import("./components/charts/PerformanceChart"), {
   ssr: false,
@@ -193,6 +194,8 @@ export default function DashboardPage() {
               </button>
             </div>
           </header>
+
+          {staffBase === "/manager" && <StaffDayCheckBar />}
 
           <section
             aria-label="Quick stats"
