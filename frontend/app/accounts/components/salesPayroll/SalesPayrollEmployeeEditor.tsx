@@ -42,20 +42,22 @@ function Num({
   value,
   onChange,
   hint,
+  className,
 }: {
   label: string;
   value: number;
   onChange: (n: number) => void;
   hint?: string;
   step?: string;
+  className?: string;
 }) {
   return (
-    <label className="block text-[10px] font-bold uppercase tracking-wide text-crm-text-muted">
+    <label className={`block min-w-0 text-[10px] font-bold uppercase tracking-wide text-crm-text-muted ${className ?? ""}`}>
       {label}
       <AmountInput
         value={Number.isFinite(value) ? value : 0}
         onChange={onChange}
-        className="mt-1 h-9 w-full rounded-lg border border-crm-border bg-crm-surface px-2 text-sm tabular-nums outline-none focus:border-[#B8112D]"
+        className="mt-1 h-9 w-full min-w-0 rounded-lg border border-crm-border bg-crm-surface px-2 text-sm tabular-nums outline-none focus:border-[#B8112D]"
       />
       {hint && <span className="block mt-0.5 text-[9px] font-normal normal-case text-crm-text-faint">{hint}</span>}
     </label>
@@ -243,15 +245,15 @@ export default function SalesPayrollEmployeeEditor({
                 const rowComm = projectCommissionPkr(rowWithKey, calcOpts);
                 const rowPkr = projectAmountPkr(rowWithKey, calcOpts);
                 return (
-                  <div key={p.id} className="relative z-[1] rounded-lg border border-emerald-100 bg-white/70 p-2 space-y-2 overflow-visible">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-12 gap-2 items-end">
-                      <label className="block text-[10px] font-bold uppercase text-crm-text-muted min-w-0 sm:col-span-2 xl:col-span-4">
+                  <div key={p.id} className="rounded-lg border border-emerald-100 bg-white/70 p-2 space-y-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 items-end">
+                      <label className="block min-w-0 text-[10px] font-bold uppercase text-crm-text-muted sm:col-span-2">
                         Commission range
                         <select
                           value={slabKey}
                           onChange={e => patch({ slabKey: e.target.value as ProjectSlabKey })}
                           title={`${PROJECT_SLABS.find(s => s.key === slabKey)?.label ?? ""} · ${pctLabel}%`}
-                          className="mt-1 h-9 w-full min-w-0 rounded-lg border border-crm-border pl-2 pr-8 text-xs bg-crm-surface"
+                          className="mt-1 h-9 w-full min-w-0 max-w-full rounded-lg border border-crm-border pl-2 pr-8 text-xs bg-crm-surface"
                         >
                           {PROJECT_SLABS.map(s => (
                             <option key={s.key} value={s.key}>
@@ -270,7 +272,7 @@ export default function SalesPayrollEmployeeEditor({
                         value={p.projectPay}
                         onChange={v => patch({ projectPay: v, slabKey: p.slabKey ?? inferSlabKey(p.projectPay) })}
                       />
-                      <label className="block text-[10px] font-bold uppercase text-crm-text-muted">
+                      <label className="block min-w-0 text-[10px] font-bold uppercase text-crm-text-muted">
                         Currency
                         <select
                           value={cur}
@@ -279,18 +281,18 @@ export default function SalesPayrollEmployeeEditor({
                             const nextFx = nextCur === "CAD" ? Number(calcOpts?.cadToPkr) || 0 : Number(calcOpts?.usdToPkr) || 0;
                             patch({ currency: nextCur, fxRate: nextFx });
                           }}
-                          className="mt-1 h-9 w-full rounded-lg border border-crm-border px-2 text-sm bg-crm-surface"
+                          className="mt-1 h-9 w-full min-w-0 rounded-lg border border-crm-border px-2 text-sm bg-crm-surface"
                         >
                           <option value="USD">USD</option>
                           <option value="CAD">CAD</option>
                         </select>
                       </label>
-                      <label className="block text-[10px] font-bold uppercase tracking-wide text-crm-text-muted xl:col-span-2">
+                      <label className="block min-w-0 text-[10px] font-bold uppercase tracking-wide text-crm-text-muted">
                         {cur} → PKR
                         <AmountInput
                           value={Number.isFinite(fx) ? fx : 0}
                           onChange={v => patch({ fxRate: v })}
-                          className="mt-1 h-9 w-full rounded-lg border border-crm-border bg-crm-surface px-2 text-sm tabular-nums outline-none focus:border-[#B8112D]"
+                          className="mt-1 h-9 w-full min-w-0 rounded-lg border border-crm-border bg-crm-surface px-2 text-sm tabular-nums outline-none focus:border-[#B8112D]"
                         />
                         {liveFx > 0 && (
                           <span className="block mt-0.5 text-[9px] font-normal normal-case text-crm-text-faint">
@@ -298,15 +300,17 @@ export default function SalesPayrollEmployeeEditor({
                           </span>
                         )}
                       </label>
-                      <button
-                        type="button"
-                        onClick={() => setComm({
-                          fixClientProjects: employee.commission.fixClientProjects.filter(x => x.id !== p.id),
-                        })}
-                        className="h-9 rounded-lg border border-red-100 text-red-500 text-xs font-semibold hover:bg-red-50"
-                      >
-                        Remove
-                      </button>
+                      <div className="sm:col-span-2 flex justify-end">
+                        <button
+                          type="button"
+                          onClick={() => setComm({
+                            fixClientProjects: employee.commission.fixClientProjects.filter(x => x.id !== p.id),
+                          })}
+                          className="h-9 px-3 rounded-lg border border-red-100 text-red-500 text-xs font-semibold hover:bg-red-50"
+                        >
+                          Remove
+                        </button>
+                      </div>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       <Read label="This range PKR (amount × FX)" value={currency(rowPkr)} accent="text-emerald-800" />
