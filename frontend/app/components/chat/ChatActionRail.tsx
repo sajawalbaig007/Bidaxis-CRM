@@ -13,6 +13,7 @@ import {
   ArchiveRestore,
   Maximize2,
   Minimize2,
+  Settings,
 } from "lucide-react";
 
 interface ChatActionRailProps {
@@ -21,6 +22,8 @@ interface ChatActionRailProps {
   onSelect?: () => void;
   onNewDm?: () => void;
   onNewGroup?: () => void;
+  onSettings?: () => void;
+  settingsOpen?: boolean;
   soundOn?: boolean;
   onSoundToggle?: () => void;
   showArchived?: boolean;
@@ -40,6 +43,8 @@ export default function ChatActionRail({
   onSelect,
   onNewDm,
   onNewGroup,
+  onSettings,
+  settingsOpen,
   soundOn,
   onSoundToggle,
   showArchived,
@@ -114,6 +119,17 @@ export default function ChatActionRail({
         className={`${btn} bg-[#B8112D] text-white hover:bg-[#a30f27]`}
       >
         <Plus size={15} />
+      </button>
+      )}
+
+      {onSettings && (
+      <button
+        type="button"
+        onClick={onSettings}
+        title="Chat theme"
+        className={`${btn} ${settingsOpen ? "bg-[#B8112D] text-white" : "bg-white text-gray-500 hover:bg-[#FFF1F3] hover:text-[#B8112D]"}`}
+      >
+        <Settings size={15} />
       </button>
       )}
 
