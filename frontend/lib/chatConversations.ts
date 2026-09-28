@@ -11,6 +11,9 @@ export interface ChatConversation {
   profilePic?: string | null;
   pinnedMessageId?: string | null;
   archived?: boolean;
+  whoCanSend?: "everyone" | "admins";
+  myMemberRole?: "admin" | "member";
+  canManageGroup?: boolean;
 }
 
 /** One direct thread per other user — keep the most recently active. */

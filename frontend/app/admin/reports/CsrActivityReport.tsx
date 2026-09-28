@@ -319,9 +319,14 @@ export default function CsrActivityReport({
   };
 
   useEffect(() => {
-    API.get(isEstimator ? "/admin/csrs?role=estimator" : "/admin/csrs")
-      .then(res => setCsrs(res.data.csrs ?? []))
-      .catch(() => {});
+    const load = () => {
+      API.get(isEstimator ? "/admin/csrs?role=estimator" : "/admin/csrs")
+        .then(res => setCsrs(res.data.csrs ?? []))
+        .catch(() => {});
+    };
+    load();
+    window.addEventListener("focus", load);
+    return () => window.removeEventListener("focus", load);
   }, [isEstimator]);
 
   useEffect(() => {

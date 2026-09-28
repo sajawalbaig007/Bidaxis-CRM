@@ -650,6 +650,10 @@ function AssignedToCell({
                 <Check size={11} className="text-emerald-600 shrink-0" strokeWidth={3} />
               ) : null}
             </p>
+            <p className="text-[9px] font-bold tabular-nums text-sky-800 leading-tight">
+              {formatElapsed(assignmentElapsedSeconds(primary, now))}
+              {primary.timerStartedAt && !primary.takeoffDone ? " · Live" : ""}
+            </p>
             <p className="text-[9px] font-semibold truncate leading-tight">
               {detailed ? (
                 <span

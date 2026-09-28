@@ -6,7 +6,6 @@ import { verifyToken, AuthRequest } from "../middleware/auth.middleware";
 import { allowRoles } from "../middleware/role.middleware";
 import { getCache, setCache, invalidatePattern } from "../utils/cache";
 import {
-  EDIT_WINDOW_MS,
   formatMessage,
   parseReactions,
 } from "../chat/chatMessageFormat";
@@ -174,10 +173,50 @@ async function fetchConversationsForUser(
       isOnline:      otherMember?.user?.isOnline ?? false,
       profilePic:    otherMember?.user?.profilePic ?? null,
       pinnedMessageId: conv.pinnedMessageId ?? null,
+      whoCanSend:    conv.type === "group" ? (conv.whoCanSend || "everyone") : "everyone",
+      myMemberRole:  m.memberRole || "member",
+      canManageGroup: viewerAccess?.role === "admin" || m.memberRole === "admin" || conv.members.every((mem) => mem.memberRole !== "admin"),
       archived:      Boolean(m.archivedAt),
       cleared:       Boolean(m.clearedAt),
     };
   });
+}
+
+async function assertCanMessageTargets(meId: string, targetIds: string[]) {
+  if (targetIds.length === 0) return { ok: true as const };
+  const gate = await assertSenderCanChat(meId);
+  if (!gate.ok) return gate;
+  const targets = await prisma.user.findMany({
+    where: { id: { in: targetIds } },
+    select: {
+      id: true,
+      role: true,
+      chatEnabled: true,
+      chatAllowedUserIds: true,
+      chatVisibleToUserIds: true,
+      isActive: true,
+    },
+  });
+  const byId = new Map(targets.map((t) => [t.id, t]));
+  for (const id of targetIds) {
+    if (!canMessageUser(gate.access, id)) {
+      return { ok: false as const, status: 403, message: "You are not allowed to message this user." };
+    }
+    const target = byId.get(id);
+    if (!target?.isActive) {
+      return { ok: false as const, status: 404, message: "User not found." };
+    }
+    if (target.chatEnabled === false) {
+      return { ok: false as const, status: 403, message: "This user cannot receive messages." };
+    }
+    if (!canSeeRoleByOrg(gate.access.role, String(target.role))) {
+      return { ok: false as const, status: 403, message: "You can only message people in your company." };
+    }
+    if (!isVisibleToUser(target, meId)) {
+      return { ok: false as const, status: 403, message: "This user is hidden from your messages." };
+    }
+  }
+  return { ok: true as const };
 }
 
 function messageVisibleForUser(
@@ -343,11 +382,22 @@ router.post("/conversations", verifyToken, async (req: AuthRequest, res) => {
       }
 
       const allIds: string[] = Array.from(new Set([meId, ...uniqueMembers]));
+      const adminIds = Array.isArray((body as { adminIds?: string[] }).adminIds)
+        ? (body as { adminIds?: string[] }).adminIds!.filter((id) => allIds.includes(id))
+        : [];
+      const adminSet = new Set([meId, ...adminIds]);
+      const whoCanSend = (body as { whoCanSend?: string }).whoCanSend === "admins" ? "admins" : "everyone";
       const conv = await prisma.conversation.create({
         data: {
           type: "group",
           name: name.trim(),
-          members: { create: allIds.map((uid: string) => ({ userId: uid })) },
+          whoCanSend,
+          members: {
+            create: allIds.map((uid: string) => ({
+              userId: uid,
+              memberRole: adminSet.has(uid) ? "admin" : "member",
+            })),
+          },
         },
       });
 
@@ -356,6 +406,7 @@ router.post("/conversations", verifyToken, async (req: AuthRequest, res) => {
         conversation: {
           id: conv.id, type: "group", name: conv.name,
           unreadCount: 0, memberCount: allIds.length,
+          whoCanSend, myMemberRole: "admin", canManageGroup: true,
           lastMessageAt: new Date().toISOString(),
         },
       });
@@ -408,11 +459,9 @@ router.get("/conversations/:id/messages", verifyToken, async (req: AuthRequest, 
       where: { conversationId, userId: { not: userId } },
       select: { userId: true },
     });
-    for (const other of otherMembers) {
-      const allowed = await assertCanMessageTarget(userId, other.userId);
-      if (!allowed.ok) {
-        return res.status(allowed.status).json({ message: allowed.message });
-      }
+    const allowed = await assertCanMessageTargets(userId, otherMembers.map((o) => o.userId));
+    if (!allowed.ok) {
+      return res.status(allowed.status).json({ message: allowed.message });
     }
 
     const { messages, pinnedMessage } = await fetchMessagesForUser(conversationId, userId);
@@ -450,16 +499,22 @@ router.post(
       });
       if (!member) return res.status(403).json({ message: "Not a member" });
 
+      const conv = await prisma.conversation.findUnique({
+        where: { id: conversationId },
+        select: { type: true, whoCanSend: true },
+      });
+      if (conv?.type === "group" && conv.whoCanSend === "admins" && member.memberRole !== "admin") {
+        return res.status(403).json({ message: "Only group admins can send messages." });
+      }
+
       /* Existing DMs/groups must also respect current admin restrictions. */
       const otherMembers = await prisma.conversationMember.findMany({
         where: { conversationId, userId: { not: userId } },
         select: { userId: true },
       });
-      for (const other of otherMembers) {
-        const allowed = await assertCanMessageTarget(userId, other.userId);
-        if (!allowed.ok) {
-          return res.status(allowed.status).json({ message: allowed.message });
-        }
+      const allowed = await assertCanMessageTargets(userId, otherMembers.map((o) => o.userId));
+      if (!allowed.ok) {
+        return res.status(allowed.status).json({ message: allowed.message });
       }
 
       let fileUrl: string | undefined;
@@ -594,11 +649,8 @@ router.delete("/messages/:id", verifyToken, async (req: AuthRequest, res) => {
     if (msg.deletedAt) return res.json({ success: true, mode: "for_everyone" });
 
     const role = req.user!.role;
-    if (role === "csr" && msg.senderId !== userId) {
+    if (role !== "admin" && msg.senderId !== userId) {
       return res.status(403).json({ message: "You can only delete your own messages for everyone" });
-    }
-    if (role !== "admin" && role !== "csr" && msg.senderId !== userId) {
-      return res.status(403).json({ message: "Cannot delete this message" });
     }
 
     await prisma.message.update({
@@ -775,6 +827,7 @@ router.get("/conversations/:id/members", verifyToken, async (req: AuthRequest, r
         id:       m.user.id,
         name:     m.user.name,
         role:     m.user.role,
+        memberRole: m.memberRole || "member",
         csrCode:  m.user.csrCode,
         isOnline: m.user.isOnline,
         profilePic: m.user.profilePic ?? null,
@@ -782,6 +835,61 @@ router.get("/conversations/:id/members", verifyToken, async (req: AuthRequest, r
     });
   } catch {
     return res.status(500).json({ message: "Failed to fetch members" });
+  }
+});
+
+/* ═══════════════════════════════════════════════════════
+   PATCH /chat/conversations/:id/settings — admins + who can send
+═══════════════════════════════════════════════════════ */
+router.patch("/conversations/:id/settings", verifyToken, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user!.id;
+    const conversationId = p(req.params.id);
+    const me = await prisma.conversationMember.findUnique({
+      where: { conversationId_userId: { conversationId, userId } },
+    });
+    if (!me) return res.status(403).json({ message: "Not a member" });
+
+    const conv = await prisma.conversation.findUnique({
+      where: { id: conversationId },
+      select: { type: true },
+    });
+    if (conv?.type !== "group") return res.status(400).json({ message: "Only groups have these settings" });
+
+    const members = await prisma.conversationMember.findMany({
+      where: { conversationId },
+      select: { userId: true, memberRole: true },
+    });
+    const hasAdmin = members.some((m) => m.memberRole === "admin");
+    const isCeo = req.user!.role === "admin";
+    if (me.memberRole !== "admin" && !isCeo && hasAdmin) {
+      return res.status(403).json({ message: "Only group admins can change this." });
+    }
+
+    const body = req.body as { whoCanSend?: string; adminIds?: string[] };
+    const whoCanSend = body.whoCanSend === "admins" ? "admins" : body.whoCanSend === "everyone" ? "everyone" : null;
+    if (whoCanSend) {
+      await prisma.conversation.update({ where: { id: conversationId }, data: { whoCanSend } });
+    }
+    if (Array.isArray(body.adminIds)) {
+      const ids = new Set(members.map((m) => m.userId));
+      const adminSet = new Set(body.adminIds.filter((id) => ids.has(id)));
+      if (adminSet.size === 0) adminSet.add(userId);
+      await prisma.$transaction(
+        members.map((m) =>
+          prisma.conversationMember.update({
+            where: { conversationId_userId: { conversationId, userId: m.userId } },
+            data: { memberRole: adminSet.has(m.userId) ? "admin" : "member" },
+          }),
+        ),
+      );
+    }
+
+    invalidatePattern("chat:convs:");
+    return res.json({ success: true, whoCanSend: whoCanSend ?? undefined });
+  } catch (err) {
+    console.error("[chat] PATCH settings", err);
+    return res.status(500).json({ message: "Failed to update group settings" });
   }
 });
 
@@ -796,11 +904,8 @@ router.patch("/messages/:id", verifyToken, async (req: AuthRequest, res) => {
     if (!text) return res.status(400).json({ message: "Text required" });
 
     const msg = await prisma.message.findUnique({ where: { id: msgId } });
-    if (!msg || msg.senderId !== userId || msg.type !== "text") {
+    if (!msg || msg.senderId !== userId || msg.type !== "text" || msg.deletedAt) {
       return res.status(403).json({ message: "Cannot edit this message" });
-    }
-    if (Date.now() - msg.createdAt.getTime() > EDIT_WINDOW_MS) {
-      return res.status(400).json({ message: "Edit window expired (10 minutes)" });
     }
 
     const updated = await prisma.message.update({

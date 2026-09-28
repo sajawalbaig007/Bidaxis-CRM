@@ -45,7 +45,7 @@ import { estDayBoundsUtc, estDateYmd, addEstDays, parseEstDateTimeLocal, ADMIN_S
 import { AuthRequest } from "../middleware/auth.middleware";
 import { deleteLeadsCascade, removeProjectsKeepClients, invalidateAllLeadCaches, isRemovedFromProjectDb } from "../utils/deleteLeadsCascade";
 import { buildAdminClientSummaryPayload, buildAdminTabCountsPayload } from "../utils/adminSummaryStats";
-import { allocateNextProjectCode } from "../utils/nextProjectCode";
+import { SEED_USER_EMAILS } from "../constants/seedUsers";
 import { buildTechnicalMonitoring } from "../utils/technicalMonitoring";
 import {
   ESTIMATOR_KPI_FIELD_KEYS,
@@ -269,12 +269,12 @@ router.put(
 router.get("/csrs", verifyToken, allowRoles("admin", "manager", "technical_manager"), async (req, res) => {
   try {
     const role = req.query.role === "estimator" ? "estimator" : "csr";
-    const CACHE_KEY = role === "estimator" ? "admin:estimators:list" : "admin:csrs";
-    const cached = getCache<object>(CACHE_KEY);
-    if (cached) return res.json(cached);
 
     const csrs = await prisma.user.findMany({
-      where: { role },
+      where: {
+        role,
+        email: { notIn: SEED_USER_EMAILS },
+      },
       select: {
         id: true,
         name: true,
@@ -290,7 +290,6 @@ router.get("/csrs", verifyToken, allowRoles("admin", "manager", "technical_manag
     });
 
     const payload = { success: true, csrs };
-    setCache(CACHE_KEY, payload, 15_000);
     return res.json(payload);
   } catch (error) {
     console.log(error);
@@ -1313,6 +1312,10 @@ router.get("/projects", verifyToken, allowRoles("admin", "manager", "technical_m
             { projectTitle: { contains: search, mode: "insensitive" } },
             { company: { contains: search, mode: "insensitive" } },
             { interestedService: { contains: search, mode: "insensitive" } },
+            { projectCode: { contains: search, mode: "insensitive" } },
+            { clientCode: { contains: search, mode: "insensitive" } },
+            { projectScope: { contains: search, mode: "insensitive" } },
+            { csr: { csrCode: { contains: search, mode: "insensitive" } } },
           ],
         },
       ];

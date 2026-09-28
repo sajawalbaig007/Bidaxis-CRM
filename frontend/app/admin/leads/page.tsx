@@ -196,13 +196,11 @@ function ClientsPageContent() {
     setReassignClient(client);
     setReassignTargetId("");
     setShowReassignModal(true);
-    if (!reassignCsrLoaded) {
-      try {
-        const res = await API.get("/admin/csrs");
-        setReassignCsrList(res.data.csrs ?? []);
-        setReassignCsrLoaded(true);
-      } catch { toast.error("Failed to load CSRs."); }
-    }
+    try {
+      const res = await API.get("/admin/csrs");
+      setReassignCsrList(res.data.csrs ?? []);
+      setReassignCsrLoaded(true);
+    } catch { toast.error("Failed to load CSRs."); }
   };
 
   const confirmReassign = async () => {
@@ -271,11 +269,16 @@ function ClientsPageContent() {
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
 
   useEffect(() => {
-    API.get("/admin/csrs")
-      .then(res => setCsrOptions(
-        (res.data.csrs ?? []).map((c: { id: string; name: string }) => ({ id: c.id, name: c.name })),
-      ))
-      .catch(() => {});
+    const load = () => {
+      API.get("/admin/csrs")
+        .then(res => setCsrOptions(
+          (res.data.csrs ?? []).map((c: { id: string; name: string }) => ({ id: c.id, name: c.name })),
+        ))
+        .catch(() => {});
+    };
+    load();
+    window.addEventListener("focus", load);
+    return () => window.removeEventListener("focus", load);
   }, []);
 
   useEffect(() => {

@@ -93,7 +93,12 @@ export default function AdminBinPage() {
   }, [filterCSR]);
 
   useEffect(() => {
-    API.get("/admin/csrs").then(res => setAllCsrs(res.data.csrs ?? [])).catch(() => {});
+    const load = () => {
+      API.get("/admin/csrs").then(res => setAllCsrs(res.data.csrs ?? [])).catch(() => {});
+    };
+    load();
+    window.addEventListener("focus", load);
+    return () => window.removeEventListener("focus", load);
   }, []);
 
   useEffect(() => { void fetchLeads(); }, [fetchLeads]);

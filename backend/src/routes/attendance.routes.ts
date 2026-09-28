@@ -15,6 +15,7 @@ import {
   rosterPerson,
   RosterDept,
   saveAttendance,
+  timeOrderOk,
   toPublic,
 } from "../utils/staffAttendance";
 
@@ -216,6 +217,42 @@ router.get("/report", verifyToken, allowRoles("admin", "manager"), async (req, r
   } catch (error) {
     console.error("[attendance/report]", error);
     return res.status(500).json({ success: false, message: "Could not load attendance report." });
+  }
+});
+
+router.put("/report/:id", verifyToken, allowRoles("admin"), async (req, res) => {
+  try {
+    const id = String(req.params.id ?? "");
+    const day = String(req.body?.day ?? "");
+    const checkIn = String(req.body?.checkIn ?? "").trim();
+    const checkOutRaw = req.body?.checkOut;
+    const checkOut = checkOutRaw == null || String(checkOutRaw).trim() === "" ? null : String(checkOutRaw).trim();
+    if (!isValidDay(day)) return res.status(400).json({ success: false, message: "Invalid date." });
+    if (!isValidTime(checkIn)) return res.status(400).json({ success: false, message: "Enter a check-in time." });
+    if (checkOut && !isValidTime(checkOut)) {
+      return res.status(400).json({ success: false, message: "Enter a valid check-out time." });
+    }
+    if (!timeOrderOk(checkIn, checkOut)) {
+      return res.status(400).json({ success: false, message: "Check-out must be after check-in." });
+    }
+    const existing = await prisma.staffDayAttendance.findUnique({ where: { id } });
+    if (!existing) return res.status(404).json({ success: false, message: "Record not found." });
+    if (day !== existing.day) {
+      const clash = await prisma.staffDayAttendance.findUnique({
+        where: { personKey_day: { personKey: existing.personKey, day } },
+      });
+      if (clash && clash.id !== existing.id) {
+        return res.status(400).json({ success: false, message: "That date already has a check-in for this person." });
+      }
+    }
+    const row = await prisma.staffDayAttendance.update({
+      where: { id },
+      data: { day, checkIn, checkOut },
+    });
+    return res.json({ success: true, row: toPublic(row) });
+  } catch (error) {
+    console.error("[attendance/report update]", error);
+    return res.status(500).json({ success: false, message: "Could not save time." });
   }
 });
 
