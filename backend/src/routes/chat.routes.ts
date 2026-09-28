@@ -174,8 +174,13 @@ async function fetchConversationsForUser(
       profilePic:    otherMember?.user?.profilePic ?? null,
       pinnedMessageId: conv.pinnedMessageId ?? null,
       whoCanSend:    conv.type === "group" ? (conv.whoCanSend || "everyone") : "everyone",
+      createdById:   conv.createdById ?? null,
       myMemberRole:  m.memberRole || "member",
-      canManageGroup: viewerAccess?.role === "admin" || m.memberRole === "admin" || conv.members.every((mem) => mem.memberRole !== "admin"),
+      canManageGroup: conv.type === "group" && (
+        conv.createdById === viewUserId
+        || m.memberRole === "admin"
+        || (!conv.createdById && viewerAccess?.role === "admin")
+      ),
       archived:      Boolean(m.archivedAt),
       cleared:       Boolean(m.clearedAt),
     };
@@ -392,6 +397,7 @@ router.post("/conversations", verifyToken, async (req: AuthRequest, res) => {
           type: "group",
           name: name.trim(),
           whoCanSend,
+          createdById: meId,
           members: {
             create: allIds.map((uid: string) => ({
               userId: uid,
@@ -852,7 +858,7 @@ router.patch("/conversations/:id/settings", verifyToken, async (req: AuthRequest
 
     const conv = await prisma.conversation.findUnique({
       where: { id: conversationId },
-      select: { type: true },
+      select: { type: true, createdById: true },
     });
     if (conv?.type !== "group") return res.status(400).json({ message: "Only groups have these settings" });
 
@@ -860,33 +866,48 @@ router.patch("/conversations/:id/settings", verifyToken, async (req: AuthRequest
       where: { conversationId },
       select: { userId: true, memberRole: true },
     });
-    const hasAdmin = members.some((m) => m.memberRole === "admin");
-    const isCeo = req.user!.role === "admin";
-    if (me.memberRole !== "admin" && !isCeo && hasAdmin) {
+    const isCreator = conv.createdById === userId;
+    const isGroupAdmin = me.memberRole === "admin";
+    const legacyCeo = !conv.createdById && req.user!.role === "admin";
+    if (!isCreator && !isGroupAdmin && !legacyCeo) {
       return res.status(403).json({ message: "Only group admins can change this." });
     }
 
     const body = req.body as { whoCanSend?: string; adminIds?: string[] };
     const whoCanSend = body.whoCanSend === "admins" ? "admins" : body.whoCanSend === "everyone" ? "everyone" : null;
-    if (whoCanSend) {
-      await prisma.conversation.update({ where: { id: conversationId }, data: { whoCanSend } });
+    if (whoCanSend || !conv.createdById) {
+      await prisma.conversation.update({
+        where: { id: conversationId },
+        data: {
+          ...(whoCanSend ? { whoCanSend } : {}),
+          ...(!conv.createdById ? { createdById: userId } : {}),
+        },
+      });
     }
+    let adminIds: string[] = members.filter((m) => m.memberRole === "admin").map((m) => m.userId);
     if (Array.isArray(body.adminIds)) {
       const ids = new Set(members.map((m) => m.userId));
       const adminSet = new Set(body.adminIds.filter((id) => ids.has(id)));
+      if (conv.createdById && ids.has(conv.createdById)) adminSet.add(conv.createdById);
       if (adminSet.size === 0) adminSet.add(userId);
-      await prisma.$transaction(
-        members.map((m) =>
-          prisma.conversationMember.update({
-            where: { conversationId_userId: { conversationId, userId: m.userId } },
-            data: { memberRole: adminSet.has(m.userId) ? "admin" : "member" },
-          }),
-        ),
-      );
+      adminIds = [...adminSet];
+      await prisma.conversationMember.updateMany({
+        where: { conversationId, userId: { in: adminIds } },
+        data: { memberRole: "admin" },
+      });
+      await prisma.conversationMember.updateMany({
+        where: { conversationId, userId: { notIn: adminIds } },
+        data: { memberRole: "member" },
+      });
     }
 
     invalidatePattern("chat:convs:");
-    return res.json({ success: true, whoCanSend: whoCanSend ?? undefined });
+    return res.json({
+      success: true,
+      whoCanSend: whoCanSend ?? undefined,
+      adminIds,
+      createdById: conv.createdById || userId,
+    });
   } catch (err) {
     console.error("[chat] PATCH settings", err);
     return res.status(500).json({ message: "Failed to update group settings" });

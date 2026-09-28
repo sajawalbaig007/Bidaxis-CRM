@@ -14,6 +14,7 @@ export interface ChatConversation {
   whoCanSend?: "everyone" | "admins";
   myMemberRole?: "admin" | "member";
   canManageGroup?: boolean;
+  createdById?: string | null;
 }
 
 /** One direct thread per other user — keep the most recently active. */

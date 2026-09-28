@@ -254,6 +254,7 @@ model Conversation {
   pinnedMessageId String?
   /** everyone | admins — who may send messages in a group */
   whoCanSend      String   @default("everyone")
+  createdById     String?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 

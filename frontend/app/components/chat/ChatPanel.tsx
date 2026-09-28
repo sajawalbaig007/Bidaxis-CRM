@@ -8,7 +8,7 @@ import {
   Check, CheckCheck, ChevronLeft, Loader2, Paperclip,
   Mic, StopCircle, Play, Pause, Download, FileText,
   Film, Music, Image as ImageIcon,
-  Trash2, Reply, Copy, Pin, PinOff, Pencil,
+  Trash2, Reply, Copy, Pin, PinOff, Pencil, Smile,
   Archive, ArchiveRestore, Settings,
 } from "lucide-react";
 import API, { apiErrorMessage } from "@/lib/api";
@@ -69,6 +69,24 @@ function messageCanEdit(msg: Message) {
   return msg.isOwn && msg.type === "text" && !msg.deletedAt;
 }
 function initials(name: string) { return name.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase(); }
+type ChatLook = { bg: string; mine: string; font: string; fontFamily: string };
+const DEFAULT_CHAT_LOOK: ChatLook = { bg: "#F5F6FA", mine: "#B8112D", font: "#111827", fontFamily: "inherit" };
+const FONT_STYLES = [
+  { id: "inherit", label: "Default" },
+  { id: "Georgia, serif", label: "Serif" },
+  { id: "ui-monospace, SFMono-Regular, monospace", label: "Mono" },
+  { id: "\"Trebuchet MS\", sans-serif", label: "Rounded" },
+];
+function loadChatLook(): ChatLook {
+  if (typeof window === "undefined") return DEFAULT_CHAT_LOOK;
+  try {
+    const raw = localStorage.getItem("crm_chat_look");
+    if (!raw) return DEFAULT_CHAT_LOOK;
+    return { ...DEFAULT_CHAT_LOOK, ...JSON.parse(raw) };
+  } catch {
+    return DEFAULT_CHAT_LOOK;
+  }
+}
 const PKT = "Asia/Karachi";
 function pktYmd(iso: string) {
   return new Intl.DateTimeFormat("en-CA", { timeZone: PKT, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(iso));
@@ -188,13 +206,14 @@ function VoicePlayer({ fileUrl, isOwn }: { fileUrl: string; isOwn: boolean }) {
 }
 
 /* ── */
-function MessageBubble({ msg, isGroup, showAvatar, myId, mineColor, onCtxMenu, onReply, onJumpToReply, onReact }: {
-  msg: Message; isGroup: boolean; showAvatar: boolean; myId?: string; mineColor?: string;
+function MessageBubble({ msg, isGroup, showAvatar, myId, mineColor, textColor, fontFamily, onCtxMenu, onReply, onJumpToReply, onReact }: {
+  msg: Message; isGroup: boolean; showAvatar: boolean; myId?: string; mineColor?: string; textColor?: string; fontFamily?: string;
   onCtxMenu: (e: React.MouseEvent, msg: Message) => void;
   onReply:   (msg: Message) => void;
   onJumpToReply: (id: string) => void;
   onReact: (msg: Message, emoji: string) => void;
 }) {
+  const [showReact, setShowReact] = useState(false);
   const own = Boolean(msg.isOwn || (myId && msg.senderId === myId));
   const deleted = Boolean(msg.isDeleted);
   const body = () => {
@@ -238,7 +257,9 @@ function MessageBubble({ msg, isGroup, showAvatar, myId, mineColor, onCtxMenu, o
             )}
             <div
               className={`rounded-2xl ${msg.type === "text" ? "px-3.5 py-2.5" : "p-2"} ${deleted ? "border border-dashed border-amber-300/80 dark:border-amber-500/50 bg-amber-50/80 dark:bg-amber-950/30" : ""} ${own ? `text-white rounded-br-sm ${deleted ? "!bg-amber-100/90 dark:!bg-amber-950/40 !text-gray-800 dark:!text-amber-100" : ""}` : `bg-white text-gray-900 dark:text-gray-100 shadow-sm border border-gray-100 rounded-bl-sm ${deleted ? "!bg-amber-50/90 dark:!bg-amber-950/25" : ""}`}`}
-              style={own && !deleted ? { backgroundColor: mineColor || "#B8112D" } : undefined}
+              style={own && !deleted
+                ? { backgroundColor: mineColor || "#B8112D", color: "#ffffff", fontFamily: fontFamily || undefined }
+                : { color: textColor || undefined, fontFamily: fontFamily || undefined }}
             >
               {body()}
             </div>
@@ -257,14 +278,31 @@ function MessageBubble({ msg, isGroup, showAvatar, myId, mineColor, onCtxMenu, o
           </div>
         </div>
         {!deleted && (
-          <button
-            type="button"
-            onClick={() => onReply(msg)}
-            title="Reply"
-            className={`absolute top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity w-7 h-7 rounded-full bg-white border border-gray-200 shadow-sm flex items-center justify-center hover:bg-gray-50 z-10 ${own ? "right-full mr-1" : "left-full ml-1"}`}
-          >
-            <Reply size={12} className="text-gray-500" />
-          </button>
+          <div className={`absolute top-1/2 -translate-y-1/2 flex items-center gap-1 z-10 ${own ? "right-full mr-1 flex-row-reverse" : "left-full ml-1"}`}>
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setShowReact((v) => !v)}
+                title="React"
+                className={`${showReact ? "opacity-100" : "opacity-0 group-hover:opacity-100"} focus:opacity-100 transition-opacity w-7 h-7 rounded-full bg-white border border-gray-200 shadow-sm flex items-center justify-center hover:bg-gray-50`}
+              >
+                <Smile size={12} className="text-gray-500" />
+              </button>
+              {showReact && (
+                <div className={`absolute bottom-full mb-1 bg-white rounded-xl border border-gray-200 shadow-lg ${own ? "right-0" : "left-0"}`}>
+                  <ReactionPicker onPick={(emoji) => { setShowReact(false); onReact(msg, emoji); }} />
+                </div>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={() => onReply(msg)}
+              title="Reply"
+              className="opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity w-7 h-7 rounded-full bg-white border border-gray-200 shadow-sm flex items-center justify-center hover:bg-gray-50"
+            >
+              <Reply size={12} className="text-gray-500" />
+            </button>
+          </div>
         )}
       </div>
     </div>
@@ -487,15 +525,9 @@ export default function ChatPanel({
   const [editingMsg,     setEditingMsg]     = useState<Message | null>(null);
   const [editText,       setEditText]       = useState("");
   const [mentionQuery,   setMentionQuery]   = useState<string | null>(null);
-  const [chatLook, setChatLook] = useState(() => {
-    if (typeof window === "undefined") return { bg: "#F5F6FA", mine: "#B8112D" };
-    try {
-      const raw = localStorage.getItem("crm_chat_look");
-      if (raw) return JSON.parse(raw) as { bg: string; mine: string };
-    } catch { /* ignore */ }
-    return { bg: "#F5F6FA", mine: "#B8112D" };
-  });
+  const [chatLook, setChatLook] = useState<ChatLook>(loadChatLook);
   const [showChatSettings, setShowChatSettings] = useState(false);
+  const [showGroupSettings, setShowGroupSettings] = useState(false);
   const [groupAdminIds, setGroupAdminIds] = useState<string[]>([]);
   const [whoCanSend, setWhoCanSend] = useState<"everyone" | "admins">("everyone");
   const [soundOn,        setSoundOn]        = useState(true);
@@ -1039,18 +1071,26 @@ export default function ChatPanel({
     setCreatingGroup(false);
   };
 
+  const saveLook = (next: ChatLook) => {
+    setChatLook(next);
+    localStorage.setItem("crm_chat_look", JSON.stringify(next));
+  };
+
   const saveGroupSettings = async (nextWho: "everyone" | "admins", adminIds: string[]) => {
     if (!activeConvId) return;
     try {
-      await API.patch(`/chat/conversations/${activeConvId}/settings`, { whoCanSend: nextWho, adminIds });
+      const r = await API.patch(`/chat/conversations/${activeConvId}/settings`, { whoCanSend: nextWho, adminIds });
+      const savedIds = Array.isArray(r.data?.adminIds) ? (r.data.adminIds as string[]) : adminIds;
       const mine = me?.id;
       setConversations((p) => p.map((c) => c.id === activeConvId ? {
         ...c,
         whoCanSend: nextWho,
-        myMemberRole: mine && adminIds.includes(mine) ? "admin" : "member",
-        canManageGroup: true,
+        createdById: r.data?.createdById ?? c.createdById,
+        myMemberRole: mine && savedIds.includes(mine) ? "admin" : "member",
+        canManageGroup: Boolean(mine && (savedIds.includes(mine) || c.createdById === mine || r.data?.createdById === mine)),
       } : c));
-      setGroupMembers((prev) => prev.map((m) => ({ ...m, memberRole: adminIds.includes(m.id) ? "admin" : "member" })));
+      setGroupMembers((prev) => prev.map((m) => ({ ...m, memberRole: savedIds.includes(m.id) ? "admin" : "member" })));
+      void fetchConvMembers(activeConvId, true).then((members) => setGroupMembers(members as ChatUser[])).catch(() => {});
       toast.success("Group settings saved");
     } catch (err) {
       toast.error(apiErrorMessage(err, "Could not save group settings"));
@@ -1230,11 +1270,38 @@ export default function ChatPanel({
             onSelect={isStealthView ? undefined : () => setSelectMode(true)}
             onNewDm={isStealthView ? undefined : () => { setShowDmModal(true); void fetchUsers(true); }}
             onNewGroup={isStealthView ? undefined : () => { setShowGroupModal(true); void fetchUsers(true); }}
+            onSettings={isStealthView ? undefined : () => { setShowChatSettings((v) => !v); setShowGroupSettings(false); }}
+            settingsOpen={showChatSettings}
             isFullscreen={chatFullscreen}
             onFullscreen={() => setChatFullscreen(v => !v)}
             onClose={onClose}
             readOnly={isStealthView}
           />
+        )}
+
+        {showChatSettings && !selectMode && (
+          <div className="absolute left-14 top-24 z-[90] w-64 rounded-2xl border border-gray-200 bg-white shadow-xl p-3 space-y-3">
+            <p className="text-xs font-bold text-gray-900">Chat theme</p>
+            <label className="flex items-center justify-between text-[11px] font-semibold text-gray-500">
+              Background
+              <input type="color" value={chatLook.bg} onChange={(e) => saveLook({ ...chatLook, bg: e.target.value })} className="h-8 w-12 rounded-lg border border-gray-200 bg-white" />
+            </label>
+            <label className="flex items-center justify-between text-[11px] font-semibold text-gray-500">
+              My bubble
+              <input type="color" value={chatLook.mine} onChange={(e) => saveLook({ ...chatLook, mine: e.target.value })} className="h-8 w-12 rounded-lg border border-gray-200 bg-white" />
+            </label>
+            <label className="flex items-center justify-between text-[11px] font-semibold text-gray-500">
+              Font color
+              <input type="color" value={chatLook.font} onChange={(e) => saveLook({ ...chatLook, font: e.target.value })} className="h-8 w-12 rounded-lg border border-gray-200 bg-white" />
+            </label>
+            <label className="block text-[11px] font-semibold text-gray-500">
+              Font style
+              <select value={chatLook.fontFamily} onChange={(e) => saveLook({ ...chatLook, fontFamily: e.target.value })} className="mt-1 h-9 w-full rounded-lg border border-gray-200 px-2 text-xs text-gray-800">
+                {FONT_STYLES.map((f) => <option key={f.id} value={f.id}>{f.label}</option>)}
+              </select>
+            </label>
+            <button type="button" onClick={() => saveLook(DEFAULT_CHAT_LOOK)} className="h-8 w-full rounded-lg border border-gray-200 text-xs font-semibold text-gray-600">Reset</button>
+          </div>
         )}
 
         <div className="flex flex-1 min-w-0 min-h-0">
@@ -1343,72 +1410,49 @@ export default function ChatPanel({
                     : <p className="text-[10px] text-gray-400">Offline</p>}
                 </div>
                 <button onClick={() => { setMsgSearchOpen(v => !v); if (msgSearchOpen) setMsgSearchText(""); }} className={`w-7 h-7 rounded-xl flex items-center justify-center transition-colors ${msgSearchOpen ? "bg-[#B8112D] text-white" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}`}><Search size={13} /></button>
-                <button onClick={() => setShowChatSettings(v => !v)} className={`w-7 h-7 rounded-xl flex items-center justify-center transition-colors ${showChatSettings ? "bg-[#B8112D] text-white" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}`} title="Chat settings"><Settings size={13} /></button>
+                {activeConv.type === "group" && activeConv.canManageGroup ? (
+                  <button onClick={() => { setShowGroupSettings(v => !v); setShowChatSettings(false); }} className={`w-7 h-7 rounded-xl flex items-center justify-center transition-colors ${showGroupSettings ? "bg-[#B8112D] text-white" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}`} title="Group settings"><Settings size={13} /></button>
+                ) : null}
                 <button type="button" onClick={() => void archiveConversation(!showArchived)} title={showArchived ? "Unarchive" : "Archive chat"} className="w-7 h-7 rounded-xl bg-gray-100 text-gray-400 hover:bg-amber-50 hover:text-amber-600 flex items-center justify-center transition-colors">{showArchived ? <ArchiveRestore size={13} /> : <Archive size={13} />}</button>
                 <button onClick={() => void deleteConversations([activeConv.id])} className="w-7 h-7 rounded-xl bg-gray-100 text-gray-400 hover:bg-red-50 hover:text-[#B8112D] flex items-center justify-center transition-colors"><Trash2 size={13} /></button>
               </div>
 
-              {showChatSettings && (
-                <div className="px-3 py-3 border-b border-gray-100 bg-white shrink-0 flex flex-wrap items-end gap-3">
-                  <label className="text-[10px] font-semibold text-gray-500">
-                    Chat background
-                    <input type="color" value={chatLook.bg} onChange={(e) => {
-                      const next = { ...chatLook, bg: e.target.value };
-                      setChatLook(next);
-                      localStorage.setItem("crm_chat_look", JSON.stringify(next));
-                    }} className="mt-1 block h-9 w-14 rounded-lg border border-gray-200 bg-white" />
+              {showGroupSettings && activeConv.type === "group" && activeConv.canManageGroup && (
+                <div className="px-3 py-3 border-b border-gray-100 bg-white shrink-0 space-y-2">
+                  <label className="flex items-center justify-between gap-3 text-xs font-semibold text-gray-600">
+                    Who can send
+                    <select
+                      value={activeConv.whoCanSend === "admins" ? "admins" : "everyone"}
+                      onChange={(e) => {
+                        const next = e.target.value === "admins" ? "admins" : "everyone";
+                        const adminIds = groupMembers.filter((m) => m.memberRole === "admin").map((m) => m.id);
+                        void saveGroupSettings(next, adminIds.length ? adminIds : (me?.id ? [me.id] : []));
+                      }}
+                      className="h-8 rounded-lg border border-gray-200 px-2 text-xs"
+                    >
+                      <option value="everyone">Everyone</option>
+                      <option value="admins">Admins only</option>
+                    </select>
                   </label>
-                  <label className="text-[10px] font-semibold text-gray-500">
-                    My bubble
-                    <input type="color" value={chatLook.mine} onChange={(e) => {
-                      const next = { ...chatLook, mine: e.target.value };
-                      setChatLook(next);
-                      localStorage.setItem("crm_chat_look", JSON.stringify(next));
-                    }} className="mt-1 block h-9 w-14 rounded-lg border border-gray-200 bg-white" />
-                  </label>
-                  <button type="button" onClick={() => {
-                    const next = { bg: "#F5F6FA", mine: "#B8112D" };
-                    setChatLook(next);
-                    localStorage.setItem("crm_chat_look", JSON.stringify(next));
-                  }} className="h-9 px-3 rounded-xl border border-gray-200 text-xs font-semibold text-gray-600">Reset</button>
-                  {activeConv.type === "group" && activeConv.canManageGroup && (
-                    <div className="w-full basis-full border-t border-gray-100 pt-2 space-y-2">
-                      <label className="flex items-center justify-between gap-3 text-xs font-semibold text-gray-600">
-                        Who can send
-                        <select
-                          value={activeConv.whoCanSend === "admins" ? "admins" : "everyone"}
-                          onChange={(e) => {
-                            const next = e.target.value === "admins" ? "admins" : "everyone";
-                            const adminIds = groupMembers.filter((m) => m.memberRole === "admin").map((m) => m.id);
-                            void saveGroupSettings(next, adminIds.length ? adminIds : (me?.id ? [me.id] : []));
+                  <div className="max-h-40 overflow-y-auto space-y-1">
+                    {groupMembers.map((m) => (
+                      <div key={m.id} className="w-full flex items-center justify-between gap-2 rounded-lg px-2 py-1">
+                        <span className="text-xs font-semibold text-gray-800 truncate">{m.name}</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const adminIds = groupMembers.filter((x) => x.memberRole === "admin").map((x) => x.id);
+                            const nextIds = adminIds.includes(m.id) ? adminIds.filter((id) => id !== m.id) : [...adminIds, m.id];
+                            setGroupMembers((prev) => prev.map((x) => ({ ...x, memberRole: nextIds.includes(x.id) ? "admin" : "member" })));
+                            void saveGroupSettings(activeConv.whoCanSend === "admins" ? "admins" : "everyone", nextIds);
                           }}
-                          className="h-8 rounded-lg border border-gray-200 px-2 text-xs"
+                          className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${m.memberRole === "admin" ? "bg-[#0F172A] text-white" : "bg-gray-100 text-gray-600"}`}
                         >
-                          <option value="everyone">Everyone</option>
-                          <option value="admins">Admins only</option>
-                        </select>
-                      </label>
-                      <div className="max-h-32 overflow-y-auto space-y-1">
-                        {groupMembers.map((m) => (
-                          <button
-                            key={m.id}
-                            type="button"
-                            onClick={() => {
-                              const adminIds = groupMembers.filter((x) => x.memberRole === "admin").map((x) => x.id);
-                              const nextIds = adminIds.includes(m.id) ? adminIds.filter((id) => id !== m.id) : [...adminIds, m.id];
-                              void saveGroupSettings(activeConv.whoCanSend === "admins" ? "admins" : "everyone", nextIds);
-                            }}
-                            className="w-full flex items-center justify-between gap-2 rounded-lg px-2 py-1 hover:bg-gray-50 text-left"
-                          >
-                            <span className="text-xs font-semibold text-gray-800 truncate">{m.name}</span>
-                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${m.memberRole === "admin" ? "bg-[#0F172A] text-white" : "bg-gray-100 text-gray-600"}`}>
-                              {m.memberRole === "admin" ? "Admin" : "Make admin"}
-                            </span>
-                          </button>
-                        ))}
+                          {m.memberRole === "admin" ? "Admin" : "Make admin"}
+                        </button>
                       </div>
-                    </div>
-                  )}
+                    ))}
+                  </div>
                 </div>
               )}
 
@@ -1434,7 +1478,7 @@ export default function ChatPanel({
                 </div>
               )}
 
-              <div ref={msgsContainerRef} className="flex-1 overflow-y-auto px-3 py-3" style={{ background: chatLook.bg }}>
+              <div ref={msgsContainerRef} className="flex-1 overflow-y-auto px-3 py-3" style={{ background: chatLook.bg, fontFamily: chatLook.fontFamily }}>
                 {loadingMsgs ? (
                   <div className="flex items-center justify-center h-full"><Loader2 size={20} className="text-gray-300 animate-spin" /></div>
                 ) : visibleMessages.length === 0 ? (
@@ -1448,7 +1492,7 @@ export default function ChatPanel({
                     {msgGroups.map(group => (
                       <div key={group.date} className="w-full">
                         <div className="flex items-center gap-2 my-3"><div className="flex-1 h-px bg-gray-200" /><span className="text-[9px] font-semibold text-gray-400 whitespace-nowrap px-2">{group.date}</span><div className="flex-1 h-px bg-gray-200" /></div>
-                        <div className="flex flex-col gap-1.5 w-full">{group.msgs.map((msg, idx) => { const prev = group.msgs[idx - 1]; const showAvatar = !prev || prev.senderId !== msg.senderId; return <MessageBubble key={msg.id} msg={msg} isGroup={activeConv.type === "group"} showAvatar={showAvatar} myId={me?.id} mineColor={chatLook.mine} onCtxMenu={handleCtxMenu} onReply={handleReply} onJumpToReply={jumpToReply} onReact={toggleReaction} />; })}</div>
+                        <div className="flex flex-col gap-1.5 w-full">{group.msgs.map((msg, idx) => { const prev = group.msgs[idx - 1]; const showAvatar = !prev || prev.senderId !== msg.senderId; return <MessageBubble key={msg.id} msg={msg} isGroup={activeConv.type === "group"} showAvatar={showAvatar} myId={me?.id} mineColor={chatLook.mine} textColor={chatLook.font} fontFamily={chatLook.fontFamily} onCtxMenu={handleCtxMenu} onReply={handleReply} onJumpToReply={jumpToReply} onReact={toggleReaction} />; })}</div>
                       </div>
                     ))}
                     <div ref={messagesEndRef} />
@@ -1599,21 +1643,20 @@ export default function ChatPanel({
               ) : filteredUsers.map(u => {
                 const sel = selectedUsers.includes(u.id);
                 return (
-                  <button key={u.id} onClick={() => setSelectedUsers(p => sel ? p.filter(id => id !== u.id) : [...p, u.id])} className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl transition-all ${sel ? "bg-red-50 dark:bg-red-500/20 ring-1 ring-[#B8112D]/20" : "hover:bg-gray-50 dark:hover:bg-white/10"}`}>
+                  <div key={u.id} onClick={() => setSelectedUsers(p => sel ? p.filter(id => id !== u.id) : [...p, u.id])} className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl transition-all cursor-pointer ${sel ? "bg-red-50 dark:bg-red-500/20 ring-1 ring-[#B8112D]/20" : "hover:bg-gray-50 dark:hover:bg-white/10"}`}>
                     <Avatar name={u.name} src={u.profilePic} size="sm" online={u.isOnline} />
                     <div className="flex-1 min-w-0 text-left"><p className="text-xs font-semibold text-gray-900 dark:text-gray-100 truncate">{u.name}</p><p className="text-[10px] text-gray-500 dark:text-gray-400 capitalize">{u.csrCode ?? u.role ?? u.email}</p></div>
                     {sel && (
-                      <span
-                        role="button"
-                        tabIndex={0}
+                      <button
+                        type="button"
                         onClick={(e) => { e.stopPropagation(); setGroupAdminIds((p) => p.includes(u.id) ? p.filter((id) => id !== u.id) : [...p, u.id]); }}
                         className={`text-[10px] font-bold px-2 py-1 rounded-lg ${groupAdminIds.includes(u.id) ? "bg-[#0F172A] text-white" : "bg-gray-100 text-gray-600"}`}
                       >
                         {groupAdminIds.includes(u.id) ? "Admin" : "Make admin"}
-                      </span>
+                      </button>
                     )}
                     <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${sel ? "bg-[#B8112D] border-[#B8112D]" : "border-gray-300 dark:border-gray-500"}`}>{sel && <Check size={8} className="text-white" />}</div>
-                  </button>
+                  </div>
                 );
               })}
             </div>
