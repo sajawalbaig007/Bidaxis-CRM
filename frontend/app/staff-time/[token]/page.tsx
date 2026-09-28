@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import toast from "react-hot-toast";
 import API, { apiErrorMessage } from "@/lib/api";
+import AttendanceFrame from "@/app/components/AttendanceFrame";
 
 const TOKEN = "r7k2m9qx4p8w3n6";
 
@@ -25,13 +26,17 @@ export default function ReviseAttendancePage() {
   const [rows, setRows] = useState<Row[]>([]);
   const [busyKey, setBusyKey] = useState("");
 
-  const load = useCallback(async (nextDay?: string) => {
-    if (token !== TOKEN) return;
-    const res = await API.get(`/attendance/revise/${token}`, { params: { day: nextDay || undefined } });
+  const apply = (res: { data: { day: string; dev?: Person[]; chiefs?: Person[]; rows?: Row[] } }) => {
     setDay(res.data.day);
     setDev(res.data.dev ?? []);
     setChiefs(res.data.chiefs ?? []);
     setRows(res.data.rows ?? []);
+  };
+
+  const load = useCallback(async (nextDay?: string) => {
+    if (token !== TOKEN) return;
+    const res = await API.get(`/attendance/revise/${token}`, { params: { day: nextDay || undefined } });
+    apply(res);
   }, [token]);
 
   useEffect(() => {
@@ -39,11 +44,7 @@ export default function ReviseAttendancePage() {
     let cancelled = false;
     API.get(`/attendance/revise/${token}`)
       .then((res) => {
-        if (cancelled) return;
-        setDay(res.data.day);
-        setDev(res.data.dev ?? []);
-        setChiefs(res.data.chiefs ?? []);
-        setRows(res.data.rows ?? []);
+        if (!cancelled) apply(res);
       })
       .catch(() => {
         if (!cancelled) toast.error("Could not load times.");
@@ -55,13 +56,14 @@ export default function ReviseAttendancePage() {
 
   if (token !== TOKEN) {
     return (
-      <div className="min-h-screen bg-[#EEF1F7] grid place-items-center text-sm text-gray-500">
+      <div className="min-h-[100dvh] bg-[#EEF1F7] grid place-items-center text-sm text-gray-500 px-4">
         Page not found.
       </div>
     );
   }
 
   const save = async (department: "dev" | "chief_estimator", person: Person, checkIn: string, checkOut: string) => {
+    if (!day) return;
     setBusyKey(person.key);
     try {
       await API.post(`/attendance/revise/${token}`, {
@@ -87,13 +89,16 @@ export default function ReviseAttendancePage() {
   ];
 
   return (
-    <div className="min-h-screen bg-[#EEF1F7] text-[#0F172A]">
-      <div className="max-w-3xl mx-auto px-4 py-8 space-y-5">
-        <header className="flex items-end justify-between gap-3">
-          <div>
-            <h1 className="text-xl font-bold">Times</h1>
-            <p className="text-sm text-gray-500">Dev and Chief Estimator. Pakistan time.</p>
-          </div>
+    <AttendanceFrame
+      title="Times"
+      subtitle="Pick any date for Dev or Chief Estimator, then save check-in and check-out."
+    >
+      <div className="space-y-5">
+        <label className="block rounded-3xl bg-white shadow-[0_20px_50px_-28px_rgba(15,23,42,0.45)] px-5 py-5 sm:px-7 sm:flex sm:items-end sm:justify-between sm:gap-6">
+          <span>
+            <span className="block text-[11px] font-bold uppercase tracking-[0.16em] text-[#B8112D]">Date</span>
+            <span className="mt-1 block text-sm text-gray-500">Any day. Pakistan time.</span>
+          </span>
           <input
             type="date"
             value={day}
@@ -101,30 +106,33 @@ export default function ReviseAttendancePage() {
               setDay(e.target.value);
               void load(e.target.value);
             }}
-            className="h-10 rounded-xl border border-gray-200 px-3 text-sm bg-white"
+            className="mt-3 sm:mt-0 h-12 w-full sm:w-56 rounded-2xl border border-gray-200 px-3 text-base bg-[#F8FAFC]"
           />
-        </header>
-        {groups.map((group) => (
-          <section key={group.department} className="rounded-2xl bg-white border border-gray-100 overflow-hidden">
-            <h2 className="px-4 py-3 font-bold text-sm border-b border-gray-100">{group.title}</h2>
-            {group.people.length === 0 ? (
-              <p className="px-4 py-4 text-sm text-gray-400">No one in this list.</p>
-            ) : group.people.map((person) => {
-              const row = rows.find((r) => r.personKey === person.key && r.department === group.department);
-              return (
-              <PersonRow
-                key={`${person.key}:${row?.checkIn ?? ""}:${row?.checkOut ?? ""}`}
-                person={person}
-                row={row}
-                busy={busyKey === person.key}
-                onSave={(checkIn, checkOut) => void save(group.department, person, checkIn, checkOut)}
-              />
-              );
-            })}
-          </section>
-        ))}
+        </label>
+
+        <div className="grid gap-4 xl:grid-cols-2">
+          {groups.map((group) => (
+            <section key={group.department} className="rounded-3xl bg-white shadow-[0_20px_50px_-28px_rgba(15,23,42,0.45)] overflow-hidden">
+              <h2 className="px-5 sm:px-7 py-4 font-bold text-base border-b border-gray-100">{group.title}</h2>
+              {group.people.length === 0 ? (
+                <p className="px-5 py-6 text-sm text-gray-400">No one in this list.</p>
+              ) : group.people.map((person) => {
+                const row = rows.find((r) => r.personKey === person.key && r.department === group.department);
+                return (
+                  <PersonRow
+                    key={`${person.key}:${day}:${row?.checkIn ?? ""}:${row?.checkOut ?? ""}`}
+                    person={person}
+                    row={row}
+                    busy={busyKey === person.key}
+                    onSave={(checkIn, checkOut) => void save(group.department, person, checkIn, checkOut)}
+                  />
+                );
+              })}
+            </section>
+          ))}
+        </div>
       </div>
-    </div>
+    </AttendanceFrame>
   );
 }
 
@@ -143,17 +151,25 @@ function PersonRow({
   const [checkOut, setCheckOut] = useState(row?.checkOut ?? "");
 
   return (
-    <div className="px-4 py-3 border-t border-gray-50 grid grid-cols-1 sm:grid-cols-[1fr_auto_auto_auto] gap-2 items-center">
-      <p className="text-sm font-semibold">{person.name}</p>
-      <input type="time" value={checkIn} onChange={(e) => setCheckIn(e.target.value)} className="h-10 rounded-xl border border-gray-200 px-2 text-sm" />
-      <input type="time" value={checkOut} onChange={(e) => setCheckOut(e.target.value)} className="h-10 rounded-xl border border-gray-200 px-2 text-sm" />
+    <div className="px-5 sm:px-7 py-5 border-t border-gray-50 space-y-3">
+      <p className="text-base font-bold">{person.name}</p>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <label className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+          Check in
+          <input type="time" value={checkIn} onChange={(e) => setCheckIn(e.target.value)} className="mt-1.5 w-full h-12 rounded-2xl border border-gray-200 bg-[#F8FAFC] px-3 text-base" />
+        </label>
+        <label className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+          Check out
+          <input type="time" value={checkOut} onChange={(e) => setCheckOut(e.target.value)} className="mt-1.5 w-full h-12 rounded-2xl border border-gray-200 bg-[#F8FAFC] px-3 text-base" />
+        </label>
+      </div>
       <button
         type="button"
         disabled={busy || !checkIn}
         onClick={() => onSave(checkIn, checkOut)}
-        className="h-10 px-3 rounded-xl bg-[#0F172A] text-white text-sm font-semibold disabled:opacity-60"
+        className="w-full sm:w-auto sm:min-w-40 h-12 px-5 rounded-2xl bg-[#0F172A] text-white text-sm font-semibold disabled:opacity-60"
       >
-        Save
+        {busy ? "Saving…" : "Save this date"}
       </button>
     </div>
   );

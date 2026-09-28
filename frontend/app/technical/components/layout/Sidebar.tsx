@@ -17,6 +17,7 @@ import { forceStopChatStatusHeartbeat } from "@/lib/chatStatusHeartbeat";
 import { forceDisconnectChatSocket } from "@/lib/chatSocket";
 import ChatPanel from "@/app/components/chat/ChatPanel";
 import ThemeToggle from "@/app/components/ThemeToggle";
+import StaffDayCheckBar from "@/app/components/StaffDayCheckBar";
 import CapsuleChipNav from "@/app/components/CapsuleChipNav";
 import API from "@/lib/api";
 import { playChatSound, primeChatSound } from "@/lib/chatSound";
@@ -224,6 +225,7 @@ export default function TechnicalSidebar() {
           </div>
 
           <div className="flex-1 min-w-0 flex items-center justify-end gap-2 sm:gap-3">
+          <StaffDayCheckBar compact defaultVisible />
           <ThemeToggle />
 
           <div ref={bellRef} className="relative shrink-0">
