@@ -45,6 +45,7 @@ import { estDayBoundsUtc, estDateYmd, addEstDays, parseEstDateTimeLocal, ADMIN_S
 import { AuthRequest } from "../middleware/auth.middleware";
 import { deleteLeadsCascade, removeProjectsKeepClients, invalidateAllLeadCaches, isRemovedFromProjectDb } from "../utils/deleteLeadsCascade";
 import { buildAdminClientSummaryPayload, buildAdminTabCountsPayload } from "../utils/adminSummaryStats";
+import { allocateNextProjectCode } from "../utils/nextProjectCode";
 import { SEED_USER_EMAILS } from "../constants/seedUsers";
 import { buildTechnicalMonitoring } from "../utils/technicalMonitoring";
 import {
