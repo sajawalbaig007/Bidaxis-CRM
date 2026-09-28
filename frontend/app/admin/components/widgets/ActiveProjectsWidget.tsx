@@ -24,9 +24,14 @@ export default function ActiveProjectsWidget({ enabled = false }: { enabled?: bo
 
   useEffect(() => {
     if (!enabled) return;
-    API.get("/admin/csrs")
-      .then(res => setCsrs(res.data.csrs ?? []))
-      .catch(() => {});
+    const load = () => {
+      API.get("/admin/csrs")
+        .then(res => setCsrs(res.data.csrs ?? []))
+        .catch(() => {});
+    };
+    load();
+    window.addEventListener("focus", load);
+    return () => window.removeEventListener("focus", load);
   }, [enabled]);
 
   useEffect(() => {

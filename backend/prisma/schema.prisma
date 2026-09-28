@@ -252,6 +252,8 @@ model Conversation {
   type            String
   name            String?
   pinnedMessageId String?
+  /** everyone | admins — who may send messages in a group */
+  whoCanSend      String   @default("everyone")
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
@@ -271,6 +273,8 @@ model ConversationMember {
   archivedAt     DateTime?
   /** Soft-hide from user's recent chats; admin peek still sees the thread */
   clearedAt      DateTime?
+  /** admin | member */
+  memberRole     String    @default("member")
 
   conversation Conversation @relation(fields: [conversationId], references: [id])
   user         User         @relation(fields: [userId], references: [id])

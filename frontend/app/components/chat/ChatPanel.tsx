@@ -9,10 +9,10 @@ import {
   Mic, StopCircle, Play, Pause, Download, FileText,
   Film, Music, Image as ImageIcon,
   Trash2, Reply, Copy, Pin, PinOff, Pencil,
-  Archive, ArchiveRestore,
+  Archive, ArchiveRestore, Settings,
 } from "lucide-react";
-import API from "@/lib/api";
-import { formatEstChatDaySep, formatEstChatTime, formatEstTime } from "@/lib/estTime";
+import API, { apiErrorMessage } from "@/lib/api";
+import toast from "react-hot-toast";
 import { getAuthMe } from "@/lib/authMeCache";
 import { useChatEnabled } from "@/lib/useChatEnabled";
 import {
@@ -46,7 +46,7 @@ import { deduplicateConvs, mergeConversationLists, sortConversations, type ChatC
 import ChatListResizeHandle, { useChatListWidth } from "./ChatListResizeHandle";
 
 /* ── */
-interface ChatUser { id: string; name: string; email?: string; csrCode?: string | null; isOnline?: boolean; role?: string; profilePic?: string | null; }
+interface ChatUser { id: string; name: string; email?: string; csrCode?: string | null; isOnline?: boolean; role?: string; memberRole?: string; profilePic?: string | null; }
 type MsgType   = "text" | "file" | "image" | "voice";
 type MsgStatus = "sending" | "sent" | "delivered" | "read";
 interface ReplyQuote { id: string; text: string; senderName: string; type: MsgType; }
@@ -65,19 +65,34 @@ type Conversation = ChatConversation;
 
 /* ── */
 const MAX_FILE_BYTES = 200 * 1024 * 1024;
-const EDIT_WINDOW_MS = 10 * 60 * 1000;
 function messageCanEdit(msg: Message) {
-  return msg.isOwn && msg.type === "text" && Date.now() - new Date(msg.createdAt).getTime() < EDIT_WINDOW_MS;
+  return msg.isOwn && msg.type === "text" && !msg.deletedAt;
 }
 function initials(name: string) { return name.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase(); }
+const PKT = "Asia/Karachi";
+function pktYmd(iso: string) {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: PKT, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(iso));
+}
 function fmtConvTime(iso: string) {
-  return formatEstChatTime(iso);
+  try {
+    const day = pktYmd(iso);
+    const today = pktYmd(new Date().toISOString());
+    if (day === today) return new Date(iso).toLocaleTimeString("en-US", { timeZone: PKT, hour: "numeric", minute: "2-digit" });
+    return new Date(iso).toLocaleDateString("en-US", { timeZone: PKT, month: "short", day: "numeric" });
+  } catch { return ""; }
 }
 function fmtMsgTime(iso: string) {
-  return formatEstTime(iso);
+  try {
+    return new Date(iso).toLocaleTimeString("en-US", { timeZone: PKT, hour: "numeric", minute: "2-digit" });
+  } catch { return ""; }
 }
 function fmtDateSep(iso: string) {
-  return formatEstChatDaySep(iso);
+  try {
+    const day = pktYmd(iso);
+    const today = pktYmd(new Date().toISOString());
+    if (day === today) return "Today";
+    return new Date(iso).toLocaleDateString("en-US", { timeZone: PKT, weekday: "long", month: "short", day: "numeric" });
+  } catch { return ""; }
 }
 function fmtAudio(secs: number) { const s = Math.floor(secs), m = Math.floor(s / 60); return `${m}:${String(s % 60).padStart(2, "0")}`; }
 function fmtSize(bytes: number) {
@@ -173,8 +188,8 @@ function VoicePlayer({ fileUrl, isOwn }: { fileUrl: string; isOwn: boolean }) {
 }
 
 /* ── */
-function MessageBubble({ msg, isGroup, showAvatar, myId, onCtxMenu, onReply, onJumpToReply, onReact }: {
-  msg: Message; isGroup: boolean; showAvatar: boolean; myId?: string;
+function MessageBubble({ msg, isGroup, showAvatar, myId, mineColor, onCtxMenu, onReply, onJumpToReply, onReact }: {
+  msg: Message; isGroup: boolean; showAvatar: boolean; myId?: string; mineColor?: string;
   onCtxMenu: (e: React.MouseEvent, msg: Message) => void;
   onReply:   (msg: Message) => void;
   onJumpToReply: (id: string) => void;
@@ -221,7 +236,10 @@ function MessageBubble({ msg, isGroup, showAvatar, myId, onCtxMenu, onReply, onJ
                 <p className="truncate max-w-[160px]">{msg.replyTo.type !== "text" ? `${msg.replyTo.type}` : truncate(msg.replyTo.text, 40)}</p>
               </button>
             )}
-            <div className={`rounded-2xl ${msg.type === "text" ? "px-3.5 py-2.5" : "p-2"} ${deleted ? "border border-dashed border-amber-300/80 dark:border-amber-500/50 bg-amber-50/80 dark:bg-amber-950/30" : ""} ${own ? `bg-[#B8112D] text-white rounded-br-sm ${deleted ? "!bg-amber-100/90 dark:!bg-amber-950/40 !text-gray-800 dark:!text-amber-100" : ""}` : `bg-white text-gray-900 dark:text-gray-100 shadow-sm border border-gray-100 rounded-bl-sm ${deleted ? "!bg-amber-50/90 dark:!bg-amber-950/25" : ""}`}`}>
+            <div
+              className={`rounded-2xl ${msg.type === "text" ? "px-3.5 py-2.5" : "p-2"} ${deleted ? "border border-dashed border-amber-300/80 dark:border-amber-500/50 bg-amber-50/80 dark:bg-amber-950/30" : ""} ${own ? `text-white rounded-br-sm ${deleted ? "!bg-amber-100/90 dark:!bg-amber-950/40 !text-gray-800 dark:!text-amber-100" : ""}` : `bg-white text-gray-900 dark:text-gray-100 shadow-sm border border-gray-100 rounded-bl-sm ${deleted ? "!bg-amber-50/90 dark:!bg-amber-950/25" : ""}`}`}
+              style={own && !deleted ? { backgroundColor: mineColor || "#B8112D" } : undefined}
+            >
               {body()}
             </div>
             {msg.reactions && Object.keys(msg.reactions).length > 0 && (
@@ -469,6 +487,17 @@ export default function ChatPanel({
   const [editingMsg,     setEditingMsg]     = useState<Message | null>(null);
   const [editText,       setEditText]       = useState("");
   const [mentionQuery,   setMentionQuery]   = useState<string | null>(null);
+  const [chatLook, setChatLook] = useState(() => {
+    if (typeof window === "undefined") return { bg: "#F5F6FA", mine: "#B8112D" };
+    try {
+      const raw = localStorage.getItem("crm_chat_look");
+      if (raw) return JSON.parse(raw) as { bg: string; mine: string };
+    } catch { /* ignore */ }
+    return { bg: "#F5F6FA", mine: "#B8112D" };
+  });
+  const [showChatSettings, setShowChatSettings] = useState(false);
+  const [groupAdminIds, setGroupAdminIds] = useState<string[]>([]);
+  const [whoCanSend, setWhoCanSend] = useState<"everyone" | "admins">("everyone");
   const [soundOn,        setSoundOn]        = useState(true);
   const { width: listWidth, onPointerDown: onListResize } = useChatListWidth("chat-list-width", 280);
 
@@ -499,7 +528,7 @@ export default function ChatPanel({
   );
 
   useEffect(() => {
-    void getAuthMe(true).then(u => {
+    void getAuthMe().then(u => {
       if (u) {
         const meUser: ChatUser = {
           id: u.id,
@@ -623,7 +652,10 @@ export default function ChatPanel({
       if (cancelled) return;
       setTypingName(null); setMsgSearchOpen(false); setMsgSearchText(""); setMessages([]); setLoadingMsgs(true);
       try {
-        const payload = await fetchChatMessages(url);
+        const [payload, members] = await Promise.all([
+          fetchChatMessages(url),
+          stealth ? Promise.resolve(null) : fetchConvMembers(cid).catch(() => [] as ChatUser[]),
+        ]);
         if (cancelled) return;
         const msgs: Message[] = (payload.messages as Message[]).map(tagOwn);
         setMessages(msgs);
@@ -633,9 +665,7 @@ export default function ChatPanel({
         if (!stealth) {
           markConversationRead(cid);
           void API.post(`/chat/conversations/${cid}/read`).catch(() => {});
-          void fetchConvMembers(cid).then(members => {
-            if (!cancelled) setGroupMembers(members as ChatUser[]);
-          }).catch(() => { if (!cancelled) setGroupMembers([]); });
+          setGroupMembers((members ?? []) as ChatUser[]);
         }
         setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: "auto" }), 60);
       } catch { if (!cancelled) { setMessages([]); setPinnedMessage(null); } } finally { if (!cancelled) setLoadingMsgs(false); }
@@ -732,6 +762,11 @@ export default function ChatPanel({
 
   const sendText = async () => {
     if (!msgText.trim() || !activeConvId || sendingMsg) return;
+    const convNow = conversations.find(c => c.id === activeConvId);
+    if (convNow?.type === "group" && convNow.whoCanSend === "admins" && convNow.myMemberRole !== "admin") {
+      toast.error("Only group admins can send messages in this chat.");
+      return;
+    }
     const text = msgText.trim(); const reply = replyTo;
     const mentionIds = activeConv?.type === "group" ? parseMentionIds(text) : [];
     setMsgText(""); setReplyTo(null); setMentionQuery(null); setSendingMsg(true);
@@ -745,9 +780,15 @@ export default function ChatPanel({
       const saved = r.data.message as Message | undefined;
       invalidateChatMessages(`/chat/conversations/${activeConvId}/messages`);
       setMessages(p => p.map(m => m.id === opt.id ? (saved ? { ...saved, status: "sent" } : { ...m, status: "sent" }) : m));
-    } catch {
-      addToOfflineQueue({ id: opt.id, conversationId: activeConvId, text, replyToId: reply?.id, createdAt: new Date().toISOString() });
-      setMessages(p => p.map(m => m.id === opt.id ? { ...m, status: "sent" } : m));
+    } catch (err) {
+      const status = (err as { response?: { status?: number } })?.response?.status;
+      if (status === 403) {
+        setMessages(p => p.filter(m => m.id !== opt.id));
+        toast.error(apiErrorMessage(err, "You cannot send in this group."));
+      } else {
+        addToOfflineQueue({ id: opt.id, conversationId: activeConvId, text, replyToId: reply?.id, createdAt: new Date().toISOString() });
+        setMessages(p => p.map(m => m.id === opt.id ? { ...m, status: "sent" } : m));
+      }
     }
     finally { setSendingMsg(false); inputRef.current?.focus(); }
   };
@@ -807,7 +848,8 @@ export default function ChatPanel({
     setMsgText(val);
     autoGrowTextarea(e.target);
     if (activeConv?.type === "group") {
-      const match = val.match(/@([\w\s.-]*)$/);
+      const caret = e.target.selectionStart ?? val.length;
+      const match = val.slice(0, caret).match(/@([^@\n]*)$/);
       setMentionQuery(match ? match[1].trim().toLowerCase() : null);
     } else setMentionQuery(null);
     if (activeConvId && val.trim()) {
@@ -817,7 +859,13 @@ export default function ChatPanel({
   };
 
   const insertMention = (name: string) => {
-    setMsgText(prev => prev.replace(/@[\w\s.-]*$/, `@${name} `));
+    const el = inputRef.current;
+    const caret = el?.selectionStart ?? msgText.length;
+    const upto = msgText.slice(0, caret);
+    const match = upto.match(/@([^@\n]*)$/);
+    const start = match ? caret - match[0].length : caret;
+    const next = `${msgText.slice(0, start)}@${name} ${msgText.slice(caret)}`;
+    setMsgText(next);
     setMentionQuery(null);
     requestAnimationFrame(() => autoGrowTextarea(inputRef.current));
     inputRef.current?.focus();
@@ -825,7 +873,7 @@ export default function ChatPanel({
 
   const mentionSuggestions = useMemo(() => {
     if (mentionQuery === null) return [];
-    return groupMembers.filter(m => m.id !== me?.id && m.name.toLowerCase().includes(mentionQuery)).slice(0, 5);
+    return groupMembers.filter(m => m.id !== me?.id && m.name.toLowerCase().includes(mentionQuery));
   }, [mentionQuery, groupMembers, me?.id]);
 
   const onFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -975,14 +1023,38 @@ export default function ChatPanel({
   const createGroup = async () => {
     if (!groupName.trim() || creatingGroup) return; setCreatingGroup(true);
     try {
-      const r = await API.post("/chat/conversations", { type: "group", name: groupName.trim(), memberIds: selectedUsers });
+      const r = await API.post("/chat/conversations", {
+        type: "group",
+        name: groupName.trim(),
+        memberIds: selectedUsers,
+        adminIds: groupAdminIds.filter((id) => selectedUsers.includes(id)),
+        whoCanSend,
+      });
       const conv: Conversation = r.data.conversation ?? { id: r.data.id ?? `grp-${crypto.randomUUID()}`, type: "group", name: groupName.trim(), unreadCount: 0, memberCount: selectedUsers.length + 1 };
       guardPanelClose();
       setConversations(p => [conv, ...p]); setActiveConvId(conv.id);
-      window.setTimeout(() => { setShowGroupModal(false); setGroupName(""); setSelectedUsers([]); setUserSearch(""); }, 0);
+      window.setTimeout(() => { setShowGroupModal(false); setGroupName(""); setSelectedUsers([]); setGroupAdminIds([]); setWhoCanSend("everyone"); setUserSearch(""); }, 0);
       setMobileSideOpen(false);
     } catch {}
     setCreatingGroup(false);
+  };
+
+  const saveGroupSettings = async (nextWho: "everyone" | "admins", adminIds: string[]) => {
+    if (!activeConvId) return;
+    try {
+      await API.patch(`/chat/conversations/${activeConvId}/settings`, { whoCanSend: nextWho, adminIds });
+      const mine = me?.id;
+      setConversations((p) => p.map((c) => c.id === activeConvId ? {
+        ...c,
+        whoCanSend: nextWho,
+        myMemberRole: mine && adminIds.includes(mine) ? "admin" : "member",
+        canManageGroup: true,
+      } : c));
+      setGroupMembers((prev) => prev.map((m) => ({ ...m, memberRole: adminIds.includes(m.id) ? "admin" : "member" })));
+      toast.success("Group settings saved");
+    } catch (err) {
+      toast.error(apiErrorMessage(err, "Could not save group settings"));
+    }
   };
 
   const startDm = async (user: ChatUser) => {
@@ -1077,6 +1149,7 @@ export default function ChatPanel({
 
   /* ── */
   const activeConv = conversations.find(c => c.id === activeConvId) ?? null;
+  const sendLocked = activeConv?.type === "group" && activeConv.whoCanSend === "admins" && activeConv.myMemberRole !== "admin";
   const filteredConvs = useMemo(() => { const q = convSearch.toLowerCase(); return !q ? conversations : conversations.filter(c => c.name.toLowerCase().includes(q)); }, [conversations, convSearch]);
   const filteredUsers = useMemo(() => { const q = (showGroupModal ? userSearch : dmSearch).toLowerCase(); return !q ? allUsers : allUsers.filter(u => u.name.toLowerCase().includes(q) || u.email?.toLowerCase().includes(q) || (u.csrCode ?? "").toLowerCase().includes(q)); }, [allUsers, userSearch, dmSearch, showGroupModal]);
   const visibleMessages = useMemo(() => { if (!msgSearchText.trim()) return messages; const q = msgSearchText.toLowerCase(); return messages.filter(m => m.text.toLowerCase().includes(q) || m.fileName?.toLowerCase().includes(q)); }, [messages, msgSearchText]);
@@ -1270,9 +1343,74 @@ export default function ChatPanel({
                     : <p className="text-[10px] text-gray-400">Offline</p>}
                 </div>
                 <button onClick={() => { setMsgSearchOpen(v => !v); if (msgSearchOpen) setMsgSearchText(""); }} className={`w-7 h-7 rounded-xl flex items-center justify-center transition-colors ${msgSearchOpen ? "bg-[#B8112D] text-white" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}`}><Search size={13} /></button>
+                <button onClick={() => setShowChatSettings(v => !v)} className={`w-7 h-7 rounded-xl flex items-center justify-center transition-colors ${showChatSettings ? "bg-[#B8112D] text-white" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}`} title="Chat settings"><Settings size={13} /></button>
                 <button type="button" onClick={() => void archiveConversation(!showArchived)} title={showArchived ? "Unarchive" : "Archive chat"} className="w-7 h-7 rounded-xl bg-gray-100 text-gray-400 hover:bg-amber-50 hover:text-amber-600 flex items-center justify-center transition-colors">{showArchived ? <ArchiveRestore size={13} /> : <Archive size={13} />}</button>
                 <button onClick={() => void deleteConversations([activeConv.id])} className="w-7 h-7 rounded-xl bg-gray-100 text-gray-400 hover:bg-red-50 hover:text-[#B8112D] flex items-center justify-center transition-colors"><Trash2 size={13} /></button>
               </div>
+
+              {showChatSettings && (
+                <div className="px-3 py-3 border-b border-gray-100 bg-white shrink-0 flex flex-wrap items-end gap-3">
+                  <label className="text-[10px] font-semibold text-gray-500">
+                    Chat background
+                    <input type="color" value={chatLook.bg} onChange={(e) => {
+                      const next = { ...chatLook, bg: e.target.value };
+                      setChatLook(next);
+                      localStorage.setItem("crm_chat_look", JSON.stringify(next));
+                    }} className="mt-1 block h-9 w-14 rounded-lg border border-gray-200 bg-white" />
+                  </label>
+                  <label className="text-[10px] font-semibold text-gray-500">
+                    My bubble
+                    <input type="color" value={chatLook.mine} onChange={(e) => {
+                      const next = { ...chatLook, mine: e.target.value };
+                      setChatLook(next);
+                      localStorage.setItem("crm_chat_look", JSON.stringify(next));
+                    }} className="mt-1 block h-9 w-14 rounded-lg border border-gray-200 bg-white" />
+                  </label>
+                  <button type="button" onClick={() => {
+                    const next = { bg: "#F5F6FA", mine: "#B8112D" };
+                    setChatLook(next);
+                    localStorage.setItem("crm_chat_look", JSON.stringify(next));
+                  }} className="h-9 px-3 rounded-xl border border-gray-200 text-xs font-semibold text-gray-600">Reset</button>
+                  {activeConv.type === "group" && activeConv.canManageGroup && (
+                    <div className="w-full basis-full border-t border-gray-100 pt-2 space-y-2">
+                      <label className="flex items-center justify-between gap-3 text-xs font-semibold text-gray-600">
+                        Who can send
+                        <select
+                          value={activeConv.whoCanSend === "admins" ? "admins" : "everyone"}
+                          onChange={(e) => {
+                            const next = e.target.value === "admins" ? "admins" : "everyone";
+                            const adminIds = groupMembers.filter((m) => m.memberRole === "admin").map((m) => m.id);
+                            void saveGroupSettings(next, adminIds.length ? adminIds : (me?.id ? [me.id] : []));
+                          }}
+                          className="h-8 rounded-lg border border-gray-200 px-2 text-xs"
+                        >
+                          <option value="everyone">Everyone</option>
+                          <option value="admins">Admins only</option>
+                        </select>
+                      </label>
+                      <div className="max-h-32 overflow-y-auto space-y-1">
+                        {groupMembers.map((m) => (
+                          <button
+                            key={m.id}
+                            type="button"
+                            onClick={() => {
+                              const adminIds = groupMembers.filter((x) => x.memberRole === "admin").map((x) => x.id);
+                              const nextIds = adminIds.includes(m.id) ? adminIds.filter((id) => id !== m.id) : [...adminIds, m.id];
+                              void saveGroupSettings(activeConv.whoCanSend === "admins" ? "admins" : "everyone", nextIds);
+                            }}
+                            className="w-full flex items-center justify-between gap-2 rounded-lg px-2 py-1 hover:bg-gray-50 text-left"
+                          >
+                            <span className="text-xs font-semibold text-gray-800 truncate">{m.name}</span>
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${m.memberRole === "admin" ? "bg-[#0F172A] text-white" : "bg-gray-100 text-gray-600"}`}>
+                              {m.memberRole === "admin" ? "Admin" : "Make admin"}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {pinnedMessage && (
                 <div className="px-3 py-2 bg-amber-50 border-b border-amber-100 shrink-0 flex items-center gap-2">
@@ -1296,7 +1434,7 @@ export default function ChatPanel({
                 </div>
               )}
 
-              <div ref={msgsContainerRef} className="flex-1 overflow-y-auto px-3 py-3 bg-[#F5F6FA]">
+              <div ref={msgsContainerRef} className="flex-1 overflow-y-auto px-3 py-3" style={{ background: chatLook.bg }}>
                 {loadingMsgs ? (
                   <div className="flex items-center justify-center h-full"><Loader2 size={20} className="text-gray-300 animate-spin" /></div>
                 ) : visibleMessages.length === 0 ? (
@@ -1309,8 +1447,8 @@ export default function ChatPanel({
                   <div className="space-y-0.5 w-full">
                     {msgGroups.map(group => (
                       <div key={group.date} className="w-full">
-                        <div className="flex items-center gap-2 my-3"><div className="flex-1 h-px bg-gray-200" /><span className="text-[9px] font-semibold text-gray-400 whitespace-nowrap px-2 bg-[#F5F6FA]">{group.date}</span><div className="flex-1 h-px bg-gray-200" /></div>
-                        <div className="flex flex-col gap-1.5 w-full">{group.msgs.map((msg, idx) => { const prev = group.msgs[idx - 1]; const showAvatar = !prev || prev.senderId !== msg.senderId; return <MessageBubble key={msg.id} msg={msg} isGroup={activeConv.type === "group"} showAvatar={showAvatar} myId={me?.id} onCtxMenu={handleCtxMenu} onReply={handleReply} onJumpToReply={jumpToReply} onReact={toggleReaction} />; })}</div>
+                        <div className="flex items-center gap-2 my-3"><div className="flex-1 h-px bg-gray-200" /><span className="text-[9px] font-semibold text-gray-400 whitespace-nowrap px-2">{group.date}</span><div className="flex-1 h-px bg-gray-200" /></div>
+                        <div className="flex flex-col gap-1.5 w-full">{group.msgs.map((msg, idx) => { const prev = group.msgs[idx - 1]; const showAvatar = !prev || prev.senderId !== msg.senderId; return <MessageBubble key={msg.id} msg={msg} isGroup={activeConv.type === "group"} showAvatar={showAvatar} myId={me?.id} mineColor={chatLook.mine} onCtxMenu={handleCtxMenu} onReply={handleReply} onJumpToReply={jumpToReply} onReact={toggleReaction} />; })}</div>
                       </div>
                     ))}
                     <div ref={messagesEndRef} />
@@ -1354,6 +1492,10 @@ export default function ChatPanel({
                 <div className="px-3 py-3 bg-amber-50 border-t border-amber-100 shrink-0">
                   <p className="text-[11px] text-amber-800 text-center font-medium">Read-only view — messages cannot be sent</p>
                 </div>
+              ) : sendLocked ? (
+                <div className="px-3 py-3 bg-gray-50 border-t border-gray-100 shrink-0">
+                  <p className="text-[11px] text-gray-500 text-center font-medium">Only group admins can send messages in this chat.</p>
+                </div>
               ) : (
               <div className="px-3 py-2.5 bg-white border-t border-gray-100 shrink-0 relative">
                 <input ref={fileInputRef} type="file" className="hidden" accept="*/*" onChange={onFileChange} />
@@ -1378,7 +1520,7 @@ export default function ChatPanel({
                   </div>
                 )}
                 {mentionSuggestions.length > 0 && (
-                  <div className="absolute bottom-full left-10 mb-1 w-56 bg-white dark:bg-zinc-800 rounded-xl border border-gray-200 dark:border-white/15 shadow-lg py-1 z-10">
+                  <div className="absolute bottom-full left-10 mb-1 w-56 max-h-48 overflow-y-auto bg-white dark:bg-zinc-800 rounded-xl border border-gray-200 dark:border-white/15 shadow-lg py-1 z-10">
                     {mentionSuggestions.map(m => (
                       <button key={m.id} type="button" onClick={() => insertMention(m.name)} className="w-full text-left px-3 py-1.5 text-xs hover:bg-[#F5F6FA] dark:hover:bg-white/10 truncate text-gray-900 dark:text-gray-100">
                         <span className="font-semibold text-[#B8112D] dark:text-yellow-300">@{m.name}</span>{" "}
@@ -1431,16 +1573,23 @@ export default function ChatPanel({
 
       {/* ── GROUP MODAL ── */}
       {portalReady && showGroupModal && createPortal(
-        <div className="fixed inset-0 z-[200] bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={() => { setShowGroupModal(false); setGroupName(""); setSelectedUsers([]); setUserSearch(""); }}>
+        <div className="fixed inset-0 z-[200] bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={() => { setShowGroupModal(false); setGroupName(""); setSelectedUsers([]); setGroupAdminIds([]); setWhoCanSend("everyone"); setUserSearch(""); }}>
           <div className="w-full sm:max-w-[440px] bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden" style={{ maxHeight: "85vh" }} onClick={e => e.stopPropagation()}>
             <div className="px-4 pt-4 pb-3 border-b border-gray-100 shrink-0 flex items-center justify-between">
               <div className="flex items-center gap-2.5"><div className="w-8 h-8 rounded-xl bg-[#B8112D] text-white flex items-center justify-center"><Hash size={14} /></div><div><h2 className="text-sm font-bold text-gray-900 dark:text-gray-100">Create Group</h2><p className="text-[10px] text-gray-400">Name and invite members</p></div></div>
-              <button onClick={() => { setShowGroupModal(false); setGroupName(""); setSelectedUsers([]); setUserSearch(""); }} className="w-7 h-7 rounded-xl bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors"><X size={13} /></button>
+              <button onClick={() => { setShowGroupModal(false); setGroupName(""); setSelectedUsers([]); setGroupAdminIds([]); setWhoCanSend("everyone"); setUserSearch(""); }} className="w-7 h-7 rounded-xl bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors"><X size={13} /></button>
             </div>
             <div className="px-4 pt-3 pb-2 shrink-0 space-y-2.5 border-b border-gray-100">
               <input type="text" placeholder="Group name..." value={groupName} onChange={e => setGroupName(e.target.value)} className="w-full h-9 rounded-xl border-2 border-gray-200 bg-[#FAFAFA] px-3 text-sm outline-none focus:border-[#B8112D] focus:bg-white transition-colors" />
               <div className="relative"><Search size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" /><input type="text" placeholder="Search users..." value={userSearch} onChange={e => setUserSearch(e.target.value)} className="w-full h-8 rounded-xl bg-[#F3F4F6] dark:bg-crm-muted dark:text-gray-100 pl-7 pr-3 text-xs outline-none focus:bg-white dark:focus:bg-crm-input focus:ring-2 focus:ring-[#B8112D]/20 transition-all" /></div>
-              {selectedUsers.length > 0 && <p className="text-[10px] text-gray-400">{selectedUsers.length} member{selectedUsers.length !== 1 ? "s" : ""} selected</p>}
+              {selectedUsers.length > 0 && <p className="text-[10px] text-gray-400">{selectedUsers.length} member{selectedUsers.length !== 1 ? "s" : ""} selected · you are an admin</p>}
+              <label className="flex items-center justify-between gap-3 text-xs font-semibold text-gray-600">
+                Who can send
+                <select value={whoCanSend} onChange={(e) => setWhoCanSend(e.target.value === "admins" ? "admins" : "everyone")} className="h-8 rounded-lg border border-gray-200 px-2 text-xs">
+                  <option value="everyone">Everyone</option>
+                  <option value="admins">Admins only</option>
+                </select>
+              </label>
             </div>
             <div className="flex-1 overflow-y-auto px-2 py-1.5 space-y-0.5">
               {loadingUsers ? (
@@ -1453,13 +1602,23 @@ export default function ChatPanel({
                   <button key={u.id} onClick={() => setSelectedUsers(p => sel ? p.filter(id => id !== u.id) : [...p, u.id])} className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl transition-all ${sel ? "bg-red-50 dark:bg-red-500/20 ring-1 ring-[#B8112D]/20" : "hover:bg-gray-50 dark:hover:bg-white/10"}`}>
                     <Avatar name={u.name} src={u.profilePic} size="sm" online={u.isOnline} />
                     <div className="flex-1 min-w-0 text-left"><p className="text-xs font-semibold text-gray-900 dark:text-gray-100 truncate">{u.name}</p><p className="text-[10px] text-gray-500 dark:text-gray-400 capitalize">{u.csrCode ?? u.role ?? u.email}</p></div>
+                    {sel && (
+                      <span
+                        role="button"
+                        tabIndex={0}
+                        onClick={(e) => { e.stopPropagation(); setGroupAdminIds((p) => p.includes(u.id) ? p.filter((id) => id !== u.id) : [...p, u.id]); }}
+                        className={`text-[10px] font-bold px-2 py-1 rounded-lg ${groupAdminIds.includes(u.id) ? "bg-[#0F172A] text-white" : "bg-gray-100 text-gray-600"}`}
+                      >
+                        {groupAdminIds.includes(u.id) ? "Admin" : "Make admin"}
+                      </span>
+                    )}
                     <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${sel ? "bg-[#B8112D] border-[#B8112D]" : "border-gray-300 dark:border-gray-500"}`}>{sel && <Check size={8} className="text-white" />}</div>
                   </button>
                 );
               })}
             </div>
             <div className="px-4 py-3 border-t border-gray-100 shrink-0 flex gap-2">
-              <button onClick={() => { setShowGroupModal(false); setGroupName(""); setSelectedUsers([]); setUserSearch(""); }} className="flex-1 h-9 rounded-xl bg-[#F5F6FA] text-gray-600 font-semibold text-sm hover:bg-gray-100 transition-colors">Cancel</button>
+              <button onClick={() => { setShowGroupModal(false); setGroupName(""); setSelectedUsers([]); setGroupAdminIds([]); setWhoCanSend("everyone"); setUserSearch(""); }} className="flex-1 h-9 rounded-xl bg-[#F5F6FA] text-gray-600 font-semibold text-sm hover:bg-gray-100 transition-colors">Cancel</button>
               <button onClick={() => void createGroup()} disabled={!groupName.trim() || creatingGroup} className={`flex-1 h-9 rounded-xl font-semibold text-sm flex items-center justify-center gap-1.5 transition-all ${groupName.trim() && !creatingGroup ? "bg-[#B8112D] text-white hover:bg-[#a30f27] shadow-sm" : "bg-gray-100 text-gray-400 cursor-not-allowed"}`}>
                 {creatingGroup ? <><Loader2 size={13} className="animate-spin" />Creating...</> : <><Plus size={13} />Create</>}
               </button>

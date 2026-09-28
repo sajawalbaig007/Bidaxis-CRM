@@ -2,8 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
-import { ChevronDown, Clock, Download, LogIn, LogOut } from "lucide-react";
-import API from "@/lib/api";
+import { ChevronDown, Clock, Download, LogIn, LogOut, Pencil, X } from "lucide-react";
+import toast from "react-hot-toast";
+import API, { apiErrorMessage } from "@/lib/api";
 import { EST_TZ_ABBR, EST_TZ_LABEL } from "@/lib/estTime";
 
 type ClockTz = "est" | "pkt";
@@ -71,6 +72,42 @@ function formatStamp(day: string, time: string | null, tz: string): string {
   }).format(date);
 }
 
+function zonedParts(date: Date, timeZone: string): { day: string; time: string } {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(date);
+  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? "";
+  const hour = get("hour") === "24" ? "00" : get("hour");
+  return { day: `${get("year")}-${get("month")}-${get("day")}`, time: `${hour.padStart(2, "0")}:${get("minute").padStart(2, "0")}` };
+}
+
+function pktToWall(day: string, time: string, tz: string): { day: string; time: string } {
+  const date = pktInstant(day, time);
+  if (!date) return { day, time };
+  return zonedParts(date, tz);
+}
+
+function wallToPkt(day: string, time: string, tz: string): { day: string; time: string } | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || !/^\d{2}:\d{2}$/.test(time)) return null;
+  if (tz === "Asia/Karachi") return { day, time };
+  const [y, m, d] = day.split("-").map(Number);
+  const [hh, mm] = time.split(":").map(Number);
+  let utc = Date.UTC(y, (m || 1) - 1, d || 1, hh || 0, mm || 0);
+  for (let i = 0; i < 3; i++) {
+    const wall = zonedParts(new Date(utc), tz);
+    const [wy, wm, wd] = wall.day.split("-").map(Number);
+    const [wh, wmin] = wall.time.split(":").map(Number);
+    utc += Date.UTC(y, (m || 1) - 1, d || 1, hh || 0, mm || 0) - Date.UTC(wy, (wm || 1) - 1, wd || 1, wh || 0, wmin || 0);
+  }
+  return zonedParts(new Date(utc), "Asia/Karachi");
+}
+
 function durationLabel(day: string, checkIn: string | null, checkOut: string | null): string {
   if (!checkIn || !checkOut) return checkIn && !checkOut ? "Still in" : "—";
   const start = pktInstant(day, checkIn);
@@ -120,6 +157,7 @@ export default function StaffAttendanceReport() {
   }, []);
 
   const onReports = pathname.startsWith("/admin") || pathname.startsWith("/manager");
+  const canEdit = pathname.startsWith("/admin");
 
   useEffect(() => {
     if (!onReports) return;
@@ -138,6 +176,7 @@ export default function StaffAttendanceReport() {
           rows={rows.filter((r) => r.department === dept.key)}
           loading={loading}
           loaded={loaded}
+          canEdit={canEdit}
           onRefresh={() => void load()}
         />
       ))}
@@ -151,6 +190,7 @@ function DeptCard({
   rows,
   loading,
   loaded,
+  canEdit,
   onRefresh,
 }: {
   title: string;
@@ -158,6 +198,7 @@ function DeptCard({
   rows: Row[];
   loading: boolean;
   loaded: boolean;
+  canEdit: boolean;
   onRefresh: () => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -165,7 +206,60 @@ function DeptCard({
   const [fromDate, setFromDate] = useState(() => calendarYmd("Asia/Karachi"));
   const [toDate, setToDate] = useState(() => calendarYmd("Asia/Karachi"));
   const [person, setPerson] = useState("all");
+  const [editing, setEditing] = useState<Row | null>(null);
+  const [editDay, setEditDay] = useState("");
+  const [editCheckIn, setEditCheckIn] = useState("");
+  const [editCheckOut, setEditCheckOut] = useState("");
+  const [editStillOpen, setEditStillOpen] = useState(false);
+  const [savingEdit, setSavingEdit] = useState(false);
   const clock = CLOCKS[clockTz];
+
+  const openEdit = (row: Row) => {
+    const cin = row.checkIn ? pktToWall(row.day, row.checkIn, clock.tz) : { day: row.day, time: "" };
+    const cout = row.checkOut ? pktToWall(row.day, row.checkOut, clock.tz) : { day: cin.day, time: "" };
+    setEditing(row);
+    setEditDay(cin.day);
+    setEditCheckIn(cin.time);
+    setEditCheckOut(cout.time);
+    setEditStillOpen(!row.checkOut);
+  };
+
+  const saveEdit = async () => {
+    if (!editing) return;
+    if (!editDay || !editCheckIn) {
+      toast.error("Date and check-in time are required.");
+      return;
+    }
+    if (!editStillOpen && !editCheckOut) {
+      toast.error("Enter a check-out time, or mark as still checked in.");
+      return;
+    }
+    const checkInPkt = wallToPkt(editDay, editCheckIn, clock.tz);
+    const checkOutPkt = editStillOpen ? null : wallToPkt(editDay, editCheckOut, clock.tz);
+    if (!checkInPkt || (!editStillOpen && !checkOutPkt)) {
+      toast.error("Enter a valid date and time.");
+      return;
+    }
+    if (checkOutPkt && checkOutPkt.day !== checkInPkt.day) {
+      toast.error("Check-in and check-out must fall on the same Pakistan date.");
+      return;
+    }
+    try {
+      setSavingEdit(true);
+      await API.put(`/attendance/report/${editing.id}`, {
+        day: checkInPkt.day,
+        checkIn: checkInPkt.time,
+        checkOut: checkOutPkt?.time ?? null,
+      });
+      toast.success("Time saved.");
+      setEditing(null);
+      onRefresh();
+    } catch (err) {
+      toast.error(apiErrorMessage(err, "Could not save time."));
+    } finally {
+      setSavingEdit(false);
+    }
+  };
 
   const people = useMemo(() => {
     const map = new Map<string, string>();
@@ -277,13 +371,14 @@ function DeptCard({
               <thead>
                 <tr className="text-left text-[10px] uppercase tracking-wide text-gray-400 border-b border-gray-100">
                   {headers.map((h) => <th key={h} className="px-3 py-2 font-semibold whitespace-nowrap">{h}</th>)}
+                  {canEdit ? <th className="px-3 py-2" /> : null}
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan={6} className="px-3 py-8 text-gray-400">Loading…</td></tr>
+                  <tr><td colSpan={canEdit ? 7 : 6} className="px-3 py-8 text-gray-400">Loading…</td></tr>
                 ) : visible.length === 0 ? (
-                  <tr><td colSpan={6} className="px-3 py-8 text-center text-gray-400">No check-in sessions in this date range</td></tr>
+                  <tr><td colSpan={canEdit ? 7 : 6} className="px-3 py-8 text-center text-gray-400">No check-in sessions in this date range</td></tr>
                 ) : visible.map((row) => (
                   <tr key={row.id} className="border-b border-gray-50">
                     <td className="px-3 py-3 font-semibold">{row.personName}</td>
@@ -303,6 +398,18 @@ function DeptCard({
                         {row.checkOut ? "Checked Out" : "Checked In"}
                       </span>
                     </td>
+                    {canEdit ? (
+                      <td className="px-3 py-3">
+                        <button
+                          type="button"
+                          onClick={() => openEdit(row)}
+                          className="inline-flex items-center gap-1 h-8 px-2.5 rounded-lg bg-[#FFF1F3] text-[#B8112D] text-[11px] font-bold hover:bg-[#B8112D] hover:text-white transition-colors"
+                        >
+                          <Pencil size={12} />
+                          Edit
+                        </button>
+                      </td>
+                    ) : null}
                   </tr>
                 ))}
               </tbody>
@@ -310,6 +417,47 @@ function DeptCard({
           </div>
         </div>
       )}
+      {editing && canEdit ? (
+        <div className="fixed inset-0 z-[120] bg-black/45 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="w-full sm:max-w-md bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+              <div>
+                <h3 className="text-base font-bold text-[#111827]">Edit date and time</h3>
+                <p className="text-xs text-gray-400 mt-0.5">{editing.personName} · {clock.label}</p>
+              </div>
+              <button type="button" onClick={() => setEditing(null)} className="w-8 h-8 rounded-xl bg-gray-100 text-gray-500 flex items-center justify-center">
+                <X size={14} />
+              </button>
+            </div>
+            <div className="p-5 space-y-3.5">
+              <div>
+                <label className="text-[10px] font-semibold text-gray-500 uppercase mb-1 block">Date</label>
+                <input type="date" value={editDay} onChange={(e) => setEditDay(e.target.value)} className="w-full h-11 rounded-xl border-2 border-gray-200 px-3 text-sm outline-none focus:border-[#B8112D]" />
+              </div>
+              <div>
+                <label className="text-[10px] font-semibold text-gray-500 uppercase mb-1 block">Check in</label>
+                <input type="time" value={editCheckIn} onChange={(e) => setEditCheckIn(e.target.value)} className="w-full h-11 rounded-xl border-2 border-gray-200 px-3 text-sm outline-none focus:border-[#B8112D]" />
+              </div>
+              <label className="flex items-center gap-2 text-sm text-gray-700">
+                <input type="checkbox" checked={editStillOpen} onChange={(e) => setEditStillOpen(e.target.checked)} className="rounded border-gray-300" />
+                Still checked in
+              </label>
+              {!editStillOpen ? (
+                <div>
+                  <label className="text-[10px] font-semibold text-gray-500 uppercase mb-1 block">Check out</label>
+                  <input type="time" value={editCheckOut} onChange={(e) => setEditCheckOut(e.target.value)} className="w-full h-11 rounded-xl border-2 border-gray-200 px-3 text-sm outline-none focus:border-[#B8112D]" />
+                </div>
+              ) : null}
+            </div>
+            <div className="px-5 pb-5 flex gap-2">
+              <button type="button" onClick={() => setEditing(null)} className="flex-1 h-11 rounded-xl bg-gray-100 text-gray-600 font-semibold text-sm">Cancel</button>
+              <button type="button" onClick={() => void saveEdit()} disabled={savingEdit} className="flex-1 h-11 rounded-xl bg-[#B8112D] text-white font-semibold text-sm disabled:opacity-50">
+                {savingEdit ? "Saving…" : "Save"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

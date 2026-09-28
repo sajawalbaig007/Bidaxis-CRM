@@ -775,6 +775,7 @@ export default function AdminProjectsPage() {
   const [stats,     setStats]     = useState<Stats>({ total: 0, withBudget: 0, thisMonth: 0 });
   const [loading,   setLoading]   = useState(true);
   const [search,    setSearch]    = useState("");
+  const projectsReq = useRef(0);
   const [stateFilter, setStateFilter] = useState("");
   const [phoneFilter, setPhoneFilter] = useState("");
   const [filterCSR, setFilterCSR] = useState("all");
@@ -1278,6 +1279,7 @@ export default function AdminProjectsPage() {
   };
 
   const fetchProjects = useCallback(async (silent = false) => {
+    const reqId = ++projectsReq.current;
     try {
       if (!silent) setLoading(true);
       const { leads, total } = await fetchAllAdminProjects<Project>({
@@ -1286,6 +1288,7 @@ export default function AdminProjectsPage() {
         to: hideClientFinanceCols ? (dateTo || undefined) : undefined,
         search: search.trim() || undefined,
       });
+      if (reqId !== projectsReq.current) return;
       const purged = leads.filter((p) => !deletedIdsRef.current.has(p.id));
       setProjects(purged);
       setStats({
@@ -1294,16 +1297,22 @@ export default function AdminProjectsPage() {
         thisMonth: purged.filter((p) => projectAddedYearMonth(p.createdAt) === projectAddedYearMonth(new Date())).length,
       });
     } catch {
+      if (reqId !== projectsReq.current) return;
       if (!silent) toast.error("Failed to load projects");
     } finally {
-      if (!silent) setLoading(false);
+      if (reqId === projectsReq.current && !silent) setLoading(false);
     }
   }, [filterCSR, search, hideClientFinanceCols, dateFrom, dateTo]);
 
   useEffect(() => {
-    API.get("/admin/csrs")
-      .then(res => setAllCsrs(res.data.csrs ?? []))
-      .catch(() => {});
+    const load = () => {
+      API.get("/admin/csrs")
+        .then(res => setAllCsrs(res.data.csrs ?? []))
+        .catch(() => {});
+    };
+    load();
+    window.addEventListener("focus", load);
+    return () => window.removeEventListener("focus", load);
   }, []);
 
   useEffect(() => {
@@ -1331,12 +1340,17 @@ export default function AdminProjectsPage() {
 
   const baseFiltered = projects.filter((p) => {
     const q = search.toLowerCase().trim();
+    const compact = (s: string) => s.toLowerCase().replace(/[\s-]/g, "");
+    const qCompact = compact(q);
     const matchSearch =
       !q ||
       (p.name ?? "").toLowerCase().includes(q) ||
       (p.projectTitle ?? "").toLowerCase().includes(q) ||
       (p.projectCode ?? "").toLowerCase().includes(q) ||
       (p.clientCode ?? "").toLowerCase().includes(q) ||
+      (qCompact.length > 0 && compact(p.projectCode ?? "").includes(qCompact)) ||
+      (qCompact.length > 0 && compact(p.clientCode ?? "").includes(qCompact)) ||
+      (p.csr?.csrCode ?? "").toLowerCase().includes(q) ||
       (p.company ?? "").toLowerCase().includes(q);
     const matchState = matchesStateLocationFilter(p.state, p.phone, stateFilter);
     const matchPhone = matchesPhoneAreaCodeFilter(p.phone, phoneFilter);
