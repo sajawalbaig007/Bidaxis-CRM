@@ -8,7 +8,7 @@ import {
   Check, CheckCheck, ChevronLeft, Loader2, Paperclip,
   Mic, StopCircle, Play, Pause, Download, FileText,
   Film, Music, Image as ImageIcon,
-  Trash2, Reply, Copy, Pin, PinOff, Pencil, Smile,
+  Trash2, Reply, Copy, Pin, PinOff, Pencil, Smile, Eye,
   Archive, ArchiveRestore, Settings,
 } from "lucide-react";
 import API, { apiErrorMessage } from "@/lib/api";
@@ -881,7 +881,7 @@ export default function ChatPanel({
 
   const handleCtxMenu = (e: React.MouseEvent, msg: Message) => {
     e.preventDefault();
-    const menuH = 380;
+    const menuH = Math.min(520, window.innerHeight - 24);
     const x = Math.min(e.clientX, window.innerWidth - 230);
     const y = Math.max(72, Math.min(e.clientY, window.innerHeight - menuH));
     setCtxMenu({ x, y, msg, canEdit: messageCanEdit(msg) });
@@ -1631,13 +1631,42 @@ export default function ChatPanel({
       {ctxMenu && (
         <>
           <div className="fixed inset-0 z-[200] pointer-events-auto" onClick={() => setCtxMenu(null)} onContextMenu={e => { e.preventDefault(); setCtxMenu(null); }} />
-          <div className="fixed z-[201] bg-white rounded-2xl shadow-xl border border-gray-100 py-1.5 min-w-[200px] overflow-hidden pointer-events-auto" style={{ top: ctxMenu.y, left: ctxMenu.x }} onClick={e => e.stopPropagation()}>
+          <div className="fixed z-[201] bg-white rounded-2xl shadow-xl border border-gray-100 py-1.5 min-w-[220px] max-h-[70vh] overflow-y-auto pointer-events-auto" style={{ top: ctxMenu.y, left: ctxMenu.x }} onClick={e => e.stopPropagation()}>
             <button onClick={() => handleReply(ctxMenu.msg)} className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-gray-900 dark:text-gray-100 hover:bg-[#F5F6FA] transition-colors"><Reply size={13} className="text-gray-400" />Reply</button>
             {ctxMenu.msg.type === "text" && <button onClick={() => void copyText(ctxMenu.msg.text)} className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-gray-900 dark:text-gray-100 hover:bg-[#F5F6FA] transition-colors"><Copy size={13} className="text-gray-400" />Copy text</button>}
             {ctxMenu.canEdit && (
               <button onClick={() => { setEditingMsg(ctxMenu.msg); setEditText(ctxMenu.msg.text); setCtxMenu(null); }} className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-gray-900 dark:text-gray-100 hover:bg-[#F5F6FA] transition-colors"><Pencil size={13} className="text-gray-400" />Edit</button>
             )}
             <button onClick={() => void pinMessage(ctxMenu.msg)} className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-gray-900 dark:text-gray-100 hover:bg-[#F5F6FA] transition-colors"><Pin size={13} className="text-gray-400" />Pin message</button>
+            <div className="border-t border-gray-100 my-1 px-4 py-2">
+              <p className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-gray-400 mb-1"><Eye size={12} />Seen by</p>
+              {(ctxMenu.msg.readBy ?? []).length > 0 ? (
+                <ul className="space-y-0.5">
+                  {(ctxMenu.msg.readBy ?? []).map((name, i) => (
+                    <li key={`${name}-${i}`} className="text-xs font-semibold text-gray-800">{name}</li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-xs text-gray-400">No one yet</p>
+              )}
+            </div>
+            <div className="border-t border-gray-100 px-4 py-2">
+              <p className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-gray-400 mb-1"><Smile size={12} />Reactions</p>
+              {Object.entries(ctxMenu.msg.reactions ?? {}).filter(([, ids]) => ids.length > 0).length > 0 ? (
+                <ul className="space-y-1">
+                  {Object.entries(ctxMenu.msg.reactions ?? {}).filter(([, ids]) => ids.length > 0).map(([emoji, ids]) => (
+                    <li key={emoji} className="text-xs text-gray-800">
+                      <span className="mr-1">{emoji}</span>
+                      <span className="font-semibold">
+                        {ids.map((id) => groupMembers.find((m) => m.id === id)?.name || (me?.id === id ? "You" : "Someone")).join(", ")}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-xs text-gray-400">No reactions</p>
+              )}
+            </div>
             <div className="border-t border-gray-100 my-1 px-1"><ReactionPicker onPick={emoji => void toggleReaction(ctxMenu.msg, emoji)} /></div>
             {!isStealthView && (
               <button

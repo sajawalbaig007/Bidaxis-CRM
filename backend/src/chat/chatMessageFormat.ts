@@ -15,17 +15,16 @@ export function msgStatus(
   createdAt: Date,
   members: { userId: string; lastReadAt: Date | null; user: { name: string; email?: string | null; role?: string | null } }[]
 ): { status: string; readBy: string[] } {
-  const others = members.filter(m => m.userId !== userId);
+  const readers = members.filter(m => m.userId !== senderId && m.lastReadAt && m.lastReadAt >= createdAt);
+  const readBy = readers.map(m => chatDisplayName(m.user));
   if (senderId === userId) {
-    const readBy = others
-      .filter(m => m.lastReadAt && m.lastReadAt >= createdAt)
-      .map(m => chatDisplayName(m.user));
-    const allRead = others.length > 0 && readBy.length === others.length;
+    const others = members.filter(m => m.userId !== userId);
+    const allRead = others.length > 0 && readers.length === others.length;
     return { status: allRead ? "read" : "delivered", readBy };
   }
   const me = members.find(m => m.userId === userId);
   const read = me?.lastReadAt && me.lastReadAt >= createdAt;
-  return { status: read ? "read" : "delivered", readBy: [] };
+  return { status: read ? "read" : "delivered", readBy };
 }
 
 export function formatMessage(
