@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { LogIn, LogOut, Loader2 } from "lucide-react";
 import toast from "react-hot-toast";
 import API, { apiErrorMessage } from "@/lib/api";
+import { requestEstimatorIdlePermission } from "@/app/estimator/components/EstimatorPresenceInit";
 
 type WorkSession = {
   id: string;
@@ -111,6 +112,7 @@ export default function EstimatorCheckInControl({ compact = false }: { compact?:
     : session?.totalDuration ?? "";
 
   const checkIn = async () => {
+    requestEstimatorIdlePermission();
     setBusy(true);
     try {
       const res = await API.post<StatusResponse>("/estimator/check-in", {});
