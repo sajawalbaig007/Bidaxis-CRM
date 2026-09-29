@@ -2,10 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  CheckSquare, Plus, Pencil, Trash2, UserPlus, Users, X, Loader2, Search, FileText,
+  Archive, CheckSquare, Plus, Pencil, Trash2, UserPlus, Users, X, Loader2, Search, FileText,
 } from "lucide-react";
 import toast from "react-hot-toast";
-import API, { getApiBase } from "@/lib/api";
+import API, { apiErrorMessage, getApiBase } from "@/lib/api";
 import RequiredMark from "@/app/components/form/RequiredMark";
 import { PdfPreview } from "@/app/components/chat/MessageExtras";
 import { ACCOUNTS_PAYROLL_HEADS, payrollHeadShortLabel } from "@/app/admin/utils/accountsPayrollHeads";
@@ -50,6 +50,7 @@ export type StaffEmployeeRow = {
   isOnline: boolean;
   lastActive: string | null;
   notes: string | null;
+  allowedIps: string[];
   payrollHead: string | null;
   payrollStartMonth: string | null;
   createdAt: string;
@@ -79,6 +80,7 @@ type ManualForm = {
   cnicPdfUrl: string;
   csrCode: string;
   notes: string;
+  allowedIps: string[];
   payrollHead: string;
   payrollStartMonth: string;
 };
@@ -96,6 +98,7 @@ const EMPTY_MANUAL: ManualForm = {
   cnicPdfUrl: "",
   csrCode: "",
   notes: "",
+  allowedIps: [""],
   payrollHead: "",
   payrollStartMonth: "",
 };
@@ -117,6 +120,7 @@ export default function AllEmployeesPanel({ dashboardUsers }: AllEmployeesPanelP
   const [saving, setSaving] = useState(false);
   const [manualForm, setManualForm] = useState<ManualForm>(EMPTY_MANUAL);
   const [uploadingCnic, setUploadingCnic] = useState(false);
+  const [oldListTick, setOldListTick] = useState(0);
 
   const load = useCallback(async () => {
     try {
@@ -157,7 +161,7 @@ export default function AllEmployeesPanel({ dashboardUsers }: AllEmployeesPanelP
     const q = search.trim().toLowerCase();
     if (!q) return employees;
     return employees.filter((e) =>
-      [e.name, e.email, e.role, e.manualRole, e.employeeCode, e.contactNo, e.company, e.cnic, e.fatherName, e.payrollHead]
+      [e.name, e.email, e.role, e.manualRole, e.employeeCode, e.contactNo, e.company, e.cnic, e.fatherName, e.payrollHead, ...(e.allowedIps ?? [])]
         .filter(Boolean)
         .some((v) => String(v).toLowerCase().includes(q)),
     );
@@ -224,6 +228,7 @@ export default function AllEmployeesPanel({ dashboardUsers }: AllEmployeesPanelP
         cnicPdfUrl: row.cnicPdfUrl || "",
         csrCode: row.csrCode || "",
         notes: row.notes || "",
+        allowedIps: row.allowedIps?.length ? row.allowedIps : [""],
         payrollHead: row.payrollHead || "",
         payrollStartMonth: row.payrollStartMonth || "",
       });
@@ -291,6 +296,9 @@ export default function AllEmployeesPanel({ dashboardUsers }: AllEmployeesPanelP
         cnicPdfUrl: manualForm.cnicPdfUrl.trim() || null,
         csrCode: manualForm.csrCode.trim() || null,
         notes: manualForm.notes.trim() || null,
+        ...(isManual
+          ? { allowedIps: manualForm.allowedIps.map((v) => v.trim()).filter(Boolean).slice(0, 5) }
+          : {}),
         payrollHead: manualForm.payrollHead || null,
         payrollStartMonth: manualForm.payrollHead
           ? manualForm.payrollStartMonth || null
@@ -312,6 +320,20 @@ export default function AllEmployeesPanel({ dashboardUsers }: AllEmployeesPanelP
       toast.error(editing ? "Update failed" : "Create failed");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const moveToOld = async (row: StaffEmployeeRow) => {
+    const loginNote = row.source === "dashboard" ? " Their dashboard login stays." : "";
+    if (!confirm(`Move ${row.name} to old employees? They will leave All Employees and show under Previous names.${loginNote}`)) return;
+    try {
+      const res = await API.post(`/admin/staff-employees/${row.id}/move-to-previous`);
+      setEmployees((res.data?.employees as StaffEmployeeRow[]) ?? []);
+      setOldListTick((n) => n + 1);
+      toast.success(`${row.name} moved to old employees`);
+      if (detail?.id === row.id) setDetail(null);
+    } catch (err) {
+      toast.error(apiErrorMessage(err, "Could not move employee"));
     }
   };
 
@@ -484,6 +506,14 @@ export default function AllEmployeesPanel({ dashboardUsers }: AllEmployeesPanelP
                           title="Edit"
                         >
                           <Pencil size={14} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void moveToOld(e)}
+                          className="w-8 h-8 rounded-xl text-amber-700 hover:bg-amber-50 inline-flex items-center justify-center"
+                          title="Move to old employees"
+                        >
+                          <Archive size={14} />
                         </button>
                         <button
                           type="button"
@@ -671,6 +701,54 @@ export default function AllEmployeesPanel({ dashboardUsers }: AllEmployeesPanelP
                       >
                         {c === "GPS" ? "GPS · Global" : "BEM Solutions"}
                       </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {(!editing || editing.source === "manual") && (
+                <div className="border border-gray-100 rounded-2xl p-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <div>
+                      <p className="text-xs font-semibold text-gray-700">IP access <span className="font-normal text-gray-400">(optional)</span></p>
+                      <p className="text-[11px] text-gray-400">Leave blank for the company network only. Up to 5 addresses.</p>
+                    </div>
+                    {manualForm.allowedIps.length < 5 && (
+                      <button
+                        type="button"
+                        onClick={() => setManualForm((f) => ({ ...f, allowedIps: [...f.allowedIps, ""] }))}
+                        className="w-7 h-7 rounded-lg bg-[#B8112D] text-white flex items-center justify-center"
+                        title="Add IP"
+                      >
+                        <Plus size={14} />
+                      </button>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    {manualForm.allowedIps.map((ip, idx) => (
+                      <div key={`ip-${idx}`} className="flex items-center gap-2 min-w-0">
+                        <input
+                          type="text"
+                          value={ip}
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            setManualForm((f) => ({
+                              ...f,
+                              allowedIps: f.allowedIps.map((v, i) => (i === idx ? value : v)),
+                            }));
+                          }}
+                          placeholder={`Approved IP ${idx + 1}`}
+                          className="flex-1 min-w-0 h-10 rounded-xl border border-gray-200 px-3 text-sm outline-none focus:ring-2 focus:ring-[#B8112D]/20"
+                        />
+                        {manualForm.allowedIps.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => setManualForm((f) => ({ ...f, allowedIps: f.allowedIps.filter((_, i) => i !== idx) }))}
+                            className="text-xs font-semibold text-red-500 shrink-0 px-1"
+                          >
+                            Remove
+                          </button>
+                        )}
+                      </div>
                     ))}
                   </div>
                 </div>
@@ -866,6 +944,9 @@ export default function AllEmployeesPanel({ dashboardUsers }: AllEmployeesPanelP
                 { label: "Role", value: detail.role },
                 { label: "Company", value: detail.company === "GPS" ? "GPS · Global" : "BEM Solutions" },
                 { label: "Source", value: detail.source === "dashboard" ? "Dashboard" : "Manual" },
+                ...(detail.source === "manual"
+                  ? [{ label: "IP access", value: detail.allowedIps?.filter(Boolean).join(", ") || "Company network" }]
+                  : []),
                 { label: "Email", value: detail.email },
               ].map((f) => (
                 <div key={f.label} className="rounded-xl bg-[#F8FAFC] px-3.5 py-2.5">
@@ -957,7 +1038,7 @@ export default function AllEmployeesPanel({ dashboardUsers }: AllEmployeesPanelP
         </div>
       )}
 
-      <PreviousMergedEmployeesPanel currentEmployees={employees} />
+      <PreviousMergedEmployeesPanel currentEmployees={employees} refreshKey={oldListTick} />
     </div>
   );
 }

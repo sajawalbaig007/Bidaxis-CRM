@@ -6,6 +6,7 @@ import {
   ATTENDANCE_REVISE_TOKEN,
   CHIEF_ESTIMATOR_NAME,
   AttendanceDept,
+  attendanceNetworkMessage,
   departmentNeedsOfficeIp,
   isValidDay,
   isValidTime,
@@ -33,7 +34,7 @@ function isRosterDept(value: string): value is RosterDept {
 
 async function gateOffice(req: AuthRequest, department: string) {
   if (!departmentNeedsOfficeIp(department)) return null;
-  return officeNetworkMessage(req);
+  return attendanceNetworkMessage(req);
 }
 
 router.get("/roster", async (_req, res) => {

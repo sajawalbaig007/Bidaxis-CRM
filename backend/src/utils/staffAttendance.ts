@@ -26,7 +26,7 @@ export const DEPT_ROSTER = {
 export type RosterDept = keyof typeof DEPT_ROSTER;
 export type AttendanceDept = RosterDept | "chief_estimator" | "admin" | "accounts";
 
-const IP_GATED: AttendanceDept[] = ["office_boy", "hr", "bim_modeler"];
+const IP_GATED: AttendanceDept[] = ["dev", "office_boy", "hr", "bim_modeler"];
 
 export function pktNow(d = new Date()): { day: string; time: string } {
   const fmt = new Intl.DateTimeFormat("en-GB", {
@@ -93,6 +93,26 @@ export async function officeNetworkMessage(req: Request): Promise<string | null>
   return "This account is restricted to the company network.";
 }
 
+/** Attendance pages: company network plus optional IPs saved on manual employees. */
+export async function attendanceNetworkMessage(req: Request): Promise<string | null> {
+  const office = await getOfficeAllowedIps();
+  const staff = await prisma.staffEmployee.findMany({
+    where: { userId: null },
+    select: { allowedIps: true },
+  });
+  const allowed = new Set(office);
+  for (const row of staff) {
+    for (const ip of row.allowedIps ?? []) {
+      const cleaned = ip.trim();
+      if (cleaned) allowed.add(cleaned);
+    }
+  }
+  if (allowed.size === 0) return null;
+  const ip = getClientIp(req);
+  if (allowed.has(ip)) return null;
+  return "This account is restricted to the company network.";
+}
+
 export function departmentNeedsOfficeIp(department: string): boolean {
   return IP_GATED.includes(department as AttendanceDept);
 }
@@ -103,7 +123,7 @@ export function rosterPerson(department: RosterDept, personKey: string) {
 
 export function publicRoster() {
   return {
-    dev: { title: "Dev", people: DEPT_ROSTER.dev, officeOnly: false },
+    dev: { title: "Dev", people: DEPT_ROSTER.dev, officeOnly: true },
     office_boy: { title: "Office Boy", people: DEPT_ROSTER.office_boy, officeOnly: true },
     hr: { title: "HR", people: DEPT_ROSTER.hr, officeOnly: true },
     bim_modeler: { title: "BIM Modeler", people: DEPT_ROSTER.bim_modeler, officeOnly: true },

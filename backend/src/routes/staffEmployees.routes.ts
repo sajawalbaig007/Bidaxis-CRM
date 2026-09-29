@@ -2,12 +2,14 @@ import express from "express";
 import prisma from "../config/db";
 import { verifyToken, AuthRequest } from "../middleware/auth.middleware";
 import { allowRoles } from "../middleware/role.middleware";
+import { sanitizeIpList } from "../utils/networkAccess";
 import { isAccountsPayrollHead } from "../utils/staffPayrollSync";
 import { invalidatePattern } from "../utils/cache";
 import {
   listPreviousEmployeeRows,
   mergePreviousByName,
   mergePreviousEmployee,
+  moveStaffEmployeeToPrevious,
   scanPreviousEmployees,
   unmergePreviousEmployee,
 } from "../utils/employeeNameMerge";
@@ -57,6 +59,10 @@ function payrollFields(r: { payrollHead?: string | null; payrollStartMonth?: str
     payrollHead: r.payrollHead ?? null,
     payrollStartMonth: r.payrollStartMonth ?? null,
   };
+}
+
+function ipFields(r: { allowedIps?: string[] | null }) {
+  return { allowedIps: (r.allowedIps ?? []).filter(Boolean).slice(0, 5) };
 }
 
 /** Enrich roster rows: linked users get live User details. */
@@ -114,6 +120,7 @@ async function listEnriched() {
           lastActive: u.lastActive,
           notes: r.notes,
           ...payrollFields(r),
+          allowedIps: [] as string[],
           createdAt: r.createdAt,
           updatedAt: r.updatedAt,
         };
@@ -140,6 +147,7 @@ async function listEnriched() {
         lastActive: null as Date | null,
         notes: r.notes,
         ...payrollFields(r),
+        allowedIps: [] as string[],
         createdAt: r.createdAt,
         updatedAt: r.updatedAt,
       };
@@ -166,6 +174,7 @@ async function listEnriched() {
       lastActive: null as Date | null,
       notes: r.notes,
       ...payrollFields(r),
+      ...ipFields(r),
       createdAt: r.createdAt,
       updatedAt: r.updatedAt,
     };
@@ -373,6 +382,7 @@ router.post("/", async (req: AuthRequest, res) => {
         cnicPdfUrl: strOrNull(req.body?.cnicPdfUrl),
         profilePic: strOrNull(req.body?.profilePic),
         notes: strOrNull(req.body?.notes),
+        allowedIps: sanitizeIpList(req.body?.allowedIps),
         payrollHead: normalizePayrollHead(req.body?.payrollHead),
         payrollStartMonth: normalizeStartMonth(req.body?.payrollStartMonth),
       },
@@ -480,6 +490,9 @@ router.put("/:id", async (req: AuthRequest, res) => {
         ...(cnicPdfUrl !== undefined ? { cnicPdfUrl } : {}),
         profilePic: strOrNull(req.body?.profilePic),
         notes,
+        ...(req.body?.allowedIps !== undefined
+          ? { allowedIps: sanitizeIpList(req.body.allowedIps) }
+          : {}),
         ...payrollPatch,
       },
     });
@@ -489,6 +502,20 @@ router.put("/:id", async (req: AuthRequest, res) => {
   } catch (err) {
     console.error("[staff-employees] PUT", err);
     return res.status(500).json({ success: false, message: "Failed to update employee" });
+  }
+});
+
+router.post("/:id/move-to-previous", async (req: AuthRequest, res) => {
+  try {
+    const id = String(req.params.id || "");
+    const name = await moveStaffEmployeeToPrevious(id);
+    const [employees, previous] = await Promise.all([listEnriched(), listPreviousEmployeeRows()]);
+    return res.json({ success: true, name, employees, previous });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Failed to move employee";
+    const status = msg === "Employee not found." ? 404 : 400;
+    console.error("[staff-employees] POST move-to-previous", err);
+    return res.status(status).json({ success: false, message: msg });
   }
 });
 

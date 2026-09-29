@@ -334,10 +334,23 @@ export async function listPreviousEmployeeRows(): Promise<PreviousEmployeeRow[]>
     });
   }
 
+  const staffKeys = new Set<string>();
+  for (const name of staffName.values()) {
+    const k = pfNormName(name);
+    if (k) staffKeys.add(k);
+  }
+
   for (const r of stored) {
     if (r.status === "merged") continue;
     const key = r.previousNameKey || pfNormName(r.previousName);
-    if (used.has(key) || current.has(key)) continue;
+    if (!key || used.has(key)) continue;
+    // "moved" rows stay on the old list even if a dashboard login with that name still exists.
+    // They drop off only when the name is back on All Employees.
+    if (r.status === "moved") {
+      if (staffKeys.has(key)) continue;
+    } else if (current.has(key)) {
+      continue;
+    }
     used.add(key);
     out.push(mapStoredRow(r, pfTotals, staffName));
   }
@@ -403,6 +416,54 @@ export async function mergePreviousByName(
     });
   }
   return mergePreviousEmployee(existing.id, target);
+}
+
+/** Take someone off All Employees and list them under Previous names. Dashboard login is kept. */
+export async function moveStaffEmployeeToPrevious(staffId: string): Promise<string> {
+  const row = await prisma.staffEmployee.findUnique({ where: { id: staffId } });
+  if (!row) throw new Error("Employee not found.");
+
+  let name = (row.name || "").trim();
+  if (row.userId) {
+    const user = await prisma.user.findUnique({
+      where: { id: row.userId },
+      select: { name: true },
+    });
+    if (user?.name?.trim()) name = user.name.trim();
+  }
+  const key = pfNormName(name);
+  if (!name || !key) throw new Error("Employee name is required.");
+
+  const today = new Date().toISOString().slice(0, 10);
+  const start = row.payrollStartMonth && /^\d{4}-\d{2}$/.test(row.payrollStartMonth)
+    ? `${row.payrollStartMonth}-01`
+    : today;
+  const existing = await prisma.employeeNameMerge.findUnique({ where: { previousNameKey: key } });
+
+  if (!existing || existing.status !== "merged") {
+    const data = {
+      previousName: name,
+      payrollHead: row.payrollHead || existing?.payrollHead || null,
+      firstSeen: existing?.firstSeen || start,
+      lastSeen: today,
+      status: "moved",
+      currentName: null,
+      currentNameKey: null,
+      currentStaffId: null,
+      currentUserId: null,
+      mergedAt: null,
+    };
+    if (existing) {
+      await prisma.employeeNameMerge.update({ where: { id: existing.id }, data });
+    } else {
+      await prisma.employeeNameMerge.create({
+        data: { ...data, previousNameKey: key },
+      });
+    }
+  }
+
+  await prisma.staffEmployee.delete({ where: { id: staffId } });
+  return name;
 }
 
 export async function unmergePreviousEmployee(id: string): Promise<PreviousEmployeeRow | null> {

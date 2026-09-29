@@ -206,8 +206,9 @@ function VoicePlayer({ fileUrl, isOwn }: { fileUrl: string; isOwn: boolean }) {
 }
 
 /* ── */
-function MessageBubble({ msg, isGroup, showAvatar, myId, mineColor, textColor, fontFamily, onCtxMenu, onReply, onJumpToReply, onReact }: {
+function MessageBubble({ msg, isGroup, showAvatar, myId, mineColor, textColor, fontFamily, selectable, selected, onToggleSelect, onCtxMenu, onReply, onJumpToReply, onReact }: {
   msg: Message; isGroup: boolean; showAvatar: boolean; myId?: string; mineColor?: string; textColor?: string; fontFamily?: string;
+  selectable?: boolean; selected?: boolean; onToggleSelect?: () => void;
   onCtxMenu: (e: React.MouseEvent, msg: Message) => void;
   onReply:   (msg: Message) => void;
   onJumpToReply: (id: string) => void;
@@ -230,9 +231,15 @@ function MessageBubble({ msg, isGroup, showAvatar, myId, mineColor, textColor, f
   return (
     <div
       id={`msg-${msg.id}`}
-      className="flex w-full"
+      className={`flex w-full ${selectable ? "cursor-pointer" : ""}`}
       style={{ justifyContent: own ? "flex-end" : "flex-start" }}
+      onClick={selectable ? () => onToggleSelect?.() : undefined}
       onContextMenu={e => !deleted && onCtxMenu(e, msg)}>
+      {selectable && (
+        <div className={`w-5 h-5 mt-2 rounded-full border-2 flex items-center justify-center shrink-0 ${own ? "order-2 ml-2" : "mr-2"} ${selected ? "bg-[#B8112D] border-[#B8112D]" : "border-gray-300 bg-white"}`}>
+          {selected ? <Check size={10} className="text-white" /> : null}
+        </div>
+      )}
       <div className="relative group max-w-[min(85%,28rem)]">
         <div className={`flex items-end gap-2 min-w-0 ${own ? "flex-row-reverse" : ""}`}>
           {!own && showAvatar  && <Avatar name={msg.senderName} src={msg.senderProfilePic} size="sm" />}
@@ -277,7 +284,7 @@ function MessageBubble({ msg, isGroup, showAvatar, myId, mineColor, textColor, f
             )}
           </div>
         </div>
-        {!deleted && (
+        {!deleted && !selectable && (
           <div className={`absolute top-1/2 -translate-y-1/2 flex items-center gap-1 z-10 ${own ? "right-full mr-1 flex-row-reverse" : "left-full ml-1"}`}>
             <div className="relative">
               <button
@@ -511,6 +518,8 @@ export default function ChatPanel({
   const [recTime,        setRecTime]        = useState(0);
   const [notifGranted,   setNotifGranted]   = useState(() => typeof Notification !== "undefined" && Notification.permission === "granted");
   const [selectMode,     setSelectMode]     = useState(false);
+  const [msgSelectMode,  setMsgSelectMode]  = useState(false);
+  const [selectedMsgIds, setSelectedMsgIds] = useState<string[]>([]);
   const [selectedConvs,  setSelectedConvs]  = useState<string[]>([]);
   const [pinnedIds,      setPinnedIds]      = useState<Set<string>>(new Set());
   const [replyTo,        setReplyTo]        = useState<Message | null>(null);
@@ -683,6 +692,7 @@ export default function ChatPanel({
       await Promise.resolve();
       if (cancelled) return;
       setTypingName(null); setMsgSearchOpen(false); setMsgSearchText(""); setMessages([]); setLoadingMsgs(true);
+      setMsgSelectMode(false); setSelectedMsgIds([]);
       try {
         const [payload, members] = await Promise.all([
           fetchChatMessages(url),
@@ -871,7 +881,9 @@ export default function ChatPanel({
 
   const handleCtxMenu = (e: React.MouseEvent, msg: Message) => {
     e.preventDefault();
-    const x = Math.min(e.clientX, window.innerWidth - 200); const y = Math.min(e.clientY, window.innerHeight - 200);
+    const menuH = 380;
+    const x = Math.min(e.clientX, window.innerWidth - 230);
+    const y = Math.max(72, Math.min(e.clientY, window.innerHeight - menuH));
     setCtxMenu({ x, y, msg, canEdit: messageCanEdit(msg) });
   };
   const onKey = (e: React.KeyboardEvent<HTMLTextAreaElement>) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void sendText(); } };
@@ -1139,18 +1151,32 @@ export default function ChatPanel({
     setSelectedConvs([]); setSelectMode(false);
     await Promise.all(ids.map(id => API.delete(`/chat/conversations/${id}`).catch(() => {})));
   };
-  const deleteMsg = async (msgId: string, mode: "for_me" | "for_everyone") => {
+  const deleteMsgs = async (ids: string[], mode: "for_me" | "for_everyone") => {
+    const unique = [...new Set(ids.filter(Boolean))];
+    if (!unique.length || !activeConvId) return;
+    const ownIds = new Set(messages.filter(m => m.isOwn || m.senderId === me?.id).map(m => m.id));
+    const isCeo = me?.role === "admin";
+    const targets = mode === "for_everyone"
+      ? unique.filter(id => ownIds.has(id) || isCeo)
+      : unique;
+    if (!targets.length) {
+      toast.error("Delete for everyone only works on your own messages.");
+      setCtxMenu(null);
+      return;
+    }
     setCtxMenu(null);
-    const remaining = messages.filter(m => m.id !== msgId);
+    const remaining = messages.filter(m => !targets.includes(m.id));
     setMessages(remaining);
+    setSelectedMsgIds([]);
+    setMsgSelectMode(false);
     invalidateChatMessages(`/chat/conversations/${activeConvId}/messages`);
     try {
-      const res = await API.delete(`/chat/messages/${msgId}`, { data: { mode } });
-      const cleared = Boolean(res.data?.conversationCleared) || remaining.length === 0;
-      if (cleared && activeConvId) {
+      const results = await Promise.all(targets.map(id => API.delete(`/chat/messages/${id}`, { data: { mode } }).catch(() => null)));
+      const cleared = results.some(r => Boolean(r?.data?.conversationCleared)) || remaining.length === 0;
+      if (cleared && mode === "for_me") {
         setConversations(p => p.filter(c => c.id !== activeConvId));
         setActiveConvId(null);
-      } else if (activeConvId) {
+      } else {
         const last = remaining[remaining.length - 1];
         setConversations(p => p.map(c => {
           if (c.id !== activeConvId) return c;
@@ -1417,6 +1443,15 @@ export default function ChatPanel({
                 <button onClick={() => void deleteConversations([activeConv.id])} className="w-7 h-7 rounded-xl bg-gray-100 text-gray-400 hover:bg-red-50 hover:text-[#B8112D] flex items-center justify-center transition-colors"><Trash2 size={13} /></button>
               </div>
 
+              {msgSelectMode && !isStealthView && (
+                <div className="px-3 py-2 border-b border-gray-100 bg-white shrink-0 flex flex-wrap items-center gap-2">
+                  <button type="button" onClick={() => { setMsgSelectMode(false); setSelectedMsgIds([]); }} className="h-8 px-2.5 rounded-lg bg-gray-100 text-xs font-semibold text-gray-600">Cancel</button>
+                  <span className="text-xs font-bold text-gray-800">{selectedMsgIds.length} selected</span>
+                  <button type="button" disabled={!selectedMsgIds.length} onClick={() => void deleteMsgs(selectedMsgIds, "for_me")} className="h-8 px-2.5 rounded-lg bg-[#FFF1F3] text-[#B8112D] text-xs font-bold disabled:opacity-40">Delete for me</button>
+                  <button type="button" disabled={!selectedMsgIds.length} onClick={() => void deleteMsgs(selectedMsgIds, "for_everyone")} className="h-8 px-2.5 rounded-lg bg-[#B8112D] text-white text-xs font-bold disabled:opacity-40">Delete for everyone</button>
+                </div>
+              )}
+
               {showGroupSettings && activeConv.type === "group" && activeConv.canManageGroup && (
                 <div className="px-3 py-3 border-b border-gray-100 bg-white shrink-0 space-y-2">
                   <label className="flex items-center justify-between gap-3 text-xs font-semibold text-gray-600">
@@ -1492,7 +1527,7 @@ export default function ChatPanel({
                     {msgGroups.map(group => (
                       <div key={group.date} className="w-full">
                         <div className="flex items-center gap-2 my-3"><div className="flex-1 h-px bg-gray-200" /><span className="text-[9px] font-semibold text-gray-400 whitespace-nowrap px-2">{group.date}</span><div className="flex-1 h-px bg-gray-200" /></div>
-                        <div className="flex flex-col gap-1.5 w-full">{group.msgs.map((msg, idx) => { const prev = group.msgs[idx - 1]; const showAvatar = !prev || prev.senderId !== msg.senderId; return <MessageBubble key={msg.id} msg={msg} isGroup={activeConv.type === "group"} showAvatar={showAvatar} myId={me?.id} mineColor={chatLook.mine} textColor={chatLook.font} fontFamily={chatLook.fontFamily} onCtxMenu={handleCtxMenu} onReply={handleReply} onJumpToReply={jumpToReply} onReact={toggleReaction} />; })}</div>
+                        <div className="flex flex-col gap-1.5 w-full">{group.msgs.map((msg, idx) => { const prev = group.msgs[idx - 1]; const showAvatar = !prev || prev.senderId !== msg.senderId; return <MessageBubble key={msg.id} msg={msg} isGroup={activeConv.type === "group"} showAvatar={showAvatar} myId={me?.id} mineColor={chatLook.mine} textColor={chatLook.font} fontFamily={chatLook.fontFamily} selectable={msgSelectMode && !isStealthView} selected={selectedMsgIds.includes(msg.id)} onToggleSelect={() => setSelectedMsgIds(p => p.includes(msg.id) ? p.filter(id => id !== msg.id) : [...p, msg.id])} onCtxMenu={handleCtxMenu} onReply={handleReply} onJumpToReply={jumpToReply} onReact={toggleReaction} />; })}</div>
                       </div>
                     ))}
                     <div ref={messagesEndRef} />
@@ -1595,8 +1630,8 @@ export default function ChatPanel({
       {/* ── */}
       {ctxMenu && (
         <>
-          <div className="fixed inset-0 top-[64px] z-[60] pointer-events-auto" onClick={() => setCtxMenu(null)} onContextMenu={e => { e.preventDefault(); setCtxMenu(null); }} />
-          <div className="fixed z-[61] bg-white rounded-2xl shadow-xl border border-gray-100 py-1.5 min-w-[170px] overflow-hidden pointer-events-auto" style={{ top: ctxMenu.y, left: ctxMenu.x }} onClick={e => e.stopPropagation()}>
+          <div className="fixed inset-0 z-[200] pointer-events-auto" onClick={() => setCtxMenu(null)} onContextMenu={e => { e.preventDefault(); setCtxMenu(null); }} />
+          <div className="fixed z-[201] bg-white rounded-2xl shadow-xl border border-gray-100 py-1.5 min-w-[200px] overflow-hidden pointer-events-auto" style={{ top: ctxMenu.y, left: ctxMenu.x }} onClick={e => e.stopPropagation()}>
             <button onClick={() => handleReply(ctxMenu.msg)} className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-gray-900 dark:text-gray-100 hover:bg-[#F5F6FA] transition-colors"><Reply size={13} className="text-gray-400" />Reply</button>
             {ctxMenu.msg.type === "text" && <button onClick={() => void copyText(ctxMenu.msg.text)} className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-gray-900 dark:text-gray-100 hover:bg-[#F5F6FA] transition-colors"><Copy size={13} className="text-gray-400" />Copy text</button>}
             {ctxMenu.canEdit && (
@@ -1604,12 +1639,25 @@ export default function ChatPanel({
             )}
             <button onClick={() => void pinMessage(ctxMenu.msg)} className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-gray-900 dark:text-gray-100 hover:bg-[#F5F6FA] transition-colors"><Pin size={13} className="text-gray-400" />Pin message</button>
             <div className="border-t border-gray-100 my-1 px-1"><ReactionPicker onPick={emoji => void toggleReaction(ctxMenu.msg, emoji)} /></div>
+            {!isStealthView && (
+              <button
+                type="button"
+                onClick={() => {
+                  setMsgSelectMode(true);
+                  setSelectedMsgIds(p => p.includes(ctxMenu.msg.id) ? p : [...p, ctxMenu.msg.id]);
+                  setCtxMenu(null);
+                }}
+                className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-gray-900 hover:bg-[#F5F6FA]"
+              >
+                <Check size={13} className="text-gray-400" />Select messages
+              </button>
+            )}
             <div className="border-t border-gray-100 my-1" />
             {!isStealthView && (
-              <button onClick={() => void deleteMsg(ctxMenu.msg.id, "for_me")} className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-red-500 hover:bg-red-50 transition-colors"><Trash2 size={13} />Delete for me</button>
+              <button onClick={() => void deleteMsgs(selectedMsgIds.includes(ctxMenu.msg.id) && selectedMsgIds.length > 1 ? selectedMsgIds : [ctxMenu.msg.id], "for_me")} className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-red-500 hover:bg-red-50 transition-colors"><Trash2 size={13} />Delete for me{selectedMsgIds.includes(ctxMenu.msg.id) && selectedMsgIds.length > 1 ? ` (${selectedMsgIds.length})` : ""}</button>
             )}
-            {ctxMenu.msg.isOwn && !isStealthView && (
-              <button onClick={() => void deleteMsg(ctxMenu.msg.id, "for_everyone")} className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-red-600 font-semibold hover:bg-red-50 transition-colors"><Trash2 size={13} />Delete for everyone</button>
+            {!isStealthView && (
+              <button onClick={() => void deleteMsgs(selectedMsgIds.includes(ctxMenu.msg.id) && selectedMsgIds.length > 1 ? selectedMsgIds : [ctxMenu.msg.id], "for_everyone")} className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-red-600 font-semibold hover:bg-red-50 transition-colors"><Trash2 size={13} />Delete for everyone{selectedMsgIds.includes(ctxMenu.msg.id) && selectedMsgIds.length > 1 ? ` (${selectedMsgIds.length})` : ""}</button>
             )}
           </div>
         </>
