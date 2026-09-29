@@ -59,19 +59,19 @@ export default function StaffDayCheckBar({
         </span>
         <button
           type="button"
-          disabled={busy}
+          disabled={busy || Boolean(row?.checkIn)}
           onClick={() => void punch("in")}
-          className="h-9 px-2.5 rounded-xl bg-[#0F766E] text-white text-xs font-semibold inline-flex items-center gap-1 disabled:opacity-60"
+          className="h-9 px-2.5 rounded-xl bg-[#0F766E] text-white text-xs font-semibold inline-flex items-center gap-1 disabled:opacity-60 touch-manipulation"
         >
-          <LogIn size={14} /> Check in
+          <LogIn size={14} /> {row?.checkIn ? "In" : "Check in"}
         </button>
         <button
           type="button"
-          disabled={busy}
+          disabled={busy || !row?.checkIn || Boolean(row?.checkOut)}
           onClick={() => void punch("out")}
-          className="h-9 px-2.5 rounded-xl bg-[#B8112D] text-white text-xs font-semibold inline-flex items-center gap-1 disabled:opacity-60"
+          className="h-9 px-2.5 rounded-xl bg-[#B8112D] text-white text-xs font-semibold inline-flex items-center gap-1 disabled:opacity-60 touch-manipulation"
         >
-          <LogOut size={14} /> Check out
+          <LogOut size={14} /> {row?.checkOut ? "Out" : "Check out"}
         </button>
       </div>
     );
@@ -89,19 +89,19 @@ export default function StaffDayCheckBar({
       <div className="flex gap-2">
         <button
           type="button"
-          disabled={busy}
+          disabled={busy || Boolean(row?.checkIn)}
           onClick={() => void punch("in")}
-          className="h-10 px-3 rounded-xl bg-[#0F766E] text-white text-sm font-semibold inline-flex items-center gap-1.5 disabled:opacity-60"
+          className="h-10 px-3 rounded-xl bg-[#0F766E] text-white text-sm font-semibold inline-flex items-center gap-1.5 disabled:opacity-60 touch-manipulation"
         >
-          <LogIn size={15} /> Check in
+          <LogIn size={15} /> {row?.checkIn ? "Checked in" : "Check in"}
         </button>
         <button
           type="button"
-          disabled={busy}
+          disabled={busy || !row?.checkIn || Boolean(row?.checkOut)}
           onClick={() => void punch("out")}
-          className="h-10 px-3 rounded-xl bg-[#B8112D] text-white text-sm font-semibold inline-flex items-center gap-1.5 disabled:opacity-60"
+          className="h-10 px-3 rounded-xl bg-[#B8112D] text-white text-sm font-semibold inline-flex items-center gap-1.5 disabled:opacity-60 touch-manipulation"
         >
-          <LogOut size={15} /> Check out
+          <LogOut size={15} /> {row?.checkOut ? "Checked out" : "Check out"}
         </button>
       </div>
     </section>

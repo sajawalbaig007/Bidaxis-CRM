@@ -86,8 +86,11 @@ export default function DeptAttendancePage({
     setBusyKey(`${key}:${action}`);
     try {
       const res = await API.post("/attendance/punch", { department, personKey: key, action });
+      const saved = res.data.row as Row | undefined;
+      if (saved?.personKey) {
+        setRows((prev) => [...prev.filter((r) => r.personKey !== saved.personKey), saved]);
+      }
       toast.success(res.data.message || "Saved.");
-      await load();
     } catch (err) {
       toast.error(apiErrorMessage(err, "Could not save time."));
     } finally {
@@ -142,22 +145,22 @@ export default function DeptAttendancePage({
                     <p className="mt-1 text-2xl sm:text-3xl font-bold tabular-nums tracking-tight">{row?.checkOut || "—"}</p>
                   </div>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <button
                     type="button"
-                    disabled={busy}
+                    disabled={busy || Boolean(row?.checkIn)}
                     onClick={() => void punch(person.key, "in")}
-                    className="h-12 sm:h-14 rounded-2xl bg-[#0F766E] text-white text-sm sm:text-base font-semibold inline-flex items-center justify-center gap-2 shadow-sm hover:bg-[#0c645d] disabled:opacity-60"
+                    className="h-14 rounded-2xl bg-[#0F766E] text-white text-base font-semibold inline-flex items-center justify-center gap-2 shadow-sm hover:bg-[#0c645d] disabled:opacity-60 touch-manipulation"
                   >
-                    <LogIn size={18} /> Check in
+                    <LogIn size={18} /> {row?.checkIn ? "Checked in" : "Check in"}
                   </button>
                   <button
                     type="button"
-                    disabled={busy}
+                    disabled={busy || !row?.checkIn || Boolean(row?.checkOut)}
                     onClick={() => void punch(person.key, "out")}
-                    className="h-12 sm:h-14 rounded-2xl bg-[#B8112D] text-white text-sm sm:text-base font-semibold inline-flex items-center justify-center gap-2 shadow-sm hover:bg-[#9d0e26] disabled:opacity-60"
+                    className="h-14 rounded-2xl bg-[#B8112D] text-white text-base font-semibold inline-flex items-center justify-center gap-2 shadow-sm hover:bg-[#9d0e26] disabled:opacity-60 touch-manipulation"
                   >
-                    <LogOut size={18} /> Check out
+                    <LogOut size={18} /> {row?.checkOut ? "Checked out" : "Check out"}
                   </button>
                 </div>
               </section>

@@ -90,6 +90,14 @@ router.post("/punch", async (req, res) => {
       return res.status(403).json({ success: false, code: "IP_NOT_ALLOWED", message: blocked });
     }
     const now = pktNow();
+    if (action === "out") {
+      const existing = await prisma.staffDayAttendance.findUnique({
+        where: { personKey_day: { personKey: person.key, day: now.day } },
+      });
+      if (!existing?.checkIn) {
+        return res.status(400).json({ success: false, message: "Check in first." });
+      }
+    }
     const saved = await saveAttendance({
       personKey: person.key,
       personName: person.name,
@@ -183,6 +191,14 @@ router.post("/mine/punch", verifyToken, allowRoles("technical_manager", "manager
     }
     const user = await prisma.user.findUnique({ where: { id: req.user!.id }, select: { name: true } });
     const now = pktNow();
+    if (action === "out") {
+      const existing = await prisma.staffDayAttendance.findUnique({
+        where: { personKey_day: { personKey: req.user!.id, day: now.day } },
+      });
+      if (!existing?.checkIn) {
+        return res.status(400).json({ success: false, message: "Check in first." });
+      }
+    }
     const saved = await saveAttendance({
       personKey: req.user!.id,
       personName: user?.name || "Staff",
