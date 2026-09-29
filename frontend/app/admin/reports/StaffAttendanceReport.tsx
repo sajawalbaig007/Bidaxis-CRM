@@ -32,6 +32,8 @@ type Row = {
   day: string;
   checkIn: string | null;
   checkOut: string | null;
+  comment?: string | null;
+  overnight?: boolean;
 };
 
 function calendarYmd(timeZone: string): string {
@@ -108,10 +110,15 @@ function wallToPkt(day: string, time: string, tz: string): { day: string; time: 
   return zonedParts(new Date(utc), "Asia/Karachi");
 }
 
+function shiftOutDay(day: string, checkIn: string | null, checkOut: string | null): string {
+  if (!checkIn || !checkOut || checkOut > checkIn) return day;
+  return addDays(day, 1);
+}
+
 function durationLabel(day: string, checkIn: string | null, checkOut: string | null): string {
   if (!checkIn || !checkOut) return checkIn && !checkOut ? "Still in" : "—";
   const start = pktInstant(day, checkIn);
-  const end = pktInstant(day, checkOut);
+  const end = pktInstant(shiftOutDay(day, checkIn, checkOut), checkOut);
   if (!start || !end || end <= start) return "—";
   const mins = Math.round((end.getTime() - start.getTime()) / 60000);
   const h = Math.floor(mins / 60);
@@ -240,8 +247,8 @@ function DeptCard({
       toast.error("Enter a valid date and time.");
       return;
     }
-    if (checkOutPkt && checkOutPkt.day !== checkInPkt.day) {
-      toast.error("Check-in and check-out must fall on the same Pakistan date.");
+    if (checkOutPkt && checkOutPkt.day !== checkInPkt.day && checkOutPkt.day !== addDays(checkInPkt.day, 1)) {
+      toast.error("Check-out must be the same day or the next day.");
       return;
     }
     try {
@@ -291,14 +298,15 @@ function DeptCard({
     }
   };
 
-  const headers = ["Name", "Date", `Check In (${clock.abbr})`, `Check Out (${clock.abbr})`, "Total", "Status"];
+  const headers = ["Name", "Date", `Check In (${clock.abbr})`, `Check Out (${clock.abbr})`, "Total", "Status", "Comment"];
   const excelBody = visible.map((row) => [
     row.personName,
     row.day,
     formatStamp(row.day, row.checkIn, clock.tz),
-    row.checkOut ? formatStamp(row.day, row.checkOut, clock.tz) : "Still checked in",
+    row.checkOut ? formatStamp(shiftOutDay(row.day, row.checkIn, row.checkOut), row.checkOut, clock.tz) : "Still checked in",
     durationLabel(row.day, row.checkIn, row.checkOut),
     row.checkOut ? "Checked Out" : row.checkIn ? "Checked In" : "—",
+    row.comment?.trim() || "",
   ]);
 
   return (
@@ -376,9 +384,9 @@ function DeptCard({
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan={canEdit ? 7 : 6} className="px-3 py-8 text-gray-400">Loading…</td></tr>
+                  <tr><td colSpan={headers.length + (canEdit ? 1 : 0)} className="px-3 py-8 text-gray-400">Loading…</td></tr>
                 ) : visible.length === 0 ? (
-                  <tr><td colSpan={canEdit ? 7 : 6} className="px-3 py-8 text-center text-gray-400">No check-in sessions in this date range</td></tr>
+                  <tr><td colSpan={headers.length + (canEdit ? 1 : 0)} className="px-3 py-8 text-center text-gray-400">No check-in sessions in this date range</td></tr>
                 ) : visible.map((row) => (
                   <tr key={row.id} className="border-b border-gray-50">
                     <td className="px-3 py-3 font-semibold">{row.personName}</td>
@@ -389,7 +397,12 @@ function DeptCard({
                     <td className="px-3 py-3 whitespace-nowrap">
                       <span className="inline-flex items-center gap-1">
                         <LogOut size={12} className={row.checkOut ? "text-gray-400" : "text-amber-500"} />
-                        {row.checkOut ? formatStamp(row.day, row.checkOut, clock.tz) : "Still checked in"}
+                        {row.checkOut ? (
+                          <>
+                            {formatStamp(shiftOutDay(row.day, row.checkIn, row.checkOut), row.checkOut, clock.tz)}
+                            {row.checkIn && row.checkOut <= row.checkIn ? <span className="ml-1 text-[10px] font-bold text-[#B8112D]">next day</span> : null}
+                          </>
+                        ) : "Still checked in"}
                       </span>
                     </td>
                     <td className="px-3 py-3 font-semibold">{durationLabel(row.day, row.checkIn, row.checkOut)}</td>
@@ -398,6 +411,7 @@ function DeptCard({
                         {row.checkOut ? "Checked Out" : "Checked In"}
                       </span>
                     </td>
+                    <td className="px-3 py-3 text-xs text-gray-700 max-w-[220px]">{row.comment?.trim() || "—"}</td>
                     {canEdit ? (
                       <td className="px-3 py-3">
                         <button

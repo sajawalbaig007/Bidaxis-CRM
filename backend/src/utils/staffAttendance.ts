@@ -57,9 +57,22 @@ export function isValidTime(time: string): boolean {
   return h >= 0 && h <= 23 && min >= 0 && min <= 59;
 }
 
+export function addCalendarDays(day: string, days: number): string {
+  const [y, m, d] = day.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, (m || 1) - 1, d || 1));
+  dt.setUTCDate(dt.getUTCDate() + days);
+  return dt.toISOString().slice(0, 10);
+}
+
+/** Checkout clock earlier than check-in means the shift ended the next day. */
+export function isOvernightShift(checkIn: string | null | undefined, checkOut: string | null | undefined): boolean {
+  if (!checkIn || !checkOut) return false;
+  return checkOut <= checkIn;
+}
+
 export function timeOrderOk(checkIn: string | null | undefined, checkOut: string | null | undefined): boolean {
   if (!checkIn || !checkOut) return true;
-  return checkOut > checkIn;
+  return true;
 }
 
 let officeIpCache: { at: number; ips: string[] } | null = null;
@@ -137,6 +150,7 @@ type SaveInput = {
   day: string;
   checkIn?: string | null;
   checkOut?: string | null;
+  comment?: string | null;
   userId?: string | null;
 };
 
@@ -146,6 +160,7 @@ export async function saveAttendance(input: SaveInput) {
   });
   const checkIn = input.checkIn === undefined ? existing?.checkIn ?? null : input.checkIn;
   const checkOut = input.checkOut === undefined ? existing?.checkOut ?? null : input.checkOut;
+  const comment = input.comment === undefined ? existing?.comment ?? null : input.comment;
   if (!timeOrderOk(checkIn, checkOut)) {
     return { ok: false as const, message: "Check-out must be after check-in." };
   }
@@ -157,6 +172,7 @@ export async function saveAttendance(input: SaveInput) {
           department: input.department,
           checkIn,
           checkOut,
+          comment,
           ...(input.userId ? { userId: input.userId } : {}),
         },
       })
@@ -168,6 +184,7 @@ export async function saveAttendance(input: SaveInput) {
           day: input.day,
           checkIn,
           checkOut,
+          comment,
           userId: input.userId ?? null,
         },
       });
@@ -182,6 +199,7 @@ export function toPublic(row: {
   day: string;
   checkIn: string | null;
   checkOut: string | null;
+  comment?: string | null;
 }) {
   return {
     id: row.id,
@@ -191,5 +209,7 @@ export function toPublic(row: {
     day: row.day,
     checkIn: row.checkIn,
     checkOut: row.checkOut,
+    comment: row.comment ?? null,
+    overnight: isOvernightShift(row.checkIn, row.checkOut),
   };
 }

@@ -627,6 +627,8 @@ model StaffDayAttendance {
   day        String
   checkIn    String?
   checkOut   String?
+  /** Optional note from the attendance page. Shown on the CEO report. */
+  comment    String?
   userId     String?
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
