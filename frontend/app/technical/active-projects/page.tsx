@@ -488,7 +488,6 @@ function AssignedToCell({
   }
 
   const primary = visible[0]!;
-  const extra = visible.length - 1;
   const doneCount = visible.filter((a) => a.takeoffDone).length;
   const canToggle = Boolean((showTakeoff || detailed) && onToggleTakeoff);
   const canPrice = Boolean(showSendPricing && onSendPricing);
@@ -630,61 +629,36 @@ function AssignedToCell({
             e.stopPropagation();
             toggle();
           }}
-          className="flex items-center gap-1.5 min-w-0 flex-1 max-w-[200px] rounded-lg bg-[#F8F9FC] border border-gray-200 px-1.5 py-1 hover:border-[#B8112D]/40 transition-colors text-left"
+          className="flex flex-col gap-1 min-w-0 flex-1 w-full rounded-lg bg-[#F8F9FC] border border-gray-200 px-1.5 py-1 hover:border-[#B8112D]/40 transition-colors text-left"
           title="View all estimators"
         >
-          <div className="flex items-center -space-x-1.5 shrink-0">
-            {visible.slice(0, 2).map((a) => (
-              <div
-                key={a.estimatorId}
-                className="w-5 h-5 rounded-full bg-[#B8112D] text-white flex items-center justify-center text-[9px] font-bold border border-white"
-              >
-                {a.estimatorName.charAt(0)}
+          {visible.map((a) => {
+            const running = !!a.timerStartedAt && !a.takeoffDone;
+            return (
+              <div key={a.estimatorId} className="flex items-center gap-1.5 min-w-0">
+                <div className="w-5 h-5 rounded-full bg-[#B8112D] text-white flex items-center justify-center text-[9px] font-bold shrink-0">
+                  {a.estimatorName.charAt(0)}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[11px] font-bold text-[#0F172A] leading-tight inline-flex items-center gap-1 max-w-full">
+                    <span className="truncate">{a.estimatorName}</span>
+                    {a.assignmentConfirmed ? (
+                      <Check size={11} className="text-emerald-600 shrink-0" strokeWidth={3} />
+                    ) : null}
+                  </p>
+                  <p className="text-[9px] font-bold tabular-nums text-sky-800 leading-tight">
+                    {formatElapsed(assignmentElapsedSeconds(a, now))}
+                    {running ? " · Live" : ""}
+                  </p>
+                </div>
               </div>
-            ))}
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className="text-[11px] font-bold text-[#0F172A] truncate leading-tight inline-flex items-center gap-1 max-w-full">
-              <span className="truncate">{primary.estimatorName}</span>
-              {primary.assignmentConfirmed ? (
-                <Check size={11} className="text-emerald-600 shrink-0" strokeWidth={3} />
-              ) : null}
+            );
+          })}
+          {detailed ? (
+            <p className="text-[9px] font-semibold text-gray-500 leading-tight">
+              {doneCount}/{visible.length} done
             </p>
-            <p className="text-[9px] font-bold tabular-nums text-sky-800 leading-tight">
-              {formatElapsed(assignmentElapsedSeconds(primary, now))}
-              {primary.timerStartedAt && !primary.takeoffDone ? " · Live" : ""}
-            </p>
-            <p className="text-[9px] font-semibold truncate leading-tight">
-              {detailed ? (
-                <span
-                  className={
-                    primary.pricingSent
-                      ? "text-violet-700"
-                      : primary.takeoffDone
-                        ? "text-emerald-700"
-                        : "text-amber-700"
-                  }
-                >
-                  {primary.pricingSent
-                    ? "Pricing"
-                    : primary.takeoffDone
-                      ? "Completed"
-                      : "Pending"}
-                  {` · ${doneCount}/${visible.length}`}
-                </span>
-              ) : (
-                <span className="text-gray-600">
-                  {primary.manHours ? `${primary.manHours}h` : "—"}
-                  {extra > 0 ? ` · ${visible.length}` : ""}
-                </span>
-              )}
-            </p>
-          </div>
-          {extra > 0 && (
-            <span className="shrink-0 h-5 min-w-[20px] px-1 rounded-md bg-[#B8112D] text-white text-[10px] font-bold flex items-center justify-center">
-              +{extra}
-            </span>
-          )}
+          ) : null}
         </button>
         {canToggle && onToggleTakeoff && visible.length === 1 && !primary.pricingSent && (
           <button
