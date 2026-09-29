@@ -37,6 +37,7 @@ import {
   startChatStatusHeartbeat,
   stopChatStatusHeartbeat,
 } from "@/lib/chatStatusHeartbeat";
+import { useTheme } from "@/app/components/ThemeProvider";
 import { playChatSound } from "@/lib/chatSound";
 import { roleDisplayLabel } from "@/lib/roleDisplay";
 import { addToOfflineQueue, getOfflineQueue, removeFromOfflineQueue } from "@/lib/chatOfflineQueue";
@@ -206,6 +207,13 @@ function VoicePlayer({ fileUrl, isOwn }: { fileUrl: string; isOwn: boolean }) {
 }
 
 /* ── */
+function incomingTextColor(textColor: string | undefined, dark: boolean) {
+  const chosen = (textColor || "").trim();
+  const isDefault = !chosen || chosen.toLowerCase() === "#111827";
+  if (dark && isDefault) return "#eef0f4";
+  return chosen || "#111827";
+}
+
 function MessageBubble({ msg, isGroup, showAvatar, myId, mineColor, textColor, fontFamily, selectable, selected, onToggleSelect, onCtxMenu, onReply, onJumpToReply, onReact }: {
   msg: Message; isGroup: boolean; showAvatar: boolean; myId?: string; mineColor?: string; textColor?: string; fontFamily?: string;
   selectable?: boolean; selected?: boolean; onToggleSelect?: () => void;
@@ -215,6 +223,8 @@ function MessageBubble({ msg, isGroup, showAvatar, myId, mineColor, textColor, f
   onReact: (msg: Message, emoji: string) => void;
 }) {
   const [showReact, setShowReact] = useState(false);
+  const { resolvedTheme } = useTheme();
+  const dark = resolvedTheme === "dark";
   const own = Boolean(msg.isOwn || (myId && msg.senderId === myId));
   const deleted = Boolean(msg.isDeleted);
   const body = () => {
@@ -263,10 +273,12 @@ function MessageBubble({ msg, isGroup, showAvatar, myId, mineColor, textColor, f
               </button>
             )}
             <div
-              className={`rounded-2xl ${msg.type === "text" ? "px-3.5 py-2.5" : "p-2"} ${deleted ? "border border-dashed border-amber-300/80 dark:border-amber-500/50 bg-amber-50/80 dark:bg-amber-950/30" : ""} ${own ? `text-white rounded-br-sm ${deleted ? "!bg-amber-100/90 dark:!bg-amber-950/40 !text-gray-800 dark:!text-amber-100" : ""}` : `bg-white text-gray-900 dark:text-gray-100 shadow-sm border border-gray-100 rounded-bl-sm ${deleted ? "!bg-amber-50/90 dark:!bg-amber-950/25" : ""}`}`}
-              style={own && !deleted
-                ? { backgroundColor: mineColor || "#B8112D", color: "#ffffff", fontFamily: fontFamily || undefined }
-                : { color: textColor || undefined, fontFamily: fontFamily || undefined }}
+              className={`rounded-2xl ${msg.type === "text" ? "px-3.5 py-2.5" : "p-2"} ${deleted ? "border border-dashed border-amber-300/80 dark:border-amber-500/50 bg-amber-50/80 dark:bg-amber-950/30" : "shadow-sm border border-gray-100"} ${own ? `rounded-br-sm ${deleted ? "!bg-amber-100/90 dark:!bg-amber-950/40" : ""}` : `rounded-bl-sm ${deleted ? "!bg-amber-50/90 dark:!bg-amber-950/25" : ""}`}`}
+              style={deleted
+                ? { fontFamily: fontFamily || undefined }
+                : own
+                  ? { backgroundColor: mineColor || "#B8112D", color: "#ffffff", fontFamily: fontFamily || undefined }
+                  : { backgroundColor: dark ? "#22262f" : "#ffffff", color: incomingTextColor(textColor, dark), fontFamily: fontFamily || undefined }}
             >
               {body()}
             </div>
@@ -535,6 +547,7 @@ export default function ChatPanel({
   const [editText,       setEditText]       = useState("");
   const [mentionQuery,   setMentionQuery]   = useState<string | null>(null);
   const [chatLook, setChatLook] = useState<ChatLook>(loadChatLook);
+  const { resolvedTheme } = useTheme();
   const [showChatSettings, setShowChatSettings] = useState(false);
   const [showGroupSettings, setShowGroupSettings] = useState(false);
   const [groupAdminIds, setGroupAdminIds] = useState<string[]>([]);
@@ -1513,7 +1526,7 @@ export default function ChatPanel({
                 </div>
               )}
 
-              <div ref={msgsContainerRef} className="flex-1 overflow-y-auto px-3 py-3" style={{ background: chatLook.bg, fontFamily: chatLook.fontFamily }}>
+              <div ref={msgsContainerRef} className="flex-1 overflow-y-auto px-3 py-3" style={{ background: resolvedTheme === "dark" && chatLook.bg.toLowerCase() === "#f5f6fa" ? "var(--crm-bg)" : chatLook.bg, color: incomingTextColor(chatLook.font, resolvedTheme === "dark"), fontFamily: chatLook.fontFamily }}>
                 {loadingMsgs ? (
                   <div className="flex items-center justify-center h-full"><Loader2 size={20} className="text-gray-300 animate-spin" /></div>
                 ) : visibleMessages.length === 0 ? (
