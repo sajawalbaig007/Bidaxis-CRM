@@ -131,7 +131,7 @@ export default function DeptAttendancePage({
                     <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#B8112D]">{title}</p>
                     <h2 className="mt-1 text-2xl font-bold tracking-tight">{person.name}</h2>
                   </div>
-                  <span className="shrink-0 rounded-full bg-[#F4F6FB] px-3 py-1 text-[11px] font-semibold text-gray-500">
+                  <span className="shrink-0 rounded-full bg-[#F4F6FB] px-3 py-1 text-[11px] font-semibold text-black">
                     Today
                   </span>
                 </div>
