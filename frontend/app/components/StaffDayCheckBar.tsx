@@ -49,9 +49,9 @@ export default function StaffDayCheckBar({
   const punch = async (action: "in" | "out") => {
     setBusy(true);
     try {
-      const res = await API.post("/attendance/mine/punch", { action });
-      setRow(res.data.row ?? null);
-      toast.success(res.data.message || "Saved.");
+      await API.post("/attendance/mine/punch", { action });
+      toast.success("Saved.");
+      await load();
     } catch (err) {
       toast.error(apiErrorMessage(err, "Could not save time."));
     } finally {

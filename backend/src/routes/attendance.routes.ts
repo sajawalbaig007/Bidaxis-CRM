@@ -6,6 +6,7 @@ import {
   ATTENDANCE_REVISE_TOKEN,
   CHIEF_ESTIMATOR_NAME,
   AttendanceDept,
+  addCalendarDays,
   attendanceNetworkMessage,
   departmentNeedsOfficeIp,
   isValidDay,
@@ -37,6 +38,68 @@ async function gateOffice(req: AuthRequest, department: string) {
   return attendanceNetworkMessage(req);
 }
 
+function cleanComment(raw: unknown): string | null {
+  if (raw == null) return null;
+  const text = String(raw).trim().slice(0, 500);
+  return text || null;
+}
+
+/** Checkout the open shift: today, or yesterday when the shift runs past midnight. */
+async function punchShift(input: {
+  personKey: string;
+  personName: string;
+  department: AttendanceDept;
+  action: "in" | "out";
+  userId?: string | null;
+  comment?: string | null;
+}) {
+  const now = pktNow();
+  if (input.action === "in") {
+    return saveAttendance({
+      personKey: input.personKey,
+      personName: input.personName,
+      department: input.department,
+      day: now.day,
+      checkIn: now.time,
+      userId: input.userId,
+      ...(input.comment !== undefined ? { comment: input.comment } : {}),
+    });
+  }
+  const today = await prisma.staffDayAttendance.findUnique({
+    where: { personKey_day: { personKey: input.personKey, day: now.day } },
+  });
+  if (today?.checkIn && !today.checkOut) {
+    return saveAttendance({
+      personKey: input.personKey,
+      personName: input.personName,
+      department: input.department,
+      day: now.day,
+      checkOut: now.time,
+      userId: input.userId,
+      ...(input.comment !== undefined ? { comment: input.comment } : {}),
+    });
+  }
+  const yesterday = addCalendarDays(now.day, -1);
+  const prev = await prisma.staffDayAttendance.findUnique({
+    where: { personKey_day: { personKey: input.personKey, day: yesterday } },
+  });
+  if (prev?.checkIn && !prev.checkOut) {
+    return saveAttendance({
+      personKey: input.personKey,
+      personName: prev.personName || input.personName,
+      department: input.department,
+      day: yesterday,
+      checkOut: now.time,
+      userId: input.userId,
+      ...(input.comment !== undefined ? { comment: input.comment } : {}),
+    });
+  }
+  if (today?.checkOut) {
+    return { ok: false as const, message: "Already checked out." };
+  }
+  return { ok: false as const, message: "Check in first." };
+}
+
 router.get("/roster", async (_req, res) => {
   const now = pktNow();
   return res.json({ success: true, today: now.day, now: now.time, departments: publicRoster() });
@@ -60,11 +123,16 @@ router.get("/day", async (req, res) => {
       where: { department, day },
       orderBy: { personName: "asc" },
     });
+    const seen = new Set(rows.map((row) => row.personKey));
+    const previous = await prisma.staffDayAttendance.findMany({
+      where: { department, day: addCalendarDays(day, -1) },
+    });
+    const openOvernight = previous.filter((row) => row.checkIn && !row.checkOut && !seen.has(row.personKey));
     return res.json({
       success: true,
       day,
       people: publicRoster()[department].people,
-      rows: rows.map(toPublic),
+      rows: [...rows, ...openOvernight].map(toPublic),
     });
   } catch (error) {
     console.error("[attendance/day]", error);
@@ -89,21 +157,13 @@ router.post("/punch", async (req, res) => {
     if (blocked) {
       return res.status(403).json({ success: false, code: "IP_NOT_ALLOWED", message: blocked });
     }
-    const now = pktNow();
-    if (action === "out") {
-      const existing = await prisma.staffDayAttendance.findUnique({
-        where: { personKey_day: { personKey: person.key, day: now.day } },
-      });
-      if (!existing?.checkIn) {
-        return res.status(400).json({ success: false, message: "Check in first." });
-      }
-    }
-    const saved = await saveAttendance({
+    const comment = req.body?.comment !== undefined ? cleanComment(req.body.comment) : undefined;
+    const saved = await punchShift({
       personKey: person.key,
       personName: person.name,
       department,
-      day: now.day,
-      ...(action === "in" ? { checkIn: now.time } : { checkOut: now.time }),
+      action,
+      comment,
     });
     if (!saved.ok) return res.status(400).json({ success: false, message: saved.message });
     return res.json({
@@ -114,6 +174,46 @@ router.post("/punch", async (req, res) => {
   } catch (error) {
     console.error("[attendance/punch]", error);
     return res.status(500).json({ success: false, message: "Could not save time." });
+  }
+});
+
+router.post("/note", async (req, res) => {
+  try {
+    const department = String(req.body?.department ?? "");
+    const personKey = String(req.body?.personKey ?? "");
+    if (!isRosterDept(department)) {
+      return res.status(400).json({ success: false, message: "Unknown department." });
+    }
+    const person = rosterPerson(department, personKey);
+    if (!person) return res.status(400).json({ success: false, message: "Unknown person." });
+    const blocked = await gateOffice(req, department);
+    if (blocked) {
+      return res.status(403).json({ success: false, code: "IP_NOT_ALLOWED", message: blocked });
+    }
+    const now = pktNow();
+    const today = await prisma.staffDayAttendance.findUnique({
+      where: { personKey_day: { personKey: person.key, day: now.day } },
+    });
+    let day = now.day;
+    if (!today?.checkIn) {
+      const yesterday = addCalendarDays(now.day, -1);
+      const prev = await prisma.staffDayAttendance.findUnique({
+        where: { personKey_day: { personKey: person.key, day: yesterday } },
+      });
+      if (prev?.checkIn && !prev.checkOut) day = yesterday;
+    }
+    const saved = await saveAttendance({
+      personKey: person.key,
+      personName: person.name,
+      department,
+      day,
+      comment: cleanComment(req.body?.comment),
+    });
+    if (!saved.ok) return res.status(400).json({ success: false, message: saved.message });
+    return res.json({ success: true, message: "Comment saved.", row: saved.row });
+  } catch (error) {
+    console.error("[attendance/note]", error);
+    return res.status(500).json({ success: false, message: "Could not save comment." });
   }
 });
 
@@ -160,9 +260,15 @@ router.get("/mine", verifyToken, allowRoles("technical_manager", "manager", "acc
     const department = ROLE_DEPT[req.user!.role];
     const user = await prisma.user.findUnique({ where: { id: req.user!.id }, select: { name: true } });
     const day = pktNow().day;
-    const row = await prisma.staffDayAttendance.findUnique({
+    let row = await prisma.staffDayAttendance.findUnique({
       where: { personKey_day: { personKey: req.user!.id, day } },
     });
+    if (!row?.checkIn) {
+      const prev = await prisma.staffDayAttendance.findUnique({
+        where: { personKey_day: { personKey: req.user!.id, day: addCalendarDays(day, -1) } },
+      });
+      if (prev?.checkIn && !prev.checkOut) row = prev;
+    }
     return res.json({
       success: true,
       day,
@@ -190,22 +296,14 @@ router.post("/mine/punch", verifyToken, allowRoles("technical_manager", "manager
       }
     }
     const user = await prisma.user.findUnique({ where: { id: req.user!.id }, select: { name: true } });
-    const now = pktNow();
-    if (action === "out") {
-      const existing = await prisma.staffDayAttendance.findUnique({
-        where: { personKey_day: { personKey: req.user!.id, day: now.day } },
-      });
-      if (!existing?.checkIn) {
-        return res.status(400).json({ success: false, message: "Check in first." });
-      }
-    }
-    const saved = await saveAttendance({
+    const comment = req.body?.comment !== undefined ? cleanComment(req.body.comment) : undefined;
+    const saved = await punchShift({
       personKey: req.user!.id,
       personName: user?.name || "Staff",
       department,
-      day: now.day,
+      action,
       userId: req.user!.id,
-      ...(action === "in" ? { checkIn: now.time } : { checkOut: now.time }),
+      comment,
     });
     if (!saved.ok) return res.status(400).json({ success: false, message: saved.message });
     return res.json({

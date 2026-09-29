@@ -12,6 +12,7 @@ type Row = {
   day: string;
   checkIn: string | null;
   checkOut: string | null;
+  comment?: string | null;
 };
 
 type Person = { key: string; name: string };
@@ -92,19 +93,35 @@ export default function DeptAttendancePage({
     };
   }, [department, personKey]);
 
+  const applyRow = (saved: Row | undefined) => {
+    if (!saved?.personKey) return;
+    setRows((prev) => {
+      const rest = prev.filter((r) => r.personKey !== saved.personKey);
+      if (saved.checkOut && saved.day !== day) return rest;
+      return [...rest, saved];
+    });
+  };
+
   const punch = async (key: string, action: "in" | "out") => {
     setBusyKey(`${key}:${action}`);
     try {
       const res = await API.post("/attendance/punch", { department, personKey: key, action });
-      const saved = res.data.row as Row | undefined;
-      if (saved?.personKey) {
-        setRows((prev) => [...prev.filter((r) => r.personKey !== saved.personKey), saved]);
-      }
+      applyRow(res.data.row as Row | undefined);
       toast.success(res.data.message || "Saved.");
     } catch (err) {
       toast.error(apiErrorMessage(err, "Could not save time."));
     } finally {
       setBusyKey("");
+    }
+  };
+
+  const saveComment = async (key: string, comment: string) => {
+    try {
+      const res = await API.post("/attendance/note", { department, personKey: key, comment });
+      applyRow(res.data.row as Row | undefined);
+      toast.success("Comment saved.");
+    } catch (err) {
+      toast.error(apiErrorMessage(err, "Could not save comment."));
     }
   };
 
@@ -153,6 +170,9 @@ export default function DeptAttendancePage({
                   <div className="rounded-2xl bg-[#FFF5F6] px-4 py-4">
                     <p className="text-[11px] font-bold uppercase tracking-wide text-[#B8112D]">Out</p>
                     <p className="mt-1 text-2xl sm:text-3xl font-bold tabular-nums tracking-tight text-[#0B1220]" style={{ color: "#0B1220" }}>{formatClock(row?.checkOut)}</p>
+                    {row?.checkIn && row.checkOut && row.checkOut <= row.checkIn ? (
+                      <p className="mt-1 text-[10px] font-bold uppercase tracking-wide text-[#B8112D]">Next day</p>
+                    ) : null}
                   </div>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -173,11 +193,48 @@ export default function DeptAttendancePage({
                     <LogOut size={18} /> {row?.checkOut ? "Checked out" : "Check out"}
                   </button>
                 </div>
+                <CommentBox
+                  key={`${person.key}:${row?.day ?? ""}:${row?.comment ?? ""}`}
+                  initial={row?.comment ?? ""}
+                  onSave={(text) => saveComment(person.key, text)}
+                />
               </section>
             );
           })}
         </div>
       )}
     </AttendanceFrame>
+  );
+}
+
+function CommentBox({ initial, onSave }: { initial: string; onSave: (text: string) => Promise<void> }) {
+  const [text, setText] = useState(initial);
+  const [busy, setBusy] = useState(false);
+  return (
+    <div>
+      <label className="block text-[11px] font-bold uppercase tracking-wide text-gray-500">
+        Comment
+        <textarea
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          rows={2}
+          maxLength={500}
+          placeholder="Optional note for the report"
+          className="mt-1.5 w-full rounded-2xl border border-gray-200 bg-[#F8FAFC] px-3 py-2 text-sm font-normal normal-case tracking-normal text-[#0B1220] outline-none focus:border-[#B8112D]/40"
+          style={{ color: "#0B1220" }}
+        />
+      </label>
+      <button
+        type="button"
+        disabled={busy || text.trim() === initial.trim()}
+        onClick={() => {
+          setBusy(true);
+          void onSave(text).finally(() => setBusy(false));
+        }}
+        className="mt-2 h-10 px-4 rounded-xl bg-[#0F172A] text-white text-xs font-semibold disabled:opacity-50"
+      >
+        {busy ? "Saving…" : "Save comment"}
+      </button>
+    </div>
   );
 }
