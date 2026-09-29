@@ -16,6 +16,16 @@ type Row = {
 
 type Person = { key: string; name: string };
 
+function formatClock(time: string | null | undefined): string {
+  if (!time) return "—";
+  const match = /^(\d{2}):(\d{2})$/.exec(time);
+  if (!match) return time;
+  const hour = Number(match[1]);
+  const suffix = hour >= 12 ? "PM" : "AM";
+  const hour12 = hour % 12 || 12;
+  return `${hour12}:${match[2]} ${suffix}`;
+}
+
 export default function DeptAttendancePage({
   department,
   title,
@@ -138,11 +148,11 @@ export default function DeptAttendancePage({
                 <div className="grid grid-cols-2 gap-3">
                   <div className="rounded-2xl bg-[#F3FBF8] px-4 py-4">
                     <p className="text-[11px] font-bold uppercase tracking-wide text-[#0F766E]">In</p>
-                    <p className="mt-1 text-2xl sm:text-3xl font-bold tabular-nums tracking-tight">{row?.checkIn || "—"}</p>
+                    <p className="mt-1 text-2xl sm:text-3xl font-bold tabular-nums tracking-tight text-[#0B1220]" style={{ color: "#0B1220" }}>{formatClock(row?.checkIn)}</p>
                   </div>
                   <div className="rounded-2xl bg-[#FFF5F6] px-4 py-4">
                     <p className="text-[11px] font-bold uppercase tracking-wide text-[#B8112D]">Out</p>
-                    <p className="mt-1 text-2xl sm:text-3xl font-bold tabular-nums tracking-tight">{row?.checkOut || "—"}</p>
+                    <p className="mt-1 text-2xl sm:text-3xl font-bold tabular-nums tracking-tight text-[#0B1220]" style={{ color: "#0B1220" }}>{formatClock(row?.checkOut)}</p>
                   </div>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

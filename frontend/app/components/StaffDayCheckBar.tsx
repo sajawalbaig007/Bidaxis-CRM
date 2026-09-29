@@ -7,6 +7,16 @@ import API, { apiErrorMessage } from "@/lib/api";
 
 type Row = { checkIn: string | null; checkOut: string | null; day: string };
 
+function formatClock(time: string | null | undefined): string {
+  if (!time) return "—";
+  const match = /^(\d{2}):(\d{2})$/.exec(time);
+  if (!match) return time;
+  const hour = Number(match[1]);
+  const suffix = hour >= 12 ? "PM" : "AM";
+  const hour12 = hour % 12 || 12;
+  return `${hour12}:${match[2]} ${suffix}`;
+}
+
 export default function StaffDayCheckBar({
   defaultVisible = false,
   compact = false,
@@ -55,7 +65,7 @@ export default function StaffDayCheckBar({
     return (
       <div className="flex items-center gap-1.5 shrink-0">
         <span className="hidden lg:inline text-[11px] font-semibold text-crm-text-muted tabular-nums">
-          {row?.checkIn || "—"} – {row?.checkOut || "—"}
+          {formatClock(row?.checkIn)} – {formatClock(row?.checkOut)}
         </span>
         <button
           type="button"
@@ -83,7 +93,7 @@ export default function StaffDayCheckBar({
         <p className="text-[11px] font-bold uppercase tracking-wider text-[#B8112D]">Today</p>
         <p className="text-sm font-semibold text-[#0F172A] dark:text-crm-text">
           {name ? `${name} · ` : ""}
-          In {row?.checkIn || "—"} · Out {row?.checkOut || "—"}
+          In {formatClock(row?.checkIn)} · Out {formatClock(row?.checkOut)}
         </p>
       </div>
       <div className="flex gap-2">
