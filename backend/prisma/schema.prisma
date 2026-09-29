@@ -561,6 +561,8 @@ model StaffEmployee {
   cnicPdfUrl     String?
   profilePic     String?
   notes          String?
+  /** Optional in-house IPs. Empty means no extra addresses. */
+  allowedIps     String[] @default([])
   /**
    * Accounts Income Statement team head
    * e.g. "Technical Team Salaries", "Administration Salaries"

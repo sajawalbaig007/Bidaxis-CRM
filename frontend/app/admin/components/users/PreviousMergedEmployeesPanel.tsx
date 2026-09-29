@@ -32,9 +32,10 @@ function ymLabel(iso: string | null): string {
 
 type Props = {
   currentEmployees: StaffEmployeeRow[];
+  refreshKey?: number;
 };
 
-export default function PreviousMergedEmployeesPanel({ currentEmployees }: Props) {
+export default function PreviousMergedEmployeesPanel({ currentEmployees, refreshKey = 0 }: Props) {
   const [rows, setRows] = useState<PreviousRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -58,7 +59,7 @@ export default function PreviousMergedEmployeesPanel({ currentEmployees }: Props
 
   useEffect(() => {
     void load();
-  }, [load]);
+  }, [load, refreshKey]);
 
   const previous = useMemo(() => {
     const q = search.trim().toLowerCase();
