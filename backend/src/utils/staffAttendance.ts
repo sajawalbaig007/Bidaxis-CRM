@@ -64,10 +64,10 @@ export function addCalendarDays(day: string, days: number): string {
   return dt.toISOString().slice(0, 10);
 }
 
-/** Checkout clock earlier than check-in means the shift ended the next day. */
+/** Checkout clock earlier than check-in means the shift ended the next day. The same minute stays on that day. */
 export function isOvernightShift(checkIn: string | null | undefined, checkOut: string | null | undefined): boolean {
   if (!checkIn || !checkOut) return false;
-  return checkOut <= checkIn;
+  return checkOut < checkIn;
 }
 
 export function timeOrderOk(checkIn: string | null | undefined, checkOut: string | null | undefined): boolean {
