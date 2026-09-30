@@ -74,7 +74,7 @@ function toHistoryDays(
   evening = false,
 ) {
   return rows
-    .filter((row) => row.checkIn)
+    .filter((row): row is { day: string; checkIn: string; checkOut: string | null } => !!row.checkIn)
     .map((row) => {
       if (!evening) {
         const overnight = isOvernightShift(row.checkIn, row.checkOut);
