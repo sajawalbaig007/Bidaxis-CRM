@@ -501,6 +501,22 @@ router.put("/overtime/:id", verifyToken, allowRoles("admin", "technical_manager"
   }
 });
 
+router.post("/report/:id/reset", verifyToken, allowRoles("admin"), async (req, res) => {
+  try {
+    const id = String(req.params.id ?? "");
+    const existing = await prisma.staffDayAttendance.findUnique({ where: { id } });
+    if (!existing) return res.status(404).json({ success: false, message: "Record not found." });
+    const row = await prisma.staffDayAttendance.update({
+      where: { id },
+      data: { checkIn: null, checkOut: null },
+    });
+    return res.json({ success: true, message: "Time reset. Check-in and check-out are clear for this day.", row: toPublic(row) });
+  } catch (error) {
+    console.error("[attendance/report reset]", error);
+    return res.status(500).json({ success: false, message: "Could not reset time." });
+  }
+});
+
 router.put("/report/:id", verifyToken, allowRoles("admin"), async (req, res) => {
   try {
     const id = String(req.params.id ?? "");

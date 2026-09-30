@@ -764,6 +764,20 @@ export async function adminAdjustCsrWorkSession(opts: {
   };
 }
 
+/** Remove a day's sessions so check-in works again. CEO can edit a new punch after. */
+export async function adminClearCsrWorkDay(memberIds: string[]) {
+  const ids = [...new Set(memberIds.map((id) => id.trim()).filter(Boolean))];
+  if (!ids.length) return { ok: false as const, message: "Session id required." };
+  const rows = await prisma.csrWorkSession.findMany({
+    where: { id: { in: ids } },
+    select: { id: true, user: { select: { role: true } } },
+  });
+  const allowed = rows.filter((row) => row.user.role === "csr" || row.user.role === "estimator");
+  if (!allowed.length) return { ok: false as const, message: "Session not found." };
+  await prisma.csrWorkSession.deleteMany({ where: { id: { in: allowed.map((row) => row.id) } } });
+  return { ok: true as const, removed: allowed.length };
+}
+
 function historyDayLabel(ymd: string): string {
   const [y, m, d] = ymd.split("-").map(Number);
   return new Intl.DateTimeFormat("en-US", {

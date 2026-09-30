@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
-import { Check, ChevronDown, Clock, Download, LogIn, LogOut, Pencil, X } from "lucide-react";
+import { Check, ChevronDown, Clock, Download, LogIn, LogOut, Pencil, RotateCcw, X } from "lucide-react";
 import toast from "react-hot-toast";
 import API, { apiErrorMessage } from "@/lib/api";
 import { EST_TZ_ABBR, EST_TZ_LABEL } from "@/lib/estTime";
@@ -304,6 +304,7 @@ function DeptCard({
   const [editCheckOut, setEditCheckOut] = useState("");
   const [editStillOpen, setEditStillOpen] = useState(false);
   const [savingEdit, setSavingEdit] = useState(false);
+  const [resettingId, setResettingId] = useState("");
   const [overtimeEdit, setOvertimeEdit] = useState<Row | null>(null);
   const [overtimeText, setOvertimeText] = useState("");
   const [reviewing, setReviewing] = useState(false);
@@ -320,6 +321,20 @@ function DeptCard({
       toast.error(apiErrorMessage(err, "Could not update overtime."));
     } finally {
       setReviewing(false);
+    }
+  };
+
+  const resetDay = async (row: Row) => {
+    if (!window.confirm(`Clear check-in and check-out for ${row.personName} on ${row.day}? They can check in again. You can edit the correct time after.`)) return;
+    setResettingId(row.id);
+    try {
+      await API.post(`/attendance/report/${row.id}/reset`);
+      toast.success("Time reset.");
+      onRefresh();
+    } catch (err) {
+      toast.error(apiErrorMessage(err, "Could not reset time."));
+    } finally {
+      setResettingId("");
     }
   };
 
@@ -554,14 +569,25 @@ function DeptCard({
                     ) : null}
                     {canEdit ? (
                       <td className="px-3 py-3">
-                        <button
-                          type="button"
-                          onClick={() => openEdit(row)}
-                          className="inline-flex items-center gap-1 h-8 px-2.5 rounded-lg bg-[#FFF1F3] text-[#B8112D] text-[11px] font-bold hover:bg-[#B8112D] hover:text-white transition-colors"
-                        >
-                          <Pencil size={12} />
-                          Edit
-                        </button>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => openEdit(row)}
+                            className="inline-flex items-center gap-1 h-8 px-2.5 rounded-lg bg-[#FFF1F3] text-[#B8112D] text-[11px] font-bold hover:bg-[#B8112D] hover:text-white transition-colors"
+                          >
+                            <Pencil size={12} />
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            disabled={resettingId === row.id}
+                            onClick={() => void resetDay(row)}
+                            className="inline-flex items-center gap-1 h-8 px-2.5 rounded-lg bg-gray-100 text-gray-700 text-[11px] font-bold hover:bg-gray-200 disabled:opacity-50"
+                          >
+                            <RotateCcw size={12} />
+                            Reset
+                          </button>
+                        </div>
                       </td>
                     ) : null}
                   </tr>

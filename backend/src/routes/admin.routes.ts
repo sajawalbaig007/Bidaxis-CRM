@@ -40,7 +40,7 @@ import {
 } from "../utils/adminClientQueries";
 import { canonicalTradeName, ensureMasterFormatTrades } from "../utils/masterFormatTrades";
 import { enforceAdminIpAllowlist } from "../middleware/adminIp.middleware";
-import { buildCsrSessionReport, adminAdjustCsrWorkSession } from "../utils/csrSessionTracking";
+import { buildCsrSessionReport, adminAdjustCsrWorkSession, adminClearCsrWorkDay } from "../utils/csrSessionTracking";
 import { estDayBoundsUtc, estDateYmd, addEstDays, parseEstDateTimeLocal, ADMIN_SESSION_TIMEZONE, ADMIN_SESSION_TZ_LABEL } from "../utils/estTime";
 import { pktShiftBounds, pktShiftDay } from "../utils/staffAttendance";
 import { AuthRequest } from "../middleware/auth.middleware";
@@ -4034,6 +4034,26 @@ router.get(
     } catch (error) {
       console.log(error);
       return res.status(500).json({ success: false, message: "Failed to fetch CSR activity report" });
+    }
+  },
+);
+
+/* Admin clears a day's sessions so check-in works again. */
+router.post(
+  "/csr-work-session/reset",
+  verifyToken,
+  allowRoles("admin"),
+  async (req, res) => {
+    try {
+      const memberIds = Array.isArray(req.body?.memberIds)
+        ? req.body.memberIds.map((id: unknown) => String(id ?? ""))
+        : [];
+      const result = await adminClearCsrWorkDay(memberIds);
+      if (!result.ok) return res.status(404).json({ success: false, message: result.message });
+      return res.json({ success: true, message: "Time reset. They can check in again.", removed: result.removed });
+    } catch (error) {
+      console.log(error);
+      return res.status(500).json({ success: false, message: "Could not reset time." });
     }
   },
 );
