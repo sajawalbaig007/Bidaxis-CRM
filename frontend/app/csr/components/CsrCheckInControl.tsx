@@ -5,6 +5,8 @@ import { LogIn, LogOut, Loader2, Pause, Play } from "lucide-react";
 import toast from "react-hot-toast";
 import API, { apiErrorMessage, getApiBase, getClientAuthToken } from "@/lib/api";
 import { formatEstCheckInLabel } from "@/lib/estTime";
+import { CSR_IDLE_RECHECK_KEY, requestCsrIdlePermission } from "@/app/csr/hooks/useCsrPresence";
+import ShiftHistoryButton from "@/app/components/ShiftHistoryButton";
 
 type WorkSession = {
   id: string;
@@ -188,6 +190,7 @@ export default function CsrCheckInControl({ compact = false }: { compact?: boole
       : session?.totalDuration ?? "";
 
   const checkIn = async () => {
+    requestCsrIdlePermission();
     setBusy(true);
     try {
       const res = await API.post<StatusResponse>("/csr/check-in", {});
@@ -196,6 +199,7 @@ export default function CsrCheckInControl({ compact = false }: { compact?: boole
         await refresh();
       }
       toast.success(res.data.message || "Checked in.");
+      try { sessionStorage.removeItem(CSR_IDLE_RECHECK_KEY); } catch { /* ignore */ }
       window.dispatchEvent(
         new CustomEvent("csr-checkin-changed", { detail: { checkedIn: true, paused: false } }),
       );
@@ -209,7 +213,11 @@ export default function CsrCheckInControl({ compact = false }: { compact?: boole
   const checkOut = async () => {
     setBusy(true);
     try {
-      const res = await API.post<StatusResponse>("/csr/check-out", {});
+      const lastActionAt = (() => {
+        try { return sessionStorage.getItem("csr_last_real_action"); } catch { return null; }
+      })();
+      const res = await API.post<StatusResponse>("/csr/check-out", lastActionAt ? { lastActionAt } : {});
+      try { sessionStorage.removeItem("csr_last_real_action"); } catch { /* ignore */ }
       setCheckedIn(false);
       setPaused(false);
       setSession(null);
@@ -272,17 +280,23 @@ export default function CsrCheckInControl({ compact = false }: { compact?: boole
     }
   };
 
+  const history = <ShiftHistoryButton url="/csr/shift-history" compact={compact} />;
+
   if (loading) {
     return (
-      <div className={`flex items-center gap-1.5 ${compact ? "h-9 px-2" : "h-10 px-3"} rounded-xl bg-crm-nav-pill text-crm-text-muted text-[11px] font-semibold`}>
-        <Loader2 size={13} className="animate-spin" />
-        <span className="hidden lg:inline">Session…</span>
+      <div className="inline-flex items-center gap-1 shrink-0">
+        <div className={`flex items-center gap-1.5 ${compact ? "h-9 px-2" : "h-10 px-3"} rounded-xl bg-crm-nav-pill text-crm-text-muted text-[11px] font-semibold`}>
+          <Loader2 size={13} className="animate-spin" />
+          <span className="hidden lg:inline">Session…</span>
+        </div>
+        {history}
       </div>
     );
   }
 
   if (!checkedIn) {
     return (
+      <div className="inline-flex items-center gap-1 shrink-0">
       <button
         type="button"
         onClick={() => void checkIn()}
@@ -293,6 +307,8 @@ export default function CsrCheckInControl({ compact = false }: { compact?: boole
         {busy ? <Loader2 size={13} className="animate-spin" /> : <LogIn size={13} />}
         <span>Check In</span>
       </button>
+      {history}
+      </div>
     );
   }
 
@@ -365,6 +381,7 @@ export default function CsrCheckInControl({ compact = false }: { compact?: boole
         <span className="hidden sm:inline">Check Out</span>
         <span className="sm:hidden">Out</span>
       </button>
+      {history}
     </div>
   );
 }

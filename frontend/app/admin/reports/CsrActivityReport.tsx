@@ -52,6 +52,7 @@ type SessionRow = {
   ip: string | null;
   closedReason: string | null;
   closedReasonLabel?: string;
+  lastActionAt?: string | null;
   sessionCount?: number;
   memberIds?: string[];
 };
@@ -68,6 +69,7 @@ type SummaryRow = {
   lastLogoutAt?: string | null;
   stillOpen?: boolean;
   day?: string;
+  lastActionAt?: string | null;
 };
 
 type ReportResponse = {
@@ -140,6 +142,7 @@ function downloadCsv(rows: SessionRow[], filename: string, personLabel: string, 
     "Away",
     "Total",
     "Status",
+    "Last action",
     "Browser",
     "IP",
     "Closed Reason",
@@ -156,6 +159,7 @@ function downloadCsv(rows: SessionRow[], filename: string, personLabel: string, 
       escape(r.awayDuration),
       escape(r.totalDuration),
       escape(r.status === "active" ? "Checked In" : "Checked Out"),
+      escape(formatSessionStamp(r.lastActionAt, tz.tz)),
       escape(r.browser ?? ""),
       escape(r.ip ?? ""),
       escape(r.closedReasonLabel ?? r.closedReason ?? ""),
@@ -187,7 +191,7 @@ function downloadExcel(
   clock: ClockTz,
 ) {
   const tz = CLOCKS[clock];
-  const sessionHeader = [personLabel, "Code", `Check In (${tz.abbr})`, `Check Out (${tz.abbr})`, "On Dashboard", "Away", "Total", "Status", "Browser", "IP", "Closed Reason"];
+  const sessionHeader = [personLabel, "Code", `Check In (${tz.abbr})`, `Check Out (${tz.abbr})`, "On Dashboard", "Away", "Total", "Status", "Last action", "Browser", "IP", "Closed Reason"];
   const sessionBody = sessions.map(r => [
     r.csrName,
     r.csrCode ?? "",
@@ -197,15 +201,17 @@ function downloadExcel(
     r.awayDuration,
     r.totalDuration,
     r.status === "active" ? "Checked In" : "Checked Out",
+    formatSessionStamp(r.lastActionAt, tz.tz),
     r.browser ?? "",
     r.ip ?? "",
     r.closedReasonLabel ?? r.closedReason ?? "",
   ].map(escHtml));
-  const summaryHeader = [personLabel, `First Check In (${tz.abbr})`, `Last Check Out (${tz.abbr})`, "Sessions", "On Dashboard", "Away", "Total"];
+  const summaryHeader = [personLabel, `First Check In (${tz.abbr})`, `Last Check Out (${tz.abbr})`, "Last action", "Sessions", "On Dashboard", "Away", "Total"];
   const summaryBody = summary.map(r => [
     r.csrName,
     r.firstLoginAt ? formatSessionStamp(r.firstLoginAt, tz.tz) : "—",
     r.stillOpen || !r.lastLogoutAt ? "Still checked in" : formatSessionStamp(r.lastLogoutAt, tz.tz),
+    formatSessionStamp(r.lastActionAt, tz.tz),
     String(r.sessions),
     r.dashboardDuration,
     r.awayDuration,
@@ -585,7 +591,7 @@ export default function CsrActivityReport({
               <table className="w-full" style={{ minWidth: "980px" }}>
                 <thead>
                   <tr className="border-b border-gray-100 bg-white">
-                    <th colSpan={canEdit ? 9 : 8} className="px-3 py-2 text-left">
+                    <th colSpan={canEdit ? 10 : 9} className="px-3 py-2 text-left">
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">Times</span>
                         {(["est", "pkt"] as const).map(key => (
@@ -607,7 +613,7 @@ export default function CsrActivityReport({
                     </th>
                   </tr>
                   <tr className="border-b border-gray-100 text-left bg-[#FAFAFB]">
-                    {[personLabel, `Check In (${clock.abbr})`, `Check Out (${clock.abbr})`, "On Dashboard", "Away", "Total", "Status", "Closed By", ...(canEdit ? [""] : [])].map(h => (
+                    {[personLabel, `Check In (${clock.abbr})`, `Check Out (${clock.abbr})`, "Last action", "On Dashboard", "Away", "Total", "Status", "Closed By", ...(canEdit ? [""] : [])].map(h => (
                       <th key={h || "actions"} className="px-3 py-2.5 text-[10px] sm:text-xs font-semibold text-gray-400 uppercase tracking-wide whitespace-nowrap">
                         {h}
                       </th>
@@ -618,7 +624,7 @@ export default function CsrActivityReport({
                   {loading ? (
                     [1, 2, 3].map(i => (
                       <tr key={i} className="border-b border-gray-50">
-                        {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(j => (
+                        {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(j => (
                           <td key={j} className="px-3 py-3">
                             <div className="h-4 w-16 bg-gray-100 rounded animate-pulse" />
                           </td>
@@ -627,7 +633,7 @@ export default function CsrActivityReport({
                     ))
                   ) : sessions.length === 0 ? (
                     <tr>
-                      <td colSpan={9} className="py-12 text-center text-gray-400 text-sm">
+                      <td colSpan={canEdit ? 10 : 9} className="py-12 text-center text-gray-400 text-sm">
                         No {personLabel.toLowerCase()} check-in sessions in this date range
                       </td>
                     </tr>
@@ -650,6 +656,9 @@ export default function CsrActivityReport({
                           <LogOut size={12} className={row.status === "active" ? "text-amber-500" : "text-gray-400"} />
                           {row.logoutAt ? formatSessionStamp(row.logoutAt, clock.tz) : "Still checked in"}
                         </span>
+                      </td>
+                      <td className="px-3 py-3 text-xs sm:text-sm text-gray-700 whitespace-nowrap">
+                        {formatSessionStamp(row.lastActionAt, clock.tz)}
                       </td>
                       <td className="px-3 py-3 text-xs sm:text-sm font-semibold text-emerald-600 whitespace-nowrap">
                         <span className="inline-flex items-center gap-1"><Monitor size={12} />{row.dashboardDuration}</span>
@@ -687,7 +696,7 @@ export default function CsrActivityReport({
               <table className="w-full" style={{ minWidth: "980px" }}>
                 <thead>
                   <tr className="border-b border-gray-100 bg-white">
-                    <th colSpan={7} className="px-3 py-2 text-left">
+                    <th colSpan={8} className="px-3 py-2 text-left">
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">Times</span>
                         {(["est", "pkt"] as const).map(key => (
@@ -709,7 +718,7 @@ export default function CsrActivityReport({
                     </th>
                   </tr>
                   <tr className="border-b border-gray-100 text-left bg-[#FAFAFB]">
-                    {[personLabel, `First Check In (${clock.abbr})`, `Last Check Out (${clock.abbr})`, "Sessions", "On Dashboard", "Away", "Total"].map(h => (
+                    {[personLabel, `First Check In (${clock.abbr})`, `Last Check Out (${clock.abbr})`, "Last action", "Sessions", "On Dashboard", "Away", "Total"].map(h => (
                       <th key={h} className="px-3 py-2.5 text-[10px] sm:text-xs font-semibold text-gray-400 uppercase tracking-wide whitespace-nowrap">
                         {h}
                       </th>
@@ -720,7 +729,7 @@ export default function CsrActivityReport({
                   {loading ? (
                     [1, 2, 3].map(i => (
                       <tr key={i} className="border-b border-gray-50">
-                        {[1, 2, 3, 4, 5, 6, 7].map(j => (
+                        {[1, 2, 3, 4, 5, 6, 7, 8].map(j => (
                           <td key={j} className="px-3 py-3">
                             <div className="h-4 w-16 bg-gray-100 rounded animate-pulse" />
                           </td>
@@ -729,7 +738,7 @@ export default function CsrActivityReport({
                     ))
                   ) : summary.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="py-12 text-center text-gray-400 text-sm">
+                      <td colSpan={8} className="py-12 text-center text-gray-400 text-sm">
                         No summary for this date range
                       </td>
                     </tr>
@@ -757,6 +766,9 @@ export default function CsrActivityReport({
                             ? "Still checked in"
                             : formatSessionStamp(row.lastLogoutAt, clock.tz)}
                         </span>
+                      </td>
+                      <td className="px-3 py-3 text-xs sm:text-sm text-gray-700 whitespace-nowrap">
+                        {formatSessionStamp(row.lastActionAt, clock.tz)}
                       </td>
                       <td className="px-3 py-3 text-sm font-bold text-gray-700">{row.sessions}</td>
                       <td className="px-3 py-3 text-sm font-semibold text-emerald-600">{row.dashboardDuration}</td>

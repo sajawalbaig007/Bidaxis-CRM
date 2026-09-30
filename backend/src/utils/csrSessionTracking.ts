@@ -1,7 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import prisma from "../config/db";
 import { detectBrowser } from "./sessions";
-import { formatDurationMs, formatEstDateTime, estDateYmd } from "./estTime";
+import { formatDurationMs, formatEstDateTime, estDateYmd, CSR_REPORT_TIMEZONE } from "./estTime";
 
 const MAX_TICK_MS = 5 * 60 * 1000;
 /**
@@ -278,10 +278,35 @@ export async function resumeCsrWorkSession(userId: string): Promise<boolean> {
   return true;
 }
 
+function parseActionAt(raw: unknown): Date | null {
+  if (raw == null || raw === "") return null;
+  const date = new Date(String(raw));
+  if (Number.isNaN(date.getTime())) return null;
+  if (date.getTime() > Date.now() + 60_000) return null;
+  return date;
+}
+
+export async function stampLastAction(userId: string, raw: unknown) {
+  const actionAt = parseActionAt(raw);
+  if (!actionAt) return;
+  const session = await prisma.csrWorkSession.findFirst({
+    where: openSessionWhere(userId),
+    orderBy: { loginAt: "desc" },
+    select: { id: true, lastActionAt: true },
+  });
+  if (!session) return;
+  if (session.lastActionAt && session.lastActionAt >= actionAt) return;
+  await prisma.csrWorkSession.update({
+    where: { id: session.id },
+    data: { lastActionAt: actionAt },
+  });
+}
+
 export async function tickCsrWorkSession(opts: {
   userId: string;
   tabVisible: boolean;
   deviceId?: string;
+  lastActionAt?: unknown;
 }): Promise<void> {
   try {
     const session = await reconcileOpenSessions(opts.userId);
@@ -289,10 +314,16 @@ export async function tickCsrWorkSession(opts: {
 
     await applyHeartbeatTick(session, opts.tabVisible);
 
-    if (opts.deviceId && opts.deviceId !== session.deviceId) {
+    const actionAt = parseActionAt(opts.lastActionAt);
+    const deviceChanged = !!opts.deviceId && opts.deviceId !== session.deviceId;
+    const actionNewer = !!actionAt && (!session.lastActionAt || actionAt > session.lastActionAt);
+    if (deviceChanged || actionNewer) {
       await prisma.csrWorkSession.update({
         where: { id: session.id },
-        data:  { deviceId: opts.deviceId },
+        data: {
+          ...(deviceChanged ? { deviceId: opts.deviceId } : {}),
+          ...(actionNewer ? { lastActionAt: actionAt } : {}),
+        },
       });
     }
   } catch (err) {
@@ -342,6 +373,7 @@ export type CsrSessionReportRow = {
   ip: string | null;
   closedReason: string | null;
   closedReasonLabel: string;
+  lastActionAt: string | null;
   sessionCount: number;
   memberIds: string[];
 };
@@ -374,6 +406,7 @@ export type CsrSessionSummary = {
   lastLogoutAt: string | null;
   stillOpen: boolean;
   day: string;
+  lastActionAt?: string | null;
 };
 
 function liveTotals(session: {
@@ -446,6 +479,9 @@ function mergeSessionsByCalendarDay(
     hit.dashboardDuration = formatDurationMs(hit.dashboardMs);
     hit.awayDuration = formatDurationMs(hit.awayMs);
     hit.totalDuration = formatDurationMs(hit.totalMs);
+    if (s.lastActionAt && (!hit.lastActionAt || s.lastActionAt > hit.lastActionAt)) {
+      hit.lastActionAt = s.lastActionAt;
+    }
     if (s.status === "active") {
       hit.status = "active";
       hit.logoutAt = null;
@@ -555,6 +591,7 @@ export async function buildCsrSessionReport(opts: {
       ip: row.ip,
       closedReason: row.closedReason,
       closedReasonLabel: closedReasonLabel(row.closedReason, !!row.logoutAt),
+      lastActionAt: row.lastActionAt?.toISOString() ?? null,
       sessionCount: 1,
       memberIds: [row.id],
     };
@@ -576,6 +613,7 @@ export async function buildCsrSessionReport(opts: {
     lastLogoutAt: s.logoutAt,
     stillOpen: s.status === "active",
     day: estDateYmd(new Date(s.loginAt), tz),
+    lastActionAt: s.lastActionAt ?? null,
   })).sort((a, b) => {
     const name = a.csrName.localeCompare(b.csrName);
     if (name) return name;
@@ -695,4 +733,67 @@ export async function adminAdjustCsrWorkSession(opts: {
     session: updated,
     csrName: user.name,
   };
+}
+
+function historyDayLabel(ymd: string): string {
+  const [y, m, d] = ymd.split("-").map(Number);
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(new Date(Date.UTC(y, (m || 1) - 1, d || 1)));
+}
+
+function historyClock(value: Date, timeZone: string): string {
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  }).format(value);
+}
+
+/** Recent days: first check-in and last check-out. A shift that ends after midnight stays on the check-in day. */
+export async function listUserShiftHistory(userId: string) {
+  const since = new Date(Date.now() - 40 * 24 * 60 * 60 * 1000);
+  const rows = await prisma.csrWorkSession.findMany({
+    where: { userId, loginAt: { gte: since } },
+    orderBy: { loginAt: "asc" },
+    select: { loginAt: true, logoutAt: true },
+  });
+  const tz = CSR_REPORT_TIMEZONE;
+  type Bucket = { day: string; first: Date; lastOut: Date | null; open: boolean };
+  const map = new Map<string, Bucket>();
+  for (const row of rows) {
+    const day = estDateYmd(row.loginAt, tz);
+    const hit = map.get(day);
+    if (!hit) {
+      map.set(day, { day, first: row.loginAt, lastOut: row.logoutAt, open: !row.logoutAt });
+      continue;
+    }
+    if (row.loginAt < hit.first) hit.first = row.loginAt;
+    if (!row.logoutAt) {
+      hit.open = true;
+      hit.lastOut = null;
+    } else if (!hit.open && row.logoutAt && (!hit.lastOut || row.logoutAt > hit.lastOut)) {
+      hit.lastOut = row.logoutAt;
+    }
+  }
+  const days = [...map.values()]
+    .sort((a, b) => b.day.localeCompare(a.day))
+    .slice(0, 30)
+    .map((bucket) => {
+      const checkOutDay = bucket.lastOut ? estDateYmd(bucket.lastOut, tz) : null;
+      const overnight = !!checkOutDay && checkOutDay > bucket.day;
+      return {
+        day: bucket.day,
+        dayLabel: historyDayLabel(bucket.day),
+        checkIn: historyClock(bucket.first, tz),
+        checkOut: bucket.open || !bucket.lastOut ? null : historyClock(bucket.lastOut, tz),
+        overnight,
+        checkOutLabel: overnight && checkOutDay ? historyDayLabel(checkOutDay) : null,
+      };
+    });
+  return days;
 }

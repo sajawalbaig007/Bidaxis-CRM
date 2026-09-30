@@ -394,6 +394,8 @@ model CsrWorkSession {
   /** Set while paused — null when working / checked out. */
   pausedAt        DateTime?
   lastHeartbeatAt DateTime?
+  /** Last click, keypress, or scroll. Mouse movement does not update this. */
+  lastActionAt    DateTime?
   lastVisible     Boolean   @default(true)
   deviceId        String?
   browser         String?
@@ -637,4 +639,22 @@ model StaffDayAttendance {
   @@index([department, day])
   @@index([day])
   @@map("staff_day_attendance")
+}
+
+/** Overtime note left at checkout. CEO or Chief Estimator can edit, approve, or decline. */
+model OvertimeRequest {
+  id         String   @id @default(cuid()) @map("_id")
+  personKey  String
+  personName String
+  department String
+  day        String
+  comment    String
+  status     String   @default("pending")
+  editedBy   String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([personKey, day, department])
+  @@index([department, day])
+  @@map("overtime_requests")
 }

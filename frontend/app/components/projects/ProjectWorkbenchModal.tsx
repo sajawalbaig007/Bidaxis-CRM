@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   X, ChevronDown, User2, Briefcase, DollarSign,
   Plus, Trash2, Save, Loader2, Link2, StickyNote, Hash, Calendar,
@@ -28,17 +28,10 @@ import {
   formatDateDayMonthYear,
 } from "@/lib/projectFields";
 import PaymentStatusCircle from "@/app/csr/components/shared/PaymentStatusCircle";
+import { useClientPhoneLookup, type ClientLookupData } from "@/app/csr/hooks/useClientPhoneLookup";
 import toast from "react-hot-toast";
 
 type CSROption = { id: string; name: string; csrCode?: string | null };
-
-type PhoneLookupProps = {
-  phoneLookupLoading?: boolean;
-  returningClient?: boolean;
-  onPhoneValueChange?: (value: string) => void;
-  onPhoneBlur?: (value: string) => void;
-  onPhonePaste?: (e: React.ClipboardEvent<HTMLInputElement>) => void;
-};
 
 type Props = {
   open: boolean;
@@ -59,7 +52,6 @@ type Props = {
   /** Admin↔TM thread — Notes for Technical / Notes for Sir */
   technicalNoteHistory?: NoteEntry[];
   onAddTechnicalNote?: (text: string) => Promise<unknown>;
-  phoneLookup?: PhoneLookupProps;
   /** Technical portal — hide Client / Quoted / Payment / CSR sections */
   hideClientFinanceSections?: boolean;
   /** Accordion to open first (e.g. "payment" from Admin Payments). */
@@ -129,7 +121,6 @@ export default function ProjectWorkbenchModal({
   onNoteDeleted,
   technicalNoteHistory,
   onAddTechnicalNote,
-  phoneLookup,
   hideClientFinanceSections = false,
   initialSection,
 }: Props) {
@@ -140,6 +131,29 @@ export default function ProjectWorkbenchModal({
   const [confirmDelete, setConfirmDelete] = useState(false);
   const wasOpenRef = useRef(false);
   const loadedIdRef = useRef<string>("");
+
+  const applyPhoneClient = useCallback((client: ClientLookupData) => {
+    setData((d) => ({
+      ...d,
+      name: client.name || d.name,
+      company: client.company || d.company,
+      email: client.email || d.email,
+      ownerName: client.ownerName || d.ownerName,
+      state: client.state || d.state,
+      interestedService: d.interestedService || client.interestedService || "",
+    }));
+  }, []);
+  const {
+    phoneLookupLoading,
+    returningClient,
+    resetLookup,
+    onPhoneValueChange,
+    onPhoneBlur,
+    onPhonePaste,
+  } = useClientPhoneLookup(
+    applyPhoneClient,
+    mode === "admin" ? "/admin/lookup-by-phone" : "/csr/lookup-by-phone",
+  );
 
   // Only reset accordion / form when modal opens or a different project is loaded —
   // not on every parent re-render (parent rebuilds `initial` each time).
@@ -154,11 +168,12 @@ export default function ProjectWorkbenchModal({
     wasOpenRef.current = true;
     if (justOpened || projectChanged) {
       setData(initial);
+      if (createMode) resetLookup();
       setOpenSection(initialSection || (hideClientFinanceSections ? "project" : "client"));
       setConfirmDelete(false);
       loadedIdRef.current = initial.id;
     }
-  }, [open, initial, hideClientFinanceSections, initialSection]);
+  }, [open, initial, hideClientFinanceSections, initialSection, createMode, resetLookup]);
 
   if (!open) return null;
 
@@ -385,7 +400,7 @@ export default function ProjectWorkbenchModal({
               <div>
                 <ReqLabel required>
                   Phone
-                  {createMode && phoneLookup && (
+                  {createMode && (
                     <span className="text-gray-300 normal-case font-normal"> (paste to auto-fill)</span>
                   )}
                 </ReqLabel>
@@ -396,12 +411,12 @@ export default function ProjectWorkbenchModal({
                     onChange={(e) => {
                       const value = e.target.value;
                       setData((d) => ({ ...d, phone: value }));
-                      phoneLookup?.onPhoneValueChange?.(value);
+                      if (createMode) onPhoneValueChange(value);
                     }}
-                    onBlur={(e) => phoneLookup?.onPhoneBlur?.(e.target.value)}
-                    onPaste={phoneLookup?.onPhonePaste}
+                    onBlur={(e) => { if (createMode) onPhoneBlur(e.target.value); }}
+                    onPaste={createMode ? onPhonePaste : undefined}
                   />
-                  {phoneLookup?.phoneLookupLoading && (
+                  {createMode && phoneLookupLoading && (
                     <Loader2 size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#B8112D] animate-spin" />
                   )}
                 </div>
@@ -411,7 +426,7 @@ export default function ProjectWorkbenchModal({
                 <input className={inputCls} type="email" value={data.email}
                   onChange={(e) => setData((d) => ({ ...d, email: e.target.value }))} />
               </div>
-              {phoneLookup?.returningClient && (
+              {createMode && returningClient && (
                 <div className="sm:col-span-2 flex items-center gap-2 bg-amber-50 border border-amber-200 text-amber-800 text-xs px-3 py-2 rounded-xl">
                   <User2 size={12} className="shrink-0" />
                   Returning client — details auto-filled from previous record

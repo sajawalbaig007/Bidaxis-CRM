@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
-import { ChevronDown, Clock, Download, LogIn, LogOut, Pencil, X } from "lucide-react";
+import { Check, ChevronDown, Clock, Download, LogIn, LogOut, Pencil, X } from "lucide-react";
 import toast from "react-hot-toast";
 import API, { apiErrorMessage } from "@/lib/api";
 import { EST_TZ_ABBR, EST_TZ_LABEL } from "@/lib/estTime";
@@ -32,8 +32,14 @@ type Row = {
   day: string;
   checkIn: string | null;
   checkOut: string | null;
+  checkInAt?: string | null;
+  checkOutAt?: string | null;
   comment?: string | null;
   overnight?: boolean;
+  overtimeId?: string | null;
+  overtimeComment?: string | null;
+  overtimeStatus?: string | null;
+  overtimeEditedBy?: string | null;
 };
 
 function calendarYmd(timeZone: string): string {
@@ -56,6 +62,31 @@ function pktInstant(day: string, time: string): Date | null {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || !/^\d{2}:\d{2}$/.test(time)) return null;
   const date = new Date(`${day}T${time}:00+05:00`);
   return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function formatIso(iso: string | null | undefined, tz: string): string {
+  if (!iso) return "—";
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "—";
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: tz,
+    month: "short",
+    day: "2-digit",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+    timeZoneName: "short",
+  }).format(date);
+}
+
+function ymdInZone(iso: string, tz: string): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: tz,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date(iso));
 }
 
 function formatStamp(day: string, time: string | null, tz: string): string {
@@ -115,7 +146,33 @@ function shiftOutDay(day: string, checkIn: string | null, checkOut: string | nul
   return addDays(day, 1);
 }
 
-function durationLabel(day: string, checkIn: string | null, checkOut: string | null): string {
+function rowCheckIn(row: Row, tz: string): string {
+  if (row.checkInAt) return formatIso(row.checkInAt, tz);
+  return formatStamp(row.day, row.checkIn, tz);
+}
+
+function rowCheckOut(row: Row, tz: string): { text: string; nextDay: boolean } {
+  if (row.checkInAt) {
+    if (!row.checkOutAt) return { text: "Still checked in", nextDay: false };
+    const nextDay = ymdInZone(row.checkOutAt, tz) > ymdInZone(row.checkInAt, tz);
+    return { text: formatIso(row.checkOutAt, tz), nextDay };
+  }
+  if (!row.checkOut) return { text: "Still checked in", nextDay: false };
+  return {
+    text: formatStamp(shiftOutDay(row.day, row.checkIn, row.checkOut), row.checkOut, tz),
+    nextDay: !!row.checkIn && row.checkOut <= row.checkIn,
+  };
+}
+
+function durationLabel(day: string, checkIn: string | null, checkOut: string | null, row?: Row): string {
+  if (row?.checkInAt) {
+    if (!row.checkOutAt) return "Still in";
+    const mins = Math.round((new Date(row.checkOutAt).getTime() - new Date(row.checkInAt).getTime()) / 60000);
+    if (mins <= 0) return "—";
+    const h = Math.floor(mins / 60);
+    const m = mins % 60;
+    return h > 0 ? `${h}h ${m}m` : `${m}m`;
+  }
   if (!checkIn || !checkOut) return checkIn && !checkOut ? "Still in" : "—";
   const start = pktInstant(day, checkIn);
   const end = pktInstant(shiftOutDay(day, checkIn, checkOut), checkOut);
@@ -144,9 +201,10 @@ function downloadExcel(title: string, filename: string, tzLabel: string, headers
   URL.revokeObjectURL(url);
 }
 
-export default function StaffAttendanceReport() {
+export default function StaffAttendanceReport({ scope = "all" }: { scope?: "all" | "estimators" }) {
   const pathname = usePathname();
   const [rows, setRows] = useState<Row[]>([]);
+  const [estimators, setEstimators] = useState<Row[]>([]);
   const [loading, setLoading] = useState(false);
   const [loaded, setLoaded] = useState(false);
 
@@ -155,16 +213,21 @@ export default function StaffAttendanceReport() {
     try {
       const res = await API.get("/attendance/report", { params: { from: "2000-01-01", to: "2100-01-01" } });
       setRows(res.data.rows ?? []);
+      setEstimators(res.data.estimators ?? []);
       setLoaded(true);
     } catch {
       setRows([]);
+      setEstimators([]);
     } finally {
       setLoading(false);
     }
   }, []);
 
-  const onReports = pathname.startsWith("/admin") || pathname.startsWith("/manager");
-  const canEdit = pathname.startsWith("/admin");
+  const onReports = scope === "estimators"
+    ? pathname.startsWith("/technical")
+    : pathname.startsWith("/admin") || pathname.startsWith("/manager");
+  const canEdit = scope === "all" && pathname.startsWith("/admin");
+  const canReview = scope === "estimators" ? pathname.startsWith("/technical") : pathname.startsWith("/admin");
 
   useEffect(() => {
     if (!onReports) return;
@@ -175,7 +238,7 @@ export default function StaffAttendanceReport() {
 
   return (
     <div className="space-y-4">
-      {DEPTS.map((dept) => (
+      {scope === "all" && DEPTS.map((dept) => (
         <DeptCard
           key={dept.key}
           title={dept.title}
@@ -184,9 +247,23 @@ export default function StaffAttendanceReport() {
           loading={loading}
           loaded={loaded}
           canEdit={canEdit}
+          showOvertime={dept.key === "dev" || dept.key === "chief_estimator"}
+          canReview={canReview}
           onRefresh={() => void load()}
         />
       ))}
+      <DeptCard
+        title="Estimator Check In / Check Out"
+        personLabel="Estimator"
+        rows={estimators}
+        loading={loading}
+        loaded={loaded}
+        canEdit={false}
+        showOvertime
+        defaultClock="est"
+        canReview={canReview}
+        onRefresh={() => void load()}
+      />
     </div>
   );
 }
@@ -198,6 +275,9 @@ function DeptCard({
   loading,
   loaded,
   canEdit,
+  showOvertime = false,
+  canReview = false,
+  defaultClock = "pkt",
   onRefresh,
 }: {
   title: string;
@@ -206,10 +286,13 @@ function DeptCard({
   loading: boolean;
   loaded: boolean;
   canEdit: boolean;
+  showOvertime?: boolean;
+  canReview?: boolean;
+  defaultClock?: ClockTz;
   onRefresh: () => void;
 }) {
   const [open, setOpen] = useState(false);
-  const [clockTz, setClockTz] = useState<ClockTz>("pkt");
+  const [clockTz, setClockTz] = useState<ClockTz>(defaultClock);
   const [fromDate, setFromDate] = useState(() => calendarYmd("Asia/Karachi"));
   const [toDate, setToDate] = useState(() => calendarYmd("Asia/Karachi"));
   const [person, setPerson] = useState("all");
@@ -219,7 +302,24 @@ function DeptCard({
   const [editCheckOut, setEditCheckOut] = useState("");
   const [editStillOpen, setEditStillOpen] = useState(false);
   const [savingEdit, setSavingEdit] = useState(false);
+  const [overtimeEdit, setOvertimeEdit] = useState<Row | null>(null);
+  const [overtimeText, setOvertimeText] = useState("");
+  const [reviewing, setReviewing] = useState(false);
   const clock = CLOCKS[clockTz];
+
+  const reviewOvertime = async (id: string, action: "approve" | "decline" | "edit", comment?: string) => {
+    setReviewing(true);
+    try {
+      await API.put(`/attendance/overtime/${id}`, { action, comment });
+      toast.success(action === "approve" ? "Approved." : action === "decline" ? "Declined." : "Comment updated.");
+      setOvertimeEdit(null);
+      onRefresh();
+    } catch (err) {
+      toast.error(apiErrorMessage(err, "Could not update overtime."));
+    } finally {
+      setReviewing(false);
+    }
+  };
 
   const openEdit = (row: Row) => {
     const cin = row.checkIn ? pktToWall(row.day, row.checkIn, clock.tz) : { day: row.day, time: "" };
@@ -299,15 +399,27 @@ function DeptCard({
   };
 
   const headers = ["Name", "Date", `Check In (${clock.abbr})`, `Check Out (${clock.abbr})`, "Total", "Status", "Comment"];
-  const excelBody = visible.map((row) => [
-    row.personName,
-    row.day,
-    formatStamp(row.day, row.checkIn, clock.tz),
-    row.checkOut ? formatStamp(shiftOutDay(row.day, row.checkIn, row.checkOut), row.checkOut, clock.tz) : "Still checked in",
-    durationLabel(row.day, row.checkIn, row.checkOut),
-    row.checkOut ? "Checked Out" : row.checkIn ? "Checked In" : "—",
-    row.comment?.trim() || "",
-  ]);
+  const tableHeaders = showOvertime ? [...headers, "Overtime", "Decision"] : headers;
+  const excelHeaders = showOvertime ? [...tableHeaders, "Edited by"] : headers;
+  const excelBody = visible.map((row) => {
+    const out = rowCheckOut(row, clock.tz);
+    const base = [
+      row.personName,
+      row.day,
+      rowCheckIn(row, clock.tz),
+      out.text,
+      durationLabel(row.day, row.checkIn, row.checkOut, row),
+      row.checkOut || row.checkOutAt ? "Checked Out" : row.checkIn || row.checkInAt ? "Checked In" : "—",
+      row.comment?.trim() || "",
+    ];
+    if (!showOvertime) return base;
+    return [
+      ...base,
+      row.overtimeComment?.trim() || "",
+      row.overtimeStatus === "approved" ? "Approved" : row.overtimeStatus === "declined" ? "Declined" : row.overtimeComment ? "Pending" : "",
+      row.overtimeEditedBy ? `Edited by ${row.overtimeEditedBy}` : "",
+    ];
+  });
 
   return (
     <div className="rounded-[1.75rem] border border-gray-100/90 bg-white shadow-[0_10px_40px_-24px_rgba(15,23,42,0.35)] p-4 sm:p-5 overflow-hidden">
@@ -367,7 +479,7 @@ function DeptCard({
             <button
               type="button"
               disabled={!visible.length}
-              onClick={() => downloadExcel(title, `${personLabel.toLowerCase().replace(/\s+/g, "-")}-attendance-${fromDate}-${toDate}`, clock.label, headers, excelBody)}
+              onClick={() => downloadExcel(title, `${personLabel.toLowerCase().replace(/\s+/g, "-")}-attendance-${fromDate}-${toDate}`, clock.label, excelHeaders, excelBody)}
               className="h-10 px-4 rounded-xl border border-gray-200 text-sm font-semibold text-gray-600 inline-flex items-center gap-2 disabled:opacity-50"
             >
               <Download size={14} /> Download Excel
@@ -378,40 +490,66 @@ function DeptCard({
             <table className="w-full min-w-[720px] text-sm">
               <thead>
                 <tr className="text-left text-[10px] uppercase tracking-wide text-gray-400 border-b border-gray-100">
-                  {headers.map((h) => <th key={h} className="px-3 py-2 font-semibold whitespace-nowrap">{h}</th>)}
+                  {tableHeaders.map((h) => <th key={h} className="px-3 py-2 font-semibold whitespace-nowrap">{h}</th>)}
                   {canEdit ? <th className="px-3 py-2" /> : null}
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan={headers.length + (canEdit ? 1 : 0)} className="px-3 py-8 text-gray-400">Loading…</td></tr>
+                  <tr><td colSpan={tableHeaders.length + (canEdit ? 1 : 0)} className="px-3 py-8 text-gray-400">Loading…</td></tr>
                 ) : visible.length === 0 ? (
-                  <tr><td colSpan={headers.length + (canEdit ? 1 : 0)} className="px-3 py-8 text-center text-gray-400">No check-in sessions in this date range</td></tr>
+                  <tr><td colSpan={tableHeaders.length + (canEdit ? 1 : 0)} className="px-3 py-8 text-center text-gray-400">No check-in sessions in this date range</td></tr>
                 ) : visible.map((row) => (
                   <tr key={row.id} className="border-b border-gray-50">
                     <td className="px-3 py-3 font-semibold">{row.personName}</td>
                     <td className="px-3 py-3 tabular-nums">{row.day}</td>
                     <td className="px-3 py-3 whitespace-nowrap">
-                      <span className="inline-flex items-center gap-1"><LogIn size={12} className="text-green-500" />{formatStamp(row.day, row.checkIn, clock.tz)}</span>
+                      <span className="inline-flex items-center gap-1"><LogIn size={12} className="text-green-500" />{rowCheckIn(row, clock.tz)}</span>
                     </td>
                     <td className="px-3 py-3 whitespace-nowrap">
                       <span className="inline-flex items-center gap-1">
-                        <LogOut size={12} className={row.checkOut ? "text-gray-400" : "text-amber-500"} />
-                        {row.checkOut ? (
-                          <>
-                            {formatStamp(shiftOutDay(row.day, row.checkIn, row.checkOut), row.checkOut, clock.tz)}
-                            {row.checkIn && row.checkOut <= row.checkIn ? <span className="ml-1 text-[10px] font-bold text-[#B8112D]">next day</span> : null}
-                          </>
-                        ) : "Still checked in"}
+                        <LogOut size={12} className={row.checkOut || row.checkOutAt ? "text-gray-400" : "text-amber-500"} />
+                        {rowCheckOut(row, clock.tz).text}
+                        {rowCheckOut(row, clock.tz).nextDay ? <span className="ml-1 text-[10px] font-bold text-[#B8112D]">next day</span> : null}
                       </span>
                     </td>
-                    <td className="px-3 py-3 font-semibold">{durationLabel(row.day, row.checkIn, row.checkOut)}</td>
+                    <td className="px-3 py-3 font-semibold">{durationLabel(row.day, row.checkIn, row.checkOut, row)}</td>
                     <td className="px-3 py-3">
-                      <span className={`text-[10px] font-bold px-2 py-1 rounded-full ${row.checkOut ? "bg-gray-100 text-gray-500" : "bg-green-50 text-green-700"}`}>
-                        {row.checkOut ? "Checked Out" : "Checked In"}
+                      <span className={`text-[10px] font-bold px-2 py-1 rounded-full ${row.checkOut || row.checkOutAt ? "bg-gray-100 text-gray-500" : "bg-green-50 text-green-700"}`}>
+                        {row.checkOut || row.checkOutAt ? "Checked Out" : "Checked In"}
                       </span>
                     </td>
                     <td className="px-3 py-3 text-xs text-gray-700 max-w-[220px]">{row.comment?.trim() || "—"}</td>
+                    {showOvertime ? (
+                      <td className="px-3 py-3 text-xs text-gray-700 max-w-[240px]">
+                        <p className="whitespace-pre-wrap">{row.overtimeComment?.trim() || "—"}</p>
+                        {row.overtimeEditedBy ? (
+                          <p className="mt-1 text-[10px] font-bold uppercase tracking-wide text-[#B8112D]">Edited by {row.overtimeEditedBy}</p>
+                        ) : null}
+                      </td>
+                    ) : null}
+                    {showOvertime ? (
+                      <td className="px-3 py-3">
+                        <div className="flex items-center gap-1.5">
+                          {row.overtimeStatus === "approved" ? (
+                            <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-green-100 text-green-700" title="Approved"><Check size={14} /></span>
+                          ) : null}
+                          {row.overtimeStatus === "declined" ? (
+                            <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-red-100 text-red-600" title="Declined"><X size={14} /></span>
+                          ) : null}
+                          {row.overtimeComment && row.overtimeStatus !== "approved" && row.overtimeStatus !== "declined" ? (
+                            <span className="text-[10px] font-bold text-gray-400">Pending</span>
+                          ) : null}
+                          {canReview && row.overtimeId ? (
+                            <>
+                              <button type="button" disabled={reviewing} title="Approve" onClick={() => void reviewOvertime(row.overtimeId!, "approve")} className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-green-600 text-white disabled:opacity-50"><Check size={14} /></button>
+                              <button type="button" disabled={reviewing} title="Decline" onClick={() => void reviewOvertime(row.overtimeId!, "decline")} className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-red-600 text-white disabled:opacity-50"><X size={14} /></button>
+                              <button type="button" disabled={reviewing} title="Edit comment" onClick={() => { setOvertimeEdit(row); setOvertimeText(row.overtimeComment ?? ""); }} className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-gray-100 text-gray-700"><Pencil size={13} /></button>
+                            </>
+                          ) : null}
+                        </div>
+                      </td>
+                    ) : null}
                     {canEdit ? (
                       <td className="px-3 py-3">
                         <button
@@ -467,6 +605,41 @@ function DeptCard({
               <button type="button" onClick={() => setEditing(null)} className="flex-1 h-11 rounded-xl bg-gray-100 text-gray-600 font-semibold text-sm">Cancel</button>
               <button type="button" onClick={() => void saveEdit()} disabled={savingEdit} className="flex-1 h-11 rounded-xl bg-[#B8112D] text-white font-semibold text-sm disabled:opacity-50">
                 {savingEdit ? "Saving…" : "Save"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+      {overtimeEdit && canReview ? (
+        <div className="fixed inset-0 z-[120] bg-black/45 flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="w-full sm:max-w-md bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+              <div>
+                <h3 className="text-base font-bold text-[#111827]">Edit overtime comment</h3>
+                <p className="text-xs text-gray-400 mt-0.5">{overtimeEdit.personName} · this will say edited by you</p>
+              </div>
+              <button type="button" onClick={() => setOvertimeEdit(null)} className="w-8 h-8 rounded-xl bg-gray-100 text-gray-500 flex items-center justify-center">
+                <X size={14} />
+              </button>
+            </div>
+            <div className="p-5">
+              <textarea
+                value={overtimeText}
+                onChange={(event) => setOvertimeText(event.target.value)}
+                rows={4}
+                maxLength={500}
+                className="w-full rounded-2xl border-2 border-gray-200 px-3 py-2 text-sm outline-none focus:border-[#B8112D]"
+              />
+            </div>
+            <div className="px-5 pb-5 flex gap-2">
+              <button type="button" onClick={() => setOvertimeEdit(null)} className="flex-1 h-11 rounded-xl bg-gray-100 text-gray-600 font-semibold text-sm">Cancel</button>
+              <button
+                type="button"
+                disabled={reviewing || !overtimeEdit.overtimeId}
+                onClick={() => void reviewOvertime(overtimeEdit.overtimeId!, "edit", overtimeText)}
+                className="flex-1 h-11 rounded-xl bg-[#B8112D] text-white font-semibold text-sm disabled:opacity-50"
+              >
+                {reviewing ? "Saving…" : "Save"}
               </button>
             </div>
           </div>

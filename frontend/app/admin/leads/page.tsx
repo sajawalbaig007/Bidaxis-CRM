@@ -32,6 +32,7 @@ import {
   Layers,
   ChevronUp,
   ChevronDown,
+  FolderPlus,
 } from "lucide-react";
 
 /* ─── COMPONENTS ─── */
@@ -48,6 +49,8 @@ import StateFilterDropdown from "../../csr/components/shared/StateFilterDropdown
 import PhoneAreaCodeFilterInput from "../../csr/components/shared/PhoneAreaCodeFilterInput";
 import { STATE_AREA_CODES } from "@/app/csr/constants/locations";
 import LeadDetailModal from "../../csr/components/LeadDetailModal";
+import ProjectWorkbenchModal from "@/app/components/projects/ProjectWorkbenchModal";
+import { emptyWorkbench, type ProjectWorkbenchData } from "@/lib/projectFields";
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip as RTooltip } from "recharts";
 import {
   canAdminReassign,
@@ -58,6 +61,7 @@ type Client = {
   id: string;
   clientName: string;
   email: string;
+  ownerName: string;
   contact: string;
   contactPhones: string[];
   emails: string[];
@@ -123,6 +127,11 @@ function SortPair({
       </button>
     </span>
   );
+}
+
+function clientField(value: string | null | undefined) {
+  const text = (value ?? "").trim();
+  return !text || text === "N/A" ? "" : text;
 }
 
 function isClientView(v: string | null): v is ClientView {
@@ -191,6 +200,9 @@ function ClientsPageContent() {
   const [reassignTargetId,  setReassignTargetId]  = useState("");
   const [isReassigning,     setIsReassigning]     = useState(false);
   const [reassignCsrLoaded, setReassignCsrLoaded] = useState(false);
+  const [addProjectClient, setAddProjectClient] = useState<Client | null>(null);
+  const [addProjectSaving, setAddProjectSaving] = useState(false);
+  const [projectCsrs, setProjectCsrs] = useState<ReassignCSR[]>([]);
 
   const openReassignModal = async (client: Client) => {
     setReassignClient(client);
@@ -201,6 +213,53 @@ function ClientsPageContent() {
       setReassignCsrList(res.data.csrs ?? []);
       setReassignCsrLoaded(true);
     } catch { toast.error("Failed to load CSRs."); }
+  };
+
+  const openAddProject = (client: Client) => {
+    setAddProjectClient(client);
+    if (projectCsrs.length > 0) return;
+    API.get("/admin/csrs")
+      .then((res) => setProjectCsrs(res.data.csrs ?? []))
+      .catch(() => {});
+  };
+
+  const saveProjectFromClient = async (data: ProjectWorkbenchData) => {
+    if (!addProjectClient) return;
+    setAddProjectSaving(true);
+    try {
+      await API.post("/admin/project", {
+        sourceClientId: addProjectClient.id,
+        name: data.name.trim(),
+        company: data.company.trim() || undefined,
+        phone: data.phone.trim() || undefined,
+        email: data.email.trim() || undefined,
+        state: data.state.trim() || undefined,
+        ownerName: data.ownerName.trim() || undefined,
+        projectTitle: data.projectTitle.trim(),
+        projectCode: data.projectCode.trim() || undefined,
+        projectScope: data.projectScope.trim() || undefined,
+        interestedService: data.interestedService,
+        projectDeadline: data.projectDeadline,
+        deadlineTiming: data.deadlineTiming || undefined,
+        projectBudget: data.projectBudget.trim() || undefined,
+        projectNotes: data.projectNotes?.trim() || undefined,
+        projectPhase: data.projectPhase,
+        takeoffDeadline: data.takeoffDeadline || undefined,
+        pricingDeadline: data.pricingDeadline || undefined,
+        qaDeadline: data.qaDeadline || undefined,
+        projectPayments: data.projectPayments,
+        csrId: data.assignedTo || undefined,
+        projectSource: data.projectSource?.trim() || undefined,
+        status: "Close Client",
+      });
+      toast.success("Project added — now in Active Projects");
+      setAddProjectClient(null);
+      setRefreshToken((n) => n + 1);
+    } catch (err) {
+      toast.error(apiErrorMessage(err, "Failed to add project"));
+    } finally {
+      setAddProjectSaving(false);
+    }
   };
 
   const confirmReassign = async () => {
@@ -225,6 +284,7 @@ function ClientsPageContent() {
     id: "",
     clientName: "",
     email: "",
+    ownerName: "",
     contact: "",
     contactPhones: [],
     emails: [],
@@ -1124,6 +1184,14 @@ function ClientsPageContent() {
                                   <ArrowRightLeft size={13} className="lg:w-[15px] lg:h-[15px]" />
                                 </button>
                               )}
+                              <button
+                                onClick={() => openAddProject(client)}
+                                className="h-8 lg:h-9 px-2.5 rounded-xl bg-[#FFF1F3] text-[#B8112D] hover:bg-[#B8112D] hover:text-white flex items-center gap-1 text-[11px] font-semibold whitespace-nowrap transition-all"
+                                title="Add project"
+                              >
+                                <FolderPlus size={13} />
+                                Add project
+                              </button>
                             </div>
                             {/* Mobile: three-dot dropdown */}
                             <div className="relative md:hidden flex justify-end">
@@ -1168,6 +1236,15 @@ function ClientsPageContent() {
                                       <ArrowRightLeft size={14} /> Reassign CSR
                                     </button>
                                   )}
+                                  <button
+                                    onClick={() => {
+                                      openAddProject(client);
+                                      setOpenMenu(null);
+                                    }}
+                                    className="w-full px-4 py-3 text-left text-sm hover:bg-[#FFF1F3] text-[#B8112D] flex items-center gap-2"
+                                  >
+                                    <FolderPlus size={14} /> Add project
+                                  </button>
                                 </div>
                               )}
                             </div>
@@ -1579,6 +1656,30 @@ function ClientsPageContent() {
             </div>
           </div>
         </div>
+      )}
+
+      {addProjectClient && (
+        <ProjectWorkbenchModal
+          open
+          createMode
+          mode="admin"
+          sourceClientId={addProjectClient.id}
+          csrs={projectCsrs}
+          saving={addProjectSaving}
+          initial={{
+            ...emptyWorkbench(),
+            name: clientField(addProjectClient.clientName),
+            company: clientField(addProjectClient.company),
+            phone: clientField(addProjectClient.contact),
+            email: clientField(addProjectClient.email),
+            ownerName: clientField(addProjectClient.ownerName),
+            state: clientField(addProjectClient.state),
+            interestedService: clientField(addProjectClient.scope),
+            projectCode: "",
+          }}
+          onClose={() => setAddProjectClient(null)}
+          onSave={saveProjectFromClient}
+        />
       )}
 
       </main>

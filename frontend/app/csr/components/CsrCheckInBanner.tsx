@@ -3,18 +3,45 @@
 import { useCallback, useEffect, useState } from "react";
 import { LogIn, X } from "lucide-react";
 import API from "@/lib/api";
+import { CSR_IDLE_RECHECK_KEY } from "@/app/csr/hooks/useCsrPresence";
 import { CSR_PAGE_GUTTER } from "./shared/csrTableStyles";
+
+function readIdleRecheck() {
+  try {
+    return sessionStorage.getItem(CSR_IDLE_RECHECK_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function clearIdleRecheck() {
+  try {
+    sessionStorage.removeItem(CSR_IDLE_RECHECK_KEY);
+  } catch {
+    /* ignore */
+  }
+}
 
 /** Reminder until CSR checks in — Check In button lives in the top navbar. */
 export default function CsrCheckInBanner() {
-  const [needsCheckIn, setNeedsCheckIn] = useState(false);
+  const idleOnLoad = readIdleRecheck();
+  const [needsCheckIn, setNeedsCheckIn] = useState(idleOnLoad);
+  const [mustRecheck, setMustRecheck] = useState(idleOnLoad);
   const [dismissed, setDismissed] = useState(false);
 
   const refresh = useCallback(async () => {
     try {
       const res = await API.get("/csr/work-session");
-      setNeedsCheckIn(!res.data.checkedIn);
-      if (res.data.checkedIn) setDismissed(false);
+      const inNow = !!res.data.checkedIn;
+      setNeedsCheckIn(!inNow);
+      if (inNow) {
+        setDismissed(false);
+        setMustRecheck(false);
+        clearIdleRecheck();
+      } else if (readIdleRecheck()) {
+        setMustRecheck(true);
+        setDismissed(false);
+      }
     } catch {
       /* ignore */
     }
@@ -24,10 +51,17 @@ export default function CsrCheckInBanner() {
     void refresh();
     const onFocus = () => void refresh();
     const onCheckedIn = (e: Event) => {
-      const detail = (e as CustomEvent<{ checkedIn?: boolean }>).detail;
+      const detail = (e as CustomEvent<{ checkedIn?: boolean; idle?: boolean }>).detail;
       if (detail && typeof detail.checkedIn === "boolean") {
         setNeedsCheckIn(!detail.checkedIn);
-        if (detail.checkedIn) setDismissed(false);
+        if (detail.checkedIn) {
+          setDismissed(false);
+          setMustRecheck(false);
+          clearIdleRecheck();
+        } else if (detail.idle) {
+          setMustRecheck(true);
+          setDismissed(false);
+        }
         return;
       }
       void refresh();
@@ -42,7 +76,7 @@ export default function CsrCheckInBanner() {
     };
   }, [refresh]);
 
-  if (!needsCheckIn || dismissed) return null;
+  if (!needsCheckIn || (dismissed && !mustRecheck)) return null;
 
   return (
     <div className="sticky top-[64px] z-20 border-b border-amber-200/80 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-950/40 px-3 sm:px-4 py-2.5">
@@ -52,20 +86,26 @@ export default function CsrCheckInBanner() {
             <LogIn size={15} />
           </div>
           <div className="min-w-0">
-            <p className="text-sm font-bold text-amber-900 dark:text-amber-200">Check in to start your shift</p>
+            <p className="text-sm font-bold text-amber-900 dark:text-amber-200">
+              {mustRecheck ? "You have to check in again" : "Check in to start your shift"}
+            </p>
             <p className="text-[11px] sm:text-xs text-amber-800/80 dark:text-amber-300/80">
-              Use the green <span className="font-semibold">Check In</span> button in the top bar. Only <span className="font-semibold">Check Out</span> ends your shift — logout does not.
+              {mustRecheck
+                ? "There was no click, typing, or scroll for 5 minutes, so you were checked out. Use Check In in the top bar. This stays until you check in."
+                : <>Use the green <span className="font-semibold">Check In</span> button in the top bar. Only <span className="font-semibold">Check Out</span> ends your shift — logout does not.</>}
             </p>
           </div>
         </div>
-        <button
-          type="button"
-          onClick={() => setDismissed(true)}
-          className="w-8 h-8 rounded-lg text-amber-700/70 dark:text-amber-300/70 hover:bg-amber-100 dark:hover:bg-amber-500/20 flex items-center justify-center shrink-0"
-          title="Dismiss for now"
-        >
-          <X size={14} />
-        </button>
+        {!mustRecheck && (
+          <button
+            type="button"
+            onClick={() => setDismissed(true)}
+            className="w-8 h-8 rounded-lg text-amber-700/70 dark:text-amber-300/70 hover:bg-amber-100 dark:hover:bg-amber-500/20 flex items-center justify-center shrink-0"
+            title="Dismiss for now"
+          >
+            <X size={14} />
+          </button>
+        )}
       </div>
     </div>
   );

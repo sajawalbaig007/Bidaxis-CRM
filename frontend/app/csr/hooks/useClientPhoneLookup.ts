@@ -6,6 +6,7 @@ export type ClientLookupData = {
   name: string;
   company: string;
   email: string;
+  ownerName: string;
   state: string;
   interestedService: string;
 };

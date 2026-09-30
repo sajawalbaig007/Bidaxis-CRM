@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { isDesktopOsUserAgent } from "@/lib/desktopUserAgent";
 
 type AppRole = "admin" | "csr" | "manager" | "technical_manager" | "accounts" | "estimator";
 
@@ -53,6 +54,12 @@ function homeForRole(role: AppRole) {
 }
 
 export function proxy(request: NextRequest) {
+  const ua = request.headers.get("user-agent");
+  const chMobile = (request.headers.get("sec-ch-ua-mobile") ?? "").trim();
+  if (chMobile === "?1" || !isDesktopOsUserAgent(ua)) {
+    return NextResponse.rewrite(new URL("/desktop-only", request.url));
+  }
+
   const token = request.cookies.get("token")?.value;
   const { pathname } = request.nextUrl;
 
@@ -129,5 +136,6 @@ export const config = {
     "/technical/:path*",
     "/accounts/:path*",
     "/estimator/:path*",
+    "/company/:path*",
   ],
 };
