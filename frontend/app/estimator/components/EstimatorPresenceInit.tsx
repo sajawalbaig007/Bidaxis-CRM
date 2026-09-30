@@ -5,6 +5,7 @@ import toast from "react-hot-toast";
 import API, { getApiBase, getClientAuthToken } from "@/lib/api";
 import { visibleInterval } from "@/lib/visibleInterval";
 import { clearRealAction, peekLastActionAt, watchRealActivity } from "@/lib/realActivityWatch";
+import { alertCheckedOut, armCheckoutAlert } from "@/lib/checkoutAlert";
 
 const CHECKIN_EVENT = "estimator-checkin-changed";
 export const ESTIMATOR_IDLE_RECHECK_KEY = "estimator_idle_recheckin";
@@ -13,7 +14,7 @@ const CONFIRM_EVENT = "estimator-activity-confirm";
 const ACTION_KEY = "estimator_last_real_action";
 
 export function requestEstimatorIdlePermission(): void {
-  /* Real work is a click, keypress, or scroll. No idle-detection permission. */
+  armCheckoutAlert();
 }
 
 /** Heartbeat ticks open work session (dashboard/away) after Check In. */
@@ -49,6 +50,7 @@ export function useEstimatorPresence() {
       API.post("/estimator/check-out", lastActionAt ? { lastActionAt } : {})
         .then(() => {
           try { sessionStorage.setItem(ESTIMATOR_IDLE_RECHECK_KEY, "1"); } catch { /* ignore */ }
+          alertCheckedOut();
           toast("You have to check in again.");
           window.dispatchEvent(new CustomEvent(CHECKIN_EVENT, { detail: { checkedIn: false, idle: true } }));
         })
