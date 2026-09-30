@@ -338,8 +338,8 @@ export default function CsrActivityReport({
   const canEdit = allowEdit && pathname.startsWith("/admin");
   const today = calendarYmd(CLOCKS.est.tz);
   const isEstimator = staffRole === "estimator";
-  const showOvertime = isEstimator && !pathname.startsWith("/technical");
-  const canReviewOt = showOvertime && pathname.startsWith("/admin");
+  const showOvertime = isEstimator;
+  const canReviewOt = showOvertime && (pathname.startsWith("/admin") || pathname.startsWith("/technical"));
   const sessionCols = 9 + (showOvertime ? 2 : 0) + (canEdit ? 1 : 0);
   const summaryCols = 8 + (showOvertime ? 2 : 0);
   const title = isEstimator ? "Estimator Check In / Check Out" : "CSR Check In / Check Out";
