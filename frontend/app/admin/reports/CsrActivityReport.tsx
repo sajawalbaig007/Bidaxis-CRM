@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import toast from "react-hot-toast";
 import API, { apiErrorMessage } from "@/lib/api";
 import { EST_TZ_ABBR, EST_TZ_LABEL } from "@/lib/estTime";
-import { Check, ChevronDown, Clock, Download, LogIn, LogOut, Monitor, Pencil, Users, X } from "lucide-react";
+import { Check, ChevronDown, Clock, Download, LogIn, LogOut, Monitor, Pencil, RotateCcw, Users, X } from "lucide-react";
 
 type ClockTz = "est" | "pkt";
 
@@ -387,9 +387,25 @@ export default function CsrActivityReport({
   const [editStillOpen, setEditStillOpen] = useState(false);
   const [editNote, setEditNote] = useState("admin_adjusted");
   const [savingEdit, setSavingEdit] = useState(false);
+  const [resettingId, setResettingId] = useState("");
   const [overtimeEdit, setOvertimeEdit] = useState<SessionRow | SummaryRow | null>(null);
   const [overtimeText, setOvertimeText] = useState("");
   const [reviewing, setReviewing] = useState(false);
+
+  const resetDay = async (row: SessionRow) => {
+    const ids = row.memberIds?.length ? row.memberIds : [row.id];
+    if (!window.confirm(`Clear this day's check-in and check-out for ${row.csrName}? They can check in again. You can edit the correct time after they check in.`)) return;
+    setResettingId(row.id);
+    try {
+      await API.post("/admin/csr-work-session/reset", { memberIds: ids });
+      toast.success("Time reset.");
+      await loadReport();
+    } catch (err) {
+      toast.error(apiErrorMessage(err, "Could not reset time."));
+    } finally {
+      setResettingId("");
+    }
+  };
 
   const openEdit = (row: SessionRow) => {
     setEditing(row);
@@ -813,15 +829,27 @@ export default function CsrActivityReport({
                       ) : null}
                       {canEdit ? (
                       <td className="px-3 py-3">
-                        <button
-                          type="button"
-                          onClick={() => openEdit(row)}
-                          className="inline-flex items-center gap-1 h-8 px-2.5 rounded-lg bg-[#FFF1F3] text-[#B8112D] text-[11px] font-bold hover:bg-[#B8112D] hover:text-white transition-colors"
-                          title="Adjust check-in / check-out times"
-                        >
-                          <Pencil size={12} />
-                          Edit
-                        </button>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => openEdit(row)}
+                            className="inline-flex items-center gap-1 h-8 px-2.5 rounded-lg bg-[#FFF1F3] text-[#B8112D] text-[11px] font-bold hover:bg-[#B8112D] hover:text-white transition-colors"
+                            title="Adjust check-in / check-out times"
+                          >
+                            <Pencil size={12} />
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            disabled={resettingId === row.id}
+                            onClick={() => void resetDay(row)}
+                            className="inline-flex items-center gap-1 h-8 px-2.5 rounded-lg bg-gray-100 text-gray-700 text-[11px] font-bold hover:bg-gray-200 disabled:opacity-50"
+                            title="Clear this day's check-in and check-out"
+                          >
+                            <RotateCcw size={12} />
+                            Reset
+                          </button>
+                        </div>
                       </td>
                       ) : null}
                     </tr>
