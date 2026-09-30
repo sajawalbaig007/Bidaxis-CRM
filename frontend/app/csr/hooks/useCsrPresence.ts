@@ -3,6 +3,7 @@ import toast from "react-hot-toast";
 import API, { getApiBase, getClientAuthToken } from "@/lib/api";
 import { visibleInterval } from "@/lib/visibleInterval";
 import { clearRealAction, peekLastActionAt, watchRealActivity } from "@/lib/realActivityWatch";
+import { alertCheckedOut, armCheckoutAlert } from "@/lib/checkoutAlert";
 
 const CHECKIN_EVENT = "csr-checkin-changed";
 export const CSR_IDLE_RECHECK_KEY = "csr_idle_recheckin";
@@ -11,7 +12,7 @@ const CONFIRM_EVENT = "csr-activity-confirm";
 const ACTION_KEY = "csr_last_real_action";
 
 export function requestCsrIdlePermission(): void {
-  /* Real work is a click, keypress, or scroll. No idle-detection permission. */
+  armCheckoutAlert();
 }
 
 function markIdleRecheck() {
@@ -54,6 +55,7 @@ export function useCsrPresence() {
       API.post("/csr/check-out", lastActionAt ? { lastActionAt } : {})
         .then(() => {
           markIdleRecheck();
+          alertCheckedOut();
           toast("You have to check in again.");
           window.dispatchEvent(new CustomEvent(CHECKIN_EVENT, { detail: { checkedIn: false, idle: true } }));
         })
