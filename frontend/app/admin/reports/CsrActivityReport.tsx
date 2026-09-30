@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import toast from "react-hot-toast";
 import API, { apiErrorMessage } from "@/lib/api";
 import { EST_TZ_ABBR, EST_TZ_LABEL } from "@/lib/estTime";
-import { ChevronDown, Clock, Download, LogIn, LogOut, Monitor, Pencil, Users, X } from "lucide-react";
+import { Check, ChevronDown, Clock, Download, LogIn, LogOut, Monitor, Pencil, Users, X } from "lucide-react";
 
 type ClockTz = "est" | "pkt";
 
@@ -53,6 +53,10 @@ type SessionRow = {
   closedReason: string | null;
   closedReasonLabel?: string;
   lastActionAt?: string | null;
+  overtimeId?: string | null;
+  overtimeComment?: string | null;
+  overtimeStatus?: string | null;
+  overtimeEditedBy?: string | null;
   sessionCount?: number;
   memberIds?: string[];
 };
@@ -70,6 +74,10 @@ type SummaryRow = {
   stillOpen?: boolean;
   day?: string;
   lastActionAt?: string | null;
+  overtimeId?: string | null;
+  overtimeComment?: string | null;
+  overtimeStatus?: string | null;
+  overtimeEditedBy?: string | null;
 };
 
 type ReportResponse = {
@@ -131,7 +139,14 @@ function periodFromDates(from: string, to: string, today: string): PeriodPreset 
   return "custom";
 }
 
-function downloadCsv(rows: SessionRow[], filename: string, personLabel: string, clock: ClockTz) {
+function overtimeStatusLabel(status: string | null | undefined, comment: string | null | undefined) {
+  if (status === "approved") return "Approved";
+  if (status === "declined") return "Declined";
+  if (comment) return "Pending";
+  return "";
+}
+
+function downloadCsv(rows: SessionRow[], filename: string, personLabel: string, clock: ClockTz, includeOvertime = false) {
   const tz = CLOCKS[clock];
   const headers = [
     personLabel,
@@ -143,6 +158,7 @@ function downloadCsv(rows: SessionRow[], filename: string, personLabel: string, 
     "Total",
     "Status",
     "Last action",
+    ...(includeOvertime ? ["Overtime", "Decision", "Edited by"] : []),
     "Browser",
     "IP",
     "Closed Reason",
@@ -160,6 +176,11 @@ function downloadCsv(rows: SessionRow[], filename: string, personLabel: string, 
       escape(r.totalDuration),
       escape(r.status === "active" ? "Checked In" : "Checked Out"),
       escape(formatSessionStamp(r.lastActionAt, tz.tz)),
+      ...(includeOvertime ? [
+        escape(r.overtimeComment ?? ""),
+        escape(overtimeStatusLabel(r.overtimeStatus, r.overtimeComment)),
+        escape(r.overtimeEditedBy ? `Edited by ${r.overtimeEditedBy}` : ""),
+      ] : []),
       escape(r.browser ?? ""),
       escape(r.ip ?? ""),
       escape(r.closedReasonLabel ?? r.closedReason ?? ""),
@@ -189,9 +210,10 @@ function downloadExcel(
   personLabel: string,
   title: string,
   clock: ClockTz,
+  includeOvertime = false,
 ) {
   const tz = CLOCKS[clock];
-  const sessionHeader = [personLabel, "Code", `Check In (${tz.abbr})`, `Check Out (${tz.abbr})`, "On Dashboard", "Away", "Total", "Status", "Last action", "Browser", "IP", "Closed Reason"];
+  const sessionHeader = [personLabel, "Code", `Check In (${tz.abbr})`, `Check Out (${tz.abbr})`, "On Dashboard", "Away", "Total", "Status", "Last action", ...(includeOvertime ? ["Overtime", "Decision", "Edited by"] : []), "Browser", "IP", "Closed Reason"];
   const sessionBody = sessions.map(r => [
     r.csrName,
     r.csrCode ?? "",
@@ -202,16 +224,26 @@ function downloadExcel(
     r.totalDuration,
     r.status === "active" ? "Checked In" : "Checked Out",
     formatSessionStamp(r.lastActionAt, tz.tz),
+    ...(includeOvertime ? [
+      r.overtimeComment ?? "",
+      overtimeStatusLabel(r.overtimeStatus, r.overtimeComment),
+      r.overtimeEditedBy ? `Edited by ${r.overtimeEditedBy}` : "",
+    ] : []),
     r.browser ?? "",
     r.ip ?? "",
     r.closedReasonLabel ?? r.closedReason ?? "",
   ].map(escHtml));
-  const summaryHeader = [personLabel, `First Check In (${tz.abbr})`, `Last Check Out (${tz.abbr})`, "Last action", "Sessions", "On Dashboard", "Away", "Total"];
+  const summaryHeader = [personLabel, `First Check In (${tz.abbr})`, `Last Check Out (${tz.abbr})`, "Last action", ...(includeOvertime ? ["Overtime", "Decision", "Edited by"] : []), "Sessions", "On Dashboard", "Away", "Total"];
   const summaryBody = summary.map(r => [
     r.csrName,
     r.firstLoginAt ? formatSessionStamp(r.firstLoginAt, tz.tz) : "—",
     r.stillOpen || !r.lastLogoutAt ? "Still checked in" : formatSessionStamp(r.lastLogoutAt, tz.tz),
     formatSessionStamp(r.lastActionAt, tz.tz),
+    ...(includeOvertime ? [
+      r.overtimeComment ?? "",
+      overtimeStatusLabel(r.overtimeStatus, r.overtimeComment),
+      r.overtimeEditedBy ? `Edited by ${r.overtimeEditedBy}` : "",
+    ] : []),
     String(r.sessions),
     r.dashboardDuration,
     r.awayDuration,
@@ -243,6 +275,56 @@ ${table(summaryHeader, summaryBody)}
   URL.revokeObjectURL(url);
 }
 
+function OvertimeCells({
+  row,
+  canReview,
+  reviewing,
+  onReview,
+  onEdit,
+}: {
+  row: {
+    overtimeId?: string | null;
+    overtimeComment?: string | null;
+    overtimeStatus?: string | null;
+    overtimeEditedBy?: string | null;
+  };
+  canReview: boolean;
+  reviewing: boolean;
+  onReview: (action: "approve" | "decline") => void;
+  onEdit: () => void;
+}) {
+  return (
+    <>
+      <td className="px-3 py-3 text-xs text-gray-700 max-w-[240px]">
+        <p className="whitespace-pre-wrap">{row.overtimeComment?.trim() || "—"}</p>
+        {row.overtimeEditedBy ? (
+          <p className="mt-1 text-[10px] font-bold uppercase tracking-wide text-[#B8112D]">Edited by {row.overtimeEditedBy}</p>
+        ) : null}
+      </td>
+      <td className="px-3 py-3">
+        <div className="flex items-center gap-1.5">
+          {row.overtimeStatus === "approved" ? (
+            <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-green-100 text-green-700" title="Approved"><Check size={14} /></span>
+          ) : null}
+          {row.overtimeStatus === "declined" ? (
+            <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-red-100 text-red-600" title="Declined"><X size={14} /></span>
+          ) : null}
+          {row.overtimeComment && row.overtimeStatus !== "approved" && row.overtimeStatus !== "declined" ? (
+            <span className="text-[10px] font-bold text-gray-400">Pending</span>
+          ) : null}
+          {canReview && row.overtimeId ? (
+            <>
+              <button type="button" disabled={reviewing} title="Approve" onClick={() => onReview("approve")} className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-green-600 text-white disabled:opacity-50"><Check size={14} /></button>
+              <button type="button" disabled={reviewing} title="Decline" onClick={() => onReview("decline")} className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-red-600 text-white disabled:opacity-50"><X size={14} /></button>
+              <button type="button" disabled={reviewing} title="Edit comment" onClick={onEdit} className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-gray-100 text-gray-700"><Pencil size={13} /></button>
+            </>
+          ) : null}
+        </div>
+      </td>
+    </>
+  );
+}
+
 export default function CsrActivityReport({
   staffRole = "csr",
   allowEdit = true,
@@ -256,6 +338,10 @@ export default function CsrActivityReport({
   const canEdit = allowEdit && pathname.startsWith("/admin");
   const today = calendarYmd(CLOCKS.est.tz);
   const isEstimator = staffRole === "estimator";
+  const showOvertime = isEstimator && !pathname.startsWith("/technical");
+  const canReviewOt = showOvertime && pathname.startsWith("/admin");
+  const sessionCols = 9 + (showOvertime ? 2 : 0) + (canEdit ? 1 : 0);
+  const summaryCols = 8 + (showOvertime ? 2 : 0);
   const title = isEstimator ? "Estimator Check In / Check Out" : "CSR Check In / Check Out";
   const personLabel = isEstimator ? "Estimator" : "CSR";
   const peopleLabel = isEstimator ? "Estimators" : "CSRs";
@@ -281,6 +367,9 @@ export default function CsrActivityReport({
   const [editStillOpen, setEditStillOpen] = useState(false);
   const [editNote, setEditNote] = useState("admin_adjusted");
   const [savingEdit, setSavingEdit] = useState(false);
+  const [overtimeEdit, setOvertimeEdit] = useState<SessionRow | SummaryRow | null>(null);
+  const [overtimeText, setOvertimeText] = useState("");
+  const [reviewing, setReviewing] = useState(false);
 
   const openEdit = (row: SessionRow) => {
     setEditing(row);
@@ -367,6 +456,20 @@ export default function CsrActivityReport({
       setLoading(false);
     }
   }, [fromDate, toDate, csrId, staffRole, personLabel, clockTz]);
+
+  const reviewOvertime = async (id: string, action: "approve" | "decline" | "edit", comment?: string) => {
+    setReviewing(true);
+    try {
+      await API.put(`/attendance/overtime/${id}`, { action, comment });
+      toast.success(action === "approve" ? "Approved." : action === "decline" ? "Declined." : "Comment updated.");
+      setOvertimeEdit(null);
+      await loadReport();
+    } catch (err) {
+      toast.error(apiErrorMessage(err, "Could not update overtime."));
+    } finally {
+      setReviewing(false);
+    }
+  };
 
   useEffect(() => {
     if (!open) return;
@@ -532,7 +635,7 @@ export default function CsrActivityReport({
 
             <button
               type="button"
-              onClick={() => downloadCsv(sessions, `${isEstimator ? "estimator" : "csr"}-activity-${fromDate}-${toDate}.csv`, personLabel, clockTz)}
+              onClick={() => downloadCsv(sessions, `${isEstimator ? "estimator" : "csr"}-activity-${fromDate}-${toDate}.csv`, personLabel, clockTz, showOvertime)}
               disabled={!sessions.length}
               className="h-10 px-4 rounded-xl border border-gray-200 bg-white text-sm font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-50 flex items-center gap-2"
             >
@@ -548,6 +651,7 @@ export default function CsrActivityReport({
                 personLabel,
                 title,
                 clockTz,
+                showOvertime,
               )}
               disabled={!sessions.length && !summary.length}
               className="h-10 px-4 rounded-xl border border-gray-200 bg-white text-sm font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-50 flex items-center gap-2"
@@ -591,7 +695,7 @@ export default function CsrActivityReport({
               <table className="w-full" style={{ minWidth: "980px" }}>
                 <thead>
                   <tr className="border-b border-gray-100 bg-white">
-                    <th colSpan={canEdit ? 10 : 9} className="px-3 py-2 text-left">
+                    <th colSpan={sessionCols} className="px-3 py-2 text-left">
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">Times</span>
                         {(["est", "pkt"] as const).map(key => (
@@ -613,7 +717,7 @@ export default function CsrActivityReport({
                     </th>
                   </tr>
                   <tr className="border-b border-gray-100 text-left bg-[#FAFAFB]">
-                    {[personLabel, `Check In (${clock.abbr})`, `Check Out (${clock.abbr})`, "Last action", "On Dashboard", "Away", "Total", "Status", "Closed By", ...(canEdit ? [""] : [])].map(h => (
+                    {[personLabel, `Check In (${clock.abbr})`, `Check Out (${clock.abbr})`, "Last action", "On Dashboard", "Away", "Total", "Status", "Closed By", ...(showOvertime ? ["Overtime", "Decision"] : []), ...(canEdit ? [""] : [])].map(h => (
                       <th key={h || "actions"} className="px-3 py-2.5 text-[10px] sm:text-xs font-semibold text-gray-400 uppercase tracking-wide whitespace-nowrap">
                         {h}
                       </th>
@@ -633,7 +737,7 @@ export default function CsrActivityReport({
                     ))
                   ) : sessions.length === 0 ? (
                     <tr>
-                      <td colSpan={canEdit ? 10 : 9} className="py-12 text-center text-gray-400 text-sm">
+                      <td colSpan={sessionCols} className="py-12 text-center text-gray-400 text-sm">
                         No {personLabel.toLowerCase()} check-in sessions in this date range
                       </td>
                     </tr>
@@ -675,6 +779,15 @@ export default function CsrActivityReport({
                       <td className="px-3 py-3 text-[11px] text-gray-500 whitespace-nowrap">
                         {row.closedReasonLabel ?? (row.status === "active" ? "—" : (row.closedReason ?? "—"))}
                       </td>
+                      {showOvertime ? (
+                        <OvertimeCells
+                          row={row}
+                          canReview={canReviewOt}
+                          reviewing={reviewing}
+                          onReview={(action) => row.overtimeId && void reviewOvertime(row.overtimeId, action)}
+                          onEdit={() => { setOvertimeEdit(row); setOvertimeText(row.overtimeComment ?? ""); }}
+                        />
+                      ) : null}
                       {canEdit ? (
                       <td className="px-3 py-3">
                         <button
@@ -696,7 +809,7 @@ export default function CsrActivityReport({
               <table className="w-full" style={{ minWidth: "980px" }}>
                 <thead>
                   <tr className="border-b border-gray-100 bg-white">
-                    <th colSpan={8} className="px-3 py-2 text-left">
+                    <th colSpan={summaryCols} className="px-3 py-2 text-left">
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">Times</span>
                         {(["est", "pkt"] as const).map(key => (
@@ -718,7 +831,7 @@ export default function CsrActivityReport({
                     </th>
                   </tr>
                   <tr className="border-b border-gray-100 text-left bg-[#FAFAFB]">
-                    {[personLabel, `First Check In (${clock.abbr})`, `Last Check Out (${clock.abbr})`, "Last action", "Sessions", "On Dashboard", "Away", "Total"].map(h => (
+                    {[personLabel, `First Check In (${clock.abbr})`, `Last Check Out (${clock.abbr})`, "Last action", ...(showOvertime ? ["Overtime", "Decision"] : []), "Sessions", "On Dashboard", "Away", "Total"].map(h => (
                       <th key={h} className="px-3 py-2.5 text-[10px] sm:text-xs font-semibold text-gray-400 uppercase tracking-wide whitespace-nowrap">
                         {h}
                       </th>
@@ -738,7 +851,7 @@ export default function CsrActivityReport({
                     ))
                   ) : summary.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="py-12 text-center text-gray-400 text-sm">
+                      <td colSpan={summaryCols} className="py-12 text-center text-gray-400 text-sm">
                         No summary for this date range
                       </td>
                     </tr>
@@ -770,6 +883,15 @@ export default function CsrActivityReport({
                       <td className="px-3 py-3 text-xs sm:text-sm text-gray-700 whitespace-nowrap">
                         {formatSessionStamp(row.lastActionAt, clock.tz)}
                       </td>
+                      {showOvertime ? (
+                        <OvertimeCells
+                          row={row}
+                          canReview={canReviewOt}
+                          reviewing={reviewing}
+                          onReview={(action) => row.overtimeId && void reviewOvertime(row.overtimeId, action)}
+                          onEdit={() => { setOvertimeEdit(row); setOvertimeText(row.overtimeComment ?? ""); }}
+                        />
+                      ) : null}
                       <td className="px-3 py-3 text-sm font-bold text-gray-700">{row.sessions}</td>
                       <td className="px-3 py-3 text-sm font-semibold text-emerald-600">{row.dashboardDuration}</td>
                       <td className="px-3 py-3 text-sm font-semibold text-amber-600">{row.awayDuration}</td>
@@ -869,6 +991,41 @@ export default function CsrActivityReport({
           </div>
         </div>
       )}
+      {overtimeEdit && canReviewOt ? (
+        <div className="fixed inset-0 z-[120] bg-black/45 flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="w-full sm:max-w-md bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+              <div>
+                <h3 className="text-base font-bold text-[#111827]">Edit overtime comment</h3>
+                <p className="text-xs text-gray-400 mt-0.5">{overtimeEdit.csrName} · this will say edited by you</p>
+              </div>
+              <button type="button" onClick={() => setOvertimeEdit(null)} className="w-8 h-8 rounded-xl bg-gray-100 text-gray-500 flex items-center justify-center">
+                <X size={14} />
+              </button>
+            </div>
+            <div className="p-5">
+              <textarea
+                value={overtimeText}
+                onChange={(event) => setOvertimeText(event.target.value)}
+                rows={4}
+                maxLength={500}
+                className="w-full rounded-2xl border-2 border-gray-200 px-3 py-2 text-sm outline-none focus:border-[#B8112D]"
+              />
+            </div>
+            <div className="px-5 pb-5 flex gap-2">
+              <button type="button" onClick={() => setOvertimeEdit(null)} className="flex-1 h-11 rounded-xl bg-gray-100 text-gray-600 font-semibold text-sm">Cancel</button>
+              <button
+                type="button"
+                disabled={reviewing || !overtimeEdit.overtimeId}
+                onClick={() => overtimeEdit.overtimeId && void reviewOvertime(overtimeEdit.overtimeId, "edit", overtimeText)}
+                className="flex-1 h-11 rounded-xl bg-[#B8112D] text-white font-semibold text-sm disabled:opacity-50"
+              >
+                {reviewing ? "Saving…" : "Save"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -230,13 +230,13 @@ router.post("/punch", async (req, res) => {
       comment,
     });
     if (!saved.ok) return res.status(400).json({ success: false, message: saved.message });
-    if (action === "out" && department === "dev") {
+    if (action === "out" && (department === "dev" || department === "bim_modeler")) {
       const overtime = cleanComment(req.body?.overtimeComment);
       if (overtime && saved.row?.day) {
         await saveOvertimeComment({
           personKey: person.key,
           personName: person.name,
-          department: "dev",
+          department,
           day: saved.row.day,
           comment: overtime,
         });
@@ -435,7 +435,7 @@ router.get("/report", verifyToken, allowRoles("admin", "manager", "technical_man
       orderBy: [{ day: "desc" }, { department: "asc" }, { personName: "asc" }],
     });
     const notes = await prisma.overtimeRequest.findMany({
-      where: { department: { in: ["dev", "chief_estimator"] }, day: { gte: start, lte: end } },
+      where: { department: { in: ["dev", "chief_estimator", "bim_modeler"] }, day: { gte: start, lte: end } },
     });
     const byKey = new Map(notes.map((note) => [`${note.department}:${note.personKey}:${note.day}`, note]));
     return res.json({
