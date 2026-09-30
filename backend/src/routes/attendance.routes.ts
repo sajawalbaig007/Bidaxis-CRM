@@ -13,7 +13,10 @@ import {
   isValidTime,
   officeNetworkMessage,
   isOvernightShift,
+  isEveningShiftDept,
   pktNow,
+  pktShiftNow,
+  EVENING_SHIFT_START,
   publicRoster,
   rosterPerson,
   RosterDept,
@@ -66,21 +69,44 @@ function historyClock(time: string | null | undefined): string | null {
   return `${hour12}:${match[2]} ${suffix}`;
 }
 
-function toHistoryDays(rows: { day: string; checkIn: string | null; checkOut: string | null }[]) {
+function toHistoryDays(
+  rows: { day: string; checkIn: string | null; checkOut: string | null }[],
+  evening = false,
+) {
   return rows
     .filter((row) => row.checkIn)
     .map((row) => {
-      const overnight = isOvernightShift(row.checkIn, row.checkOut);
-      const checkOutDay = overnight ? addCalendarDays(row.day, 1) : null;
+      if (!evening) {
+        const overnight = isOvernightShift(row.checkIn, row.checkOut);
+        const checkOutDay = overnight ? addCalendarDays(row.day, 1) : null;
+        return {
+          day: row.day,
+          dayLabel: historyDayLabel(row.day),
+          checkIn: historyClock(row.checkIn) ?? "—",
+          checkOut: historyClock(row.checkOut),
+          overnight,
+          checkOutLabel: checkOutDay ? historyDayLabel(checkOutDay) : null,
+          checkInLabel: null as string | null,
+        };
+      }
+      const inNext = row.checkIn < EVENING_SHIFT_START;
+      const outNext = !!row.checkOut && row.checkOut < EVENING_SHIFT_START;
+      const checkInDay = inNext ? addCalendarDays(row.day, 1) : row.day;
+      const checkOutDay = row.checkOut ? (outNext ? addCalendarDays(row.day, 1) : row.day) : null;
       return {
         day: row.day,
         dayLabel: historyDayLabel(row.day),
         checkIn: historyClock(row.checkIn) ?? "—",
         checkOut: historyClock(row.checkOut),
-        overnight,
-        checkOutLabel: checkOutDay ? historyDayLabel(checkOutDay) : null,
+        overnight: !!checkOutDay && checkOutDay !== row.day,
+        checkOutLabel: checkOutDay && checkOutDay !== row.day ? historyDayLabel(checkOutDay) : null,
+        checkInLabel: inNext ? historyDayLabel(checkInDay) : null,
       };
     });
+}
+
+function dayClock(department: string) {
+  return isEveningShiftDept(department) ? pktShiftNow() : pktNow();
 }
 
 /** Checkout the open shift: today, or yesterday when the shift runs past midnight. */
@@ -92,7 +118,7 @@ async function punchShift(input: {
   userId?: string | null;
   comment?: string | null;
 }) {
-  const now = pktNow();
+  const now = dayClock(input.department);
   if (input.action === "in") {
     return saveAttendance({
       personKey: input.personKey,
@@ -162,7 +188,7 @@ router.get("/history", async (req, res) => {
       orderBy: { day: "desc" },
       take: 30,
     });
-    return res.json({ success: true, days: toHistoryDays(rows) });
+    return res.json({ success: true, days: toHistoryDays(rows, isEveningShiftDept(department)) });
   } catch (error) {
     console.error("[attendance/history]", error);
     return res.status(500).json({ success: false, message: "Could not load history." });
@@ -172,7 +198,7 @@ router.get("/history", async (req, res) => {
 router.get("/day", async (req, res) => {
   try {
     const department = String(req.query.department ?? "");
-    const day = String(req.query.day ?? pktNow().day);
+    const day = String(req.query.day ?? dayClock(department).day);
     if (!isRosterDept(department)) {
       return res.status(400).json({ success: false, message: "Unknown department." });
     }
@@ -266,7 +292,7 @@ router.post("/note", async (req, res) => {
     if (blocked) {
       return res.status(403).json({ success: false, code: "IP_NOT_ALLOWED", message: blocked });
     }
-    const now = pktNow();
+    const now = dayClock(department);
     const today = await prisma.staffDayAttendance.findUnique({
       where: { personKey_day: { personKey: person.key, day: now.day } },
     });
@@ -338,7 +364,8 @@ router.get("/mine/history", verifyToken, allowRoles("technical_manager", "manage
       orderBy: { day: "desc" },
       take: 30,
     });
-    return res.json({ success: true, days: toHistoryDays(rows) });
+    const evening = req.user?.role === "manager" || req.user?.role === "accounts";
+    return res.json({ success: true, days: toHistoryDays(rows, evening) });
   } catch (error) {
     console.error("[attendance/mine/history]", error);
     return res.status(500).json({ success: false, message: "Could not load history." });
@@ -349,7 +376,7 @@ router.get("/mine", verifyToken, allowRoles("technical_manager", "manager", "acc
   try {
     const department = ROLE_DEPT[req.user!.role];
     const user = await prisma.user.findUnique({ where: { id: req.user!.id }, select: { name: true } });
-    const day = pktNow().day;
+    const day = dayClock(department).day;
     let row = await prisma.staffDayAttendance.findUnique({
       where: { personKey_day: { personKey: req.user!.id, day } },
     });

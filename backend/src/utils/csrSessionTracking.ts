@@ -2,6 +2,7 @@ import type { Prisma } from "@prisma/client";
 import prisma from "../config/db";
 import { detectBrowser } from "./sessions";
 import { formatDurationMs, formatEstDateTime, estDateYmd, CSR_REPORT_TIMEZONE } from "./estTime";
+import { pktNow, pktShiftDay } from "./staffAttendance";
 
 const MAX_TICK_MS = 5 * 60 * 1000;
 /**
@@ -468,11 +469,12 @@ function liveTotals(session: {
 function mergeSessionsByCalendarDay(
   sessions: CsrSessionReportRow[],
   timeZone?: string,
+  dayOf?: (loginAtIso: string) => string,
 ): CsrSessionReportRow[] {
   const map = new Map<string, CsrSessionReportRow>();
   const ordered = [...sessions].sort((a, b) => a.loginAt.localeCompare(b.loginAt));
   for (const s of ordered) {
-    const day = estDateYmd(new Date(s.loginAt), timeZone);
+    const day = dayOf ? dayOf(s.loginAt) : estDateYmd(new Date(s.loginAt), timeZone);
     const key = `${s.csrId}:${day}`;
     const hit = map.get(key);
     if (!hit) {
@@ -605,7 +607,11 @@ export async function buildCsrSessionReport(opts: {
     };
   });
 
-  const merged = mergeSessionsByCalendarDay(sessions, tz);
+  const merged = mergeSessionsByCalendarDay(
+    sessions,
+    tz,
+    staffRole === "csr" ? (iso) => pktShiftDay(new Date(iso)) : undefined,
+  );
   if (staffRole === "estimator") {
     const notes = await prisma.overtimeRequest.findMany({ where: { department: "estimator" } });
     const byKey = new Map(notes.map((note) => [`${note.personKey}:${note.day}`, note]));
@@ -631,7 +637,7 @@ export async function buildCsrSessionReport(opts: {
     firstLoginAt: s.loginAt,
     lastLogoutAt: s.logoutAt,
     stillOpen: s.status === "active",
-    day: estDateYmd(new Date(s.loginAt), tz),
+    day: staffRole === "csr" ? pktShiftDay(new Date(s.loginAt)) : estDateYmd(new Date(s.loginAt), tz),
     lastActionAt: s.lastActionAt ?? null,
     overtimeId: s.overtimeId ?? null,
     overtimeComment: s.overtimeComment ?? null,
@@ -777,19 +783,19 @@ function historyClock(value: Date, timeZone: string): string {
   }).format(value);
 }
 
-/** Recent days: first check-in and last check-out. A shift that ends after midnight stays on the check-in day. */
-export async function listUserShiftHistory(userId: string) {
+/** Recent days: first check-in and last check-out. CSR days run 5:00 PM PKT to the next 5:00 PM. */
+export async function listUserShiftHistory(userId: string, evening = false) {
   const since = new Date(Date.now() - 40 * 24 * 60 * 60 * 1000);
   const rows = await prisma.csrWorkSession.findMany({
     where: { userId, loginAt: { gte: since } },
     orderBy: { loginAt: "asc" },
     select: { loginAt: true, logoutAt: true },
   });
-  const tz = CSR_REPORT_TIMEZONE;
+  const tz = evening ? "Asia/Karachi" : CSR_REPORT_TIMEZONE;
   type Bucket = { day: string; first: Date; lastOut: Date | null; open: boolean };
   const map = new Map<string, Bucket>();
   for (const row of rows) {
-    const day = estDateYmd(row.loginAt, tz);
+    const day = evening ? pktShiftDay(row.loginAt) : estDateYmd(row.loginAt, tz);
     const hit = map.get(day);
     if (!hit) {
       map.set(day, { day, first: row.loginAt, lastOut: row.logoutAt, open: !row.logoutAt });
@@ -807,8 +813,12 @@ export async function listUserShiftHistory(userId: string) {
     .sort((a, b) => b.day.localeCompare(a.day))
     .slice(0, 30)
     .map((bucket) => {
-      const checkOutDay = bucket.lastOut ? estDateYmd(bucket.lastOut, tz) : null;
-      const overnight = !!checkOutDay && checkOutDay > bucket.day;
+      const checkInCal = pktNow(bucket.first).day;
+      const checkOutCal = bucket.lastOut ? pktNow(bucket.lastOut).day : null;
+      const overnight = evening
+        ? !!checkOutCal && checkOutCal > checkInCal
+        : !!checkOutCal && estDateYmd(bucket.lastOut!, tz) > bucket.day;
+      const checkOutDay = evening ? checkOutCal : (bucket.lastOut ? estDateYmd(bucket.lastOut, tz) : null);
       return {
         day: bucket.day,
         dayLabel: historyDayLabel(bucket.day),
@@ -816,6 +826,7 @@ export async function listUserShiftHistory(userId: string) {
         checkOut: bucket.open || !bucket.lastOut ? null : historyClock(bucket.lastOut, tz),
         overnight,
         checkOutLabel: overnight && checkOutDay ? historyDayLabel(checkOutDay) : null,
+        checkInLabel: evening && checkInCal !== bucket.day ? historyDayLabel(checkInCal) : null,
       };
     });
   return days;

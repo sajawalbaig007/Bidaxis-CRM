@@ -142,7 +142,11 @@ export default function DeptAttendancePage({
   return (
     <AttendanceFrame
       title={heading}
-      subtitle={`${title}${day ? ` · ${day}` : ""}. Check in when you arrive and check out when you leave.`}
+      subtitle={`${title}${day ? ` · ${day}` : ""}. ${
+        department === "hr" || department === "bim_modeler"
+          ? "One day runs from 5:00 PM to the next day at 5:00 PM, Pakistan time."
+          : "Check in when you arrive and check out when you leave."
+      }`}
     >
       {blocked ? (
         <div className="rounded-3xl border border-red-200 bg-white p-6 text-sm text-red-700 shadow-sm">{blocked}</div>

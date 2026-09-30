@@ -12,6 +12,7 @@ type HistoryDay = {
   checkOut: string | null;
   overnight: boolean;
   checkOutLabel: string | null;
+  checkInLabel?: string | null;
 };
 
 export default function ShiftHistoryButton({
@@ -90,6 +91,11 @@ export default function ShiftHistoryButton({
                         <div>
                           <p className="text-[10px] font-bold uppercase tracking-wide text-[#0F766E]">First check-in</p>
                           <p className="font-semibold tabular-nums text-[#0B1220] dark:text-crm-text">{day.checkIn}</p>
+                          {day.checkInLabel ? (
+                            <p className="text-[10px] font-bold uppercase tracking-wide text-[#0F766E]">
+                              Next day · {day.checkInLabel}
+                            </p>
+                          ) : null}
                         </div>
                         <div>
                           <p className="text-[10px] font-bold uppercase tracking-wide text-[#B8112D]">Last check-out</p>

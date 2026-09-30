@@ -118,6 +118,9 @@ export default function StaffDayCheckBar({
     <section className="rounded-2xl border border-gray-100 dark:border-crm-border bg-white dark:bg-crm-surface px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-3 shadow-sm">
       <div className="min-w-0 flex-1">
         <p className="text-[11px] font-bold uppercase tracking-wider text-[#B8112D]">Today</p>
+        {department === "admin" || department === "accounts" ? (
+          <p className="text-[10px] text-gray-500 dark:text-crm-text-muted">5:00 PM to next day 5:00 PM, Pakistan time</p>
+        ) : null}
         <p className="text-sm font-semibold text-[#0F172A] dark:text-crm-text">
           {name ? `${name} · ` : ""}
           In {formatClock(row?.checkIn)} · Out {formatClock(row?.checkOut)}
