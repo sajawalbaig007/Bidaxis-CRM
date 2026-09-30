@@ -179,7 +179,7 @@ export default function DeptAttendancePage({
                   <div className="rounded-2xl bg-[#FFF5F6] px-4 py-4">
                     <p className="text-[11px] font-bold uppercase tracking-wide text-[#B8112D]">Out</p>
                     <p className="mt-1 text-2xl sm:text-3xl font-bold tabular-nums tracking-tight text-[#0B1220]" style={{ color: "#0B1220" }}>{formatClock(row?.checkOut)}</p>
-                    {row?.checkIn && row.checkOut && row.checkOut <= row.checkIn ? (
+                    {row?.checkIn && row.checkOut && row.checkOut < row.checkIn ? (
                       <p className="mt-1 text-[10px] font-bold uppercase tracking-wide text-[#B8112D]">Next day</p>
                     ) : null}
                   </div>

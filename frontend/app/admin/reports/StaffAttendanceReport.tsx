@@ -142,7 +142,7 @@ function wallToPkt(day: string, time: string, tz: string): { day: string; time: 
 }
 
 function shiftOutDay(day: string, checkIn: string | null, checkOut: string | null): string {
-  if (!checkIn || !checkOut || checkOut > checkIn) return day;
+  if (!checkIn || !checkOut || checkOut >= checkIn) return day;
   return addDays(day, 1);
 }
 
@@ -160,7 +160,7 @@ function rowCheckOut(row: Row, tz: string): { text: string; nextDay: boolean } {
   if (!row.checkOut) return { text: "Still checked in", nextDay: false };
   return {
     text: formatStamp(shiftOutDay(row.day, row.checkIn, row.checkOut), row.checkOut, tz),
-    nextDay: !!row.checkIn && row.checkOut <= row.checkIn,
+    nextDay: !!row.checkIn && row.checkOut < row.checkIn,
   };
 }
 
