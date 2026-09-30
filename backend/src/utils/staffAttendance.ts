@@ -28,6 +28,33 @@ export type AttendanceDept = RosterDept | "chief_estimator" | "admin" | "account
 
 const IP_GATED: AttendanceDept[] = ["dev", "office_boy", "hr", "bim_modeler"];
 
+/** These roles work one shift from 5:00 PM PKT until the next day at 5:00 PM PKT. */
+export const EVENING_SHIFT_START = "17:00";
+
+export function isEveningShiftDept(department: string): boolean {
+  return department === "admin" || department === "accounts" || department === "hr" || department === "bim_modeler";
+}
+
+/** Shift date is the evening the window opens. Before 5:00 PM PKT that is still yesterday. */
+export function pktShiftDay(d = new Date()): string {
+  const now = pktNow(d);
+  return now.time < EVENING_SHIFT_START ? addCalendarDays(now.day, -1) : now.day;
+}
+
+export function pktShiftNow(d = new Date()): { day: string; time: string } {
+  const now = pktNow(d);
+  return { day: pktShiftDay(d), time: now.time };
+}
+
+/** Inclusive 5:00 PM PKT on `ymd` through 4:59:59.999 PM PKT the next day. */
+export function pktShiftBounds(ymd: string): { start: Date; end: Date } | null {
+  if (!isValidDay(ymd)) return null;
+  const start = new Date(`${ymd}T${EVENING_SHIFT_START}:00+05:00`);
+  const end = new Date(`${addCalendarDays(ymd, 1)}T16:59:59.999+05:00`);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return null;
+  return { start, end };
+}
+
 export function pktNow(d = new Date()): { day: string; time: string } {
   const fmt = new Intl.DateTimeFormat("en-GB", {
     timeZone: "Asia/Karachi",

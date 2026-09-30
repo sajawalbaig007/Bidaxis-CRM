@@ -42,6 +42,7 @@ import { canonicalTradeName, ensureMasterFormatTrades } from "../utils/masterFor
 import { enforceAdminIpAllowlist } from "../middleware/adminIp.middleware";
 import { buildCsrSessionReport, adminAdjustCsrWorkSession } from "../utils/csrSessionTracking";
 import { estDayBoundsUtc, estDateYmd, addEstDays, parseEstDateTimeLocal, ADMIN_SESSION_TIMEZONE, ADMIN_SESSION_TZ_LABEL } from "../utils/estTime";
+import { pktShiftBounds, pktShiftDay } from "../utils/staffAttendance";
 import { AuthRequest } from "../middleware/auth.middleware";
 import { deleteLeadsCascade, removeProjectsKeepClients, invalidateAllLeadCaches, isRemovedFromProjectDb } from "../utils/deleteLeadsCascade";
 import { buildAdminClientSummaryPayload, buildAdminTabCountsPayload } from "../utils/adminSummaryStats";
@@ -3989,24 +3990,38 @@ router.get(
           ? "Asia/Karachi"
           : ADMIN_SESSION_TIMEZONE;
       const timezoneLabel = tz === "Asia/Karachi" ? "Pakistan Time (PKT)" : ADMIN_SESSION_TZ_LABEL;
-
-      if (fromStr) {
-        const b = estDayBoundsUtc(fromStr, tz);
-        if (b) from = b.start;
-      }
-      if (toStr) {
-        const b = estDayBoundsUtc(toStr, tz);
-        if (b) to = b.end;
-      }
-
-      if (!from && !to) {
-        const toYmd = estDateYmd(new Date(), tz);
-        const fromYmd = addEstDays(toYmd, -6, tz);
-        from = estDayBoundsUtc(fromYmd, tz)!.start;
-        to = estDayBoundsUtc(toYmd, tz)!.end;
-      }
-
       const staffRole = req.query.role === "estimator" ? "estimator" as const : "csr" as const;
+
+      if (staffRole === "csr") {
+        if (fromStr) {
+          const b = pktShiftBounds(fromStr);
+          if (b) from = b.start;
+        }
+        if (toStr) {
+          const b = pktShiftBounds(toStr);
+          if (b) to = b.end;
+        }
+        if (!from && !to) {
+          const today = pktShiftDay();
+          from = pktShiftBounds(addEstDays(today, -6, "Asia/Karachi"))?.start;
+          to = pktShiftBounds(today)?.end;
+        }
+      } else {
+        if (fromStr) {
+          const b = estDayBoundsUtc(fromStr, tz);
+          if (b) from = b.start;
+        }
+        if (toStr) {
+          const b = estDayBoundsUtc(toStr, tz);
+          if (b) to = b.end;
+        }
+        if (!from && !to) {
+          const toYmd = estDateYmd(new Date(), tz);
+          const fromYmd = addEstDays(toYmd, -6, tz);
+          from = estDayBoundsUtc(fromYmd, tz)!.start;
+          to = estDayBoundsUtc(toYmd, tz)!.end;
+        }
+      }
       const report = await buildCsrSessionReport({ from, to, csrId, role: staffRole, timeZone: tz });
       return res.json({
         success: true,

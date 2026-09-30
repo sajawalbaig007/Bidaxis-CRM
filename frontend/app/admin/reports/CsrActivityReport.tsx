@@ -87,6 +87,26 @@ type ReportResponse = {
   summary: SummaryRow[];
 };
 
+function pktShiftYmd(value: Date = new Date()): string {
+  const ymd = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Karachi",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(value);
+  const hm = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Karachi",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).format(value);
+  if (hm >= "17:00") return ymd;
+  const [y, m, d] = ymd.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, (m || 1) - 1, d || 1));
+  dt.setUTCDate(dt.getUTCDate() - 1);
+  return dt.toISOString().slice(0, 10);
+}
+
 function calendarYmd(timeZone: string, value: Date = new Date()): string {
   return new Intl.DateTimeFormat("en-CA", {
     timeZone,
@@ -336,8 +356,8 @@ export default function CsrActivityReport({
 }) {
   const pathname = usePathname();
   const canEdit = allowEdit && pathname.startsWith("/admin");
-  const today = calendarYmd(CLOCKS.est.tz);
   const isEstimator = staffRole === "estimator";
+  const today = isEstimator ? calendarYmd(CLOCKS.est.tz) : pktShiftYmd();
   const showOvertime = isEstimator;
   const canReviewOt = showOvertime && (pathname.startsWith("/admin") || pathname.startsWith("/technical"));
   const sessionCols = 9 + (showOvertime ? 2 : 0) + (canEdit ? 1 : 0);
@@ -480,10 +500,11 @@ export default function CsrActivityReport({
   const dropdownLabel = selectedCsr ? selectedCsr.name : allLabel;
   const clock = CLOCKS[clockTz];
   const timezoneLabel = clock.label;
-  const activePeriod = periodFromDates(fromDate, toDate, calendarYmd(clock.tz));
+  const periodToday = isEstimator ? calendarYmd(clock.tz) : pktShiftYmd();
+  const activePeriod = periodFromDates(fromDate, toDate, periodToday);
 
   const applyPeriod = (period: PeriodPreset) => {
-    const range = rangeForPeriod(period, calendarYmd(clock.tz));
+    const range = rangeForPeriod(period, periodToday);
     setFromDate(range.from);
     setToDate(range.to);
   };
@@ -588,7 +609,9 @@ export default function CsrActivityReport({
               ))}
             </div>
             <p className="w-full text-[11px] text-gray-400 -mt-1">
-              From / To follow {timezoneLabel} calendar days.
+              {isEstimator
+                ? `From / To follow ${timezoneLabel} calendar days.`
+                : "Each day runs 5:00 PM to 5:00 PM PKT."}
             </p>
 
             <div className="relative" ref={dropdownRef}>
