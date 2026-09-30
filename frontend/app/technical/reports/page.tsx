@@ -11,7 +11,6 @@ import {
   FolderKanban, GitBranch, Loader2, RefreshCw, Star, Target, Users,
 } from "lucide-react";
 import TechnicalPageShell from "../components/TechnicalPageShell";
-import StaffAttendanceReport from "@/app/admin/reports/StaffAttendanceReport";
 import { STAFF_PAGE_PAD, BENTO_CARD } from "@/lib/staffPageLayout";
 import RechartsBox from "@/app/components/charts/RechartsBox";
 import { starsLabel } from "@/lib/estimatorKpiRecords";
@@ -169,9 +168,6 @@ export default function TechnicalReportsPage() {
       <Toaster position="top-right" />
 
         <div className={STAFF_PAGE_PAD}>
-          <div className="mb-4">
-            <StaffAttendanceReport scope="estimators" />
-          </div>
           <header className={`relative overflow-hidden ${BENTO_CARD}`}>
             <div
               className="absolute inset-0 opacity-[0.55]"
