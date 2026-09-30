@@ -196,6 +196,17 @@ function paidTotal(lead: {
   return Number.isFinite(budget) ? budget : 0;
 }
 
+function firstFilled(
+  rows: Awaited<ReturnType<typeof findLeadsByPhone>>,
+  pick: (row: Awaited<ReturnType<typeof findLeadsByPhone>>[number]) => string | null | undefined,
+) {
+  for (const row of rows) {
+    const value = String(pick(row) ?? "").trim();
+    if (value) return value;
+  }
+  return "";
+}
+
 function isWonStatus(status: string | null | undefined) {
   const s = (status ?? "").toLowerCase();
   return s === "close client" || s === "completed" || s === "closed";
@@ -274,11 +285,13 @@ export function buildPhoneLookupResponse(matches: Awaited<ReturnType<typeof find
       updatedAt: l.updatedAt,
     })),
     client: {
-      name:              latest.name              ?? "",
-      company:           latest.company           ?? "",
-      email:             latest.email             ?? "",
-      state:             latest.state             ?? "",
-      interestedService: wonProject?.interestedService ?? latest.interestedService ?? "",
+      name:              firstFilled(matches, (l) => l.name),
+      company:           firstFilled(matches, (l) => l.company),
+      email:             firstFilled(matches, (l) => l.email),
+      ownerName:         firstFilled(matches, (l) => l.ownerName),
+      state:             firstFilled(matches, (l) => l.state),
+      interestedService: (wonProject?.interestedService ?? "").trim()
+        || firstFilled(matches, (l) => l.interestedService),
     },
   };
 }

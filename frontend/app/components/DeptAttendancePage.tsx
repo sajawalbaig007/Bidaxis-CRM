@@ -5,6 +5,8 @@ import { LogIn, LogOut } from "lucide-react";
 import toast from "react-hot-toast";
 import API, { apiErrorMessage } from "@/lib/api";
 import AttendanceFrame from "@/app/components/AttendanceFrame";
+import ShiftHistoryButton from "@/app/components/ShiftHistoryButton";
+import CheckoutCommentDialog from "@/app/components/CheckoutCommentDialog";
 
 type Row = {
   personKey: string;
@@ -44,6 +46,7 @@ export default function DeptAttendancePage({
   const [blocked, setBlocked] = useState("");
   const [loading, setLoading] = useState(true);
   const [busyKey, setBusyKey] = useState("");
+  const [checkoutFor, setCheckoutFor] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -102,12 +105,18 @@ export default function DeptAttendancePage({
     });
   };
 
-  const punch = async (key: string, action: "in" | "out") => {
+  const punch = async (key: string, action: "in" | "out", overtimeComment?: string) => {
     setBusyKey(`${key}:${action}`);
     try {
-      const res = await API.post("/attendance/punch", { department, personKey: key, action });
+      const res = await API.post("/attendance/punch", {
+        department,
+        personKey: key,
+        action,
+        ...(overtimeComment ? { overtimeComment } : {}),
+      });
       applyRow(res.data.row as Row | undefined);
       toast.success(res.data.message || "Saved.");
+      setCheckoutFor(null);
     } catch (err) {
       toast.error(apiErrorMessage(err, "Could not save time."));
     } finally {
@@ -175,7 +184,7 @@ export default function DeptAttendancePage({
                     ) : null}
                   </div>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <button
                     type="button"
                     disabled={busy || Boolean(row?.checkIn)}
@@ -187,11 +196,19 @@ export default function DeptAttendancePage({
                   <button
                     type="button"
                     disabled={busy || !row?.checkIn || Boolean(row?.checkOut)}
-                    onClick={() => void punch(person.key, "out")}
+                    onClick={() => {
+                      if (department === "dev") setCheckoutFor(person.key);
+                      else void punch(person.key, "out");
+                    }}
                     className="h-14 rounded-2xl bg-[#B8112D] text-white text-base font-semibold inline-flex items-center justify-center gap-2 shadow-sm hover:bg-[#9d0e26] disabled:opacity-60 touch-manipulation"
                   >
                     <LogOut size={18} /> {row?.checkOut ? "Checked out" : "Check out"}
                   </button>
+                  <ShiftHistoryButton
+                    url="/attendance/history"
+                    params={{ department, personKey: person.key }}
+                    large
+                  />
                 </div>
                 <CommentBox
                   key={`${person.key}:${row?.day ?? ""}:${row?.comment ?? ""}`}
@@ -203,6 +220,14 @@ export default function DeptAttendancePage({
           })}
         </div>
       )}
+      <CheckoutCommentDialog
+        open={department === "dev" && !!checkoutFor}
+        busy={!!checkoutFor && busyKey.startsWith(`${checkoutFor}:`)}
+        onCancel={() => setCheckoutFor(null)}
+        onConfirm={(comment) => {
+          if (checkoutFor) void punch(checkoutFor, "out", comment);
+        }}
+      />
     </AttendanceFrame>
   );
 }

@@ -4,7 +4,9 @@ import { useCallback, useEffect, useState } from "react";
 import { LogIn, LogOut, Loader2 } from "lucide-react";
 import toast from "react-hot-toast";
 import API, { apiErrorMessage } from "@/lib/api";
-import { requestEstimatorIdlePermission } from "@/app/estimator/components/EstimatorPresenceInit";
+import { ESTIMATOR_IDLE_RECHECK_KEY, requestEstimatorIdlePermission } from "@/app/estimator/components/EstimatorPresenceInit";
+import ShiftHistoryButton from "@/app/components/ShiftHistoryButton";
+import CheckoutCommentDialog from "@/app/components/CheckoutCommentDialog";
 
 type WorkSession = {
   id: string;
@@ -62,6 +64,7 @@ export default function EstimatorCheckInControl({ compact = false }: { compact?:
   const [session, setSession] = useState<WorkSession | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [askOvertime, setAskOvertime] = useState(false);
   const [nowMs, setNowMs] = useState(() => Date.now());
 
   const applyStatus = useCallback((data: StatusResponse | undefined, forceIn = false) => {
@@ -119,6 +122,7 @@ export default function EstimatorCheckInControl({ compact = false }: { compact?:
       applyStatus(res.data, true);
       if (!res.data?.session) await refresh();
       toast.success(res.data.message || "Checked in.");
+      try { sessionStorage.removeItem(ESTIMATOR_IDLE_RECHECK_KEY); } catch { /* ignore */ }
       window.dispatchEvent(new CustomEvent(EVENT, { detail: { checkedIn: true } }));
     } catch (err) {
       toast.error(apiErrorMessage(err, "Check-in failed."));
@@ -127,10 +131,18 @@ export default function EstimatorCheckInControl({ compact = false }: { compact?:
     }
   };
 
-  const checkOut = async () => {
+  const checkOut = async (overtimeComment?: string) => {
     setBusy(true);
     try {
-      const res = await API.post<StatusResponse>("/estimator/check-out", {});
+      const lastActionAt = (() => {
+        try { return sessionStorage.getItem("estimator_last_real_action"); } catch { return null; }
+      })();
+      const res = await API.post<StatusResponse>("/estimator/check-out", {
+        ...(overtimeComment ? { overtimeComment } : {}),
+        ...(lastActionAt ? { lastActionAt } : {}),
+      });
+      try { sessionStorage.removeItem("estimator_last_real_action"); } catch { /* ignore */ }
+      setAskOvertime(false);
       setCheckedIn(false);
       setSession(null);
       toast.success(res.data.message || "Checked out.");
@@ -144,17 +156,23 @@ export default function EstimatorCheckInControl({ compact = false }: { compact?:
     }
   };
 
+  const history = <ShiftHistoryButton url="/estimator/shift-history" compact={compact} />;
+
   if (loading) {
     return (
-      <div className={`flex items-center gap-1.5 ${compact ? "h-9 px-2" : "h-10 px-3"} rounded-xl bg-crm-nav-pill text-crm-text-muted text-[11px] font-semibold`}>
-        <Loader2 size={13} className="animate-spin" />
-        <span className="hidden lg:inline">Session…</span>
+      <div className="inline-flex items-center gap-1 shrink-0">
+        <div className={`flex items-center gap-1.5 ${compact ? "h-9 px-2" : "h-10 px-3"} rounded-xl bg-crm-nav-pill text-crm-text-muted text-[11px] font-semibold`}>
+          <Loader2 size={13} className="animate-spin" />
+          <span className="hidden lg:inline">Session…</span>
+        </div>
+        {history}
       </div>
     );
   }
 
   if (!checkedIn) {
     return (
+      <div className="inline-flex items-center gap-1 shrink-0">
       <button
         type="button"
         onClick={() => void checkIn()}
@@ -165,6 +183,8 @@ export default function EstimatorCheckInControl({ compact = false }: { compact?:
         {busy ? <Loader2 size={13} className="animate-spin" /> : <LogIn size={13} />}
         <span>Check In</span>
       </button>
+      {history}
+      </div>
     );
   }
 
@@ -187,7 +207,7 @@ export default function EstimatorCheckInControl({ compact = false }: { compact?:
       </div>
       <button
         type="button"
-        onClick={() => void checkOut()}
+        onClick={() => setAskOvertime(true)}
         disabled={busy}
         title="Check out to end your shift (logout does not check you out)"
         className={`inline-flex items-center gap-1 ${compact ? "h-9 px-2.5" : "h-10 px-3"} rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-[11px] sm:text-xs font-bold shadow-sm shadow-amber-500/25 disabled:opacity-60 transition-colors`}
@@ -195,6 +215,13 @@ export default function EstimatorCheckInControl({ compact = false }: { compact?:
         {busy ? <Loader2 size={13} className="animate-spin" /> : <LogOut size={13} />}
         <span>Check Out</span>
       </button>
+      {history}
+      <CheckoutCommentDialog
+        open={askOvertime}
+        busy={busy}
+        onCancel={() => setAskOvertime(false)}
+        onConfirm={(comment) => void checkOut(comment)}
+      />
     </div>
   );
 }

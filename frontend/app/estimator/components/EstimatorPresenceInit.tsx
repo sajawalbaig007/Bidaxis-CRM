@@ -4,81 +4,16 @@ import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import API, { getApiBase, getClientAuthToken } from "@/lib/api";
 import { visibleInterval } from "@/lib/visibleInterval";
+import { clearRealAction, peekLastActionAt, watchRealActivity } from "@/lib/realActivityWatch";
 
-const IDLE_MS = 5 * 60 * 1000;
 const CHECKIN_EVENT = "estimator-checkin-changed";
+export const ESTIMATOR_IDLE_RECHECK_KEY = "estimator_idle_recheckin";
+const PROMPT_EVENT = "estimator-activity-prompt";
+const CONFIRM_EVENT = "estimator-activity-confirm";
+const ACTION_KEY = "estimator_last_real_action";
 
-type IdleDetectorInstance = EventTarget & {
-  userState: "active" | "idle";
-  screenState: "locked" | "unlocked";
-  start: (opts: { threshold: number; signal?: AbortSignal }) => Promise<void>;
-};
-
-type IdleDetectorCtor = {
-  new (): IdleDetectorInstance;
-  requestPermission: () => Promise<"granted" | "denied">;
-};
-
-function idleDetectorCtor(): IdleDetectorCtor | null {
-  if (typeof window === "undefined") return null;
-  const ctor = (window as Window & { IdleDetector?: IdleDetectorCtor }).IdleDetector;
-  return ctor ?? null;
-}
-
-/** Ask during Check In so a still cursor can check them out even if this window is minimized. */
 export function requestEstimatorIdlePermission(): void {
-  const Ctor = idleDetectorCtor();
-  if (!Ctor) return;
-  void Ctor.requestPermission().catch(() => {});
-}
-
-function watchCursorIdle(onIdle: () => void): () => void {
-  const Ctor = idleDetectorCtor();
-  const abort = new AbortController();
-  let stopped = false;
-  let fallbackTimer = 0;
-  const removeFallback = () => {
-    window.clearInterval(fallbackTimer);
-    fallbackTimer = 0;
-  };
-
-  const startFallback = () => {
-    let lastMove = Date.now();
-    const bump = () => {
-      lastMove = Date.now();
-    };
-    const opts: AddEventListenerOptions = { passive: true, signal: abort.signal };
-    window.addEventListener("pointermove", bump, opts);
-    window.addEventListener("mousemove", bump, opts);
-    window.addEventListener("wheel", bump, opts);
-    window.addEventListener("keydown", bump, opts);
-    document.addEventListener("visibilitychange", () => {
-      if (document.visibilityState === "visible") lastMove = Date.now();
-    }, { signal: abort.signal });
-    fallbackTimer = window.setInterval(() => {
-      if (document.visibilityState !== "visible") return;
-      if (Date.now() - lastMove >= IDLE_MS) onIdle();
-    }, 15_000);
-  };
-
-  if (Ctor) {
-    const detector = new Ctor();
-    detector.addEventListener("change", () => {
-      if (stopped) return;
-      if (detector.userState === "idle" || detector.screenState === "locked") onIdle();
-    });
-    void detector.start({ threshold: IDLE_MS, signal: abort.signal }).catch(() => {
-      if (!stopped) startFallback();
-    });
-  } else {
-    startFallback();
-  }
-
-  return () => {
-    stopped = true;
-    abort.abort();
-    removeFallback();
-  };
+  /* Real work is a click, keypress, or scroll. No idle-detection permission. */
 }
 
 /** Heartbeat ticks open work session (dashboard/away) after Check In. */
@@ -109,16 +44,24 @@ export function useEstimatorPresence() {
     const checkout = () => {
       if (done) return;
       done = true;
-      API.post("/estimator/check-out", {})
+      const lastActionAt = peekLastActionAt();
+      clearRealAction(ACTION_KEY);
+      API.post("/estimator/check-out", lastActionAt ? { lastActionAt } : {})
         .then(() => {
-          toast("Checked out — the cursor was still for 5 minutes.");
-          window.dispatchEvent(new CustomEvent(CHECKIN_EVENT, { detail: { checkedIn: false } }));
+          try { sessionStorage.setItem(ESTIMATOR_IDLE_RECHECK_KEY, "1"); } catch { /* ignore */ }
+          toast("You have to check in again.");
+          window.dispatchEvent(new CustomEvent(CHECKIN_EVENT, { detail: { checkedIn: false, idle: true } }));
         })
         .catch(() => {
           done = false;
         });
     };
-    const stop = watchCursorIdle(checkout);
+    const stop = watchRealActivity({
+      onCheckout: checkout,
+      confirmEvent: CONFIRM_EVENT,
+      promptEvent: PROMPT_EVENT,
+      storageKey: ACTION_KEY,
+    });
     return () => {
       done = true;
       stop();
@@ -141,6 +84,7 @@ export function useEstimatorPresence() {
         openedAt,
         tabVisible: visible,
         hiddenAt: visible ? null : new Date().toISOString(),
+        ...(peekLastActionAt() ? { lastActionAt: peekLastActionAt() } : {}),
       }).catch(() => {});
     };
 

@@ -359,6 +359,8 @@ export const ADMIN_LEAD_LIST_SELECT = {
 
   email:             true,
 
+  ownerName:         true,
+
   website:           true,
 
   state:             true,

@@ -22,7 +22,6 @@ import PhoneAreaCodeFilterInput from "@/app/csr/components/shared/PhoneAreaCodeF
 import { matchesStateLocationFilter, matchesPhoneAreaCodeFilter } from "@/lib/stateLocationFilter";
 import { NoteEntry } from "@/app/csr/hooks/useLeadsData";
 import { buildNoteHistory } from "@/app/csr/utils/noteHistory";
-import { useClientPhoneLookup, ClientLookupData } from "@/app/csr/hooks/useClientPhoneLookup";
 import { ADMIN_PROJECT_COLS, ADMIN_TECH_VIEW_COLS, CsrColGroup } from "@/app/csr/components/shared/csrTableStyles";
 import { parseTechnicalNotes, parseTechnicalNotesBundle } from "@/lib/technicalAssignments";
 import { peekAuthMe } from "@/lib/authMeCache";
@@ -832,37 +831,18 @@ export default function AdminProjectsPage() {
   const [addDraft,     setAddDraft]     = useState<ProjectWorkbenchData | null>(null);
   const [addSaving,    setAddSaving]    = useState(false);
 
-  const applyClientLookup = useCallback((client: ClientLookupData) => {
-    setAddDraft((d) => {
-      if (!d) return d;
-      return {
-        ...d,
-        name: client.name || d.name,
-        company: client.company || d.company,
-        email: client.email || d.email,
-        state: client.state || d.state,
-        interestedService: d.interestedService || client.interestedService || "",
-      };
-    });
-  }, []);
-
-  const { phoneLookupLoading, returningClient, resetLookup, onPhoneValueChange, onPhoneBlur, onPhonePaste } =
-    useClientPhoneLookup(applyClientLookup, "/admin/lookup-by-phone");
-
   const resetAddModal = useCallback(() => {
     setShowAddModal(false);
     setAddDraft(null);
-    resetLookup();
-  }, [resetLookup]);
+  }, []);
 
   const openAddModal = useCallback(() => {
-    resetLookup();
     setAddDraft({
       ...emptyWorkbench(),
       assignedTo: filterCSR !== "all" ? filterCSR : "",
     });
     setShowAddModal(true);
-  }, [filterCSR, resetLookup]);
+  }, [filterCSR]);
 
   const saveNewProject = async (data: ProjectWorkbenchData) => {
     if (data.assignedTo === CSR_ASSIGN_OTHER && !(data.projectSource ?? "").trim()) {
@@ -1682,13 +1662,6 @@ export default function AdminProjectsPage() {
           saving={addSaving}
           onSave={saveNewProject}
           hideClientFinanceSections={hideClientFinanceCols}
-          phoneLookup={{
-            phoneLookupLoading,
-            returningClient,
-            onPhoneValueChange,
-            onPhoneBlur,
-            onPhonePaste,
-          }}
         />
 
       {/* ══ SEND FOR REVISION MODAL ══ */}

@@ -12,6 +12,7 @@ import {
   isValidDay,
   isValidTime,
   officeNetworkMessage,
+  isOvernightShift,
   pktNow,
   publicRoster,
   rosterPerson,
@@ -20,6 +21,7 @@ import {
   timeOrderOk,
   toPublic,
 } from "../utils/staffAttendance";
+import { listEstimatorShiftRows, overtimePublic, reviewOvertime, saveOvertimeComment } from "../utils/overtimeRequest";
 
 const router = Router();
 
@@ -42,6 +44,43 @@ function cleanComment(raw: unknown): string | null {
   if (raw == null) return null;
   const text = String(raw).trim().slice(0, 500);
   return text || null;
+}
+
+function historyDayLabel(ymd: string): string {
+  const [y, m, d] = ymd.split("-").map(Number);
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(new Date(Date.UTC(y, (m || 1) - 1, d || 1)));
+}
+
+function historyClock(time: string | null | undefined): string | null {
+  if (!time) return null;
+  const match = /^(\d{2}):(\d{2})$/.exec(time);
+  if (!match) return time;
+  const hour = Number(match[1]);
+  const suffix = hour >= 12 ? "PM" : "AM";
+  const hour12 = hour % 12 || 12;
+  return `${hour12}:${match[2]} ${suffix}`;
+}
+
+function toHistoryDays(rows: { day: string; checkIn: string | null; checkOut: string | null }[]) {
+  return rows
+    .filter((row) => row.checkIn)
+    .map((row) => {
+      const overnight = isOvernightShift(row.checkIn, row.checkOut);
+      const checkOutDay = overnight ? addCalendarDays(row.day, 1) : null;
+      return {
+        day: row.day,
+        dayLabel: historyDayLabel(row.day),
+        checkIn: historyClock(row.checkIn) ?? "—",
+        checkOut: historyClock(row.checkOut),
+        overnight,
+        checkOutLabel: checkOutDay ? historyDayLabel(checkOutDay) : null,
+      };
+    });
 }
 
 /** Checkout the open shift: today, or yesterday when the shift runs past midnight. */
@@ -105,6 +144,31 @@ router.get("/roster", async (_req, res) => {
   return res.json({ success: true, today: now.day, now: now.time, departments: publicRoster() });
 });
 
+router.get("/history", async (req, res) => {
+  try {
+    const department = String(req.query.department ?? "");
+    const personKey = String(req.query.personKey ?? "");
+    if (!isRosterDept(department)) {
+      return res.status(400).json({ success: false, message: "Unknown department." });
+    }
+    const person = rosterPerson(department, personKey);
+    if (!person) return res.status(400).json({ success: false, message: "Unknown person." });
+    const blocked = await gateOffice(req, department);
+    if (blocked) {
+      return res.status(403).json({ success: false, code: "IP_NOT_ALLOWED", message: blocked });
+    }
+    const rows = await prisma.staffDayAttendance.findMany({
+      where: { personKey: person.key, department },
+      orderBy: { day: "desc" },
+      take: 30,
+    });
+    return res.json({ success: true, days: toHistoryDays(rows) });
+  } catch (error) {
+    console.error("[attendance/history]", error);
+    return res.status(500).json({ success: false, message: "Could not load history." });
+  }
+});
+
 router.get("/day", async (req, res) => {
   try {
     const department = String(req.query.department ?? "");
@@ -166,6 +230,18 @@ router.post("/punch", async (req, res) => {
       comment,
     });
     if (!saved.ok) return res.status(400).json({ success: false, message: saved.message });
+    if (action === "out" && department === "dev") {
+      const overtime = cleanComment(req.body?.overtimeComment);
+      if (overtime && saved.row?.day) {
+        await saveOvertimeComment({
+          personKey: person.key,
+          personName: person.name,
+          department: "dev",
+          day: saved.row.day,
+          comment: overtime,
+        });
+      }
+    }
     return res.json({
       success: true,
       message: action === "in" ? "Checked in." : "Checked out.",
@@ -255,6 +331,20 @@ router.post("/times", async (req, res) => {
   }
 });
 
+router.get("/mine/history", verifyToken, allowRoles("technical_manager", "manager", "accounts"), async (req: AuthRequest, res) => {
+  try {
+    const rows = await prisma.staffDayAttendance.findMany({
+      where: { personKey: req.user!.id },
+      orderBy: { day: "desc" },
+      take: 30,
+    });
+    return res.json({ success: true, days: toHistoryDays(rows) });
+  } catch (error) {
+    console.error("[attendance/mine/history]", error);
+    return res.status(500).json({ success: false, message: "Could not load history." });
+  }
+});
+
 router.get("/mine", verifyToken, allowRoles("technical_manager", "manager", "accounts"), async (req: AuthRequest, res) => {
   try {
     const department = ROLE_DEPT[req.user!.role];
@@ -306,6 +396,18 @@ router.post("/mine/punch", verifyToken, allowRoles("technical_manager", "manager
       comment,
     });
     if (!saved.ok) return res.status(400).json({ success: false, message: saved.message });
+    if (action === "out" && department === "chief_estimator") {
+      const overtime = cleanComment(req.body?.overtimeComment);
+      if (overtime && saved.row?.day) {
+        await saveOvertimeComment({
+          personKey: req.user!.id,
+          personName: user?.name || "Chief Estimator",
+          department: "chief_estimator",
+          day: saved.row.day,
+          comment: overtime,
+        });
+      }
+    }
     return res.json({
       success: true,
       message: action === "in" ? "Checked in." : "Checked out.",
@@ -317,21 +419,58 @@ router.post("/mine/punch", verifyToken, allowRoles("technical_manager", "manager
   }
 });
 
-router.get("/report", verifyToken, allowRoles("admin", "manager"), async (req, res) => {
+router.get("/report", verifyToken, allowRoles("admin", "manager", "technical_manager"), async (req: AuthRequest, res) => {
   try {
     const from = String(req.query.from ?? "");
     const to = String(req.query.to ?? "");
     const today = pktNow().day;
     const start = isValidDay(from) ? from : today;
     const end = isValidDay(to) ? to : today;
+    const estimators = await listEstimatorShiftRows();
+    if (req.user?.role === "technical_manager") {
+      return res.json({ success: true, from: start, to: end, rows: [], estimators });
+    }
     const rows = await prisma.staffDayAttendance.findMany({
       where: { day: { gte: start, lte: end } },
       orderBy: [{ day: "desc" }, { department: "asc" }, { personName: "asc" }],
     });
-    return res.json({ success: true, from: start, to: end, rows: rows.map(toPublic) });
+    const notes = await prisma.overtimeRequest.findMany({
+      where: { department: { in: ["dev", "chief_estimator"] }, day: { gte: start, lte: end } },
+    });
+    const byKey = new Map(notes.map((note) => [`${note.department}:${note.personKey}:${note.day}`, note]));
+    return res.json({
+      success: true,
+      from: start,
+      to: end,
+      rows: rows.map((row) => ({
+        ...toPublic(row),
+        ...overtimePublic(byKey.get(`${row.department}:${row.personKey}:${row.day}`)),
+      })),
+      estimators,
+    });
   } catch (error) {
     console.error("[attendance/report]", error);
     return res.status(500).json({ success: false, message: "Could not load attendance report." });
+  }
+});
+
+router.put("/overtime/:id", verifyToken, allowRoles("admin", "technical_manager"), async (req: AuthRequest, res) => {
+  try {
+    const action = String(req.body?.action ?? "");
+    if (action !== "approve" && action !== "decline" && action !== "edit") {
+      return res.status(400).json({ success: false, message: "Choose approve, decline, or edit." });
+    }
+    const result = await reviewOvertime({
+      id: String(req.params.id ?? ""),
+      role: req.user?.role ?? "",
+      action,
+      comment: req.body?.comment,
+    });
+    if (!result.ok) return res.status(400).json({ success: false, message: result.message });
+    return res.json({ success: true, ...overtimePublic(result.note) });
+  } catch (error) {
+    console.error("[attendance/overtime]", error);
+    return res.status(500).json({ success: false, message: "Could not update overtime." });
   }
 });
 

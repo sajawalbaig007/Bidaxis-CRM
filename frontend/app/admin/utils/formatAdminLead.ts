@@ -10,6 +10,7 @@ export function formatAdminLead(lead: {
   id: string;
   name?: string;
   email?: string;
+  ownerName?: string | null;
   phone?: string;
   company?: string;
   website?: string | null;
@@ -39,6 +40,7 @@ export function formatAdminLead(lead: {
   id: string;
   clientName: string;
   email: string;
+  ownerName: string;
   contact: string;
   contactPhones: string[];
   emails: string[];
@@ -121,6 +123,7 @@ export function formatAdminLead(lead: {
     id: lead.id,
     clientName: displayName,
     email: emails[0] || lead.email?.trim() || "N/A",
+    ownerName: lead.ownerName?.trim() || "",
     contact: contactPhones[0] || lead.phone?.trim() || "N/A",
     contactPhones,
     emails,

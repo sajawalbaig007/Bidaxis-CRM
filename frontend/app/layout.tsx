@@ -10,6 +10,7 @@ import {
 } from "react-hot-toast";
 
 import ThemeProvider from "./components/ThemeProvider";
+import DesktopOsGate from "./components/DesktopOsGate";
 import { themeInitScript } from "./components/themeInitScript";
 import "./globals.css";
 
@@ -56,7 +57,9 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{ __html: themeInitScript() }}
         />
         <ThemeProvider>
+          <DesktopOsGate>
           {children}
+          </DesktopOsGate>
 
           <Toaster
             position="top-right"

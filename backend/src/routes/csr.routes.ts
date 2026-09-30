@@ -4,7 +4,7 @@ import { verifyToken } from "../middleware/auth.middleware";
 import { allowRoles } from "../middleware/role.middleware";
 import { userBrowserMap, detectBrowser } from "../utils/sessions";
 import { recordHeartbeatAccess } from "../utils/accessHistory";
-import { tickCsrWorkSession, checkInCsrWorkSession, checkOutCsrWorkSession, getCsrWorkSessionStatus, pauseCsrWorkSession, resumeCsrWorkSession } from "../utils/csrSessionTracking";
+import { tickCsrWorkSession, checkInCsrWorkSession, checkOutCsrWorkSession, getCsrWorkSessionStatus, pauseCsrWorkSession, resumeCsrWorkSession, listUserShiftHistory, stampLastAction } from "../utils/csrSessionTracking";
 import { getClientIp, getUserAgent } from "../utils/requestMeta";
 import { estDateYmd, formatEstDateTime } from "../utils/estTime";
 import { getCache, setCache, invalidateCache, flushAdminClientsCache, shouldSkipThrottledHeal, markThrottledHeal } from "../utils/cache";
@@ -1363,6 +1363,16 @@ router.delete("/lead/:id/subcontacts/:subId", verifyToken, allowRoles("csr"), as
 
 /* ================= CHECK IN / CHECK OUT ================= */
 
+router.get("/shift-history", verifyToken, allowRoles("csr"), async (req: any, res) => {
+  try {
+    const days = await listUserShiftHistory(req.user.id);
+    return res.json({ success: true, days });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({ success: false, message: "Failed to load check-in history." });
+  }
+});
+
 router.get("/work-session", verifyToken, allowRoles("csr"), async (req: any, res) => {
   try {
     const status = await getCsrWorkSessionStatus(req.user.id);
@@ -1418,6 +1428,7 @@ router.post("/check-in", verifyToken, allowRoles("csr"), async (req: any, res) =
 
 router.post("/check-out", verifyToken, allowRoles("csr"), async (req: any, res) => {
   try {
+    await stampLastAction(req.user.id, req.body?.lastActionAt);
     const closed = await checkOutCsrWorkSession(req.user.id);
     return res.json({
       success: true,
@@ -1522,7 +1533,7 @@ router.post("/heartbeat", verifyToken, allowRoles("csr"), async (req: any, res) 
       deviceId:  tabId,
     });
 
-    void tickCsrWorkSession({ userId, tabVisible, deviceId: tabId });
+    void tickCsrWorkSession({ userId, tabVisible, deviceId: tabId, lastActionAt: req.body?.lastActionAt });
 
     return res.json({ success: true });
   } catch (error) {

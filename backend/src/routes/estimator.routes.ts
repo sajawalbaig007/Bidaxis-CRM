@@ -29,10 +29,13 @@ import {
   checkOutCsrWorkSession,
   getCsrWorkSessionStatus,
   tickCsrWorkSession,
+  listUserShiftHistory,
+  stampLastAction,
 } from "../utils/csrSessionTracking";
 import { buildPreviousMonthRatings } from "../utils/previousMonthRatings";
 import { getClientIp, getUserAgent } from "../utils/requestMeta";
-import { formatEstDateTime } from "../utils/estTime";
+import { formatEstDateTime, estDateYmd } from "../utils/estTime";
+import { saveOvertimeComment } from "../utils/overtimeRequest";
 
 const router = express.Router();
 
@@ -691,6 +694,16 @@ router.put("/notifications/:id/read", async (req: AuthRequest, res) => {
 
 /* ================= CHECKED IN / CHECKED OUT ( CsrWorkSession ledger) ================= */
 
+router.get("/shift-history", async (req: AuthRequest, res) => {
+  try {
+    const days = await listUserShiftHistory(req.user!.id);
+    return res.json({ success: true, days });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({ success: false, message: "Failed to load check-in history." });
+  }
+});
+
 router.get("/work-session", async (req: AuthRequest, res) => {
   try {
     const status = await getCsrWorkSessionStatus(req.user!.id);
@@ -746,11 +759,30 @@ router.post("/check-in", async (req: AuthRequest, res) => {
 router.post("/check-out", async (req: AuthRequest, res) => {
   try {
     const me = await currentEstimator(req);
+    const open = await prisma.csrWorkSession.findFirst({
+      where: {
+        userId: req.user!.id,
+        OR: [{ logoutAt: null }, { logoutAt: { isSet: false } }],
+      },
+      orderBy: { loginAt: "desc" },
+      select: { loginAt: true },
+    });
     /* Leaving for the day: pause project timers so tomorrow resumes from same time */
     if (me) {
       await pauseOtherRunningTimersForEstimator(me);
     }
+    await stampLastAction(req.user!.id, req.body?.lastActionAt);
     const closed = await checkOutCsrWorkSession(req.user!.id);
+    const overtime = String(req.body?.overtimeComment ?? "").trim();
+    if (closed && overtime && open && me) {
+      await saveOvertimeComment({
+        personKey: me.id,
+        personName: me.name,
+        department: "estimator",
+        day: estDateYmd(open.loginAt),
+        comment: overtime,
+      });
+    }
     return res.json({
       success: true,
       closed,
@@ -779,7 +811,12 @@ router.post("/heartbeat", async (req: AuthRequest, res) => {
         : { isOnline: false },
     }).catch(() => {});
 
-    void tickCsrWorkSession({ userId, tabVisible, deviceId: String(tabId) });
+    void tickCsrWorkSession({
+      userId,
+      tabVisible,
+      deviceId: String(tabId),
+      lastActionAt: req.body?.lastActionAt,
+    });
 
     return res.json({ success: true });
   } catch (error) {

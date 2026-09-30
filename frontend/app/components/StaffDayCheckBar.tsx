@@ -4,6 +4,8 @@ import { useCallback, useEffect, useState } from "react";
 import { LogIn, LogOut } from "lucide-react";
 import toast from "react-hot-toast";
 import API, { apiErrorMessage } from "@/lib/api";
+import ShiftHistoryButton from "@/app/components/ShiftHistoryButton";
+import CheckoutCommentDialog from "@/app/components/CheckoutCommentDialog";
 
 type Row = { checkIn: string | null; checkOut: string | null; day: string };
 
@@ -25,7 +27,9 @@ export default function StaffDayCheckBar({
   compact?: boolean;
 }) {
   const [name, setName] = useState("");
+  const [department, setDepartment] = useState("");
   const [row, setRow] = useState<Row | null>(null);
+  const [askOvertime, setAskOvertime] = useState(false);
   const [busy, setBusy] = useState(false);
   const [visible, setVisible] = useState(defaultVisible);
 
@@ -33,6 +37,7 @@ export default function StaffDayCheckBar({
     try {
       const res = await API.get("/attendance/mine");
       setName(res.data.name || "");
+      setDepartment(res.data.department || "");
       setRow(res.data.row ?? null);
       setVisible(true);
     } catch (err: unknown) {
@@ -46,11 +51,15 @@ export default function StaffDayCheckBar({
     void load();
   }, [load]);
 
-  const punch = async (action: "in" | "out") => {
+  const punch = async (action: "in" | "out", overtimeComment?: string) => {
     setBusy(true);
     try {
-      await API.post("/attendance/mine/punch", { action });
+      await API.post("/attendance/mine/punch", {
+        action,
+        ...(overtimeComment ? { overtimeComment } : {}),
+      });
       toast.success("Saved.");
+      setAskOvertime(false);
       await load();
     } catch (err) {
       toast.error(apiErrorMessage(err, "Could not save time."));
@@ -59,10 +68,25 @@ export default function StaffDayCheckBar({
     }
   };
 
+  const startCheckout = () => {
+    if (department === "chief_estimator") setAskOvertime(true);
+    else void punch("out");
+  };
+
   if (!visible) return null;
+
+  const overtimeDialog = (
+    <CheckoutCommentDialog
+      open={askOvertime}
+      busy={busy}
+      onCancel={() => setAskOvertime(false)}
+      onConfirm={(comment) => void punch("out", comment)}
+    />
+  );
 
   if (compact) {
     return (
+      <>
       <div className="flex items-center gap-1.5 shrink-0">
         <span className="hidden lg:inline text-[11px] font-semibold text-crm-text-muted tabular-nums">
           {formatClock(row?.checkIn)} – {formatClock(row?.checkOut)}
@@ -78,12 +102,15 @@ export default function StaffDayCheckBar({
         <button
           type="button"
           disabled={busy || !row?.checkIn || Boolean(row?.checkOut)}
-          onClick={() => void punch("out")}
+          onClick={startCheckout}
           className="h-9 px-2.5 rounded-xl bg-[#B8112D] text-white text-xs font-semibold inline-flex items-center gap-1 disabled:opacity-60 touch-manipulation"
         >
           <LogOut size={14} /> {row?.checkOut ? "Out" : "Check out"}
         </button>
+        <ShiftHistoryButton url="/attendance/mine/history" compact />
       </div>
+      {overtimeDialog}
+      </>
     );
   }
 
@@ -108,12 +135,14 @@ export default function StaffDayCheckBar({
         <button
           type="button"
           disabled={busy || !row?.checkIn || Boolean(row?.checkOut)}
-          onClick={() => void punch("out")}
+          onClick={startCheckout}
           className="h-10 px-3 rounded-xl bg-[#B8112D] text-white text-sm font-semibold inline-flex items-center gap-1.5 disabled:opacity-60 touch-manipulation"
         >
           <LogOut size={15} /> {row?.checkOut ? "Checked out" : "Check out"}
         </button>
+        <ShiftHistoryButton url="/attendance/mine/history" />
       </div>
+      {overtimeDialog}
     </section>
   );
 }
