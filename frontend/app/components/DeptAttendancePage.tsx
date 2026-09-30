@@ -197,7 +197,7 @@ export default function DeptAttendancePage({
                     type="button"
                     disabled={busy || !row?.checkIn || Boolean(row?.checkOut)}
                     onClick={() => {
-                      if (department === "dev") setCheckoutFor(person.key);
+                      if (department === "dev" || department === "bim_modeler") setCheckoutFor(person.key);
                       else void punch(person.key, "out");
                     }}
                     className="h-14 rounded-2xl bg-[#B8112D] text-white text-base font-semibold inline-flex items-center justify-center gap-2 shadow-sm hover:bg-[#9d0e26] disabled:opacity-60 touch-manipulation"
@@ -221,7 +221,7 @@ export default function DeptAttendancePage({
         </div>
       )}
       <CheckoutCommentDialog
-        open={department === "dev" && !!checkoutFor}
+        open={(department === "dev" || department === "bim_modeler") && !!checkoutFor}
         busy={!!checkoutFor && busyKey.startsWith(`${checkoutFor}:`)}
         onCancel={() => setCheckoutFor(null)}
         onConfirm={(comment) => {

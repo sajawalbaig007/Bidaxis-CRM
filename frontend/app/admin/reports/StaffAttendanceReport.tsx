@@ -238,7 +238,7 @@ export default function StaffAttendanceReport({ scope = "all" }: { scope?: "all"
 
   return (
     <div className="space-y-4">
-      {scope === "all" && DEPTS.map((dept) => (
+      {scope === "estimators" ? null : DEPTS.map((dept) => (
         <DeptCard
           key={dept.key}
           title={dept.title}
@@ -247,11 +247,12 @@ export default function StaffAttendanceReport({ scope = "all" }: { scope?: "all"
           loading={loading}
           loaded={loaded}
           canEdit={canEdit}
-          showOvertime={dept.key === "dev" || dept.key === "chief_estimator"}
+          showOvertime={dept.key === "dev" || dept.key === "chief_estimator" || dept.key === "bim_modeler"}
           canReview={canReview}
           onRefresh={() => void load()}
         />
       ))}
+      {scope === "estimators" ? (
       <DeptCard
         title="Estimator Check In / Check Out"
         personLabel="Estimator"
@@ -264,6 +265,7 @@ export default function StaffAttendanceReport({ scope = "all" }: { scope?: "all"
         canReview={canReview}
         onRefresh={() => void load()}
       />
+      ) : null}
     </div>
   );
 }

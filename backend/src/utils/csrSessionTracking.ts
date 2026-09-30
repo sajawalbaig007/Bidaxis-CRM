@@ -374,6 +374,10 @@ export type CsrSessionReportRow = {
   closedReason: string | null;
   closedReasonLabel: string;
   lastActionAt: string | null;
+  overtimeId?: string | null;
+  overtimeComment?: string | null;
+  overtimeStatus?: string | null;
+  overtimeEditedBy?: string | null;
   sessionCount: number;
   memberIds: string[];
 };
@@ -407,6 +411,10 @@ export type CsrSessionSummary = {
   stillOpen: boolean;
   day: string;
   lastActionAt?: string | null;
+  overtimeId?: string | null;
+  overtimeComment?: string | null;
+  overtimeStatus?: string | null;
+  overtimeEditedBy?: string | null;
 };
 
 function liveTotals(session: {
@@ -598,6 +606,17 @@ export async function buildCsrSessionReport(opts: {
   });
 
   const merged = mergeSessionsByCalendarDay(sessions, tz);
+  if (staffRole === "estimator") {
+    const notes = await prisma.overtimeRequest.findMany({ where: { department: "estimator" } });
+    const byKey = new Map(notes.map((note) => [`${note.personKey}:${note.day}`, note]));
+    for (const row of merged) {
+      const note = byKey.get(`${row.csrId}:${estDateYmd(new Date(row.loginAt), tz)}`);
+      row.overtimeId = note?.id ?? null;
+      row.overtimeComment = note?.comment ?? null;
+      row.overtimeStatus = note?.status ?? null;
+      row.overtimeEditedBy = note?.editedBy ?? null;
+    }
+  }
   const summary: CsrSessionSummary[] = merged.map(s => ({
     csrId: s.csrId,
     csrName: s.csrName,
@@ -614,6 +633,10 @@ export async function buildCsrSessionReport(opts: {
     stillOpen: s.status === "active",
     day: estDateYmd(new Date(s.loginAt), tz),
     lastActionAt: s.lastActionAt ?? null,
+    overtimeId: s.overtimeId ?? null,
+    overtimeComment: s.overtimeComment ?? null,
+    overtimeStatus: s.overtimeStatus ?? null,
+    overtimeEditedBy: s.overtimeEditedBy ?? null,
   })).sort((a, b) => {
     const name = a.csrName.localeCompare(b.csrName);
     if (name) return name;

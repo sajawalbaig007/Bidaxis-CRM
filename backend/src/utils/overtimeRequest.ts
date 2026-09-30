@@ -1,7 +1,7 @@
 import prisma from "../config/db";
 import { estDateYmd, CSR_REPORT_TIMEZONE } from "./estTime";
 
-export type OvertimeDepartment = "dev" | "estimator" | "chief_estimator";
+export type OvertimeDepartment = "dev" | "estimator" | "chief_estimator" | "bim_modeler";
 
 const REVIEW_LABEL: Record<string, string> = {
   admin: "CEO",
