@@ -111,6 +111,7 @@ router.get("/projects", async (req: AuthRequest, res) => {
 
     const leads = raw
       .filter(isDisplayableProjectLead)
+      .filter((lead) => leadVisibleOnDesk(lead, req.user?.role))
       .filter((lead) => (lead as { hiddenOnTechnical?: boolean }).hiddenOnTechnical !== true)
       .map((lead) => {
         const all = parseTechnicalAssignments(lead.technicalAssignments);
@@ -161,12 +162,14 @@ router.get("/dashboard", async (req: AuthRequest, res) => {
         technicalNotes: true,
         updatedAt: true,
         hiddenOnTechnical: true,
+        projectDesk: true,
       },
       orderBy: { updatedAt: "desc" },
       take: 200,
     });
 
     const mine = raw
+      .filter((lead) => leadVisibleOnDesk(lead, req.user?.role))
       .filter((lead) => lead.hiddenOnTechnical !== true)
       .map((lead) => {
         const all = parseTechnicalAssignments(lead.technicalAssignments);
@@ -631,10 +634,11 @@ router.get("/notifications", async (req: AuthRequest, res) => {
 
     const leads = await prisma.lead.findMany({
       where: { ...buildProjectLeadWhere(), ...deskWhereForRole(req.user?.role) },
-      select: { id: true, technicalAssignments: true },
+      select: { id: true, technicalAssignments: true, projectDesk: true },
       take: 500,
     });
     const myLeadIds = leads
+      .filter((l) => leadVisibleOnDesk(l, req.user?.role))
       .filter((l) =>
         parseTechnicalAssignments(l.technicalAssignments).some((a) =>
           assignmentBelongsToEstimator(a, me),

@@ -223,6 +223,7 @@ router.get("/notifications", verifyToken, allowRoles("admin", "manager", "techni
         projectCode: true,
         clientCode: true,
         technicalNotes: true,
+        projectDesk: true,
         updatedAt: true,
       },
       orderBy: { updatedAt: "desc" },
@@ -230,7 +231,10 @@ router.get("/notifications", verifyToken, allowRoles("admin", "manager", "techni
     });
 
     // Only TM replies on Admin↔TM ("sir") thread — not admin's own messages
-    const technicalNotes = techAlertLeads
+    const visibleTechAlerts = techAlertLeads.filter((lead) =>
+      leadVisibleOnDesk(lead, (req as AuthRequest).user?.role),
+    );
+    const technicalNotes = visibleTechAlerts
       .map((l) => {
         const notes = parseTechnicalNotes(l.technicalNotes).filter(
           (n) => n.authorRole === "technical_manager",
@@ -1366,7 +1370,9 @@ router.get("/projects", verifyToken, allowRoles("admin", "manager", "technical_m
       prisma.lead.count({ where }),
     ]);
 
-    let leads = rawLeads.filter(isDisplayableProjectLead);
+    let leads = rawLeads
+      .filter(isDisplayableProjectLead)
+      .filter((lead) => leadVisibleOnDesk(lead, (req as AuthRequest).user?.role));
 
     // Soft-hide from Technical only (do not use Prisma where — breaks Mongo when field unset).
     // Completed projects always stay on Chief Estimator, even if previously hidden by mark-complete.
