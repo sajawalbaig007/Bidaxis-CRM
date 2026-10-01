@@ -211,9 +211,9 @@ type SessionHit = {
 };
 
 /** Estimator shifts grouped by the check-in day. A next-morning checkout stays on that day. */
-export async function listEstimatorShiftRows() {
+export async function listEstimatorShiftRows(staffRole: "estimator" | "bim" = "estimator") {
   const sessions = await prisma.csrWorkSession.findMany({
-    where: { user: { is: { role: "estimator" } } },
+    where: { user: { is: { role: staffRole } } },
     orderBy: { loginAt: "asc" },
     take: 8000,
     select: {

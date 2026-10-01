@@ -10,6 +10,7 @@ import { purgeCsrLeads } from "../utils/purgeCsrLeads";
 import { CSR_RESET_GROUPS, normalizeCsrResetScopes } from "../utils/csrResetPages";
 import { countLeadStatuses } from "../utils/uploadSourceStats";
 import { buildProjectLeadWhere, isDisplayableProjectLead } from "../utils/projectLeads";
+import { deskWhereForRole, leadVisibleOnDesk, staffRoleForDesk } from "../utils/projectDesk";
 import { buildCsrTabWhere, type CsrTabKey } from "../utils/csrDashboardQueries";
 import {
   normalizePaymentsInput,
@@ -214,7 +215,7 @@ router.get("/notifications", verifyToken, allowRoles("admin", "manager", "techni
 
     // Alerts from Technical "Notes for Sir"
     const techAlertLeads = await prisma.lead.findMany({
-      where: buildProjectLeadWhere(csrId),
+      where: { ...buildProjectLeadWhere(csrId), ...deskWhereForRole((req as AuthRequest).user?.role) },
       select: {
         id: true,
         name: true,
@@ -634,6 +635,9 @@ router.get("/lead/:id", verifyToken, allowRoles("admin", "manager", "technical_m
       },
     });
     if (!lead) return res.status(404).json({ success: false, message: "Lead not found" });
+    if (!leadVisibleOnDesk(lead, (req as AuthRequest).user?.role)) {
+      return res.status(404).json({ success: false, message: "Lead not found" });
+    }
     return res.json({ success: true, lead });
   } catch (error) {
     console.log(error);
@@ -1303,7 +1307,10 @@ router.get("/projects", verifyToken, allowRoles("admin", "manager", "technical_m
 
     // v5: restore previous Admin Project DB window (page size → ~46 All / ~22 Active)
     // No response cache — stale cache was bringing deleted projects back after toast.
-    const where: Prisma.LeadWhereInput = { ...buildProjectLeadWhere(csrId) };
+    const where: Prisma.LeadWhereInput = {
+      ...buildProjectLeadWhere(csrId),
+      ...deskWhereForRole((req as AuthRequest).user?.role),
+    };
 
     if (search) {
       where.AND = [
@@ -1478,7 +1485,7 @@ router.get(
 router.post(
   "/projects/excel-upload",
   verifyToken,
-  allowRoles("admin", "manager"),
+  allowRoles("admin", "manager", "bim_manager"),
   uploadExcel.single("file"),
   async (req: AuthRequest, res) => {
     try {
@@ -1562,6 +1569,7 @@ router.post(
           if (!createData.technicalReceivedAt) {
             createData.technicalReceivedAt = new Date();
           }
+          if (req.user?.role === "bim_manager") createData.projectDesk = "bim";
           if (row.clientCode?.trim()) createData.clientCode = row.clientCode.trim();
           if (row.timezone?.trim()) createData.timezone = row.timezone.trim();
 
@@ -1731,6 +1739,7 @@ router.post("/project", verifyToken, allowRoles("admin", "manager", "technical_m
     if (!createData.technicalReceivedAt) {
       createData.technicalReceivedAt = new Date();
     }
+    if (req.user?.role === "bim_manager") createData.projectDesk = "bim";
 
     const trimmedPhone = typeof body.phone === "string" ? body.phone.trim() : (source?.phone ?? null);
     if (trimmedPhone) createData.phone = trimmedPhone;
@@ -2297,9 +2306,9 @@ router.get(
   "/technical-estimators",
   verifyToken,
   allowRoles("admin", "manager", "technical_manager"),
-  async (_req, res) => {
+  async (req: AuthRequest, res) => {
     try {
-      return res.json({ success: true, estimators: await listTechnicalEstimators() });
+      return res.json({ success: true, estimators: await listTechnicalEstimators(staffRoleForDesk(req.user?.role)) });
     } catch (err) {
       console.error("technical-estimators error:", err);
       return res.json({ success: true, estimators: [] });
@@ -2312,9 +2321,9 @@ router.get(
   "/technical-monitoring",
   verifyToken,
   allowRoles("admin", "manager", "technical_manager"),
-  async (_req, res) => {
+  async (req: AuthRequest, res) => {
     try {
-      const payload = await buildTechnicalMonitoring();
+      const payload = await buildTechnicalMonitoring(staffRoleForDesk(req.user?.role));
       return res.json({ success: true, ...payload });
     } catch (err) {
       console.error("technical-monitoring error:", err);
@@ -2332,8 +2341,10 @@ router.get(
     try {
       const unreadOnly = req.query.unread === "1" || req.query.unread === "true";
       const limit = Math.min(100, Math.max(1, parseInt(String(req.query.limit ?? "50"), 10) || 50));
+      const bimInbox = (req as AuthRequest).user?.role === "bim_manager";
       const where: Prisma.TechnicalNotificationWhereInput = {
         source: { not: "tm_estimator" },
+        ...(bimInbox ? { desk: "bim" } : { OR: [{ desk: null }, { desk: { not: "bim" } }] }),
         ...(unreadOnly ? { readAt: null } : {}),
       };
 
@@ -2343,7 +2354,13 @@ router.get(
           orderBy: { createdAt: "desc" },
           take: limit,
         }),
-        prisma.technicalNotification.count({ where: { readAt: null } }),
+        prisma.technicalNotification.count({
+          where: {
+            readAt: null,
+            source: { not: "tm_estimator" },
+            ...(bimInbox ? { desk: "bim" } : { OR: [{ desk: null }, { desk: { not: "bim" } }] }),
+          },
+        }),
       ]);
 
       const notifications = rows.map((n) => ({
@@ -2472,9 +2489,9 @@ router.get(
   "/technical-previous-month-ratings",
   verifyToken,
   allowRoles("admin", "manager", "technical_manager"),
-  async (_req, res) => {
+  async (req: AuthRequest, res) => {
     try {
-      const payload = await buildPreviousMonthRatings();
+      const payload = await buildPreviousMonthRatings(staffRoleForDesk(req.user?.role));
       return res.json({ success: true, ...payload });
     } catch (err) {
       console.error("technical-previous-month-ratings error:", err);
@@ -2617,7 +2634,7 @@ router.get(
           orderBy: [{ recordedAt: "desc" }, { createdAt: "desc" }],
           take: 2000,
         }),
-        listTechnicalEstimators(),
+        listTechnicalEstimators(staffRoleForDesk((req as AuthRequest).user?.role)),
       ]);
 
       return res.json({
@@ -3990,7 +4007,9 @@ router.get(
           ? "Asia/Karachi"
           : ADMIN_SESSION_TIMEZONE;
       const timezoneLabel = tz === "Asia/Karachi" ? "Pakistan Time (PKT)" : ADMIN_SESSION_TZ_LABEL;
-      const staffRole = req.query.role === "estimator" ? "estimator" as const : "csr" as const;
+      const asked = req.query.role === "bim" ? "bim" as const : req.query.role === "estimator" ? "estimator" as const : "csr" as const;
+      const viewer = (req as AuthRequest).user?.role;
+      const staffRole = viewer === "bim_manager" ? "bim" as const : viewer === "technical_manager" ? "estimator" as const : asked;
 
       if (staffRole === "csr") {
         if (fromStr) {

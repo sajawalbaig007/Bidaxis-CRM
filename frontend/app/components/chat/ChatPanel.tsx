@@ -1004,8 +1004,10 @@ export default function ChatPanel({
       const role = u.role ? String(u.role) : undefined;
       const roleLabel =
         role === "technical_manager" ? "Chief Estimator"
+        : role === "bim_manager" ? "BIM Manager"
         : role === "accounts" ? "Accounts"
         : role === "estimator" ? "Estimator"
+        : role === "bim" ? "BIM"
         : role === "csr" ? "CSR"
         : role === "manager" ? "Admin"
         : role === "admin" ? "CEO"
@@ -1041,6 +1043,14 @@ export default function ChatPanel({
         target === "accounts"
       );
     }
+    if (viewer === "bim_manager" || viewer === "bim") {
+      return (
+        target === "admin" ||
+        target === "bim_manager" ||
+        target === "bim" ||
+        target === "accounts"
+      );
+    }
     if (viewer === "accounts") {
       return (
         target === "admin" ||
@@ -1048,7 +1058,9 @@ export default function ChatPanel({
         target === "manager" ||
         target === "accounts" ||
         target === "technical_manager" ||
-        target === "estimator"
+        target === "estimator" ||
+        target === "bim_manager" ||
+        target === "bim"
       );
     }
     return target === "admin" || target === "csr" || target === "manager" || target === "accounts";

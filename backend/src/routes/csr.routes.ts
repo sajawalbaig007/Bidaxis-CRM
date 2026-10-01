@@ -52,6 +52,7 @@ import {
 } from "../utils/csrDashboardQueries";
 import { ensureMasterFormatTrades } from "../utils/masterFormatTrades";
 import { allocateNextProjectCode } from "../utils/nextProjectCode";
+import { hasFreshZoomDial } from "../utils/zoomDialer";
 
 const router = express.Router();
 
@@ -768,6 +769,14 @@ router.put("/lead/:id", verifyToken, allowRoles("csr"), async (req: any, res) =>
 
     /* ── STATUS HANDLING ── */
     if (status !== undefined) {
+      const dialed = await hasFreshZoomDial(csrId, leadId);
+      if (!dialed) {
+        return res.status(400).json({
+          success: false,
+          message: "Call this lead from the Zoom dialer before updating status.",
+        });
+      }
+
       const raw = String(status).trim();
       const n = raw.toLowerCase();
       /* Canonical status strings used across CSR pages */

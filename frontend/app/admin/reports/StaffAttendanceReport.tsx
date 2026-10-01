@@ -22,6 +22,7 @@ const DEPTS = [
   { key: "hr", title: "HR Check In / Check Out", person: "HR" },
   { key: "bim_modeler", title: "BIM Modeler Check In / Check Out", person: "BIM Modeler" },
   { key: "chief_estimator", title: "Chief Estimator Check In / Check Out", person: "Chief Estimator" },
+  { key: "bim_manager", title: "BIM Manager Check In / Check Out", person: "BIM Manager" },
   { key: "admin", title: "Admin Check In / Check Out", person: "Admin" },
   { key: "accounts", title: "Accounts Check In / Check Out", person: "Accounts" },
 ] as const;

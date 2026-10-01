@@ -1085,7 +1085,7 @@ router.get("/admin/viewable-users", verifyToken, allowRoles("admin"), async (req
       where: {
         isActive: true,
         id: { not: meId },
-        role: { in: ["csr", "manager", "accounts", "technical_manager", "estimator", "admin"] },
+        role: { in: ["csr", "manager", "accounts", "technical_manager", "estimator", "bim_manager", "bim", "admin"] },
       },
       select: { id: true, name: true, email: true, role: true, csrCode: true, isOnline: true },
       orderBy: [{ role: "asc" }, { name: "asc" }],

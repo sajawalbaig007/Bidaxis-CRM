@@ -543,10 +543,11 @@ export async function buildCsrSessionReport(opts: {
   from?: Date;
   to?: Date;
   csrId?: string;
-  role?: "csr" | "estimator";
+  role?: "csr" | "estimator" | "bim";
   timeZone?: string;
 }): Promise<{ sessions: CsrSessionReportRow[]; summary: CsrSessionSummary[] }> {
-  const staffRole: "csr" | "estimator" = opts.role === "estimator" ? "estimator" : "csr";
+  const staffRole: "csr" | "estimator" | "bim" =
+    opts.role === "estimator" || opts.role === "bim" ? opts.role : "csr";
   const tz = opts.timeZone;
   /* Clean zombies before reporting so Totals / Still checked-in stay accurate */
   try {
@@ -631,10 +632,10 @@ export async function buildCsrSessionReport(opts: {
   const merged = mergeSessionsByCalendarDay(
     sessions,
     tz,
-    staffRole === "csr" ? (iso) => pktShiftDay(new Date(iso)) : undefined,
+    staffRole === "csr" ? (iso: string) => pktShiftDay(new Date(iso)) : undefined,
   );
-  if (staffRole === "estimator") {
-    const notes = await prisma.overtimeRequest.findMany({ where: { department: "estimator" } });
+  if (staffRole === "estimator" || staffRole === "bim") {
+    const notes = await prisma.overtimeRequest.findMany({ where: { department: staffRole } });
     const byKey = new Map(notes.map((note) => [`${note.personKey}:${note.day}`, note]));
     for (const row of merged) {
       const note = byKey.get(`${row.csrId}:${estDateYmd(new Date(row.loginAt), tz)}`);

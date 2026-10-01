@@ -3,6 +3,7 @@ import prisma from "../config/db";
 import { verifyToken, AuthRequest } from "../middleware/auth.middleware";
 import { allowRoles } from "../middleware/role.middleware";
 import { buildProjectLeadWhere, isDisplayableProjectLead } from "../utils/projectLeads";
+import { deskWhereForRole, leadVisibleOnDesk } from "../utils/projectDesk";
 import {
   assignmentBelongsToEstimator,
   parseTechnicalAssignments,
@@ -79,7 +80,7 @@ router.get("/lead/:id", async (req: AuthRequest, res) => {
     const mine = parseTechnicalAssignments(lead.technicalAssignments).some((a) =>
       assignmentBelongsToEstimator(a, me),
     );
-    if (!mine) {
+    if (!mine || !leadVisibleOnDesk(lead, req.user?.role)) {
       return res.status(403).json({ success: false, message: "This project is not assigned to you" });
     }
     return res.json({ success: true, lead: withMyAssignment(lead, me) });
@@ -100,6 +101,7 @@ router.get("/projects", async (req: AuthRequest, res) => {
     const raw = await prisma.lead.findMany({
       where: {
         ...buildProjectLeadWhere(),
+        ...deskWhereForRole(req.user?.role),
         technicalAssignments: { not: null },
       },
       include: projectInclude(),
@@ -146,6 +148,7 @@ router.get("/dashboard", async (req: AuthRequest, res) => {
     const raw = await prisma.lead.findMany({
       where: {
         ...buildProjectLeadWhere(),
+        ...deskWhereForRole(req.user?.role),
         technicalAssignments: { not: null },
       },
       select: {
@@ -627,7 +630,7 @@ router.get("/notifications", async (req: AuthRequest, res) => {
     if (!me) return res.status(401).json({ success: false, message: "Unauthorized" });
 
     const leads = await prisma.lead.findMany({
-      where: buildProjectLeadWhere(),
+      where: { ...buildProjectLeadWhere(), ...deskWhereForRole(req.user?.role) },
       select: { id: true, technicalAssignments: true },
       take: 500,
     });

@@ -18,6 +18,7 @@ import staffEmployeesRoutes from "./routes/staffEmployees.routes";
 import mailRoutes from "./routes/mail.routes";
 import assistantRoutes from "./routes/assistant.routes";
 import attendanceRoutes from "./routes/attendance.routes";
+import zoomDialerRoutes from "./routes/zoomDialer.routes";
 import { apiLimiter } from "./middleware/rateLimit.middleware";
 
 import { validateEnv } from "./config/env";
@@ -88,6 +89,7 @@ app.use("/api/admin/staff-employees", staffEmployeesRoutes);
 app.use("/api/mail", mailRoutes);
 app.use("/api/assistant", assistantRoutes);
 app.use("/api/attendance", attendanceRoutes);
+app.use("/api/dialer", zoomDialerRoutes);
 
 app.use((
   err: Error & { code?: string },

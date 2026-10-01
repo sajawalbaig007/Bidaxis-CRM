@@ -23,6 +23,7 @@ import {
   type TechnicalMonthlyReport,
 } from "@/lib/technicalMonthlyReport";
 import { formatLoggedHours, scoreTone } from "@/lib/technicalMonitoring";
+import { peekAuthMe } from "@/lib/authMeCache";
 
 const StaffAttendanceReport = dynamic(() => import("@/app/admin/reports/StaffAttendanceReport"), { ssr: false });
 const CsrActivityReport = dynamic(() => import("@/app/admin/reports/CsrActivityReport"), {
@@ -38,6 +39,7 @@ function kpiVal(report: TechnicalMonthlyReport, estimatorId: string, key: string
 }
 
 export default function TechnicalReportsPage() {
+  const bimDesk = peekAuthMe()?.role === "bim_manager";
   const [month, setMonth] = useState(currentReportMonth());
   const [report, setReport] = useState<TechnicalMonthlyReport | null>(null);
   const [loading, setLoading] = useState(true);
@@ -222,8 +224,8 @@ export default function TechnicalReportsPage() {
             </div>
           </header>
 
-          <StaffAttendanceReport scope="chief" />
-          <CsrActivityReport staffRole="estimator" allowEdit={false} defaultOpen />
+          {bimDesk ? null : <StaffAttendanceReport scope="chief" />}
+          <CsrActivityReport staffRole={bimDesk ? "bim" : "estimator"} allowEdit={false} defaultOpen />
 
           <section className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-2.5 sm:gap-3">
             {summaryCards.map((c) => (

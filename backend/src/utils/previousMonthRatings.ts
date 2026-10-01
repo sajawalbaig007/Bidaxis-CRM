@@ -56,7 +56,7 @@ function pickValue(saved: string, auto: string): string {
 }
 
 /** Previous calendar month KPI marks/stars (saved records override auto). */
-export async function buildPreviousMonthRatings(): Promise<{
+export async function buildPreviousMonthRatings(staffRole: "estimator" | "bim" = "estimator"): Promise<{
   month: string;
   monthLabel: string;
   ratings: EstimatorMonthRating[];
@@ -66,7 +66,7 @@ export async function buildPreviousMonthRatings(): Promise<{
 
   const [autoSnap, roster, records] = await Promise.all([
     buildEstimatorKpiAuto(month),
-    listTechnicalEstimators(),
+    listTechnicalEstimators(staffRole),
     bounds
       ? prisma.estimatorKpiRecord.findMany({
           where: {
@@ -82,8 +82,10 @@ export async function buildPreviousMonthRatings(): Promise<{
 
   const ids = new Set<string>();
   for (const e of roster) ids.add(e.id);
-  for (const e of autoSnap.estimators) ids.add(e.estimatorId);
-  for (const r of records) ids.add(r.estimatorId);
+  if (staffRole !== "bim") {
+    for (const e of autoSnap.estimators) ids.add(e.estimatorId);
+    for (const r of records) ids.add(r.estimatorId);
+  }
 
   const nameById = new Map(roster.map((e) => [e.id, { name: e.name, code: e.code }]));
   for (const e of autoSnap.estimators) {

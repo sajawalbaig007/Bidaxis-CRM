@@ -26,6 +26,7 @@ import { sortByOldestNote } from "../utils/sortByOldestNote";
 import ClientSortControls from "../components/shared/ClientSortControls";
 import type { SortDir } from "../utils/clientListSort";
 import { collectLeadPhones } from "../utils/parsePhones";
+import { requireLeadDial } from "../components/dialer/dialUnlock";
 import {
   decomposeInterestedServices,
   formatInterestedServices,
@@ -328,6 +329,7 @@ export default function ImportantCallsPage() {
 
   const movePipelineStatus = async (id: string, status: string) => {
     if (!status) return;
+    if (!requireLeadDial(id)) return;
     const lead = leads.find(l => l.id === id);
     if (!lead) return;
     const sameBucket = leadCurrentMoveStatus(lead).toLowerCase() === status.toLowerCase();
@@ -510,6 +512,7 @@ export default function ImportantCallsPage() {
                               phone={phones[0] ?? lead.phone}
                               allPhones={phones}
                               variant="pill"
+                              dial={{ leadId: lead.id, clientName: lead.company || lead.client }}
                             />
                           );
                         })()}
@@ -632,6 +635,7 @@ export default function ImportantCallsPage() {
                               phone={phones[0] ?? lead.phone}
                               allPhones={phones}
                               variant="pill"
+                              dial={{ leadId: lead.id, clientName: lead.company || lead.client }}
                             />
                           );
                         })()}
@@ -781,6 +785,7 @@ export default function ImportantCallsPage() {
                               allPhones={phones}
                               variant="pill"
                               className="px-2 sm:px-3 py-1 sm:py-1.5"
+                              dial={{ leadId: lead.id, clientName: lead.company || lead.client }}
                             />
                           );
                         })()}

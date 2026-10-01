@@ -35,13 +35,13 @@ export const COMPANY_META: Record<PortalCompany, CompanyMeta> = {
     accent: "#0F398A",
     accentSoft: "#3B82F6",
     logoSrc: "/images/global-logo.png",
-    portalsLabel: "Chief Estimator · Estimator",
+    portalsLabel: "Chief Estimator · Estimator · BIM Manager · BIM",
   },
 };
 
 export const COMPANY_PORTAL_ROLES: Record<PortalCompany, PortalRole[]> = {
   BEM: ["admin", "manager", "csr", "accounts"],
-  GPS: ["technical_manager", "estimator"],
+  GPS: ["technical_manager", "estimator", "bim_manager", "bim"],
 };
 
 const STORAGE_KEY = "crm_company_gate";

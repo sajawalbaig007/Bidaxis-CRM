@@ -7,7 +7,7 @@ import toast, { Toaster } from "react-hot-toast";
 import {
   Search, FolderKanban, Calendar, Users, ClipboardList, CheckCircle2,
   Calculator, Send, Layers, UserPlus, Check, Eye, Trash2, RefreshCw, RotateCcw,
-  ArrowRightLeft,
+  ArrowRightLeft, Plus,
 } from "lucide-react";
 import {
   Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, Tooltip, XAxis, YAxis,
@@ -926,6 +926,10 @@ export function TechnicalActiveProjectsPageInner({
 
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
+  const bimDesk = peekAuthMe()?.role === "bim_manager";
+  const [addOpen, setAddOpen] = useState(false);
+  const [addSaving, setAddSaving] = useState(false);
+  const [addForm, setAddForm] = useState({ name: "", projectTitle: "", interestedService: "BIM", projectDeadline: "" });
   const [search, setSearch] = useState("");
   const [stateFilter, setStateFilter] = useState("");
   const [phoneFilter, setPhoneFilter] = useState("");
@@ -966,6 +970,31 @@ export function TechnicalActiveProjectsPageInner({
       if (!silent) setLoading(false);
     }
   }, [dateFrom, dateTo, isRevisions]);
+
+  const saveBimProject = async () => {
+    if (!addForm.name.trim() || !addForm.projectTitle.trim() || !addForm.interestedService.trim() || !addForm.projectDeadline) {
+      toast.error("Client, title, service, and deadline are required.");
+      return;
+    }
+    setAddSaving(true);
+    try {
+      await API.post("/admin/project", {
+        name: addForm.name.trim(),
+        projectTitle: addForm.projectTitle.trim(),
+        interestedService: addForm.interestedService.trim(),
+        projectDeadline: addForm.projectDeadline,
+        status: "Close Client",
+      });
+      toast.success("Project added for BIM.");
+      setAddOpen(false);
+      setAddForm({ name: "", projectTitle: "", interestedService: "BIM", projectDeadline: "" });
+      await fetchProjects();
+    } catch (err) {
+      toast.error(apiErrorMessage(err, "Could not add the project."));
+    } finally {
+      setAddSaving(false);
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -1503,10 +1532,21 @@ export function TechnicalActiveProjectsPageInner({
               <p className="text-xs sm:text-sm text-crm-text-muted mt-0.5 sm:mt-1">
                 {isRevisions
                   ? "Admin-sent revision projects — assign estimators like Active Projects."
-                  : "Technical workflow — assign estimators, track takeoff, pricing & submission."}
+                  : bimDesk
+                    ? "Upload a BIM project here. It goes to BIM only, not the admin project panel."
+                    : "Technical workflow — assign estimators, track takeoff, pricing & submission."}
               </p>
             </div>
             <div className="flex items-center gap-2 flex-wrap shrink-0">
+              {bimDesk && !isRevisions && (
+                <button
+                  type="button"
+                  onClick={() => setAddOpen(true)}
+                  className="h-9 sm:h-10 px-3 sm:px-4 rounded-xl bg-[#0F398A] text-white text-xs sm:text-sm font-semibold inline-flex items-center justify-center gap-2"
+                >
+                  <Plus size={14} /> Add project
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => void fetchProjects()}
@@ -2328,6 +2368,25 @@ export function TechnicalActiveProjectsPageInner({
         }
         hideClientFinanceSections
       />
+      {addOpen && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
+          <button type="button" className="absolute inset-0 bg-black/40" aria-label="Close" onClick={() => setAddOpen(false)} />
+          <div className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl border border-gray-100 p-5 space-y-3">
+            <h2 className="text-lg font-bold text-[#0F172A]">Add BIM project</h2>
+            <p className="text-xs text-gray-400">This project stays on the BIM desk. Assign it to BIM from the list.</p>
+            <input value={addForm.name} onChange={(e) => setAddForm({ ...addForm, name: e.target.value })} placeholder="Client name" className="w-full h-10 px-3 rounded-xl border border-gray-200 text-sm" />
+            <input value={addForm.projectTitle} onChange={(e) => setAddForm({ ...addForm, projectTitle: e.target.value })} placeholder="Project title" className="w-full h-10 px-3 rounded-xl border border-gray-200 text-sm" />
+            <input value={addForm.interestedService} onChange={(e) => setAddForm({ ...addForm, interestedService: e.target.value })} placeholder="Service" className="w-full h-10 px-3 rounded-xl border border-gray-200 text-sm" />
+            <input type="date" value={addForm.projectDeadline} onChange={(e) => setAddForm({ ...addForm, projectDeadline: e.target.value })} className="w-full h-10 px-3 rounded-xl border border-gray-200 text-sm" />
+            <div className="flex justify-end gap-2 pt-1">
+              <button type="button" onClick={() => setAddOpen(false)} className="h-10 px-4 rounded-xl border border-gray-200 text-sm font-semibold">Cancel</button>
+              <button type="button" disabled={addSaving} onClick={() => void saveBimProject()} className="h-10 px-4 rounded-xl bg-[#0F398A] text-white text-sm font-semibold disabled:opacity-60">
+                {addSaving ? "Saving…" : "Add project"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </TechnicalPageShell>
   );
 }

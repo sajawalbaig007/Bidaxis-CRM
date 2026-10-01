@@ -17,6 +17,7 @@ import ImportantCallModal from "../components/modals/ImportantCallModal";
 import InterestedModal from "../components/modals/InterestedModal";
 import ClientNameCell from "../components/shared/ClientNameCell";
 import PhoneWithTzCell from "../components/shared/PhoneWithTzCell";
+import { consumeLeadDial, DialGatedSelect, requireLeadDial } from "../components/dialer/dialUnlock";
 import { collectLeadPhones } from "../utils/parsePhones";
 import StackedHorizontalBarChart, { StackedBarRow } from "../components/shared/StackedHorizontalBarChart";
 import TriesBar from "../components/shared/TriesBar";
@@ -190,9 +191,11 @@ export default function NotInterestedPage() {
   const handleRetry = async (lead: NiLead) => {
     const meta = followUpRetryMeta(lead);
     if (!meta.isRetry || !meta.countKey) return;
+    if (!requireLeadDial(lead.id)) return;
     const newStatus = meta.retryStatus;
     try {
       const res = await API.put(`/csr/lead/${lead.id}`, { status: newStatus });
+      consumeLeadDial(lead.id);
       bustCaches();
       if (res.data.needsManualAssign) {
         setCsrList(res.data.csrs ?? []);
@@ -244,6 +247,7 @@ export default function NotInterestedPage() {
 
   const handleUpdateStatus = async (lead: NiLead, status: string) => {
     if (status === "") return;
+    if (!requireLeadDial(lead.id)) return;
 
     const sameStatus =
       (isNotInterestedStatus(status) && isNotInterestedStatus(lead.status)) ||
@@ -276,6 +280,7 @@ export default function NotInterestedPage() {
     }
     try {
       const res = await API.put(`/csr/lead/${lead.id}`, { status });
+      consumeLeadDial(lead.id);
       bustCaches();
       const staysOnPage = activeTab === "all" && (
         isNotInterestedStatus(status) ||
@@ -299,11 +304,13 @@ export default function NotInterestedPage() {
 
   const saveImportant = async () => {
     if (!statusLead || !scheduleDate || !scheduleTime) return;
+    if (!requireLeadDial(statusLead.id)) return;
     const nextStatus = pendingPipelineStatus;
     await API.put(`/csr/lead/${statusLead.id}`, {
       status: nextStatus, nextSchedule: scheduleDate,
       nextTime: scheduleTime, timezone: selectedTimezone,
     });
+    consumeLeadDial(statusLead.id);
     bustCaches();
     setLeads(prev => prev.filter(l => l.id !== statusLead.id));
     setShowImportantModal(false);
@@ -313,9 +320,11 @@ export default function NotInterestedPage() {
 
   const saveInterested = async () => {
     if (!statusLead || !selectedService) return;
+    if (!requireLeadDial(statusLead.id)) return;
     const sub = serviceSubtype.trim();
     const interestedService = sub ? `${selectedService}-${sub}` : selectedService;
     await API.put(`/csr/lead/${statusLead.id}`, { status: "interested", interestedService });
+    consumeLeadDial(statusLead.id);
     bustCaches();
     setLeads(prev => prev.filter(l => l.id !== statusLead.id));
     setShowInterestedModal(false);
@@ -326,11 +335,13 @@ export default function NotInterestedPage() {
 
   const saveCloseClient = async () => {
     if (!statusLead || !projectTitle || !projectDeadline || !projectService || !paidAmount) return;
+    if (!requireLeadDial(statusLead.id)) return;
     await API.put(`/csr/lead/${statusLead.id}`, {
       status: "Close Client", projectTitle, projectDeadline, projectCode,
       projectBudget, projectNotes, interestedService: projectService, paidAmount,
       ...(email.trim() && email.trim().toLowerCase() !== "n/a" ? { email: email.trim() } : {}),
     });
+    consumeLeadDial(statusLead.id);
     bustCaches();
     setLeads(prev => prev.filter(l => l.id !== statusLead.id));
     setShowCloseModal(false);
@@ -525,6 +536,7 @@ export default function NotInterestedPage() {
                                 allPhones={phones}
                                 variant="pill"
                                 className="px-2 sm:px-3 py-1 sm:py-1.5 text-[10px] sm:text-[12px]"
+                                dial={{ leadId: lead.id, clientName: lead.company || lead.client }}
                               />
                             );
                           })()}
@@ -591,9 +603,9 @@ export default function NotInterestedPage() {
                                 </button>
                               )}
                             </div>
-                            <select
-                              defaultValue=""
-                              onChange={e => { void handleUpdateStatus(lead, e.target.value); e.currentTarget.value = ""; }}
+                            <DialGatedSelect
+                              leadId={lead.id}
+                              onPick={status => { void handleUpdateStatus(lead, status); }}
                               className="appearance-none h-7 w-full rounded-lg border border-gray-200 bg-white px-1.5 text-[9px] sm:text-[10px] font-semibold text-[#0F172A] outline-none"
                             >
                               <option value="">Update Status</option>
@@ -607,7 +619,7 @@ export default function NotInterestedPage() {
                               <option value="schedule call">Schedule Call</option>
                               <option value="interested">Interested</option>
                               <option value="Close Client">Close Client</option>
-                            </select>
+                            </DialGatedSelect>
                           </div>
                         </td>
                       </tr>
