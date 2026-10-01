@@ -70,9 +70,8 @@ export default function StaffDayCheckBar({
 
   if (compact) {
     return (
-      <>
-      <div className="flex items-center gap-1.5 shrink-0">
-        <span className="hidden lg:inline text-[11px] font-semibold text-crm-text-muted tabular-nums">
+      <div className="flex flex-wrap items-center gap-1.5 w-full min-w-0 [&>*]:shrink-0">
+        <span className="text-[11px] font-semibold text-crm-text-muted tabular-nums whitespace-nowrap">
           {formatClock(row?.checkIn)} – {formatClock(row?.checkOut)}
         </span>
         <button
@@ -95,7 +94,6 @@ export default function StaffDayCheckBar({
         <StaffRequestButton compact mode={department === "admin" || department === "accounts" ? "evening" : "pkt"} />
         {overtime}
       </div>
-      </>
     );
   }
 

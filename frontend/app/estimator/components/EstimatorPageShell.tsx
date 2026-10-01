@@ -16,7 +16,7 @@ export default function EstimatorPageShell({
   return (
     <div className={`min-h-screen ${bgClass}`}>
       <EstimatorSidebar />
-      <main className={`w-full min-w-0 pt-[64px] ${className}`}>
+      <main className={`w-full min-w-0 ${className}`}>
         <EstimatorCheckInBanner />
         {children}
       </main>

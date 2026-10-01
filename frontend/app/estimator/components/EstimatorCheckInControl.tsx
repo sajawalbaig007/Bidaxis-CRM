@@ -160,7 +160,7 @@ export default function EstimatorCheckInControl({ compact = false }: { compact?:
 
   if (loading) {
     return (
-      <div className="inline-flex items-center gap-1 shrink-0">
+      <div className="flex flex-wrap items-center gap-1.5 w-full min-w-0 [&>*]:shrink-0">
         <div className={`flex items-center gap-1.5 ${compact ? "h-9 px-2" : "h-10 px-3"} rounded-xl bg-crm-nav-pill text-crm-text-muted text-[11px] font-semibold`}>
           <Loader2 size={13} className="animate-spin" />
           <span className="hidden lg:inline">Session…</span>
@@ -174,7 +174,7 @@ export default function EstimatorCheckInControl({ compact = false }: { compact?:
 
   if (!checkedIn) {
     return (
-      <div className="inline-flex items-center gap-1 shrink-0">
+      <div className="flex flex-wrap items-center gap-1.5 w-full min-w-0 [&>*]:shrink-0">
       <button
         type="button"
         onClick={() => void checkIn()}
@@ -193,7 +193,7 @@ export default function EstimatorCheckInControl({ compact = false }: { compact?:
   }
 
   return (
-    <div className={`inline-flex items-center gap-1 sm:gap-1.5 ${compact ? "h-9" : "h-10"} shrink-0`}>
+    <div className="flex flex-wrap items-center gap-1.5 w-full min-w-0 [&>*]:shrink-0">
       <div
         className={`flex items-center gap-1.5 ${compact ? "h-9 px-2.5" : "h-10 px-3"} rounded-xl bg-violet-50 dark:bg-violet-500/20 text-[#7C3AED] dark:text-violet-300 border border-violet-200/80 dark:border-violet-500/30 text-[11px] font-semibold`}
         title={session ? `On dashboard ${session.dashboardDuration} · Away ${session.awayDuration}` : "Checked in"}
