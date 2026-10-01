@@ -1254,7 +1254,7 @@ export default function ChatPanel({
   /* ---- */
   if (!isStealthView && !chatAllowed) {
     return (
-      <div className="fixed inset-0 top-[64px] z-[45] pointer-events-none">
+      <div className="fixed inset-0 top-[var(--app-header-h,64px)] z-[45] pointer-events-none">
         <div
           className="absolute inset-0 bg-black/20 pointer-events-auto sm:left-auto sm:w-[420px] sm:max-w-full sm:right-0"
           onClick={onClose}
@@ -1283,7 +1283,7 @@ export default function ChatPanel({
 
   /* ---- */
   return (
-    <div className={`fixed inset-0 z-[80] pointer-events-none ${chatFullscreen ? "" : "top-[64px]"}`}>
+    <div className={`fixed inset-0 z-[80] pointer-events-none ${chatFullscreen ? "" : "top-[var(--app-header-h,64px)]"}`}>
       {/* Light backdrop - only blocks clicks behind panel area */}
       <div
         className={`absolute inset-0 bg-black/20 pointer-events-auto ${chatFullscreen ? "" : "sm:left-auto sm:w-[768px] sm:max-w-full sm:right-0"}`}

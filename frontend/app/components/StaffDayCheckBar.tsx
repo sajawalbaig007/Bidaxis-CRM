@@ -23,9 +23,13 @@ function formatClock(time: string | null | undefined): string {
 export default function StaffDayCheckBar({
   defaultVisible = false,
   compact = false,
+  showOvertime = false,
+  chiefDashboard = false,
 }: {
   defaultVisible?: boolean;
   compact?: boolean;
+  showOvertime?: boolean;
+  chiefDashboard?: boolean;
 }) {
   const [name, setName] = useState("");
   const [department, setDepartment] = useState("");
@@ -35,17 +39,17 @@ export default function StaffDayCheckBar({
 
   const load = useCallback(async () => {
     try {
-      const res = await API.get("/attendance/mine");
+      const res = await API.get("/attendance/mine", chiefDashboard ? { params: { dashboard: "chief" } } : undefined);
       setName(res.data.name || "");
       setDepartment(res.data.department || "");
       setRow(res.data.row ?? null);
       setVisible(true);
     } catch (err: unknown) {
       const status = (err as { response?: { status?: number } })?.response?.status;
-      if (status === 401 || status === 403) setVisible(false);
-      else if (defaultVisible) setVisible(true);
+      if (defaultVisible) setVisible(true);
+      else if (status === 401 || status === 403) setVisible(false);
     }
-  }, [defaultVisible]);
+  }, [chiefDashboard, defaultVisible]);
 
   useEffect(() => {
     void load();
@@ -54,7 +58,7 @@ export default function StaffDayCheckBar({
   const punch = async (action: "in" | "out") => {
     setBusy(true);
     try {
-      await API.post("/attendance/mine/punch", { action });
+      await API.post("/attendance/mine/punch", { action, ...(chiefDashboard ? { dashboard: "chief" } : {}) });
       toast.success("Saved.");
       await load();
     } catch (err) {
@@ -66,7 +70,7 @@ export default function StaffDayCheckBar({
 
   if (!visible) return null;
 
-  const overtime = department === "chief_estimator" ? <OvertimeShiftButton compact={compact} /> : null;
+  const overtime = showOvertime || department === "chief_estimator" ? <OvertimeShiftButton compact={compact} /> : null;
 
   if (compact) {
     return (
@@ -90,8 +94,8 @@ export default function StaffDayCheckBar({
         >
           <LogOut size={14} /> {row?.checkOut ? "Out" : "Check out"}
         </button>
-        <ShiftHistoryButton url="/attendance/mine/history" compact />
-        <StaffRequestButton compact mode={department === "admin" || department === "accounts" ? "evening" : "pkt"} />
+        <ShiftHistoryButton url="/attendance/mine/history" params={chiefDashboard ? { dashboard: "chief" } : undefined} compact />
+        <StaffRequestButton compact mode={department === "admin" || department === "accounts" ? "evening" : "pkt"} dashboard={chiefDashboard ? "chief" : undefined} />
         {overtime}
       </div>
     );
@@ -127,7 +131,7 @@ export default function StaffDayCheckBar({
           <LogOut size={15} /> {row?.checkOut ? "Checked out" : "Check out"}
         </button>
         <ShiftHistoryButton url="/attendance/mine/history" />
-        <StaffRequestButton mode={department === "admin" || department === "accounts" ? "evening" : "pkt"} />
+        <StaffRequestButton mode={department === "admin" || department === "accounts" ? "evening" : "pkt"} dashboard={chiefDashboard ? "chief" : undefined} />
         {overtime}
       </div>
     </section>

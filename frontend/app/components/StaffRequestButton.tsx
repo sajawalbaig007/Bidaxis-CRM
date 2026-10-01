@@ -76,6 +76,7 @@ export default function StaffRequestButton({
   personKey,
   personName,
   publicPunch = false,
+  dashboard,
 }: {
   compact?: boolean;
   large?: boolean;
@@ -84,6 +85,7 @@ export default function StaffRequestButton({
   personKey?: string;
   personName?: string;
   publicPunch?: boolean;
+  dashboard?: "chief";
 }) {
   const [open, setOpen] = useState(false);
   const [kind, setKind] = useState<Kind | "">("");
@@ -127,6 +129,7 @@ export default function StaffRequestButton({
         title: title || undefined,
         detail,
         ...(publicPunch ? { department, personKey, personName } : {}),
+        ...(dashboard ? { dashboard } : {}),
       });
       toast.success("Request sent.");
       close();

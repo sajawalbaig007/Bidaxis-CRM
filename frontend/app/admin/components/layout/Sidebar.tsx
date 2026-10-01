@@ -15,6 +15,7 @@ import { dismissNotification, getDismissedNotificationIds, clearDismissedNotific
 import { logoutSession } from "@/lib/session";
 import { getAuthMe, peekAuthMe, type AuthUser } from "@/lib/authMeCache";
 import { useChatUnreadBadge } from "@/lib/useChatUnreadBadge";
+import { useFixedHeaderHeight } from "@/lib/useFixedHeaderHeight";
 import { useChatEnabled } from "@/lib/useChatEnabled";
 import { forceStopChatUnreadPolling } from "@/lib/chatUnreadStore";
 import { forceStopChatStatusHeartbeat } from "@/lib/chatStatusHeartbeat";
@@ -96,6 +97,8 @@ export default function DashboardSidebar() {
   const totalUnread   = useChatUnreadBadge();
   const chatEnabled   = useChatEnabled();
   const profileRef    = useRef<HTMLDivElement>(null);
+  const headerRef = useRef<HTMLElement>(null);
+  useFixedHeaderHeight(headerRef);
   const bellRef       = useRef<HTMLDivElement>(null);
   const seenTechNoteIdsRef = useRef<Set<string> | null>(null);
 
@@ -227,7 +230,7 @@ export default function DashboardSidebar() {
 
   return (
     <>
-      <header className="fixed top-0 left-0 right-0 z-30 bg-crm-surface border-b border-crm-border shadow-sm">
+      <header ref={headerRef} className="fixed top-0 left-0 right-0 z-30 bg-crm-surface border-b border-crm-border shadow-sm">
         <div className="h-[64px] px-2 sm:px-3 lg:px-4 flex items-center gap-2">
 
           {/* Logo */}

@@ -23,6 +23,8 @@ import { forceStopChatStatusHeartbeat } from "@/lib/chatStatusHeartbeat";
 import { forceDisconnectChatSocket } from "@/lib/chatSocket";
 import ChatPanel from "@/app/components/chat/ChatPanel";
 import ThemeToggle from "@/app/components/ThemeToggle";
+import StaffDayCheckBar from "@/app/components/StaffDayCheckBar";
+import { useFixedHeaderHeight } from "@/lib/useFixedHeaderHeight";
 import CapsuleChipNav from "@/app/components/CapsuleChipNav";
 
 const BASE = "/manager";
@@ -73,6 +75,8 @@ export default function ManagerSidebar() {
   const totalUnread = useChatUnreadBadge();
   const chatEnabled = useChatEnabled();
   const profileRef = useRef<HTMLDivElement>(null);
+  const headerRef = useRef<HTMLElement>(null);
+  useFixedHeaderHeight(headerRef);
   const bellRef = useRef<HTMLDivElement>(null);
 
   const closeChat = () => {
@@ -153,7 +157,7 @@ export default function ManagerSidebar() {
 
   return (
     <>
-      <header className="fixed top-0 left-0 right-0 z-30 bg-crm-surface border-b border-crm-border shadow-sm">
+      <header ref={headerRef} className="fixed top-0 left-0 right-0 z-30 bg-crm-surface border-b border-crm-border shadow-sm">
         <div className="h-[64px] px-3 sm:px-4 lg:px-5 flex items-center gap-3">
           <div className="flex-1 min-w-0 flex items-center">
           <Link href={BASE} prefetch={false} className="flex items-center gap-3 min-w-0">
@@ -267,6 +271,9 @@ export default function ManagerSidebar() {
             )}
           </div>
           </div>
+        </div>
+        <div className="border-t border-crm-border px-3 sm:px-4 lg:px-5 py-2">
+          <StaffDayCheckBar compact defaultVisible />
         </div>
       </header>
 

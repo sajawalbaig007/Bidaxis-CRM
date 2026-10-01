@@ -162,7 +162,7 @@ export default function AdminBinPage() {
       <div className="flex-1 min-w-0 flex flex-col">
         <DashboardNavbar />
 
-        <div className="p-4 sm:p-6 lg:p-8 pt-[64px]">
+        <div className="p-4 sm:p-6 lg:p-8 pt-[var(--app-header-h,64px)]">
           <div className="flex items-center gap-3 mb-6">
             <div className="w-11 h-11 rounded-2xl bg-amber-100 flex items-center justify-center shrink-0">
               <Trash2 size={20} className="text-amber-600" />

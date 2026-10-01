@@ -20,6 +20,7 @@ import ChatPanel from "@/app/components/chat/ChatPanel";
 import ThemeToggle from "@/app/components/ThemeToggle";
 import CapsuleChipNav from "@/app/components/CapsuleChipNav";
 import EstimatorCheckInControl from "@/app/estimator/components/EstimatorCheckInControl";
+import { useFixedHeaderHeight } from "@/lib/useFixedHeaderHeight";
 import API from "@/lib/api";
 import { playChatSound, primeChatSound } from "@/lib/chatSound";
 import {
@@ -51,6 +52,8 @@ export default function EstimatorSidebar() {
   const totalUnread = useChatUnreadBadge();
   const chatEnabled = useChatEnabled();
   const profileRef = useRef<HTMLDivElement>(null);
+  const headerRef = useRef<HTMLElement>(null);
+  useFixedHeaderHeight(headerRef);
   const bellRef = useRef<HTMLDivElement>(null);
   const prevUnreadRef = useRef<number | null>(null);
 
@@ -160,7 +163,7 @@ export default function EstimatorSidebar() {
 
   return (
     <>
-      <header className="sticky top-0 z-30 bg-crm-surface border-b border-crm-border shadow-sm">
+      <header ref={headerRef} className="sticky top-0 z-30 bg-crm-surface border-b border-crm-border shadow-sm">
         <div className="h-[64px] px-3 sm:px-4 lg:px-5 flex items-center gap-3">
           <div className="flex-1 min-w-0 flex items-center">
             <Link href={BASE} prefetch={false} className="flex items-center gap-3 min-w-0">
