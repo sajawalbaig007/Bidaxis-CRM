@@ -177,22 +177,6 @@ export async function placeZoomCall(input: {
     saved = true;
   }
 
-  if (input.leadId) {
-    const lead = await prisma.lead.findUnique({ where: { id: input.leadId }, select: { id: true } });
-    if (lead) {
-      await prisma.callLog.create({
-        data: {
-          leadId: lead.id,
-          csrId: input.userId,
-          status: "zoom_call",
-          notes: `Zoom ${account.label} from ${caller} to ${destination}`,
-        },
-      }).catch((error) => {
-        console.log("Failed to log zoom call", error);
-      });
-    }
-  }
-
   return {
     saved,
     message: `Calling from ${account.label}.`,

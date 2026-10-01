@@ -1,11 +1,10 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import toast from "react-hot-toast";
 import { Phone, X } from "lucide-react";
 import API, { apiErrorMessage } from "@/lib/api";
-import { markLeadDialed } from "./dialUnlock";
 
 export type DialTarget = {
   destination: string;
@@ -27,6 +26,10 @@ type DialerPreference = {
 
 type ZoomDialerApi = {
   open: (target: DialTarget) => void;
+  changeDefault: () => void;
+  clearDefault: () => Promise<void>;
+  preference: DialerPreference | null;
+  preferenceLoading: boolean;
 };
 
 const ZoomDialerContext = createContext<ZoomDialerApi | null>(null);
@@ -45,7 +48,8 @@ function toE164(raw: string): string | null {
 
 function launchZoomCall(destination: string, callerId: string) {
   const link = document.createElement("a");
-  link.href = `zoomphonecall://${destination}?callerid=${encodeURIComponent(callerId)}`;
+  // setAttribute keeps the + signs. Assigning .href encodes them, and Zoom then ignores the caller ID.
+  link.setAttribute("href", `zoomphonecall://${destination}?callerid=${callerId}`);
   link.style.display = "none";
   document.body.appendChild(link);
   link.click();
@@ -60,41 +64,124 @@ function sameNumber(a: string, b: string) {
   return da.length >= 10 && db.length >= 10 && da.slice(-10) === db.slice(-10);
 }
 
+function dialWithPreference(target: DialTarget, preference: DialerPreference) {
+  const destination = toE164(target.destination);
+  const callerId = toE164(preference.callerNumber);
+  if (!destination || !callerId) {
+    toast.error("That phone number cannot be dialed.");
+    return;
+  }
+  launchZoomCall(destination, callerId);
+  toast.success(`Calling ${target.destination} from ${preference.callerNumber}`);
+}
+
 export function ZoomDialerProvider({ children }: { children: React.ReactNode }) {
   const [target, setTarget] = useState<DialTarget | null>(null);
-  const open = useCallback((next: DialTarget) => setTarget(next), []);
-  const api = useMemo(() => ({ open }), [open]);
+  const [pickingDefault, setPickingDefault] = useState(false);
+  const [preference, setPreference] = useState<DialerPreference | null>(null);
+  const [preferenceLoading, setPreferenceLoading] = useState(true);
+  const pendingTarget = useRef<DialTarget | null>(null);
+
+  const refreshPreference = useCallback(async () => {
+    try {
+      const res = await API.get("/dialer/preference");
+      setPreference(res.data.preference ?? null);
+    } catch {
+      setPreference(null);
+    } finally {
+      setPreferenceLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { void refreshPreference(); }, [refreshPreference]);
+
+  const open = useCallback((next: DialTarget) => {
+    if (preferenceLoading) {
+      pendingTarget.current = next;
+      return;
+    }
+    pendingTarget.current = null;
+    if (preference) {
+      dialWithPreference(next, preference);
+      return;
+    }
+    setPickingDefault(false);
+    setTarget(next);
+  }, [preference, preferenceLoading]);
+
+  useEffect(() => {
+    if (preferenceLoading || !pendingTarget.current) return;
+    const next = pendingTarget.current;
+    pendingTarget.current = null;
+    if (preference) {
+      dialWithPreference(next, preference);
+      return;
+    }
+    setPickingDefault(false);
+    setTarget(next);
+  }, [preference, preferenceLoading]);
+
+  const changeDefault = useCallback(() => {
+    setTarget(null);
+    setPickingDefault(true);
+  }, []);
+
+  const clearDefault = useCallback(async () => {
+    await API.delete("/dialer/preference");
+    setPreference(null);
+  }, []);
+
+  const api = useMemo(
+    () => ({ open, changeDefault, clearDefault, preference, preferenceLoading }),
+    [open, changeDefault, clearDefault, preference, preferenceLoading],
+  );
 
   return (
     <ZoomDialerContext.Provider value={api}>
       {children}
-      {target && <ZoomDialerModal target={target} onClose={() => setTarget(null)} />}
+      {(target || pickingDefault) && (
+        <ZoomDialerModal
+          target={target}
+          pickingDefault={pickingDefault}
+          preference={preference}
+          onPreference={setPreference}
+          onClose={() => { setTarget(null); setPickingDefault(false); }}
+        />
+      )}
     </ZoomDialerContext.Provider>
   );
 }
 
-function ZoomDialerModal({ target, onClose }: { target: DialTarget; onClose: () => void }) {
+function ZoomDialerModal({
+  target,
+  pickingDefault,
+  preference,
+  onPreference,
+  onClose,
+}: {
+  target: DialTarget | null;
+  pickingDefault: boolean;
+  preference: DialerPreference | null;
+  onPreference: (next: DialerPreference | null) => void;
+  onClose: () => void;
+}) {
   const [accounts, setAccounts] = useState<DialerAccount[]>([]);
-  const [preference, setPreference] = useState<DialerPreference | null>(null);
   const [loading, setLoading] = useState(true);
   const [accountId, setAccountId] = useState("");
   const [step, setStep] = useState<"account" | "number">("account");
-  const [saveDefault, setSaveDefault] = useState(false);
+  const [saveDefault, setSaveDefault] = useState(pickingDefault);
+  const preferenceRef = useRef(preference);
+  preferenceRef.current = preference;
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    Promise.all([
-      API.get("/dialer/accounts"),
-      API.get("/dialer/preference"),
-    ]).then(([accountsRes, prefRes]) => {
+    API.get("/dialer/accounts").then((accountsRes) => {
       if (cancelled) return;
       const list: DialerAccount[] = accountsRes.data.accounts ?? [];
-      const pref: DialerPreference | null = prefRes.data.preference ?? null;
       setAccounts(list);
-      setPreference(pref);
       setAccountId("");
-      setSaveDefault(false);
+      setSaveDefault(pickingDefault || !preferenceRef.current);
       setStep("account");
     }).catch((err) => {
       if (!cancelled) toast.error(apiErrorMessage(err, "Could not load Zoom accounts."));
@@ -102,7 +189,7 @@ function ZoomDialerModal({ target, onClose }: { target: DialTarget; onClose: () 
       if (!cancelled) setLoading(false);
     });
     return () => { cancelled = true; };
-  }, [target.destination]);
+  }, [target?.destination, pickingDefault]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -121,34 +208,40 @@ function ZoomDialerModal({ target, onClose }: { target: DialTarget; onClose: () 
 
   const dialFrom = (number: string) => {
     if (!account) return;
-    const destination = toE164(target.destination);
     const callerId = toE164(number);
-    if (!destination || !callerId) {
+    if (!callerId) {
       toast.error("That phone number cannot be dialed.");
       return;
     }
-    launchZoomCall(destination, callerId);
-    toast.success(`Calling ${target.destination} from ${number}`);
+    const shouldSave = saveDefault || pickingDefault;
     const accountIdForSave = account.id;
-    const shouldSave = saveDefault;
+    const accountLabel = account.label;
+    if (target) {
+      const destination = toE164(target.destination);
+      if (!destination) {
+        toast.error("That phone number cannot be dialed.");
+        return;
+      }
+      launchZoomCall(destination, callerId);
+      toast.success(`Calling ${target.destination} from ${number}`);
+    }
     onClose();
-    void API.post("/dialer/call", {
+    if (!shouldSave) return;
+    void API.put("/dialer/preference", {
       accountId: accountIdForSave,
       callerNumber: number,
-      destination: target.destination,
-      leadId: target.leadId,
-      saveDefault: shouldSave,
-    }).then(() => {
-      markLeadDialed(target.leadId);
+    }).then((res) => {
+      onPreference(res.data.preference ?? { accountId: accountIdForSave, accountLabel, callerNumber: number });
+      toast.success(target ? "Saved as your default. Next numbers call from it." : "Default number saved.");
     }).catch((err) => {
-      if (shouldSave) toast.error(apiErrorMessage(err, "Call started, but the default could not be saved."));
+      toast.error(apiErrorMessage(err, "Could not save the default number."));
     });
   };
 
   const clearDefault = async () => {
     try {
       await API.delete("/dialer/preference");
-      setPreference(null);
+      onPreference(null);
       setSaveDefault(false);
       toast.success("Default number cleared.");
     } catch (err) {
@@ -163,8 +256,10 @@ function ZoomDialerModal({ target, onClose }: { target: DialTarget; onClose: () 
         <div className="flex items-start justify-between gap-3 px-5 pt-5 pb-3">
           <div className="min-w-0">
             <p className="text-[11px] font-semibold uppercase tracking-wide text-[#B8112D]">Zoom dialer</p>
-            <h2 className="text-lg font-bold text-[#0F172A] truncate">Call {target.destination}</h2>
-            {target.clientName && (
+            <h2 className="text-lg font-bold text-[#0F172A] truncate">
+              {target ? `Call ${target.destination}` : "Choose a default number"}
+            </h2>
+            {target?.clientName && (
               <p className="text-xs text-gray-400 truncate">{target.clientName}</p>
             )}
           </div>
@@ -211,7 +306,7 @@ function ZoomDialerModal({ target, onClose }: { target: DialTarget; onClose: () 
             <div className="space-y-3">
               <div className="flex items-center justify-between gap-2">
                 <p className="text-sm font-semibold text-[#0F172A]">
-                  Call from which number?
+                  {pickingDefault ? "Which number should be the default?" : "Call from which number?"}
                 </p>
                 <button
                   type="button"
@@ -246,9 +341,10 @@ function ZoomDialerModal({ target, onClose }: { target: DialTarget; onClose: () 
               </div>
 
               <p className="text-xs text-gray-400 leading-relaxed">
-                Sign in to this account once in the Zoom desktop app and leave it signed in. After that, choosing a number here dials it directly.
+                Zoom dials with this caller ID. After you save a default, clicking a client number calls from it immediately.
               </p>
 
+              {!pickingDefault && (
               <label className="flex items-start gap-2.5 text-sm text-[#0F172A] cursor-pointer">
                 <input
                   type="checkbox"
@@ -263,6 +359,11 @@ function ZoomDialerModal({ target, onClose }: { target: DialTarget; onClose: () 
                   </span>
                 </span>
               </label>
+              )}
+
+              {pickingDefault && (
+                <p className="text-xs text-gray-500">Click a number to save it. It will not place a call.</p>
+              )}
 
               {preference && (
                 <button type="button" onClick={clearDefault} className="text-xs font-semibold text-gray-400 hover:text-[#B8112D]">
@@ -281,29 +382,16 @@ function ZoomDialerModal({ target, onClose }: { target: DialTarget; onClose: () 
 }
 
 export function ZoomDialerDefaultCard() {
-  const [preference, setPreference] = useState<DialerPreference | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  const load = useCallback(async () => {
-    try {
-      const res = await API.get("/dialer/preference");
-      setPreference(res.data.preference ?? null);
-    } catch {
-      setPreference(null);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => { void load(); }, [load]);
+  const dialer = useZoomDialer();
+  const preference = dialer?.preference ?? null;
+  const loading = dialer?.preferenceLoading ?? true;
 
   const clearDefault = async () => {
     try {
-      await API.delete("/dialer/preference");
-      setPreference(null);
-      toast.success("Default number cleared.");
+      await dialer?.clearDefault();
+      toast.success("Default number removed.");
     } catch (err) {
-      toast.error(apiErrorMessage(err, "Could not clear the default."));
+      toast.error(apiErrorMessage(err, "Could not remove the default."));
     }
   };
 
@@ -319,19 +407,24 @@ export function ZoomDialerDefaultCard() {
             <p className="text-xs text-gray-400 mt-1">Loading…</p>
           ) : preference ? (
             <p className="text-xs text-gray-500 mt-1">
-              {preference.accountLabel} · {preference.callerNumber}
+              Calls go from {preference.accountLabel} · {preference.callerNumber}
             </p>
           ) : (
             <p className="text-xs text-gray-400 mt-1">
-              No default yet. Click a client number and choose Save this number.
+              No default yet. Set one, then a client number click calls from it.
             </p>
           )}
+          <div className="flex gap-3 mt-2">
+            <button type="button" onClick={() => dialer?.changeDefault()} className="text-xs font-semibold text-[#B8112D]">
+              {preference ? "Change number" : "Set default"}
+            </button>
+            {preference && (
+              <button type="button" onClick={() => void clearDefault()} className="text-xs font-semibold text-gray-400">
+                Remove default
+              </button>
+            )}
+          </div>
         </div>
-        {preference && (
-          <button type="button" onClick={clearDefault} className="text-xs font-semibold text-[#B8112D] shrink-0">
-            Clear
-          </button>
-        )}
       </div>
     </div>
   );
