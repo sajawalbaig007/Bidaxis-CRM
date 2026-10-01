@@ -4,7 +4,7 @@ import { createPortal } from "react-dom";
 import { Phone } from "lucide-react";
 import { getTimezoneAbbrFromPhone, tzBadgeClass } from "../../constants/timezoneAbbr";
 import { useFixedPopover } from "../../hooks/useFixedPopover";
-import { useZoomDialer, type DialTarget } from "../dialer/ZoomDialerProvider";
+import { ChangeDialerNumber, useZoomDialer, type DialTarget } from "../dialer/ZoomDialerProvider";
 
 interface PhoneWithTzCellProps {
   phone: string;
@@ -115,6 +115,11 @@ export default function PhoneWithTzCell({
             </button>
           );
         })}
+        {canDial && (
+          <div className="px-3 pt-1 pb-1.5 border-t border-gray-50 mt-1">
+            <ChangeDialerNumber className="text-[11px]" />
+          </div>
+        )}
       </div>,
       document.body,
     );
@@ -124,36 +129,42 @@ export default function PhoneWithTzCell({
       return <div className={shellClass}>{chip}</div>;
     }
     return (
-      <button
-        type="button"
-        onClick={e => {
-          e.stopPropagation();
-          startCall(primary);
-        }}
-        className={`${shellClass} group cursor-pointer hover:opacity-80 transition-opacity`}
-        title="Call this number"
-      >
-        <Phone size={12} className="shrink-0" />
-        {chip}
-      </button>
+      <span className="inline-flex items-center gap-1.5 min-w-0 max-w-full">
+        <button
+          type="button"
+          onClick={e => {
+            e.stopPropagation();
+            startCall(primary);
+          }}
+          className={`${shellClass} group cursor-pointer hover:opacity-80 transition-opacity`}
+          title="Call this number"
+        >
+          <Phone size={12} className="shrink-0" />
+          {chip}
+        </button>
+        <ChangeDialerNumber />
+      </span>
     );
   }
 
   return (
     <>
-      <button
-        ref={anchorRef}
-        type="button"
-        onClick={e => {
-          e.stopPropagation();
-          toggle();
-        }}
-        className={`${shellClass} group cursor-pointer hover:opacity-80 transition-opacity`}
-        title="Show all phone numbers"
-        aria-expanded={open}
-      >
-        {chip}
-      </button>
+      <span className="inline-flex items-center gap-1.5 min-w-0 max-w-full">
+        <button
+          ref={anchorRef}
+          type="button"
+          onClick={e => {
+            e.stopPropagation();
+            toggle();
+          }}
+          className={`${shellClass} group cursor-pointer hover:opacity-80 transition-opacity`}
+          title="Show all phone numbers"
+          aria-expanded={open}
+        >
+          {chip}
+        </button>
+        {canDial && <ChangeDialerNumber />}
+      </span>
       {typeof document !== "undefined" && popup}
     </>
   );

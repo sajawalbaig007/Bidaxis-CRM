@@ -11,7 +11,7 @@ import { NoteEntry, SubContact } from "../hooks/useLeadsData";
 import { parseInterestedServices } from "../utils/parseInterestedServices";
 import { collectLeadEmails } from "../utils/parseEmails";
 import EmailWithExtraCell from "./shared/EmailWithExtraCell";
-import { useZoomDialer } from "./dialer/ZoomDialerProvider";
+import { ChangeDialerNumber, useZoomDialer } from "./dialer/ZoomDialerProvider";
 
 export type DetailLead = {
   id: string;
@@ -515,17 +515,20 @@ export default function LeadDetailModal({ lead, onClose, onSaved, onNoteAdded, o
                           company={lead.company}
                         />
                       ) : label === "Phone" && dialer && value && value !== "N/A" ? (
-                        <button
-                          type="button"
-                          onClick={() => dialer.open({
-                            destination: value,
-                            leadId: lead.id,
-                            clientName: lead.company || lead.name,
-                          })}
-                          className="text-[#B8112D] text-[13px] font-semibold truncate block text-left underline-offset-[3px] hover:underline cursor-pointer"
-                        >
-                          {value}
-                        </button>
+                        <span className="inline-flex items-center gap-2 min-w-0 max-w-full">
+                          <button
+                            type="button"
+                            onClick={() => dialer.open({
+                              destination: value,
+                              leadId: lead.id,
+                              clientName: lead.company || lead.name,
+                            })}
+                            className="text-[#B8112D] text-[13px] font-semibold truncate text-left underline-offset-[3px] hover:underline cursor-pointer"
+                          >
+                            {value}
+                          </button>
+                          <ChangeDialerNumber className="text-[11px]" />
+                        </span>
                       ) : href ? (
                         <a
                           href={href}
@@ -755,17 +758,20 @@ export default function LeadDetailModal({ lead, onClose, onSaved, onNoteAdded, o
                             <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1">
                               {sub.phone && (
                                 dialer ? (
-                                  <button
-                                    type="button"
-                                    onClick={() => dialer.open({
-                                      destination: sub.phone ?? "",
-                                      leadId: lead.id,
-                                      clientName: sub.name || lead.company || lead.name,
-                                    })}
-                                    className="flex items-center gap-1 text-[11px] text-[#B8112D] font-medium underline-offset-[3px] hover:underline cursor-pointer"
-                                  >
-                                    <Phone size={9}/>{sub.phone}
-                                  </button>
+                                  <span className="inline-flex items-center gap-1.5">
+                                    <button
+                                      type="button"
+                                      onClick={() => dialer.open({
+                                        destination: sub.phone ?? "",
+                                        leadId: lead.id,
+                                        clientName: sub.name || lead.company || lead.name,
+                                      })}
+                                      className="flex items-center gap-1 text-[11px] text-[#B8112D] font-medium underline-offset-[3px] hover:underline cursor-pointer"
+                                    >
+                                      <Phone size={9}/>{sub.phone}
+                                    </button>
+                                    <ChangeDialerNumber />
+                                  </span>
                                 ) : (
                                   <span className="flex items-center gap-1 text-[11px] text-gray-500">
                                     <Phone size={9}/>{sub.phone}

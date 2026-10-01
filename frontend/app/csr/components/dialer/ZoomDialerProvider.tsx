@@ -38,6 +38,27 @@ export function useZoomDialer() {
   return useContext(ZoomDialerContext);
 }
 
+/** Sits beside a client number. Opens the picker that saves the outgoing number. */
+export function ChangeDialerNumber({ className = "" }: { className?: string }) {
+  const dialer = useZoomDialer();
+  if (!dialer) return null;
+  const from = dialer.preference?.callerNumber;
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        dialer.changeDefault();
+      }}
+      className={`text-[10px] font-semibold text-[#B8112D] shrink-0 hover:underline ${className}`}
+      title={from ? `Calls go from ${from}. Change it.` : "Choose the number calls go from"}
+    >
+      Change number
+    </button>
+  );
+}
+
 function toE164(raw: string): string | null {
   const digits = raw.replace(/\D/g, "");
   if (digits.length === 10) return `+1${digits}`;

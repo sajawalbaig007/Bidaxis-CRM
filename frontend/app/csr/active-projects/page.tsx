@@ -37,7 +37,7 @@ import { NoteEntry } from "../hooks/useLeadsData";
 import { useClientPhoneLookup } from "../hooks/useClientPhoneLookup";
 import API from "@/lib/api";
 import { consumeLeadDial, requireLeadDial } from "../components/dialer/dialUnlock";
-import { useZoomDialer } from "../components/dialer/ZoomDialerProvider";
+import { ChangeDialerNumber, useZoomDialer } from "../components/dialer/ZoomDialerProvider";
 import { estNowYmd } from "@/lib/estTime";
 
 import { ProjectWorkbenchData, emptyWorkbench } from "@/lib/projectFields";
@@ -503,17 +503,20 @@ export default function CSRProjectsPage() {
                         {project.company !== "N/A" ? (
                           <p className="text-xs text-gray-400 truncate">{project.company}</p>
                         ) : project.phone && project.phone !== "N/A" ? (
-                          <button
-                            type="button"
-                            onClick={() => dialer?.open({
-                              destination: project.phone,
-                              leadId: project.id,
-                              clientName: project.company || project.client,
-                            })}
-                            className="text-xs text-[#B8112D] font-medium truncate underline-offset-[3px] hover:underline cursor-pointer"
-                          >
-                            {project.phone}
-                          </button>
+                          <span className="inline-flex items-center gap-1.5 min-w-0">
+                            <button
+                              type="button"
+                              onClick={() => dialer?.open({
+                                destination: project.phone,
+                                leadId: project.id,
+                                clientName: project.company || project.client,
+                              })}
+                              className="text-xs text-[#B8112D] font-medium truncate underline-offset-[3px] hover:underline cursor-pointer"
+                            >
+                              {project.phone}
+                            </button>
+                            <ChangeDialerNumber />
+                          </span>
                         ) : null}
                       </div>
                     </div>
