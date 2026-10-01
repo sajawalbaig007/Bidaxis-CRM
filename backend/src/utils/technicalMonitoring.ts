@@ -217,9 +217,7 @@ export async function buildTechnicalMonitoring(staffRole: "estimator" | "bim" = 
     prisma.lead.findMany({
       where: {
         ...buildProjectLeadWhere(),
-        ...(staffRole === "bim"
-          ? { projectDesk: "bim" }
-          : { OR: [{ projectDesk: null }, { projectDesk: { not: "bim" } }] }),
+        ...(staffRole === "bim" ? { projectDesk: "bim" } : {}),
       },
       select: {
         id: true,
@@ -232,6 +230,7 @@ export async function buildTechnicalMonitoring(staffRole: "estimator" | "bim" = 
         projectWorkStatus: true,
         technicalAssignments: true,
         hiddenOnTechnical: true,
+        projectDesk: true,
         inBin: true,
         updatedAt: true,
       },
@@ -242,6 +241,7 @@ export async function buildTechnicalMonitoring(staffRole: "estimator" | "bim" = 
 
   const leads = rawLeads
     .filter(isDisplayableProjectLead)
+    .filter((l) => (staffRole === "bim" ? l.projectDesk === "bim" : l.projectDesk !== "bim"))
     .filter((l) => (l as { hiddenOnTechnical?: boolean | null }).hiddenOnTechnical !== true);
 
   const pipeline = {

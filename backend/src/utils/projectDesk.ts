@@ -10,10 +10,14 @@ export function staffRoleForDesk(role: string | undefined | null): "estimator" |
   return role === "bim_manager" || role === "bim" ? "bim" : "estimator";
 }
 
-/** Admin and Chief Estimator stay on estimation. BIM desk is isolated. */
+/**
+ * BIM desk is an explicit tag. Estimation projects often have no projectDesk field.
+ * A Prisma `not` filter drops those unset Mongo rows, so only the BIM query is in SQL.
+ * Everyone else filters `projectDesk === "bim"` out in memory.
+ */
 export function deskWhereForRole(role: string | undefined | null): Prisma.LeadWhereInput {
   if (role === "bim_manager" || role === "bim") return { projectDesk: "bim" };
-  return { OR: [{ projectDesk: null }, { projectDesk: { not: "bim" } }] };
+  return {};
 }
 
 export function leadOnBimDesk(lead: { projectDesk?: string | null }): boolean {
