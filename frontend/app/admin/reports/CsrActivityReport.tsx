@@ -353,13 +353,14 @@ export default function CsrActivityReport({
   allowEdit = true,
   defaultOpen = false,
 }: {
-  staffRole?: "csr" | "estimator";
+  staffRole?: "csr" | "estimator" | "bim";
   allowEdit?: boolean;
   defaultOpen?: boolean;
 }) {
   const pathname = usePathname();
   const canEdit = allowEdit && pathname.startsWith("/admin");
-  const isEstimator = staffRole === "estimator";
+  const isEstimator = staffRole === "estimator" || staffRole === "bim";
+  const isBim = staffRole === "bim";
   const today = isEstimator ? calendarYmd(CLOCKS.est.tz) : pktShiftYmd();
   const showOvertime = false;
   const canReviewOt = false;
@@ -369,10 +370,10 @@ export default function CsrActivityReport({
   const canApproveRequests = pathname.startsWith("/admin");
   const sessionCols = 9 + (showRequests ? 1 : 0) + (showShiftOt ? 1 : 0) + (showOvertime ? 2 : 0) + (canEdit ? 1 : 0);
   const summaryCols = 8 + (showRequests ? 1 : 0) + (showShiftOt ? 1 : 0) + (showOvertime ? 2 : 0);
-  const title = isEstimator ? "Estimator Check In / Check Out" : "CSR Check In / Check Out";
-  const personLabel = isEstimator ? "Estimator" : "CSR";
-  const peopleLabel = isEstimator ? "Estimators" : "CSRs";
-  const allLabel = isEstimator ? "All Estimators" : "All CSRs";
+  const title = isBim ? "BIM Check In / Check Out" : isEstimator ? "Estimator Check In / Check Out" : "CSR Check In / Check Out";
+  const personLabel = isBim ? "BIM" : isEstimator ? "Estimator" : "CSR";
+  const peopleLabel = isBim ? "BIM" : isEstimator ? "Estimators" : "CSRs";
+  const allLabel = isBim ? "All BIM" : isEstimator ? "All Estimators" : "All CSRs";
 
   const [fromDate, setFromDate] = useState(today);
   const [toDate, setToDate] = useState(today);

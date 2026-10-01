@@ -181,7 +181,7 @@ export default function EstimatorSidebar() {
                   CRM Dashboard
                 </h2>
                 <p className="text-[10px] md:text-[11px] font-semibold mt-1 tracking-wide uppercase" style={{ color: ACCENT }}>
-                  Estimator
+                  {peekAuthMe()?.role === "bim" ? "BIM" : "Estimator"}
                 </p>
               </div>
             </Link>

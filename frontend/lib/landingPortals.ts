@@ -59,4 +59,18 @@ export const LANDING_PORTALS: LandingPortal[] = [
     icon: Ruler,
     accent: "#7C3AED",
   },
+  {
+    value: "bim_manager",
+    label: "BIM Manager",
+    hint: "BIM projects, reports & team",
+    icon: Wrench,
+    accent: "#0F398A",
+  },
+  {
+    value: "bim",
+    label: "BIM",
+    hint: "Assigned BIM work, hours & check-in",
+    icon: Ruler,
+    accent: "#1D4ED8",
+  },
 ];

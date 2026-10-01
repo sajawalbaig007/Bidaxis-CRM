@@ -8,7 +8,7 @@ export type ChatAccessProfile = {
 };
 
 /** GPS company chat pool */
-export const GPS_CHAT_ROLES = ["technical_manager", "estimator"] as const;
+export const GPS_CHAT_ROLES = ["technical_manager", "estimator", "bim_manager", "bim"] as const;
 /** BEM company chat pool (admin is visible to both orgs) */
 export const BEM_CHAT_ROLES = ["csr", "manager", "accounts", "admin"] as const;
 
@@ -32,6 +32,14 @@ export function canSeeRoleByOrg(viewerRole: string, targetRole: string): boolean
       target === "accounts"
     );
   }
+  if (viewer === "bim_manager" || viewer === "bim") {
+    return (
+      target === "admin" ||
+      target === "bim_manager" ||
+      target === "bim" ||
+      target === "accounts"
+    );
+  }
   if (viewer === "accounts") {
     return (
       target === "admin" ||
@@ -39,7 +47,9 @@ export function canSeeRoleByOrg(viewerRole: string, targetRole: string): boolean
       target === "manager" ||
       target === "accounts" ||
       target === "technical_manager" ||
-      target === "estimator"
+      target === "estimator" ||
+      target === "bim_manager" ||
+      target === "bim"
     );
   }
   // BEM pool (csr, manager)
@@ -142,6 +152,8 @@ const ROLE_DISPLAY: Record<string, string> = {
   manager: "Admin",
   technical_manager: "Chief Estimator",
   estimator: "Estimator",
+  bim_manager: "BIM Manager",
+  bim: "BIM",
   accounts: "Accounts",
 };
 

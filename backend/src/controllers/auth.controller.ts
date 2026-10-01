@@ -168,7 +168,7 @@ function makeOTP(): string {
   return crypto.randomInt(100000, 1000000).toString();
 }
 
-type PortalRole = "admin" | "csr" | "manager" | "technical_manager" | "accounts" | "estimator";
+type PortalRole = "admin" | "csr" | "manager" | "technical_manager" | "accounts" | "estimator" | "bim_manager" | "bim";
 
 function parsePortalRole(raw: unknown): PortalRole | null {
   const r = String(raw ?? "").toLowerCase();
@@ -178,7 +178,9 @@ function parsePortalRole(raw: unknown): PortalRole | null {
     r === "manager" ||
     r === "technical_manager" ||
     r === "accounts" ||
-    r === "estimator"
+    r === "estimator" ||
+    r === "bim_manager" ||
+    r === "bim"
   ) {
     return r;
   }
@@ -189,8 +191,10 @@ function portalRoleLabel(role: PortalRole): string {
   if (role === "admin") return "CEO";
   if (role === "manager") return "Admin";
   if (role === "technical_manager") return "Chief Estimator";
+  if (role === "bim_manager") return "BIM Manager";
   if (role === "accounts") return "Accounts";
   if (role === "estimator") return "Estimator";
+  if (role === "bim") return "BIM";
   return "CSR";
 }
 
@@ -260,7 +264,11 @@ export const register = async (req: AuthRequest, res: Response) => {
       return res.status(403).json({ success: false, message: "Only admins can create Estimator accounts." });
     }
 
-    const validRoles = ["admin", "csr", "manager", "technical_manager", "accounts", "estimator"];
+    if ((role === "bim_manager" || role === "bim") && req.user?.role !== "admin") {
+      return res.status(403).json({ success: false, message: "Only CEO can create BIM accounts." });
+    }
+
+    const validRoles = ["admin", "csr", "manager", "technical_manager", "accounts", "estimator", "bim_manager", "bim"];
     if (!validRoles.includes(role)) {
       return res.status(400).json({ success: false, message: "Invalid role." });
     }
@@ -297,7 +305,7 @@ export const register = async (req: AuthRequest, res: Response) => {
       email,
       password: hashed,
       role,
-      csrCode: role === "csr" || role === "estimator" ? (csrCode?.trim() || null) : null,
+      csrCode: role === "csr" || role === "estimator" || role === "bim" ? (csrCode?.trim() || null) : null,
       employeeCode: typeof employeeCode === "string" && employeeCode.trim() ? employeeCode.trim() : null,
       fatherName: typeof fatherName === "string" && fatherName.trim() ? fatherName.trim() : null,
       currentAddress: typeof currentAddress === "string" && currentAddress.trim() ? currentAddress.trim() : null,

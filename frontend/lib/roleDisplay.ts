@@ -5,6 +5,8 @@ export const ROLE_DISPLAY: Record<string, string> = {
   technical_manager: "Chief Estimator",
   csr: "CSR",
   estimator: "Estimator",
+  bim_manager: "BIM Manager",
+  bim: "BIM",
   accounts: "Accounts",
 };
 

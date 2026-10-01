@@ -980,6 +980,7 @@ function ClientsPageContent() {
                                             allPhones={phones}
                                             variant="plain"
                                             className="text-[10px] sm:text-[11px] text-gray-500"
+                                            dial={{ leadId: client.id, clientName: client.clientName || company }}
                                           />
                                         </div>
                                       ) : null}

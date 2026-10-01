@@ -25,9 +25,11 @@ const ROLE_LABEL: Record<string, string> = {
   technical_manager: "Chief Estimator",
   accounts: "Accounts",
   estimator: "Estimator",
+  bim_manager: "BIM Manager",
+  bim: "BIM",
 };
 
-const GPS_ROLES = new Set(["technical_manager", "estimator"]);
+const GPS_ROLES = new Set(["technical_manager", "estimator", "bim_manager", "bim"]);
 
 function companyFromUserRole(role: string): "BEM" | "GPS" {
   return GPS_ROLES.has(role) ? "GPS" : "BEM";

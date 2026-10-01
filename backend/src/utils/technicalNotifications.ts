@@ -14,6 +14,7 @@ export type PushTechnicalNotificationInput = {
   message: string;
   changes?: string[];
   recipientId?: string | null;
+  desk?: string | null;
 };
 
 const WATCH_FIELDS: Array<{ key: string; label: string }> = [
@@ -78,6 +79,7 @@ export async function pushTechnicalNotification(
         message: input.message.trim().slice(0, 800),
         changeSummary: changes.length ? JSON.stringify(changes) : null,
         recipientId: (input.recipientId ?? "").trim() || null,
+        desk: input.desk === "bim" ? "bim" : null,
       },
     });
   } catch (err) {
@@ -110,8 +112,18 @@ export async function notifyTmFromActor(opts: {
     }
   }
 
-  // TM should not get alerts for their own edits
-  if (actorRole === "technical_manager") return;
+  if (actorRole === "technical_manager" || actorRole === "bim_manager") return;
+
+  let desk: string | null = null;
+  try {
+    const lead = await prisma.lead.findUnique({
+      where: { id: opts.leadId },
+      select: { projectDesk: true },
+    });
+    desk = lead?.projectDesk === "bim" ? "bim" : null;
+  } catch {
+    desk = null;
+  }
 
   await pushTechnicalNotification({
     leadId: opts.leadId,
@@ -124,6 +136,7 @@ export async function notifyTmFromActor(opts: {
     title: opts.title,
     message: opts.message,
     changes: opts.changes,
+    desk,
   });
 }
 

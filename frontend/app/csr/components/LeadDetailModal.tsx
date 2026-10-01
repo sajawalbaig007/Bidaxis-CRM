@@ -11,6 +11,7 @@ import { NoteEntry, SubContact } from "../hooks/useLeadsData";
 import { parseInterestedServices } from "../utils/parseInterestedServices";
 import { collectLeadEmails } from "../utils/parseEmails";
 import EmailWithExtraCell from "./shared/EmailWithExtraCell";
+import { useZoomDialer } from "./dialer/ZoomDialerProvider";
 
 export type DetailLead = {
   id: string;
@@ -208,6 +209,7 @@ const getTimezoneForState = (state?: string): { label: string; abbreviation: str
 };
 
 export default function LeadDetailModal({ lead, onClose, onSaved, onNoteAdded, onSubContactAdded, onSubContactUpdated, onSubContactDeleted, apiPrefix = "/csr", startInEditMode = false }: LeadDetailModalProps) {
+  const dialer = useZoomDialer();
   const [isEditing, setIsEditing] = useState(startInEditMode);
   const [name, setName] = useState(lead.name ?? "");
   const [company, setCompany] = useState(lead.company ?? lead.rawCompany ?? "");
@@ -512,6 +514,18 @@ export default function LeadDetailModal({ lead, onClose, onSaved, onNoteAdded, o
                           clientName={lead.name}
                           company={lead.company}
                         />
+                      ) : label === "Phone" && dialer && value && value !== "N/A" ? (
+                        <button
+                          type="button"
+                          onClick={() => dialer.open({
+                            destination: value,
+                            leadId: lead.id,
+                            clientName: lead.company || lead.name,
+                          })}
+                          className="text-[#B8112D] text-[13px] font-semibold truncate block text-left underline-offset-[3px] hover:underline cursor-pointer"
+                        >
+                          {value}
+                        </button>
                       ) : href ? (
                         <a
                           href={href}
@@ -740,9 +754,23 @@ export default function LeadDetailModal({ lead, onClose, onSaved, onNoteAdded, o
                             {sub.designation && <p className="text-[11px] text-gray-400 mt-0.5 truncate">{sub.designation}</p>}
                             <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1">
                               {sub.phone && (
-                                <span className="flex items-center gap-1 text-[11px] text-gray-500">
-                                  <Phone size={9}/>{sub.phone}
-                                </span>
+                                dialer ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => dialer.open({
+                                      destination: sub.phone,
+                                      leadId: lead.id,
+                                      clientName: sub.name || lead.company || lead.name,
+                                    })}
+                                    className="flex items-center gap-1 text-[11px] text-[#B8112D] font-medium underline-offset-[3px] hover:underline cursor-pointer"
+                                  >
+                                    <Phone size={9}/>{sub.phone}
+                                  </button>
+                                ) : (
+                                  <span className="flex items-center gap-1 text-[11px] text-gray-500">
+                                    <Phone size={9}/>{sub.phone}
+                                  </span>
+                                )
                               )}
                               {sub.email && (
                                 <span className="flex items-center gap-1 text-[11px] text-gray-500">

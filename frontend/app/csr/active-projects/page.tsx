@@ -36,6 +36,8 @@ import { useProjectsData, Project, parseBudget, isDeadlinePast } from "../hooks/
 import { NoteEntry } from "../hooks/useLeadsData";
 import { useClientPhoneLookup } from "../hooks/useClientPhoneLookup";
 import API from "@/lib/api";
+import { consumeLeadDial, requireLeadDial } from "../components/dialer/dialUnlock";
+import { useZoomDialer } from "../components/dialer/ZoomDialerProvider";
 import { estNowYmd } from "@/lib/estTime";
 
 import { ProjectWorkbenchData, emptyWorkbench } from "@/lib/projectFields";
@@ -120,6 +122,7 @@ function DeadlineStatus({ deadline }: { deadline: string }) {
 }
 
 export default function CSRProjectsPage() {
+  const dialer = useZoomDialer();
   const { projects, setProjects, loading } = useProjectsData();
 
   const [dateFrom, setDateFrom] = useState("");
@@ -283,8 +286,10 @@ export default function CSRProjectsPage() {
   };
 
   const markComplete = async (project: Project) => {
+    if (!requireLeadDial(project.id)) return;
     try {
       await API.put(`/csr/lead/${project.id}`, { status: "completed" });
+      consumeLeadDial(project.id);
       setProjects(prev => prev.map(p => p.id === project.id ? { ...p, status: "Completed" } : p));
       if (viewingProject?.id === project.id)
         setViewingProject(prev => prev ? { ...prev, status: "Completed" } : prev);
@@ -495,7 +500,21 @@ export default function CSRProjectsPage() {
                       </div>
                       <div className="min-w-0">
                         <p className="text-sm font-semibold text-[#0F172A] truncate">{project.client}</p>
-                        <p className="text-xs text-gray-400 truncate">{project.company !== "N/A" ? project.company : project.phone}</p>
+                        {project.company !== "N/A" ? (
+                          <p className="text-xs text-gray-400 truncate">{project.company}</p>
+                        ) : project.phone && project.phone !== "N/A" ? (
+                          <button
+                            type="button"
+                            onClick={() => dialer?.open({
+                              destination: project.phone,
+                              leadId: project.id,
+                              clientName: project.company || project.client,
+                            })}
+                            className="text-xs text-[#B8112D] font-medium truncate underline-offset-[3px] hover:underline cursor-pointer"
+                          >
+                            {project.phone}
+                          </button>
+                        ) : null}
                       </div>
                     </div>
                     <div className="flex items-center gap-1.5 shrink-0">

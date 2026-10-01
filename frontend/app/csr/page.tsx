@@ -30,6 +30,7 @@ import AddLeadModal from "./components/modals/AddLeadModal";
 import MonthRangeFilter from "./components/shared/MonthRangeFilter";
 import ClientNameCell from "./components/shared/ClientNameCell";
 import PhoneWithTzCell from "./components/shared/PhoneWithTzCell";
+import { DialGatedSelect } from "./components/dialer/dialUnlock";
 import { collectLeadPhones } from "./utils/parsePhones";
 import { useCsrStats, useCsrTabLeads, CSR_FILTER_BATCH_SIZE, type CsrTabKey } from "./hooks/useCsrTabPage";
 import { invalidateCsrDashboardCache } from "@/lib/csrDashboardCache";
@@ -605,6 +606,7 @@ export default function CSRPage() {
                           <PhoneWithTzCell
                             phone={phones[0] ?? currentLink.phone}
                             allPhones={phones}
+                            dial={{ leadId: currentLink.id, clientName: currentLink.company || currentLink.client }}
                           />
                         );
                       })()}
@@ -655,10 +657,9 @@ export default function CSRPage() {
                     {/* ACTION */}
                     <td className={CSR_TD}>
                       <div className="relative w-full min-w-[160px]">
-                        <select
-                          key={`${currentLink.id}-${currentLink.status}`}
-                          onChange={e => updateStatus(currentLink.id, e.target.value)}
-                          defaultValue=""
+                        <DialGatedSelect
+                          leadId={currentLink.id}
+                          onPick={status => { void updateStatus(currentLink.id, status); }}
                           className="appearance-none h-10 sm:h-[46px] w-full rounded-xl sm:rounded-2xl border border-gray-200 dark:border-crm-border bg-white dark:bg-crm-input px-3 sm:px-4 pr-9 sm:pr-11 text-[12px] sm:text-[14px] font-semibold text-[#0F172A] dark:text-crm-text outline-none"
                         >
                           <option value="">Update Status</option>
@@ -672,7 +673,7 @@ export default function CSRPage() {
                           <option value="schedule call">Schedule Call</option>
                           <option value="interested">Interested</option>
                           <option value="Close Client">Close Client</option>
-                        </select>
+                        </DialGatedSelect>
                         <div className="absolute right-3 sm:right-4 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
                           <ChevronDown size={14} className="sm:w-[18px] sm:h-[18px]" />
                         </div>

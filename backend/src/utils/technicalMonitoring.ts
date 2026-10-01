@@ -203,7 +203,7 @@ function emptyMember(id: string, name: string, code: string): MutableMember {
   };
 }
 
-export async function buildTechnicalMonitoring(): Promise<{
+export async function buildTechnicalMonitoring(staffRole: "estimator" | "bim" = "estimator"): Promise<{
   generatedAt: string;
   kpi: TechnicalKpiPayload;
   team: TechnicalTeamMember[];
@@ -213,9 +213,14 @@ export async function buildTechnicalMonitoring(): Promise<{
   const today = startOfToday();
 
   const [roster, rawLeads] = await Promise.all([
-    listTechnicalEstimators(),
+    listTechnicalEstimators(staffRole),
     prisma.lead.findMany({
-      where: buildProjectLeadWhere(),
+      where: {
+        ...buildProjectLeadWhere(),
+        ...(staffRole === "bim"
+          ? { projectDesk: "bim" }
+          : { OR: [{ projectDesk: null }, { projectDesk: { not: "bim" } }] }),
+      },
       select: {
         id: true,
         status: true,

@@ -217,7 +217,7 @@ export default function TechnicalSidebar() {
                 CRM Dashboard
               </h2>
               <p className="text-[10px] md:text-[11px] font-semibold text-[#B8112D] mt-1 tracking-wide uppercase">
-                Chief Estimator
+                {user?.role === "bim_manager" ? "BIM Manager" : "Chief Estimator"}
               </p>
             </div>
           </Link>

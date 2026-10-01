@@ -31,6 +31,7 @@ const router = Router();
 
 const ROLE_DEPT: Record<string, AttendanceDept> = {
   technical_manager: "chief_estimator",
+  bim_manager: "bim_manager",
   manager: "admin",
   accounts: "accounts",
 };
@@ -38,7 +39,9 @@ const ROLE_DEPT: Record<string, AttendanceDept> = {
 const REQUEST_ROLE_DEPT: Record<string, string> = {
   csr: "csr",
   estimator: "estimator",
+  bim: "bim",
   technical_manager: "chief_estimator",
+  bim_manager: "bim_manager",
   manager: "admin",
   accounts: "accounts",
 };
@@ -473,14 +476,16 @@ router.get("/report", verifyToken, allowRoles("admin", "manager", "technical_man
     const today = pktNow().day;
     const start = isValidDay(from) ? from : today;
     const end = isValidDay(to) ? to : today;
-    const estimators = await listEstimatorShiftRows();
-    if (req.user?.role === "technical_manager") {
+    const deskRole = req.user?.role === "bim_manager" ? "bim" as const : "estimator" as const;
+    const estimators = await listEstimatorShiftRows(deskRole);
+    if (req.user?.role === "technical_manager" || req.user?.role === "bim_manager") {
+      const ownDepartment = req.user.role === "bim_manager" ? "bim_manager" : "chief_estimator";
       const own = await prisma.staffDayAttendance.findMany({
-        where: { department: "chief_estimator", day: { gte: start, lte: end } },
+        where: { department: ownDepartment, day: { gte: start, lte: end } },
         orderBy: [{ day: "desc" }, { personName: "asc" }],
       });
       const notes = await prisma.overtimeRequest.findMany({
-        where: { department: "chief_estimator", day: { gte: start, lte: end } },
+        where: { department: ownDepartment, day: { gte: start, lte: end } },
       });
       const byKey = new Map(notes.map((note) => [`${note.department}:${note.personKey}:${note.day}`, note]));
       return res.json({
