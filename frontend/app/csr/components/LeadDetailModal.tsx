@@ -758,7 +758,7 @@ export default function LeadDetailModal({ lead, onClose, onSaved, onNoteAdded, o
                                   <button
                                     type="button"
                                     onClick={() => dialer.open({
-                                      destination: sub.phone,
+                                      destination: sub.phone ?? "",
                                       leadId: lead.id,
                                       clientName: sub.name || lead.company || lead.name,
                                     })}
