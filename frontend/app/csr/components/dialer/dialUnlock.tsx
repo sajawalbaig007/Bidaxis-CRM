@@ -1,7 +1,6 @@
 "use client";
 
 import { useSyncExternalStore, type ReactNode } from "react";
-import toast from "react-hot-toast";
 
 const STORAGE_KEY = "crm_zoom_dial_unlock";
 export const DIAL_BEFORE_STATUS = "Call this lead from the Zoom dialer before updating status.";
@@ -46,10 +45,8 @@ export function isLeadDialUnlocked(leadId: string) {
   return unlocked.has(leadId);
 }
 
-export function requireLeadDial(leadId: string): boolean {
-  if (isLeadDialUnlocked(leadId)) return true;
-  toast.error(DIAL_BEFORE_STATUS);
-  return false;
+export function requireLeadDial(_leadId: string): boolean {
+  return true;
 }
 
 function subscribe(listener: () => void) {
@@ -66,7 +63,6 @@ export function useLeadDialUnlocked(leadId: string) {
 }
 
 export function DialGatedSelect({
-  leadId,
   className,
   onPick,
   children,
@@ -76,17 +72,14 @@ export function DialGatedSelect({
   onPick: (status: string) => void;
   children: ReactNode;
 }) {
-  const unlocked = useLeadDialUnlocked(leadId);
   return (
     <select
-      disabled={!unlocked}
       defaultValue=""
-      title={unlocked ? "Update status" : DIAL_BEFORE_STATUS}
+      title="Update status"
       onChange={(e) => {
         const value = e.target.value;
         e.currentTarget.value = "";
         if (!value) return;
-        if (!requireLeadDial(leadId)) return;
         onPick(value);
       }}
       className={`${className} disabled:cursor-not-allowed disabled:opacity-50`}

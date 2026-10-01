@@ -6,7 +6,7 @@ import { Lead } from "../types/lead";
 import { NoteEntry } from "./useLeadsData";
 import { normStatus } from "../constants/leadStatuses";
 import toast from "react-hot-toast";
-import { consumeLeadDial, DIAL_BEFORE_STATUS, requireLeadDial } from "../components/dialer/dialUnlock";
+import { consumeLeadDial } from "../components/dialer/dialUnlock";
 
 /** Keep optimistic flags in sync with status so lists/tabs don't drift. */
 function flagsFromStatus(status: unknown): Partial<Lead> {
@@ -184,10 +184,6 @@ export function useLeadActions(setLeads: Dispatch<SetStateAction<Lead[]>>) {
 
   const updateLead = async (id: string, payload: Record<string, unknown>) => {
     const changingStatus = "status" in payload && String(payload.status ?? "").trim() !== "";
-    if (changingStatus && !requireLeadDial(id)) {
-      throw new Error(DIAL_BEFORE_STATUS);
-    }
-
     const now = new Date().toISOString();
     const flagPatch = "status" in payload ? flagsFromStatus(payload.status) : {};
     const uiPatch = { ...safeLeadPatch(payload), ...flagPatch };
