@@ -80,7 +80,7 @@ export default function EstimatorCheckInBanner() {
   if (!needsCheckIn || (dismissed && !mustRecheck)) return null;
 
   return (
-    <div className="sticky top-[64px] z-20 border-b border-amber-200/80 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-950/40 px-3 sm:px-5 lg:px-6 xl:px-8 2xl:px-10 py-2.5 w-full">
+    <div className="border-b border-amber-200/80 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-950/40 px-3 sm:px-5 lg:px-6 xl:px-8 2xl:px-10 py-2.5 w-full">
       <div className="w-full flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-start gap-2.5 min-w-0">
           <div className="w-8 h-8 rounded-xl bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300 flex items-center justify-center shrink-0">

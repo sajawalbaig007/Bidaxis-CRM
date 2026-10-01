@@ -196,7 +196,7 @@ export default function TechnicalSidebar() {
 
   return (
     <>
-      <header className="fixed top-0 left-0 right-0 z-30 bg-crm-surface border-b border-crm-border shadow-sm">
+      <header className="sticky top-0 z-30 bg-crm-surface border-b border-crm-border shadow-sm">
         <div className="h-[64px] px-3 sm:px-4 lg:px-5 flex items-center gap-3">
           <div className="flex-1 min-w-0 flex items-center">
           <Link href={BASE} prefetch={false} className="flex items-center gap-3 min-w-0">
@@ -225,7 +225,6 @@ export default function TechnicalSidebar() {
           </div>
 
           <div className="flex-1 min-w-0 flex items-center justify-end gap-2 sm:gap-3">
-          <StaffDayCheckBar compact defaultVisible />
           <ThemeToggle />
 
           <div ref={bellRef} className="relative shrink-0">
@@ -404,6 +403,9 @@ export default function TechnicalSidebar() {
             )}
           </div>
           </div>
+        </div>
+        <div className="border-t border-crm-border px-3 sm:px-4 lg:px-5 py-2">
+          <StaffDayCheckBar compact defaultVisible />
         </div>
       </header>
 
