@@ -750,6 +750,7 @@ export default function CsrActivityReport({
 
           <div className="overflow-x-auto">
             {view === "sessions" ? (
+              <>
               <table className="w-full" style={{ minWidth: "980px" }}>
                 <thead>
                   <tr className="border-b border-gray-100 bg-white">
@@ -910,6 +911,7 @@ export default function CsrActivityReport({
                   ))}
                 </div>
               ) : null}
+              </>
             ) : (
               <table className="w-full" style={{ minWidth: "980px" }}>
                 <thead>
