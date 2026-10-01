@@ -346,7 +346,7 @@ function DeptCard({
   const [reviewing, setReviewing] = useState(false);
   const clock = CLOCKS[clockTz];
 
-  const reviewOvertime = async (id: string, action: "approve" | "decline" | "edit", comment?: string) => {
+  const reviewOvertimeComment = async (id: string, action: "approve" | "decline" | "edit", comment?: string) => {
     setReviewing(true);
     try {
       await API.put(`/attendance/overtime/${id}`, { action, comment });
@@ -619,8 +619,8 @@ function DeptCard({
                           ) : null}
                           {canReview && row.overtimeId ? (
                             <>
-                              <button type="button" disabled={reviewing} title="Approve" onClick={() => void reviewOvertime(row.overtimeId!, "approve")} className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-green-600 text-white disabled:opacity-50"><Check size={14} /></button>
-                              <button type="button" disabled={reviewing} title="Decline" onClick={() => void reviewOvertime(row.overtimeId!, "decline")} className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-red-600 text-white disabled:opacity-50"><X size={14} /></button>
+                              <button type="button" disabled={reviewing} title="Approve" onClick={() => void reviewOvertimeComment(row.overtimeId!, "approve")} className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-green-600 text-white disabled:opacity-50"><Check size={14} /></button>
+                              <button type="button" disabled={reviewing} title="Decline" onClick={() => void reviewOvertimeComment(row.overtimeId!, "decline")} className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-red-600 text-white disabled:opacity-50"><X size={14} /></button>
                               <button type="button" disabled={reviewing} title="Edit comment" onClick={() => { setOvertimeEdit(row); setOvertimeText(row.overtimeComment ?? ""); }} className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-gray-100 text-gray-700"><Pencil size={13} /></button>
                             </>
                           ) : null}
@@ -738,7 +738,7 @@ function DeptCard({
               <button
                 type="button"
                 disabled={reviewing || !overtimeEdit.overtimeId}
-                onClick={() => void reviewOvertime(overtimeEdit.overtimeId!, "edit", overtimeText)}
+                onClick={() => void reviewOvertimeComment(overtimeEdit.overtimeId!, "edit", overtimeText)}
                 className="flex-1 h-11 rounded-xl bg-[#B8112D] text-white font-semibold text-sm disabled:opacity-50"
               >
                 {reviewing ? "Saving…" : "Save"}
