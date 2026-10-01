@@ -142,7 +142,7 @@ function LeadsPageFallback() {
   return (
     <div className="flex min-h-screen bg-[#F5F6FA] dark:bg-crm-bg">
       <DashboardSidebar />
-      <main className="flex-1 p-6 mt-[64px]">
+      <main className="flex-1 p-6 mt-[var(--app-header-h,64px)]">
         <DashboardNavbar />
         <div className="flex items-center justify-center h-[50vh]">
           <div className="w-12 h-12 border-4 border-[#B8112D] border-t-transparent rounded-full animate-spin" />
@@ -625,7 +625,7 @@ function ClientsPageContent() {
     return (
       <div className="flex min-h-screen bg-[#F5F6FA] dark:bg-crm-bg">
         <StaffSidebar />
-        <main className="flex-1 p-3 sm:p-4 md:p-6 overflow-x-hidden mt-[64px]">
+        <main className="flex-1 p-3 sm:p-4 md:p-6 overflow-x-hidden mt-[var(--app-header-h,64px)]">
           <DashboardNavbar />
           <div className="flex items-center justify-center h-[60vh]">
             <div className="text-center">
@@ -645,7 +645,7 @@ function ClientsPageContent() {
 
       {/* ─── MAIN CONTENT ─── */}
       {/* mt-[72px] for mobile/tablet navbar, lg:mt-0 when sidebar is shown */}
-      <main className="flex-1 min-w-0 p-3 sm:p-4 md:p-5 lg:p-6 xl:p-7 2xl:p-8 overflow-x-hidden mt-[64px]">
+      <main className="flex-1 min-w-0 p-3 sm:p-4 md:p-5 lg:p-6 xl:p-7 2xl:p-8 overflow-x-hidden mt-[var(--app-header-h,64px)]">
         <DashboardNavbar />
 
         {/* ─── PAGE HEADER ─── */}

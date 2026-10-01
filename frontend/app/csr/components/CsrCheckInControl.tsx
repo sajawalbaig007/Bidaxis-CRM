@@ -286,7 +286,7 @@ export default function CsrCheckInControl({ compact = false }: { compact?: boole
 
   if (loading) {
     return (
-      <div className="inline-flex items-center gap-1 shrink-0">
+      <div className="flex flex-wrap items-center gap-1.5 w-full min-w-0 [&>*]:shrink-0">
         <div className={`flex items-center gap-1.5 ${compact ? "h-9 px-2" : "h-10 px-3"} rounded-xl bg-crm-nav-pill text-crm-text-muted text-[11px] font-semibold`}>
           <Loader2 size={13} className="animate-spin" />
           <span className="hidden lg:inline">Session…</span>
@@ -299,7 +299,7 @@ export default function CsrCheckInControl({ compact = false }: { compact?: boole
 
   if (!checkedIn) {
     return (
-      <div className="inline-flex items-center gap-1 shrink-0">
+      <div className="flex flex-wrap items-center gap-1.5 w-full min-w-0 [&>*]:shrink-0">
       <button
         type="button"
         onClick={() => void checkIn()}
@@ -317,7 +317,7 @@ export default function CsrCheckInControl({ compact = false }: { compact?: boole
   }
 
   return (
-    <div className={`inline-flex items-center gap-1 sm:gap-1.5 ${compact ? "h-9" : "h-10"} shrink-0`}>
+    <div className="flex flex-wrap items-center gap-1.5 w-full min-w-0 [&>*]:shrink-0">
       <div
         className={`flex items-center gap-1.5 ${compact ? "h-9 px-2" : "h-10 px-3"} rounded-xl border text-[11px] font-semibold max-w-[140px] sm:max-w-none overflow-hidden ${
           paused
@@ -359,7 +359,7 @@ export default function CsrCheckInControl({ compact = false }: { compact?: boole
           className={`inline-flex items-center gap-1 ${compact ? "h-9 px-2" : "h-10 px-3"} rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] sm:text-xs font-bold shadow-sm shadow-emerald-500/25 disabled:opacity-60 transition-colors`}
         >
           {busy ? <Loader2 size={13} className="animate-spin" /> : <Play size={13} />}
-          <span className="hidden sm:inline">Resume</span>
+          <span>Resume</span>
         </button>
       ) : (
         <button
@@ -370,7 +370,7 @@ export default function CsrCheckInControl({ compact = false }: { compact?: boole
           className={`inline-flex items-center gap-1 ${compact ? "h-9 px-2" : "h-10 px-3"} rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-[11px] sm:text-xs font-bold shadow-sm shadow-sky-500/25 disabled:opacity-60 transition-colors`}
         >
           {busy ? <Loader2 size={13} className="animate-spin" /> : <Pause size={13} />}
-          <span className="hidden sm:inline">Pause</span>
+          <span>Pause</span>
         </button>
       )}
 
@@ -382,8 +382,7 @@ export default function CsrCheckInControl({ compact = false }: { compact?: boole
         className={`inline-flex items-center gap-1 ${compact ? "h-9 px-2.5" : "h-10 px-3"} rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-[11px] sm:text-xs font-bold shadow-sm shadow-amber-500/25 disabled:opacity-60 transition-colors`}
       >
         {busy ? <Loader2 size={13} className="animate-spin" /> : <LogOut size={13} />}
-        <span className="hidden sm:inline">Check Out</span>
-        <span className="sm:hidden">Out</span>
+        <span>Check Out</span>
       </button>
       {history}
       {request}

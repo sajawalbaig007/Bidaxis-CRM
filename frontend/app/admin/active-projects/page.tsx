@@ -1383,7 +1383,7 @@ export default function AdminProjectsPage() {
       <StaffSidebar />
 
       {/* ─── MAIN ─── */}
-      <main className="flex-1 min-w-0 p-3 sm:p-4 md:p-5 lg:p-6 xl:p-7 2xl:p-8 overflow-x-hidden mt-[64px]">
+      <main className="flex-1 min-w-0 p-3 sm:p-4 md:p-5 lg:p-6 xl:p-7 2xl:p-8 overflow-x-hidden mt-[var(--app-header-h,64px)]">
         <DashboardNavbar />
 
         {/* HEADER */}

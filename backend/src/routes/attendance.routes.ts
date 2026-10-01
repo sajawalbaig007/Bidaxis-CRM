@@ -43,6 +43,15 @@ const REQUEST_ROLE_DEPT: Record<string, string> = {
   accounts: "accounts",
 };
 
+function mineDepartment(role: string, chiefDashboard: boolean): AttendanceDept | null {
+  if (role === "admin") return chiefDashboard ? "chief_estimator" : null;
+  return ROLE_DEPT[role] ?? null;
+}
+
+function wantsChiefDashboard(value: unknown): boolean {
+  return value === "chief" || value === true;
+}
+
 function isRosterDept(value: string): value is RosterDept {
   return value === "dev" || value === "office_boy" || value === "hr" || value === "bim_modeler";
 }
@@ -366,7 +375,7 @@ router.post("/times", async (req, res) => {
   }
 });
 
-router.get("/mine/history", verifyToken, allowRoles("technical_manager", "manager", "accounts"), async (req: AuthRequest, res) => {
+router.get("/mine/history", verifyToken, allowRoles("technical_manager", "admin", "manager", "accounts"), async (req: AuthRequest, res) => {
   try {
     const rows = await prisma.staffDayAttendance.findMany({
       where: { personKey: req.user!.id },
@@ -381,10 +390,11 @@ router.get("/mine/history", verifyToken, allowRoles("technical_manager", "manage
   }
 });
 
-router.get("/mine", verifyToken, allowRoles("technical_manager", "manager", "accounts"), async (req: AuthRequest, res) => {
+router.get("/mine", verifyToken, allowRoles("technical_manager", "admin", "manager", "accounts"), async (req: AuthRequest, res) => {
   try {
-    const department = ROLE_DEPT[req.user!.role];
     const user = await prisma.user.findUnique({ where: { id: req.user!.id }, select: { name: true } });
+    const department = mineDepartment(req.user!.role, wantsChiefDashboard(req.query.dashboard));
+    if (!department) return res.status(403).json({ success: false, message: "Access denied" });
     const day = dayClock(department).day;
     let row = await prisma.staffDayAttendance.findUnique({
       where: { personKey_day: { personKey: req.user!.id, day } },
@@ -408,13 +418,14 @@ router.get("/mine", verifyToken, allowRoles("technical_manager", "manager", "acc
   }
 });
 
-router.post("/mine/punch", verifyToken, allowRoles("technical_manager", "manager", "accounts"), async (req: AuthRequest, res) => {
+router.post("/mine/punch", verifyToken, allowRoles("technical_manager", "admin", "manager", "accounts"), async (req: AuthRequest, res) => {
   try {
     const action = String(req.body?.action ?? "");
     if (action !== "in" && action !== "out") {
       return res.status(400).json({ success: false, message: "Choose check-in or check-out." });
     }
-    const department = ROLE_DEPT[req.user!.role];
+    const department = mineDepartment(req.user!.role, wantsChiefDashboard(req.body?.dashboard));
+    if (!department) return res.status(403).json({ success: false, message: "Access denied" });
     if (department === "admin") {
       const blocked = await officeNetworkMessage(req);
       if (blocked) {
@@ -507,9 +518,10 @@ router.get("/report", verifyToken, allowRoles("admin", "manager", "technical_man
   }
 });
 
-router.get("/overtime/gate", verifyToken, allowRoles("estimator", "technical_manager"), async (req: AuthRequest, res) => {
+router.get("/overtime/gate", verifyToken, allowRoles("estimator", "technical_manager", "admin"), async (req: AuthRequest, res) => {
   try {
-    const gate = await overtimeGate(req.user!.id, req.user!.role);
+    const role = req.user!.role === "admin" ? "technical_manager" : req.user!.role;
+    const gate = await overtimeGate(req.user!.id, role);
     return res.json({ success: true, ...gate });
   } catch (error) {
     console.error("[attendance/overtime/gate]", error);
@@ -517,12 +529,12 @@ router.get("/overtime/gate", verifyToken, allowRoles("estimator", "technical_man
   }
 });
 
-router.post("/overtime", verifyToken, allowRoles("estimator", "technical_manager"), async (req: AuthRequest, res) => {
+router.post("/overtime", verifyToken, allowRoles("estimator", "technical_manager", "admin"), async (req: AuthRequest, res) => {
   try {
     const user = await prisma.user.findUnique({ where: { id: req.user!.id }, select: { name: true } });
     const result = await submitShiftOvertime({
       userId: req.user!.id,
-      role: req.user!.role,
+      role: req.user!.role === "admin" ? "technical_manager" : req.user!.role,
       name: user?.name || "Staff",
       minutes: Number(req.body?.minutes),
     });
@@ -582,9 +594,11 @@ router.put("/overtime/:id", verifyToken, allowRoles("admin", "technical_manager"
   }
 });
 
-router.post("/requests", verifyToken, allowRoles("csr", "estimator", "manager", "accounts", "technical_manager"), async (req: AuthRequest, res) => {
+router.post("/requests", verifyToken, allowRoles("csr", "estimator", "manager", "accounts", "technical_manager", "admin"), async (req: AuthRequest, res) => {
   try {
-    const department = REQUEST_ROLE_DEPT[req.user!.role];
+    const department = req.user!.role === "admin"
+      ? (wantsChiefDashboard(req.body?.dashboard) ? "chief_estimator" : "")
+      : REQUEST_ROLE_DEPT[req.user!.role];
     if (!department) return res.status(403).json({ success: false, message: "Requests are not available for this account." });
     const parsed = parseRequestDraft((req.body ?? {}) as Record<string, unknown>);
     if (!parsed.ok) return res.status(400).json({ success: false, message: parsed.message });

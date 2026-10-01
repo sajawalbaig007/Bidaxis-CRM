@@ -39,6 +39,7 @@ import {
 } from "../../constants/notificationRoutes";
 import CsrActivityReportModal from "../shared/CsrActivityReportModal";
 import CsrCheckInControl from "../CsrCheckInControl";
+import { useFixedHeaderHeight } from "@/lib/useFixedHeaderHeight";
 import CsrCheckInBanner from "../CsrCheckInBanner";
 import ThemeToggle from "@/app/components/ThemeToggle";
 import CapsuleChipNav from "@/app/components/CapsuleChipNav";
@@ -121,6 +122,8 @@ export default function TopNavbar() {
   );
 
   const profileRef = useRef<HTMLDivElement>(null);
+  const headerRef = useRef<HTMLElement>(null);
+  useFixedHeaderHeight(headerRef);
   const bellRef = useRef<HTMLDivElement>(null);
 
   const closeChat = () => {
@@ -282,7 +285,7 @@ export default function TopNavbar() {
 
   return (
     <>
-    <header className="sticky top-0 z-30 bg-crm-surface border-b border-crm-border shadow-sm">
+    <header ref={headerRef} className="sticky top-0 z-30 bg-crm-surface border-b border-crm-border shadow-sm">
       <div className="h-[64px] px-2 sm:px-3 lg:px-4 flex items-center gap-2 sm:gap-2.5 min-w-0">
         <Link href={BASE} prefetch={false} className="flex items-center gap-2 sm:gap-2.5 shrink-0 min-w-0">
           <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-[14px] bg-[#B8112D] flex items-center justify-center shadow-sm overflow-hidden p-1 shrink-0">
@@ -310,8 +313,6 @@ export default function TopNavbar() {
         </div>
 
         <div className="flex items-center justify-end gap-1.5 sm:gap-2 shrink-0">
-        <CsrCheckInControl compact />
-
         <ThemeToggle />
 
         <button
@@ -576,6 +577,9 @@ export default function TopNavbar() {
           </div>
         </div>
         </div>
+      </div>
+      <div className="border-t border-crm-border px-3 sm:px-4 lg:px-5 py-2">
+        <CsrCheckInControl compact />
       </div>
     </header>
 

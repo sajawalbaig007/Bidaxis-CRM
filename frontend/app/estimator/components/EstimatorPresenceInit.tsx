@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import API, { getApiBase, getClientAuthToken } from "@/lib/api";
 import { visibleInterval } from "@/lib/visibleInterval";
-import { REAL_ACTION_MS, clearRealAction, peekLastActionAt, watchRealActivity } from "@/lib/realActivityWatch";
+import { REAL_ACTION_MS, actionIsRecent, clearRealAction, peekLastActionAt, watchRealActivity } from "@/lib/realActivityWatch";
 import { alertCheckedOut, armCheckoutAlert } from "@/lib/checkoutAlert";
 
 const CHECKIN_EVENT = "estimator-checkin-changed";
@@ -44,8 +44,7 @@ export function useEstimatorPresence() {
     let done = false;
     const checkout = () => {
       if (done) return;
-      const last = peekLastActionAt();
-      if (last && Date.now() - Date.parse(last) < REAL_ACTION_MS) return;
+      if (actionIsRecent(ACTION_KEY, REAL_ACTION_MS)) return;
       done = true;
       const lastActionAt = peekLastActionAt();
       clearRealAction(ACTION_KEY);

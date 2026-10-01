@@ -197,7 +197,7 @@ export default function ReportsPage() {
     <div className="flex min-h-screen bg-[#EEF1F7] dark:bg-crm-bg-subtle">
       <StaffSidebar />
 
-      <main className="flex-1 min-w-0 overflow-x-hidden mt-[64px]">
+      <main className="flex-1 min-w-0 overflow-x-hidden mt-[var(--app-header-h,64px)]">
         <DashboardNavbar />
         <div className="w-full px-3 sm:px-5 lg:px-6 xl:px-8 2xl:px-10 py-4 sm:py-5 space-y-3.5 sm:space-y-4">
 

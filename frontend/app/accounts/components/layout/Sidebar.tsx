@@ -9,6 +9,8 @@ import API from "@/lib/api";
 import ThemeToggle from "@/app/components/ThemeToggle";
 import ChatPanel from "@/app/components/chat/ChatPanel";
 import CapsuleChipNav from "@/app/components/CapsuleChipNav";
+import StaffDayCheckBar from "@/app/components/StaffDayCheckBar";
+import { useFixedHeaderHeight } from "@/lib/useFixedHeaderHeight";
 import { getAuthMe, peekAuthMe, type AuthUser } from "@/lib/authMeCache";
 import { ProfileAvatar, ProfileInfoRows } from "@/app/components/StaffProfileMenu";
 import { roleDisplayLabel } from "@/lib/roleDisplay";
@@ -35,6 +37,8 @@ export default function AccountsSidebar() {
   const [profileOpen, setProfileOpen] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
   const profileRef = useRef<HTMLDivElement>(null);
+  const headerRef = useRef<HTMLElement>(null);
+  useFixedHeaderHeight(headerRef);
   const totalUnread = useChatUnreadBadge();
   const chatEnabled = useChatEnabled();
 
@@ -77,7 +81,7 @@ export default function AccountsSidebar() {
 
   return (
     <>
-    <header className="fixed top-0 left-0 right-0 z-30 bg-crm-surface/90 backdrop-blur-md border-b border-crm-border shadow-[0_1px_12px_-4px_rgba(15,23,42,0.08)]">
+    <header ref={headerRef} className="fixed top-0 left-0 right-0 z-30 bg-crm-surface/90 backdrop-blur-md border-b border-crm-border shadow-[0_1px_12px_-4px_rgba(15,23,42,0.08)]">
       <div className="h-[64px] px-2 sm:px-3 lg:px-4 flex items-center gap-1.5 sm:gap-2 lg:gap-3">
         <div className="flex-1 min-w-0 flex items-center">
         <Link href={BASE} prefetch={false} className="flex items-center gap-2 sm:gap-2.5 min-w-0">
@@ -183,6 +187,9 @@ export default function AccountsSidebar() {
         </div>
         </div>
 
+      </div>
+      <div className="border-t border-crm-border px-3 sm:px-4 lg:px-5 py-2 bg-crm-surface">
+        <StaffDayCheckBar compact defaultVisible />
       </div>
     </header>
     {chatOpen && <ChatPanel onClose={() => setChatOpen(false)} />}

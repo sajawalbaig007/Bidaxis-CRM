@@ -1075,7 +1075,7 @@ export default function UsersPage() {
 
       <DashboardSidebar/>
 
-      <main className="flex-1 p-3 sm:p-4 md:p-6 overflow-x-hidden mt-[64px]">
+      <main className="flex-1 p-3 sm:p-4 md:p-6 overflow-x-hidden mt-[var(--app-header-h,64px)]">
         <DashboardNavbar/>
 
         {/* USER ACTIVITY OVERVIEW */}
