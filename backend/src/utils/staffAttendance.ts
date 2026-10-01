@@ -97,6 +97,43 @@ export function isOvernightShift(checkIn: string | null | undefined, checkOut: s
   return checkOut < checkIn;
 }
 
+const AUTO_CHECKOUT_MS = (9 * 60 + 30) * 60 * 1000;
+
+/** Wall-clock instant of a stored check-in. Evening shifts before 5:00 PM are the next calendar day. */
+export function staffCheckInInstant(department: string, day: string, checkIn: string): Date | null {
+  if (!isValidDay(day) || !isValidTime(checkIn)) return null;
+  const calendar = isEveningShiftDept(department) && checkIn < EVENING_SHIFT_START
+    ? addCalendarDays(day, 1)
+    : day;
+  const instant = new Date(`${calendar}T${checkIn}:00+05:00`);
+  return Number.isNaN(instant.getTime()) ? null : instant;
+}
+
+/** Fill check-out 9h 30m after check-in when the person never checked out. */
+export async function closeForgottenStaffShifts() {
+  const rows = await prisma.staffDayAttendance.findMany({
+    where: {
+      AND: [
+        { checkIn: { not: null } },
+        { OR: [{ checkOut: null }, { checkOut: { isSet: false } }, { checkOut: "" }] },
+      ],
+    },
+    take: 500,
+  });
+  const now = Date.now();
+  for (const row of rows) {
+    if (!row.checkIn || row.checkOut) continue;
+    const start = staffCheckInInstant(row.department, row.day, row.checkIn);
+    if (!start) continue;
+    const due = new Date(start.getTime() + AUTO_CHECKOUT_MS);
+    if (due.getTime() > now) continue;
+    await prisma.staffDayAttendance.update({
+      where: { id: row.id },
+      data: { checkOut: pktNow(due).time },
+    });
+  }
+}
+
 export function timeOrderOk(checkIn: string | null | undefined, checkOut: string | null | undefined): boolean {
   if (!checkIn || !checkOut) return true;
   return true;

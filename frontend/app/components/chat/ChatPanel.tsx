@@ -229,13 +229,21 @@ function MessageBubble({ msg, isGroup, showAvatar, myId, mineColor, textColor, f
   const deleted = Boolean(msg.isDeleted);
   const body = () => {
     if (msg.type === "image" && msg.fileUrl) return (
-      <a href={msg.fileUrl} target="_blank" rel="noopener noreferrer">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={msg.fileUrl} alt={msg.fileName ?? "image"} className="max-w-[200px] max-h-[200px] rounded-xl object-cover" />
-      </a>
+      <div className="space-y-1.5">
+        <a href={msg.fileUrl} target="_blank" rel="noopener noreferrer">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={msg.fileUrl} alt={msg.fileName ?? "image"} className="max-w-[200px] max-h-[200px] rounded-xl object-cover" />
+        </a>
+        {msg.text?.trim() ? <MentionText text={msg.text} tone={own ? "own" : "other"} className="text-sm leading-relaxed break-words whitespace-pre-wrap" /> : null}
+      </div>
     );
     if (msg.type === "voice" && msg.fileUrl) return <VoicePlayer fileUrl={msg.fileUrl} isOwn={own} />;
-    if (msg.type === "file"  && msg.fileUrl) return <FileCard fileName={msg.fileName ?? "File"} fileSize={msg.fileSize ?? 0} fileUrl={msg.fileUrl} fileMimeType={msg.fileMimeType} isOwn={own} />;
+    if (msg.type === "file"  && msg.fileUrl) return (
+      <div className="space-y-1.5">
+        <FileCard fileName={msg.fileName ?? "File"} fileSize={msg.fileSize ?? 0} fileUrl={msg.fileUrl} fileMimeType={msg.fileMimeType} isOwn={own} />
+        {msg.text?.trim() ? <MentionText text={msg.text} tone={own ? "own" : "other"} className="text-sm leading-relaxed break-words whitespace-pre-wrap" /> : null}
+      </div>
+    );
     return <MentionText text={msg.text} tone={own ? "own" : "other"} className={`text-sm leading-relaxed break-words whitespace-pre-wrap ${deleted ? "opacity-75" : ""}`} />;
   };
   return (
@@ -899,7 +907,7 @@ export default function ChatPanel({
     const y = Math.max(72, Math.min(e.clientY, window.innerHeight - menuH));
     setCtxMenu({ x, y, msg, canEdit: messageCanEdit(msg) });
   };
-  const onKey = (e: React.KeyboardEvent<HTMLTextAreaElement>) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void sendText(); } };
+  const onKey = (e: React.KeyboardEvent<HTMLTextAreaElement>) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); if (pendingFile) void sendFile(); else void sendText(); } };
   const onMsgTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const val = e.target.value;
     setMsgText(val);
@@ -943,10 +951,11 @@ export default function ChatPanel({
   const sendFile = async () => {
     if (!pendingFile || !activeConvId || uploading) return;
     const file = pendingFile; const type: MsgType = file.type.startsWith("image/") ? "image" : "file";
-    clearPending(); setUploading(true); setUploadProgress(0);
-    const opt: Message = { id: `opt-${Date.now()}`, senderId: meRef.current?.id ?? "", senderName: meRef.current?.name ?? "You", text: "", type, fileName: file.name, fileSize: file.size, fileMimeType: file.type, createdAt: new Date().toISOString(), isOwn: true, status: "sending" };
+    const caption = msgText.trim();
+    clearPending(); setMsgText(""); setUploading(true); setUploadProgress(0);
+    const opt: Message = { id: `opt-${Date.now()}`, senderId: meRef.current?.id ?? "", senderName: meRef.current?.name ?? "You", text: caption, type, fileName: file.name, fileSize: file.size, fileMimeType: file.type, createdAt: new Date().toISOString(), isOwn: true, status: "sending" };
     setMessages(p => [...p, opt]); setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }), 30);
-    const fd = new FormData(); fd.append("file", file); fd.append("type", type);
+    const fd = new FormData(); fd.append("file", file); fd.append("type", type); if (caption) fd.append("text", caption);
     try {
       await API.post(`/chat/conversations/${activeConvId}/messages`, fd, { headers: { "Content-Type": "multipart/form-data" }, onUploadProgress: (ev: { loaded: number; total?: number }) => { if (ev.total) setUploadProgress(Math.round((ev.loaded / ev.total) * 100)); } });
       invalidateChatMessages(`/chat/conversations/${activeConvId}/messages`);
@@ -1603,7 +1612,7 @@ export default function ChatPanel({
                   <div className="flex items-end gap-1.5">
                     <button onClick={() => fileInputRef.current?.click()} className="w-8 h-8 rounded-xl bg-[#F3F4F6] text-gray-500 hover:bg-[#FFF1F3] hover:text-[#B8112D] flex items-center justify-center shrink-0 transition-colors mb-0.5" title="Attach file"><Paperclip size={14} /></button>
                     <div className="flex-1 flex items-end bg-[#F3F4F6] dark:bg-zinc-800 rounded-2xl px-3 py-2 min-h-[72px]">
-                      <textarea ref={inputRef} value={msgText} onChange={onMsgTextChange} onKeyDown={onKey} placeholder={pendingFile ? "Press send to upload..." : activeConv.type === "group" ? `Message #${activeConv.name}... (@ to mention)` : `Message ${activeConv.name}...`} rows={3} disabled={!!pendingFile} className="w-full flex-1 bg-transparent text-sm outline-none resize-none leading-relaxed placeholder:text-gray-400 dark:placeholder:text-gray-500 min-h-[56px] max-h-52 overflow-y-auto disabled:opacity-40 text-gray-900 dark:text-gray-100" />
+                      <textarea ref={inputRef} value={msgText} onChange={onMsgTextChange} onKeyDown={onKey} placeholder={pendingFile ? "Add a message with this file…" : activeConv.type === "group" ? `Message #${activeConv.name}... (@ to mention)` : `Message ${activeConv.name}...`} rows={3} className="w-full flex-1 bg-transparent text-sm outline-none resize-none leading-relaxed placeholder:text-gray-400 dark:placeholder:text-gray-500 min-h-[56px] max-h-52 overflow-y-auto text-gray-900 dark:text-gray-100" />
                     </div>
                     <button onClick={() => void startRec()} disabled={!!pendingFile || sendingMsg} className="w-8 h-8 rounded-xl bg-[#F3F4F6] text-gray-500 hover:bg-[#FFF1F3] hover:text-[#B8112D] flex items-center justify-center shrink-0 transition-colors mb-0.5 disabled:opacity-40" title="Voice message"><Mic size={14} /></button>
                     <button onClick={pendingFile ? () => void sendFile() : () => void sendText()} disabled={(!msgText.trim() && !pendingFile) || sendingMsg || uploading} className="w-8 h-8 rounded-xl bg-[#B8112D] text-white flex items-center justify-center hover:bg-[#a30f27] disabled:bg-gray-200 disabled:text-gray-400 transition-colors shrink-0 mb-0.5 shadow-sm shadow-red-200">

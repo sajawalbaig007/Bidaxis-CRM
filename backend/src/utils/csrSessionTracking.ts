@@ -10,8 +10,8 @@ const MAX_TICK_MS = 5 * 60 * 1000;
  * Matches Users-page presence threshold but does not close the work session.
  */
 const SILENCE_MS = 90_000;
-/** Open sessions older than this are auto-closed (forgotten check-outs / zombies). */
-const MAX_OPEN_SESSION_MS = 16 * 60 * 60 * 1000;
+/** Forgotten check-out: close the shift 9 hours 30 minutes after check-in. */
+const MAX_OPEN_SESSION_MS = (9 * 60 + 30) * 60 * 1000;
 
 function openSessionWhere(userId: string) {
   /* MongoDB: null filter alone can miss docs where logoutAt was never set. */
@@ -35,8 +35,12 @@ function sessionAgeMs(loginAt: Date, now = new Date()) {
   return Math.max(0, now.getTime() - new Date(loginAt).getTime());
 }
 
+function autoCheckoutAt(loginAt: Date): Date {
+  return new Date(new Date(loginAt).getTime() + MAX_OPEN_SESSION_MS);
+}
+
 function isStaleOpenSession(loginAt: Date, now = new Date()) {
-  return sessionAgeMs(loginAt, now) > MAX_OPEN_SESSION_MS;
+  return sessionAgeMs(loginAt, now) >= MAX_OPEN_SESSION_MS;
 }
 
 async function finalizeOpenSession(
@@ -75,7 +79,7 @@ async function finalizeOpenSession(
 }
 
 /**
- * Keep at most one open session: drop stale (>16h) and close older duplicates.
+ * Keep at most one open session: drop shifts open 9h 30m or longer, and close older duplicates.
  * Returns the single active session, or null if none / all closed.
  */
 async function reconcileOpenSessions(userId: string) {
@@ -90,11 +94,26 @@ async function reconcileOpenSessions(userId: string) {
   }
 
   if (isStaleOpenSession(newest.loginAt, now)) {
-    await finalizeOpenSession(newest, "stale_timeout", now);
+    await finalizeOpenSession(newest, "stale_timeout", autoCheckoutAt(newest.loginAt));
     return null;
   }
 
   return newest;
+}
+
+/** Close every CSR and estimator shift that is still open 9h 30m after check-in. */
+export async function closeForgottenWorkSessions() {
+  const cutoff = new Date(Date.now() - MAX_OPEN_SESSION_MS);
+  const rows = await prisma.csrWorkSession.findMany({
+    where: {
+      loginAt: { lte: cutoff },
+      OR: [{ logoutAt: null }, { logoutAt: { isSet: false } }],
+    },
+    take: 500,
+  });
+  for (const row of rows) {
+    await finalizeOpenSession(row, "stale_timeout", autoCheckoutAt(row.loginAt));
+  }
 }
 
 async function applyHeartbeatTick(
@@ -381,17 +400,19 @@ export type CsrSessionReportRow = {
   overtimeEditedBy?: string | null;
   sessionCount: number;
   memberIds: string[];
+  day?: string;
 };
 
 function closedReasonLabel(reason: string | null, hasLogout: boolean): string {
   if (!hasLogout) return "Still checked in";
   switch ((reason ?? "").toLowerCase()) {
-    case "stale_timeout": return "Auto (stale)";
+    case "stale_timeout": return "Auto (9h 30m)";
     case "check_out": return "Check Out";
     case "logout": return "Logout";
     case "session_replaced": return "New check-in";
     case "logout_all": return "Logout all";
     case "admin_adjusted": return "Admin adjusted";
+    case "request_approved": return "Request approved";
     default: return reason ? reason.replace(/_/g, " ") : "Closed";
   }
 }
@@ -478,7 +499,7 @@ function mergeSessionsByCalendarDay(
     const key = `${s.csrId}:${day}`;
     const hit = map.get(key);
     if (!hit) {
-      map.set(key, { ...s, sessionCount: s.sessionCount || 1, memberIds: s.memberIds?.length ? [...s.memberIds] : [s.id] });
+      map.set(key, { ...s, day, sessionCount: s.sessionCount || 1, memberIds: s.memberIds?.length ? [...s.memberIds] : [s.id] });
       continue;
     }
     hit.sessionCount += s.sessionCount || 1;
@@ -548,7 +569,7 @@ export async function buildCsrSessionReport(opts: {
         continue;
       }
       if (isStaleOpenSession(row.loginAt, now)) {
-        await finalizeOpenSession(row, "stale_timeout", now);
+        await finalizeOpenSession(row, "stale_timeout", autoCheckoutAt(row.loginAt));
         continue;
       }
       newestLogin.set(row.userId, row.loginAt);

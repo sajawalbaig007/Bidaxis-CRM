@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import toast from "react-hot-toast";
 import API, { apiErrorMessage } from "@/lib/api";
+import { StaffRequestCell, type StaffRequestItem } from "@/app/components/StaffRequestButton";
+import { OvertimeShiftCell, type ShiftOvertimeItem } from "@/app/components/OvertimeShiftButton";
 import { EST_TZ_ABBR, EST_TZ_LABEL } from "@/lib/estTime";
 import { Check, ChevronDown, Clock, Download, LogIn, LogOut, Monitor, Pencil, RotateCcw, Users, X } from "lucide-react";
 
@@ -59,6 +61,7 @@ type SessionRow = {
   overtimeEditedBy?: string | null;
   sessionCount?: number;
   memberIds?: string[];
+  day?: string;
 };
 
 type SummaryRow = {
@@ -358,10 +361,14 @@ export default function CsrActivityReport({
   const canEdit = allowEdit && pathname.startsWith("/admin");
   const isEstimator = staffRole === "estimator";
   const today = isEstimator ? calendarYmd(CLOCKS.est.tz) : pktShiftYmd();
-  const showOvertime = isEstimator;
-  const canReviewOt = showOvertime && (pathname.startsWith("/admin") || pathname.startsWith("/technical"));
-  const sessionCols = 9 + (showOvertime ? 2 : 0) + (canEdit ? 1 : 0);
-  const summaryCols = 8 + (showOvertime ? 2 : 0);
+  const showOvertime = false;
+  const canReviewOt = false;
+  const showShiftOt = isEstimator && (pathname.startsWith("/technical") || pathname.startsWith("/admin") || pathname.startsWith("/manager"));
+  const canReviewShiftOt = isEstimator && pathname.startsWith("/technical");
+  const showRequests = pathname.startsWith("/admin") || pathname.startsWith("/manager");
+  const canApproveRequests = pathname.startsWith("/admin");
+  const sessionCols = 9 + (showRequests ? 1 : 0) + (showShiftOt ? 1 : 0) + (showOvertime ? 2 : 0) + (canEdit ? 1 : 0);
+  const summaryCols = 8 + (showRequests ? 1 : 0) + (showShiftOt ? 1 : 0) + (showOvertime ? 2 : 0);
   const title = isEstimator ? "Estimator Check In / Check Out" : "CSR Check In / Check Out";
   const personLabel = isEstimator ? "Estimator" : "CSR";
   const peopleLabel = isEstimator ? "Estimators" : "CSRs";
@@ -372,6 +379,8 @@ export default function CsrActivityReport({
   const [csrId, setCsrId] = useState("all");
   const [csrs, setCsrs] = useState<CsrOption[]>([]);
   const [sessions, setSessions] = useState<SessionRow[]>([]);
+  const [requests, setRequests] = useState<StaffRequestItem[]>([]);
+  const [overtimeNotes, setOvertimeNotes] = useState<ShiftOvertimeItem[]>([]);
   const [summary, setSummary] = useState<SummaryRow[]>([]);
   const [clockTz, setClockTz] = useState<ClockTz>("est");
   const [loading, setLoading] = useState(false);
@@ -483,15 +492,25 @@ export default function CsrActivityReport({
       });
       if (csrId !== "all") params.set("csrId", csrId);
       const res = await API.get<ReportResponse>(`/admin/csr-session-report?${params}`);
+      const reqs = showRequests
+        ? await API.get("/attendance/requests", { params: { from: fromDate, to: toDate } }).catch(() => ({ data: { requests: [] } }))
+        : { data: { requests: [] as StaffRequestItem[] } };
       setSessions(res.data.sessions ?? []);
       setSummary(res.data.summary ?? []);
+      setRequests(reqs.data.requests ?? []);
+      if (showShiftOt) {
+        const ot = await API.get("/attendance/overtime", { params: { from: fromDate, to: toDate } }).catch(() => ({ data: { overtime: [] } }));
+        setOvertimeNotes(ot.data.overtime ?? []);
+      } else {
+        setOvertimeNotes([]);
+      }
       setHasLoaded(true);
     } catch (err) {
       toast.error(apiErrorMessage(err, `Failed to load ${personLabel} activity report.`));
     } finally {
       setLoading(false);
     }
-  }, [fromDate, toDate, csrId, staffRole, personLabel, clockTz]);
+  }, [fromDate, toDate, csrId, staffRole, personLabel, clockTz, showRequests, showShiftOt]);
 
   const reviewOvertime = async (id: string, action: "approve" | "decline" | "edit", comment?: string) => {
     setReviewing(true);
@@ -756,7 +775,7 @@ export default function CsrActivityReport({
                     </th>
                   </tr>
                   <tr className="border-b border-gray-100 text-left bg-[#FAFAFB]">
-                    {[personLabel, `Check In (${clock.abbr})`, `Check Out (${clock.abbr})`, "Last action", "On Dashboard", "Away", "Total", "Status", "Closed By", ...(showOvertime ? ["Overtime", "Decision"] : []), ...(canEdit ? [""] : [])].map(h => (
+                    {[personLabel, `Check In (${clock.abbr})`, `Check Out (${clock.abbr})`, ...(showShiftOt ? ["Overtime"] : []), ...(showRequests ? ["Request"] : []), "Last action", "On Dashboard", "Away", "Total", "Status", "Closed By", ...(showOvertime ? ["Overtime", "Decision"] : []), ...(canEdit ? [""] : [])].map(h => (
                       <th key={h || "actions"} className="px-3 py-2.5 text-[10px] sm:text-xs font-semibold text-gray-400 uppercase tracking-wide whitespace-nowrap">
                         {h}
                       </th>
@@ -800,6 +819,28 @@ export default function CsrActivityReport({
                           {row.logoutAt ? formatSessionStamp(row.logoutAt, clock.tz) : "Still checked in"}
                         </span>
                       </td>
+                      {showShiftOt ? (
+                        <td className="px-3 py-3">
+                          <OvertimeShiftCell
+                            item={(() => {
+                              const hit = overtimeNotes.find((item) => item.department === "estimator" && item.personKey === row.csrId && item.day === row.day) ?? null;
+                              if (!hit || (!canReviewShiftOt && hit.status !== "approved" && hit.status !== "declined")) return null;
+                              return hit;
+                            })()}
+                            canReview={canReviewShiftOt}
+                            onChanged={() => void loadReport()}
+                          />
+                        </td>
+                      ) : null}
+                      {showRequests ? (
+                        <td className="px-3 py-3">
+                          <StaffRequestCell
+                            items={requests.filter((item) => item.department === staffRole && item.personKey === row.csrId && item.day === row.day)}
+                            canApprove={canApproveRequests}
+                            onChanged={() => void loadReport()}
+                          />
+                        </td>
+                      ) : null}
                       <td className="px-3 py-3 text-xs sm:text-sm text-gray-700 whitespace-nowrap">
                         {formatSessionStamp(row.lastActionAt, clock.tz)}
                       </td>
@@ -856,6 +897,19 @@ export default function CsrActivityReport({
                   ))}
                 </tbody>
               </table>
+              {showRequests && requests.some((item) => item.department === staffRole && !sessions.some((row) => row.csrId === item.personKey && row.day === item.day)) ? (
+                <div className="px-3 pb-3 space-y-2">
+                  {requests.filter((item) => item.department === staffRole && !sessions.some((row) => row.csrId === item.personKey && row.day === item.day)).map((item) => (
+                    <div key={item.id} className="flex flex-wrap items-start gap-3 rounded-xl border border-gray-100 px-3 py-2">
+                      <div className="min-w-[140px]">
+                        <p className="text-sm font-semibold">{item.personName}</p>
+                        <p className="text-[11px] text-gray-400">{item.day}</p>
+                      </div>
+                      <StaffRequestCell items={[item]} canApprove={canApproveRequests} onChanged={() => void loadReport()} />
+                    </div>
+                  ))}
+                </div>
+              ) : null}
             ) : (
               <table className="w-full" style={{ minWidth: "980px" }}>
                 <thead>
@@ -882,7 +936,7 @@ export default function CsrActivityReport({
                     </th>
                   </tr>
                   <tr className="border-b border-gray-100 text-left bg-[#FAFAFB]">
-                    {[personLabel, `First Check In (${clock.abbr})`, `Last Check Out (${clock.abbr})`, "Last action", ...(showOvertime ? ["Overtime", "Decision"] : []), "Sessions", "On Dashboard", "Away", "Total"].map(h => (
+                    {[personLabel, `First Check In (${clock.abbr})`, `Last Check Out (${clock.abbr})`, ...(showShiftOt ? ["Overtime"] : []), ...(showRequests ? ["Request"] : []), "Last action", ...(showOvertime ? ["Overtime", "Decision"] : []), "Sessions", "On Dashboard", "Away", "Total"].map(h => (
                       <th key={h} className="px-3 py-2.5 text-[10px] sm:text-xs font-semibold text-gray-400 uppercase tracking-wide whitespace-nowrap">
                         {h}
                       </th>
@@ -931,6 +985,28 @@ export default function CsrActivityReport({
                             : formatSessionStamp(row.lastLogoutAt, clock.tz)}
                         </span>
                       </td>
+                      {showShiftOt ? (
+                        <td className="px-3 py-3">
+                          <OvertimeShiftCell
+                            item={(() => {
+                              const hit = overtimeNotes.find((item) => item.department === "estimator" && item.personKey === row.csrId && item.day === row.day) ?? null;
+                              if (!hit || (!canReviewShiftOt && hit.status !== "approved" && hit.status !== "declined")) return null;
+                              return hit;
+                            })()}
+                            canReview={canReviewShiftOt}
+                            onChanged={() => void loadReport()}
+                          />
+                        </td>
+                      ) : null}
+                      {showRequests ? (
+                        <td className="px-3 py-3">
+                          <StaffRequestCell
+                            items={requests.filter((item) => item.department === staffRole && item.personKey === row.csrId && item.day === row.day)}
+                            canApprove={canApproveRequests}
+                            onChanged={() => void loadReport()}
+                          />
+                        </td>
+                      ) : null}
                       <td className="px-3 py-3 text-xs sm:text-sm text-gray-700 whitespace-nowrap">
                         {formatSessionStamp(row.lastActionAt, clock.tz)}
                       </td>

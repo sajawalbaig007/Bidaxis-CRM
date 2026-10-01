@@ -5,6 +5,8 @@ import { usePathname } from "next/navigation";
 import { Check, ChevronDown, Clock, Download, LogIn, LogOut, Pencil, RotateCcw, X } from "lucide-react";
 import toast from "react-hot-toast";
 import API, { apiErrorMessage } from "@/lib/api";
+import { StaffRequestCell, type StaffRequestItem } from "@/app/components/StaffRequestButton";
+import { OvertimeShiftCell, type ShiftOvertimeItem } from "@/app/components/OvertimeShiftButton";
 import { EST_TZ_ABBR, EST_TZ_LABEL } from "@/lib/estTime";
 
 type ClockTz = "est" | "pkt";
@@ -201,9 +203,11 @@ function downloadExcel(title: string, filename: string, tzLabel: string, headers
   URL.revokeObjectURL(url);
 }
 
-export default function StaffAttendanceReport({ scope = "all" }: { scope?: "all" | "estimators" }) {
+export default function StaffAttendanceReport({ scope = "all" }: { scope?: "all" | "estimators" | "chief" }) {
   const pathname = usePathname();
   const [rows, setRows] = useState<Row[]>([]);
+  const [requests, setRequests] = useState<StaffRequestItem[]>([]);
+  const [overtimeNotes, setOvertimeNotes] = useState<ShiftOvertimeItem[]>([]);
   const [estimators, setEstimators] = useState<Row[]>([]);
   const [loading, setLoading] = useState(false);
   const [loaded, setLoaded] = useState(false);
@@ -212,7 +216,11 @@ export default function StaffAttendanceReport({ scope = "all" }: { scope?: "all"
     setLoading(true);
     try {
       const res = await API.get("/attendance/report", { params: { from: "2000-01-01", to: "2100-01-01" } });
+      const reqs = await API.get("/attendance/requests", { params: { from: "2000-01-01", to: "2100-01-01" } }).catch(() => ({ data: { requests: [] } }));
+      const ot = await API.get("/attendance/overtime", { params: { from: "2000-01-01", to: "2100-01-01" } }).catch(() => ({ data: { overtime: [] } }));
       setRows(res.data.rows ?? []);
+      setRequests(reqs.data.requests ?? []);
+      setOvertimeNotes(ot.data.overtime ?? []);
       setEstimators(res.data.estimators ?? []);
       setLoaded(true);
     } catch {
@@ -223,7 +231,7 @@ export default function StaffAttendanceReport({ scope = "all" }: { scope?: "all"
     }
   }, []);
 
-  const onReports = scope === "estimators"
+  const onReports = scope === "estimators" || scope === "chief"
     ? pathname.startsWith("/technical")
     : pathname.startsWith("/admin") || pathname.startsWith("/manager");
   const canEdit = scope === "all" && pathname.startsWith("/admin");
@@ -238,20 +246,40 @@ export default function StaffAttendanceReport({ scope = "all" }: { scope?: "all"
 
   return (
     <div className="space-y-4">
-      {scope === "estimators" ? null : DEPTS.map((dept) => (
+      {scope === "estimators" || scope === "chief" ? null : DEPTS.map((dept) => (
         <DeptCard
           key={dept.key}
           title={dept.title}
           personLabel={dept.person}
           rows={rows.filter((r) => r.department === dept.key)}
+          requests={requests.filter((r) => r.department === dept.key)}
+          overtimeNotes={overtimeNotes.filter((item) => item.department === dept.key && (item.status === "approved" || item.status === "declined"))}
+          reviewOvertime={false}
           loading={loading}
           loaded={loaded}
           canEdit={canEdit}
-          showOvertime={dept.key === "dev" || dept.key === "chief_estimator" || dept.key === "bim_modeler"}
+          canApproveRequests={pathname.startsWith("/admin")}
+          showOvertime={false}
           canReview={canReview}
           onRefresh={() => void load()}
         />
       ))}
+      {scope === "chief" ? (
+      <DeptCard
+        title="Chief Estimator Check In / Check Out"
+        personLabel="Chief Estimator"
+        rows={rows.filter((r) => r.department === "chief_estimator")}
+        requests={requests.filter((r) => r.department === "chief_estimator")}
+        overtimeNotes={overtimeNotes.filter((item) => item.department === "chief_estimator")}
+        reviewOvertime
+        loading={loading}
+        loaded={loaded}
+        canEdit={false}
+        showOvertime={false}
+        canReview={false}
+        onRefresh={() => void load()}
+      />
+      ) : null}
       {scope === "estimators" ? (
       <DeptCard
         title="Estimator Check In / Check Out"
@@ -260,7 +288,7 @@ export default function StaffAttendanceReport({ scope = "all" }: { scope?: "all"
         loading={loading}
         loaded={loaded}
         canEdit={false}
-        showOvertime
+        showOvertime={false}
         defaultClock="est"
         canReview={canReview}
         onRefresh={() => void load()}
@@ -274,9 +302,13 @@ function DeptCard({
   title,
   personLabel,
   rows,
+  requests = [],
+  overtimeNotes = [],
+  reviewOvertime = false,
   loading,
   loaded,
   canEdit,
+  canApproveRequests = false,
   showOvertime = false,
   canReview = false,
   defaultClock = "pkt",
@@ -285,9 +317,13 @@ function DeptCard({
   title: string;
   personLabel: string;
   rows: Row[];
+  requests?: StaffRequestItem[];
+  overtimeNotes?: ShiftOvertimeItem[];
+  reviewOvertime?: boolean;
   loading: boolean;
   loaded: boolean;
   canEdit: boolean;
+  canApproveRequests?: boolean;
   showOvertime?: boolean;
   canReview?: boolean;
   defaultClock?: ClockTz;
@@ -415,7 +451,9 @@ function DeptCard({
     }
   };
 
-  const headers = ["Name", "Date", `Check In (${clock.abbr})`, `Check Out (${clock.abbr})`, "Total", "Status", "Comment"];
+  const rowRequests = (row: Row) => requests.filter((item) => item.personKey === row.personKey && item.day === row.day);
+  const showShiftOt = overtimeNotes.length > 0 || reviewOvertime;
+  const headers = ["Name", "Date", `Check In (${clock.abbr})`, `Check Out (${clock.abbr})`, ...(showShiftOt ? ["Overtime"] : []), "Request", "Total", "Status", "Comment"];
   const tableHeaders = showOvertime ? [...headers, "Overtime", "Decision"] : headers;
   const excelHeaders = showOvertime ? [...tableHeaders, "Edited by"] : headers;
   const excelBody = visible.map((row) => {
@@ -425,6 +463,12 @@ function DeptCard({
       row.day,
       rowCheckIn(row, clock.tz),
       out.text,
+      ...(showShiftOt ? [(() => {
+        const hit = overtimeNotes.find((item) => item.personKey === row.personKey && item.day === row.day);
+        if (!hit || (!reviewOvertime && hit.status !== "approved" && hit.status !== "declined")) return "";
+        return `${hit.comment} (${hit.status})`;
+      })()] : []),
+      rowRequests(row).map((item) => `${item.kindLabel}: ${item.summary} (${item.status})`).join(" | "),
       durationLabel(row.day, row.checkIn, row.checkOut, row),
       row.checkOut || row.checkOutAt ? "Checked Out" : row.checkIn || row.checkInAt ? "Checked In" : "—",
       row.comment?.trim() || "",
@@ -530,6 +574,22 @@ function DeptCard({
                         {rowCheckOut(row, clock.tz).nextDay ? <span className="ml-1 text-[10px] font-bold text-[#B8112D]">next day</span> : null}
                       </span>
                     </td>
+                    {showShiftOt ? (
+                      <td className="px-3 py-3">
+                        <OvertimeShiftCell
+                          item={(() => {
+                            const hit = overtimeNotes.find((item) => item.personKey === row.personKey && item.day === row.day) ?? null;
+                            if (!hit || (!reviewOvertime && hit.status !== "approved" && hit.status !== "declined")) return null;
+                            return hit;
+                          })()}
+                          canReview={reviewOvertime}
+                          onChanged={onRefresh}
+                        />
+                      </td>
+                    ) : null}
+                    <td className="px-3 py-3">
+                      <StaffRequestCell items={rowRequests(row)} canApprove={canApproveRequests} onChanged={onRefresh} />
+                    </td>
                     <td className="px-3 py-3 font-semibold">{durationLabel(row.day, row.checkIn, row.checkOut, row)}</td>
                     <td className="px-3 py-3">
                       <span className={`text-[10px] font-bold px-2 py-1 rounded-full ${row.checkOut || row.checkOutAt ? "bg-gray-100 text-gray-500" : "bg-green-50 text-green-700"}`}>
@@ -595,6 +655,20 @@ function DeptCard({
               </tbody>
             </table>
           </div>
+          {requests.filter((item) => item.day >= fromDate && item.day <= toDate && (person === "all" || item.personKey === person) && !visible.some((row) => row.personKey === item.personKey && row.day === item.day)).length ? (
+            <div className="mt-3 space-y-2">
+              <p className="text-[11px] font-bold uppercase tracking-wide text-gray-400">Requests with no check-in that day</p>
+              {requests.filter((item) => item.day >= fromDate && item.day <= toDate && (person === "all" || item.personKey === person) && !visible.some((row) => row.personKey === item.personKey && row.day === item.day)).map((item) => (
+                <div key={item.id} className="flex flex-wrap items-start gap-3 rounded-xl border border-gray-100 px-3 py-2">
+                  <div className="min-w-[140px]">
+                    <p className="text-sm font-semibold">{item.personName}</p>
+                    <p className="text-[11px] text-gray-400">{item.day}</p>
+                  </div>
+                  <StaffRequestCell items={[item]} canApprove={canApproveRequests} onChanged={onRefresh} />
+                </div>
+              ))}
+            </div>
+          ) : null}
         </div>
       )}
       {editing && canEdit ? (

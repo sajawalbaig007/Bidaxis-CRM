@@ -24,11 +24,20 @@ import {
   timeOrderOk,
   toPublic,
 } from "../utils/staffAttendance";
-import { listEstimatorShiftRows, overtimePublic, reviewOvertime, saveOvertimeComment } from "../utils/overtimeRequest";
+import { listEstimatorShiftRows, overtimeGate, overtimePublic, reviewOvertime, saveOvertimeComment, submitShiftOvertime } from "../utils/overtimeRequest";
+import { applyApprovedRequest, parseRequestDraft, toPublicRequest } from "../utils/staffRequest";
 
 const router = Router();
 
 const ROLE_DEPT: Record<string, AttendanceDept> = {
+  technical_manager: "chief_estimator",
+  manager: "admin",
+  accounts: "accounts",
+};
+
+const REQUEST_ROLE_DEPT: Record<string, string> = {
+  csr: "csr",
+  estimator: "estimator",
   technical_manager: "chief_estimator",
   manager: "admin",
   accounts: "accounts",
@@ -455,7 +464,24 @@ router.get("/report", verifyToken, allowRoles("admin", "manager", "technical_man
     const end = isValidDay(to) ? to : today;
     const estimators = await listEstimatorShiftRows();
     if (req.user?.role === "technical_manager") {
-      return res.json({ success: true, from: start, to: end, rows: [], estimators });
+      const own = await prisma.staffDayAttendance.findMany({
+        where: { department: "chief_estimator", day: { gte: start, lte: end } },
+        orderBy: [{ day: "desc" }, { personName: "asc" }],
+      });
+      const notes = await prisma.overtimeRequest.findMany({
+        where: { department: "chief_estimator", day: { gte: start, lte: end } },
+      });
+      const byKey = new Map(notes.map((note) => [`${note.department}:${note.personKey}:${note.day}`, note]));
+      return res.json({
+        success: true,
+        from: start,
+        to: end,
+        rows: own.map((row) => ({
+          ...toPublic(row),
+          ...overtimePublic(byKey.get(`${row.department}:${row.personKey}:${row.day}`)),
+        })),
+        estimators,
+      });
     }
     const rows = await prisma.staffDayAttendance.findMany({
       where: { day: { gte: start, lte: end } },
@@ -481,6 +507,60 @@ router.get("/report", verifyToken, allowRoles("admin", "manager", "technical_man
   }
 });
 
+router.get("/overtime/gate", verifyToken, allowRoles("estimator", "technical_manager"), async (req: AuthRequest, res) => {
+  try {
+    const gate = await overtimeGate(req.user!.id, req.user!.role);
+    return res.json({ success: true, ...gate });
+  } catch (error) {
+    console.error("[attendance/overtime/gate]", error);
+    return res.status(500).json({ success: false, message: "Could not check overtime." });
+  }
+});
+
+router.post("/overtime", verifyToken, allowRoles("estimator", "technical_manager"), async (req: AuthRequest, res) => {
+  try {
+    const user = await prisma.user.findUnique({ where: { id: req.user!.id }, select: { name: true } });
+    const result = await submitShiftOvertime({
+      userId: req.user!.id,
+      role: req.user!.role,
+      name: user?.name || "Staff",
+      minutes: Number(req.body?.minutes),
+    });
+    if (!result.ok) return res.status(400).json({ success: false, message: result.message });
+    return res.json({ success: true, message: "Overtime sent.", ...overtimePublic(result.note) });
+  } catch (error) {
+    console.error("[attendance/overtime submit]", error);
+    return res.status(500).json({ success: false, message: "Could not send overtime." });
+  }
+});
+
+router.get("/overtime", verifyToken, allowRoles("admin", "manager", "technical_manager"), async (req, res) => {
+  try {
+    const from = isValidDay(String(req.query.from ?? "")) ? String(req.query.from) : "2000-01-01";
+    const to = isValidDay(String(req.query.to ?? "")) ? String(req.query.to) : "2100-01-01";
+    const rows = await prisma.overtimeRequest.findMany({
+      where: { department: { in: ["estimator", "chief_estimator"] }, day: { gte: from, lte: to } },
+      orderBy: { createdAt: "desc" },
+    });
+    return res.json({
+      success: true,
+      overtime: rows.map((row) => ({
+        id: row.id,
+        personKey: row.personKey,
+        personName: row.personName,
+        department: row.department,
+        day: row.day,
+        comment: row.comment,
+        status: row.status,
+        editedBy: row.editedBy,
+      })),
+    });
+  } catch (error) {
+    console.error("[attendance/overtime list]", error);
+    return res.status(500).json({ success: false, message: "Could not load overtime." });
+  }
+});
+
 router.put("/overtime/:id", verifyToken, allowRoles("admin", "technical_manager"), async (req: AuthRequest, res) => {
   try {
     const action = String(req.body?.action ?? "");
@@ -492,12 +572,110 @@ router.put("/overtime/:id", verifyToken, allowRoles("admin", "technical_manager"
       role: req.user?.role ?? "",
       action,
       comment: req.body?.comment,
+      minutes: req.body?.minutes == null ? undefined : Number(req.body.minutes),
     });
     if (!result.ok) return res.status(400).json({ success: false, message: result.message });
     return res.json({ success: true, ...overtimePublic(result.note) });
   } catch (error) {
     console.error("[attendance/overtime]", error);
     return res.status(500).json({ success: false, message: "Could not update overtime." });
+  }
+});
+
+router.post("/requests", verifyToken, allowRoles("csr", "estimator", "manager", "accounts", "technical_manager"), async (req: AuthRequest, res) => {
+  try {
+    const department = REQUEST_ROLE_DEPT[req.user!.role];
+    if (!department) return res.status(403).json({ success: false, message: "Requests are not available for this account." });
+    const parsed = parseRequestDraft((req.body ?? {}) as Record<string, unknown>);
+    if (!parsed.ok) return res.status(400).json({ success: false, message: parsed.message });
+    const user = await prisma.user.findUnique({ where: { id: req.user!.id }, select: { name: true } });
+    const row = await prisma.staffRequest.create({
+      data: {
+        personKey: req.user!.id,
+        personName: user?.name || "Staff",
+        department,
+        userId: req.user!.id,
+        ...parsed.draft,
+      },
+    });
+    return res.json({ success: true, message: "Request sent.", request: toPublicRequest(row) });
+  } catch (error) {
+    console.error("[attendance/requests]", error);
+    return res.status(500).json({ success: false, message: "Could not send the request." });
+  }
+});
+
+router.post("/requests/public", async (req, res) => {
+  try {
+    const department = String(req.body?.department ?? "");
+    const personKey = String(req.body?.personKey ?? "");
+    if (!isRosterDept(department)) {
+      return res.status(400).json({ success: false, message: "Unknown department." });
+    }
+    const person = rosterPerson(department, personKey);
+    if (!person) return res.status(400).json({ success: false, message: "Unknown person." });
+    const blocked = await gateOffice(req, department);
+    if (blocked) return res.status(403).json({ success: false, code: "IP_NOT_ALLOWED", message: blocked });
+    const parsed = parseRequestDraft((req.body ?? {}) as Record<string, unknown>);
+    if (!parsed.ok) return res.status(400).json({ success: false, message: parsed.message });
+    const row = await prisma.staffRequest.create({
+      data: {
+        personKey: person.key,
+        personName: person.name,
+        department,
+        ...parsed.draft,
+      },
+    });
+    return res.json({ success: true, message: "Request sent.", request: toPublicRequest(row) });
+  } catch (error) {
+    console.error("[attendance/requests/public]", error);
+    return res.status(500).json({ success: false, message: "Could not send the request." });
+  }
+});
+
+router.get("/requests", verifyToken, allowRoles("admin", "manager"), async (req, res) => {
+  try {
+    const from = isValidDay(String(req.query.from ?? "")) ? String(req.query.from) : "2000-01-01";
+    const to = isValidDay(String(req.query.to ?? "")) ? String(req.query.to) : "2100-01-01";
+    const rows = await prisma.staffRequest.findMany({
+      where: { day: { gte: from, lte: to } },
+      orderBy: { createdAt: "desc" },
+    });
+    return res.json({ success: true, requests: rows.map(toPublicRequest) });
+  } catch (error) {
+    console.error("[attendance/requests list]", error);
+    return res.status(500).json({ success: false, message: "Could not load requests." });
+  }
+});
+
+router.post("/requests/:id/review", verifyToken, allowRoles("admin"), async (req, res) => {
+  try {
+    const id = String(req.params.id ?? "");
+    const action = String(req.body?.action ?? "");
+    if (action !== "approve" && action !== "decline") {
+      return res.status(400).json({ success: false, message: "Choose approve or decline." });
+    }
+    const existing = await prisma.staffRequest.findUnique({ where: { id } });
+    if (!existing) return res.status(404).json({ success: false, message: "Request not found." });
+    if (existing.status !== "pending") {
+      return res.status(400).json({ success: false, message: "This request is already reviewed." });
+    }
+    if (action === "approve") {
+      const applied = await applyApprovedRequest(existing);
+      if (!applied.ok) return res.status(400).json({ success: false, message: applied.message });
+    }
+    const row = await prisma.staffRequest.update({
+      where: { id },
+      data: { status: action === "approve" ? "approved" : "declined", reviewedBy: "CEO" },
+    });
+    return res.json({
+      success: true,
+      message: action === "approve" ? "Approved." : "Declined.",
+      request: toPublicRequest(row),
+    });
+  } catch (error) {
+    console.error("[attendance/requests review]", error);
+    return res.status(500).json({ success: false, message: "Could not review the request." });
   }
 });
 

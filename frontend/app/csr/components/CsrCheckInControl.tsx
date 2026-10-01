@@ -7,6 +7,7 @@ import API, { apiErrorMessage, getApiBase, getClientAuthToken } from "@/lib/api"
 import { formatEstCheckInLabel } from "@/lib/estTime";
 import { CSR_IDLE_RECHECK_KEY, requestCsrIdlePermission } from "@/app/csr/hooks/useCsrPresence";
 import ShiftHistoryButton from "@/app/components/ShiftHistoryButton";
+import StaffRequestButton from "@/app/components/StaffRequestButton";
 
 type WorkSession = {
   id: string;
@@ -281,6 +282,7 @@ export default function CsrCheckInControl({ compact = false }: { compact?: boole
   };
 
   const history = <ShiftHistoryButton url="/csr/shift-history" compact={compact} />;
+  const request = <StaffRequestButton compact={compact} mode="evening" />;
 
   if (loading) {
     return (
@@ -290,6 +292,7 @@ export default function CsrCheckInControl({ compact = false }: { compact?: boole
           <span className="hidden lg:inline">Session…</span>
         </div>
         {history}
+        {request}
       </div>
     );
   }
@@ -308,6 +311,7 @@ export default function CsrCheckInControl({ compact = false }: { compact?: boole
         <span>Check In</span>
       </button>
       {history}
+      {request}
       </div>
     );
   }
@@ -382,6 +386,7 @@ export default function CsrCheckInControl({ compact = false }: { compact?: boole
         <span className="sm:hidden">Out</span>
       </button>
       {history}
+      {request}
     </div>
   );
 }

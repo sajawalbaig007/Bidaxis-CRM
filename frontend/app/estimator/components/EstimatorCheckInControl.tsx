@@ -6,7 +6,8 @@ import toast from "react-hot-toast";
 import API, { apiErrorMessage } from "@/lib/api";
 import { ESTIMATOR_IDLE_RECHECK_KEY, requestEstimatorIdlePermission } from "@/app/estimator/components/EstimatorPresenceInit";
 import ShiftHistoryButton from "@/app/components/ShiftHistoryButton";
-import CheckoutCommentDialog from "@/app/components/CheckoutCommentDialog";
+import StaffRequestButton from "@/app/components/StaffRequestButton";
+import OvertimeShiftButton from "@/app/components/OvertimeShiftButton";
 
 type WorkSession = {
   id: string;
@@ -64,7 +65,6 @@ export default function EstimatorCheckInControl({ compact = false }: { compact?:
   const [session, setSession] = useState<WorkSession | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
-  const [askOvertime, setAskOvertime] = useState(false);
   const [nowMs, setNowMs] = useState(() => Date.now());
 
   const applyStatus = useCallback((data: StatusResponse | undefined, forceIn = false) => {
@@ -131,18 +131,16 @@ export default function EstimatorCheckInControl({ compact = false }: { compact?:
     }
   };
 
-  const checkOut = async (overtimeComment?: string) => {
+  const checkOut = async () => {
     setBusy(true);
     try {
       const lastActionAt = (() => {
         try { return sessionStorage.getItem("estimator_last_real_action"); } catch { return null; }
       })();
       const res = await API.post<StatusResponse>("/estimator/check-out", {
-        ...(overtimeComment ? { overtimeComment } : {}),
         ...(lastActionAt ? { lastActionAt } : {}),
       });
       try { sessionStorage.removeItem("estimator_last_real_action"); } catch { /* ignore */ }
-      setAskOvertime(false);
       setCheckedIn(false);
       setSession(null);
       toast.success(res.data.message || "Checked out.");
@@ -157,6 +155,8 @@ export default function EstimatorCheckInControl({ compact = false }: { compact?:
   };
 
   const history = <ShiftHistoryButton url="/estimator/shift-history" compact={compact} />;
+  const request = <StaffRequestButton compact={compact} mode="est" />;
+  const overtime = <OvertimeShiftButton compact={compact} />;
 
   if (loading) {
     return (
@@ -166,6 +166,8 @@ export default function EstimatorCheckInControl({ compact = false }: { compact?:
           <span className="hidden lg:inline">Session…</span>
         </div>
         {history}
+        {request}
+        {overtime}
       </div>
     );
   }
@@ -184,6 +186,8 @@ export default function EstimatorCheckInControl({ compact = false }: { compact?:
         <span>Check In</span>
       </button>
       {history}
+      {request}
+      {overtime}
       </div>
     );
   }
@@ -207,7 +211,7 @@ export default function EstimatorCheckInControl({ compact = false }: { compact?:
       </div>
       <button
         type="button"
-        onClick={() => setAskOvertime(true)}
+        onClick={() => void checkOut()}
         disabled={busy}
         title="Check out to end your shift (logout does not check you out)"
         className={`inline-flex items-center gap-1 ${compact ? "h-9 px-2.5" : "h-10 px-3"} rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-[11px] sm:text-xs font-bold shadow-sm shadow-amber-500/25 disabled:opacity-60 transition-colors`}
@@ -216,12 +220,8 @@ export default function EstimatorCheckInControl({ compact = false }: { compact?:
         <span>Check Out</span>
       </button>
       {history}
-      <CheckoutCommentDialog
-        open={askOvertime}
-        busy={busy}
-        onCancel={() => setAskOvertime(false)}
-        onConfirm={(comment) => void checkOut(comment)}
-      />
+      {request}
+      {overtime}
     </div>
   );
 }

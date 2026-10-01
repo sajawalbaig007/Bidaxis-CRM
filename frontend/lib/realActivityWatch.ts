@@ -53,52 +53,61 @@ export function watchRealActivity(handlers: {
   let promptedAt: number | null = null;
   let stopped = false;
 
-  const bump = () => {
-    if (stopped || promptedAt != null) return;
-    last = Date.now();
-    writeStored(handlers.storageKey, last);
-  };
-  const listen: AddEventListenerOptions = { capture: true, passive: true };
-  window.addEventListener("pointerdown", bump, listen);
-  window.addEventListener("keydown", bump, listen);
-  window.addEventListener("wheel", bump, listen);
-
   const hidePrompt = () => {
     window.dispatchEvent(new CustomEvent(handlers.promptEvent, { detail: { show: false } }));
   };
   const showPrompt = () => {
     window.dispatchEvent(new CustomEvent(handlers.promptEvent, { detail: { show: true } }));
   };
-  const onConfirm = () => {
-    if (stopped || promptedAt == null) return;
-    promptedAt = null;
+  const markActive = () => {
     last = Date.now();
     writeStored(handlers.storageKey, last);
-    hidePrompt();
+    if (promptedAt != null) {
+      promptedAt = null;
+      hidePrompt();
+    }
+  };
+  const bump = (event: Event) => {
+    if (stopped || event.isTrusted === false) return;
+    markActive();
+  };
+  const listen: AddEventListenerOptions = { capture: true, passive: true };
+  const names = ["pointerdown", "mousedown", "click", "keydown", "keyup", "wheel", "input"] as const;
+  for (const name of names) document.addEventListener(name, bump, listen);
+  document.addEventListener("scroll", bump, listen);
+  const onConfirm = () => {
+    if (stopped) return;
+    markActive();
   };
   window.addEventListener(handlers.confirmEvent, onConfirm);
 
   const timer = window.setInterval(() => {
     if (stopped) return;
     const now = Date.now();
-    if (promptedAt == null && now - last >= REAL_ACTION_MS) {
+    if (now - last < REAL_ACTION_MS) {
+      if (promptedAt != null) {
+        promptedAt = null;
+        hidePrompt();
+      }
+      return;
+    }
+    if (promptedAt == null) {
       promptedAt = now;
       showPrompt();
       return;
     }
-    if (promptedAt != null && now - promptedAt >= CONFIRM_MS) {
+    if (now - promptedAt >= CONFIRM_MS && now - last >= REAL_ACTION_MS) {
       hidePrompt();
       handlers.onCheckout();
     }
-  }, 5000);
+  }, 1000);
 
   return () => {
     stopped = true;
     window.clearInterval(timer);
     hidePrompt();
-    window.removeEventListener("pointerdown", bump, listen);
-    window.removeEventListener("keydown", bump, listen);
-    window.removeEventListener("wheel", bump, listen);
+    for (const name of names) document.removeEventListener(name, bump, listen);
+    document.removeEventListener("scroll", bump, listen);
     window.removeEventListener(handlers.confirmEvent, onConfirm);
   };
 }

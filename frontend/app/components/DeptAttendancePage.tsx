@@ -6,6 +6,7 @@ import toast from "react-hot-toast";
 import API, { apiErrorMessage } from "@/lib/api";
 import AttendanceFrame from "@/app/components/AttendanceFrame";
 import ShiftHistoryButton from "@/app/components/ShiftHistoryButton";
+import StaffRequestButton from "@/app/components/StaffRequestButton";
 import CheckoutCommentDialog from "@/app/components/CheckoutCommentDialog";
 
 type Row = {
@@ -188,7 +189,7 @@ export default function DeptAttendancePage({
                     ) : null}
                   </div>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                   <button
                     type="button"
                     disabled={busy || Boolean(row?.checkIn)}
@@ -212,6 +213,14 @@ export default function DeptAttendancePage({
                     url="/attendance/history"
                     params={{ department, personKey: person.key }}
                     large
+                  />
+                  <StaffRequestButton
+                    large
+                    publicPunch
+                    department={department}
+                    personKey={person.key}
+                    personName={person.name}
+                    mode={department === "hr" || department === "bim_modeler" ? "evening" : "pkt"}
                   />
                 </div>
                 <CommentBox

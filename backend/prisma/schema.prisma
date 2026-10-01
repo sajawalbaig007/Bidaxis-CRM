@@ -658,3 +658,26 @@ model OvertimeRequest {
   @@index([department, day])
   @@map("overtime_requests")
 }
+
+/** Leave, attendance correction, and other staff requests. CEO approval can update the day. */
+model StaffRequest {
+  id         String   @id @default(cuid()) @map("_id")
+  personKey  String
+  personName String
+  department String
+  userId     String?
+  kind       String
+  day        String
+  summary    String
+  detail     String   @default("")
+  checkIn    String?
+  checkOut   String?
+  status     String   @default("pending")
+  reviewedBy String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([personKey, day])
+  @@index([department, day])
+  @@map("staff_requests")
+}

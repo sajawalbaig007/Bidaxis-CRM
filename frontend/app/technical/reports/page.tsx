@@ -24,6 +24,7 @@ import {
 } from "@/lib/technicalMonthlyReport";
 import { formatLoggedHours, scoreTone } from "@/lib/technicalMonitoring";
 
+const StaffAttendanceReport = dynamic(() => import("@/app/admin/reports/StaffAttendanceReport"), { ssr: false });
 const CsrActivityReport = dynamic(() => import("@/app/admin/reports/CsrActivityReport"), {
   ssr: false,
   loading: () => (
@@ -221,6 +222,7 @@ export default function TechnicalReportsPage() {
             </div>
           </header>
 
+          <StaffAttendanceReport scope="chief" />
           <CsrActivityReport staffRole="estimator" allowEdit={false} defaultOpen />
 
           <section className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-2.5 sm:gap-3">

@@ -27,7 +27,7 @@ export default function StillWorkingPrompt({
         <div>
           <p className="text-sm font-bold text-amber-950">Still working?</p>
           <p className="text-xs text-amber-900">
-            Moving the cursor does not count. Click to stay checked in. If you do not, you will be checked out.
+            A click, a key, or a scroll keeps you checked in. Moving the cursor does not count.
           </p>
         </div>
         <button
