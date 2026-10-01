@@ -11,6 +11,8 @@ import prisma       from "./config/db";
 import cloudinary   from "./config/cloudinary";
 import { initChatSocket } from "./chat/chatSocket";
 import { addEstDays, estDateYmd, estDayBoundsUtc } from "./utils/estTime";
+import { closeForgottenWorkSessions } from "./utils/csrSessionTracking";
+import { closeForgottenStaffShifts } from "./utils/staffAttendance";
 
 const PORT = process.env.PORT || 5000;
 
@@ -23,6 +25,13 @@ validateEnv();
 ═══════════════════════════════════════════════ */
 let _offlineFailStreak = 0;
 let _offlinePaused     = false;
+
+function runAutoCheckout() {
+  void closeForgottenWorkSessions().catch((err) => console.error("[auto-checkout] sessions", err));
+  void closeForgottenStaffShifts().catch((err) => console.error("[auto-checkout] staff", err));
+}
+runAutoCheckout();
+setInterval(runAutoCheckout, 60 * 1000);
 
 setInterval(async () => {
   if (_offlinePaused) return;

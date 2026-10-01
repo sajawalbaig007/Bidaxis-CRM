@@ -193,17 +193,25 @@ function MessageBubble({
   const body = () => {
     if (msg.type === "image" && msg.fileUrl)
       return (
-        <a href={msg.fileUrl} target="_blank" rel="noopener noreferrer">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={msg.fileUrl} alt={msg.fileName ?? "image"}
-            className="max-w-[220px] max-h-[220px] rounded-xl object-cover" />
-        </a>
+        <div className="space-y-1.5">
+          <a href={msg.fileUrl} target="_blank" rel="noopener noreferrer">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={msg.fileUrl} alt={msg.fileName ?? "image"}
+              className="max-w-[220px] max-h-[220px] rounded-xl object-cover" />
+          </a>
+          {msg.text?.trim() ? <MentionText text={msg.text} tone={own ? "own" : "other"} className="text-sm leading-relaxed break-words whitespace-pre-wrap" /> : null}
+        </div>
       );
     if (msg.type === "voice" && msg.fileUrl)
       return <VoicePlayer fileUrl={msg.fileUrl} isOwn={own} />;
     if (msg.type === "file" && msg.fileUrl)
-      return <FileCard fileName={msg.fileName ?? "File"} fileSize={msg.fileSize ?? 0}
-        fileUrl={msg.fileUrl} fileMimeType={msg.fileMimeType} isOwn={own} />;
+      return (
+        <div className="space-y-1.5">
+          <FileCard fileName={msg.fileName ?? "File"} fileSize={msg.fileSize ?? 0}
+            fileUrl={msg.fileUrl} fileMimeType={msg.fileMimeType} isOwn={own} />
+          {msg.text?.trim() ? <MentionText text={msg.text} tone={own ? "own" : "other"} className="text-sm leading-relaxed break-words whitespace-pre-wrap" /> : null}
+        </div>
+      );
     return <MentionText text={msg.text} tone={own ? "own" : "other"} className="text-sm leading-relaxed break-words whitespace-pre-wrap" />;
   };
 
@@ -549,7 +557,7 @@ export default function ChatPage() {
   };
 
   const onKey = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void sendText(); }
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); if (pendingFile) void sendFile(); else void sendText(); }
   };
 
   const onMsgTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -583,11 +591,13 @@ export default function ChatPage() {
     if (!pendingFile || !activeConvId || uploading) return;
     const file = pendingFile;
     const type: MsgType = file.type.startsWith("image/") ? "image" : "file";
+    const caption = msgText.trim();
     clearPending();
+    setMsgText("");
     setUploading(true); setUploadProgress(0);
     const opt: Message = {
       id: `opt-${Date.now()}`, senderId: meRef.current?.id ?? "",
-      senderName: meRef.current?.name ?? "You", text: "", type,
+      senderName: meRef.current?.name ?? "You", text: caption, type,
       fileName: file.name, fileSize: file.size, fileMimeType: file.type,
       createdAt: new Date().toISOString(), isOwn: true, status: "sending",
     };
@@ -596,6 +606,7 @@ export default function ChatPage() {
     const fd = new FormData();
     fd.append("file", file);
     fd.append("type", type);
+    if (caption) fd.append("text", caption);
     try {
       await API.post(`/chat/conversations/${activeConvId}/messages`, fd, {
         headers: { "Content-Type": "multipart/form-data" },
@@ -1310,9 +1321,9 @@ export default function ChatPage() {
                       <textarea ref={inputRef} value={msgText}
                         onChange={onMsgTextChange}
                         onKeyDown={onKey}
-                        placeholder={pendingFile ? "Press send to upload file…" : `Message ${activeConv.type === "group" ? `#${activeConv.name}` : activeConv.name}…`}
-                        rows={3} disabled={!!pendingFile}
-                        className="flex-1 bg-transparent text-sm outline-none resize-none leading-relaxed placeholder:text-gray-400 min-h-[56px] max-h-52 overflow-y-auto disabled:opacity-40" />
+                        placeholder={pendingFile ? "Add a message with this file…" : `Message ${activeConv.type === "group" ? `#${activeConv.name}` : activeConv.name}…`}
+                        rows={3}
+                        className="flex-1 bg-transparent text-sm outline-none resize-none leading-relaxed placeholder:text-gray-400 min-h-[56px] max-h-52 overflow-y-auto" />
                     </div>
 
                     <button onClick={() => void startRec()}
