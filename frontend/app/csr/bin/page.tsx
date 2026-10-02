@@ -28,7 +28,11 @@ type TabKey = "all" | "notpicked" | "notinterested" | "deleted" | "inhouse" | "n
 
 export default function CSRBinPage() {
   const dialer = useZoomDialer();
-  const { leads, setLeads, loading, refetch } = useBinData();
+  const { leads: rawLeads, setLeads, loading, refetch } = useBinData();
+  const leads = useMemo(
+    () => rawLeads.filter(l => binCategory(l.binReason, l.status, l.binPreviousStatus) !== "notuseful"),
+    [rawLeads],
+  );
 
   const [search, setSearch] = useState("");
   const [stateFilter, setStateFilter] = useState("");
@@ -237,7 +241,7 @@ export default function CSRBinPage() {
                           className="group flex items-center gap-1 bg-[#FFF7E6] text-[#B54708] px-2.5 py-1.5 rounded-xl text-[11px] font-medium w-fit whitespace-nowrap hover:opacity-80 disabled:cursor-default disabled:hover:no-underline"
                           title="Call this number"
                         >
-                          <Phone size={10}/><span className="underline-offset-[3px] group-hover:underline group-disabled:no-underline">{lead.phone}</span>
+                          <Phone size={18}/><span className="underline-offset-[3px] group-hover:underline group-disabled:no-underline">{lead.phone}</span>
                         </button>
                         {dialer && lead.phone && lead.phone !== "N/A" && <ChangeDialerNumber />}
                       </span>

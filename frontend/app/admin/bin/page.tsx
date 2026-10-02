@@ -4,13 +4,14 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import {
   Trash2, Search, RefreshCw, Phone, Briefcase,
-  ThumbsDown, PhoneOff, X, Check, ArrowRightLeft, Star, User2, ChevronDown,
+  ThumbsDown, PhoneOff, X, Check, ArrowRightLeft, Star, User2, ChevronDown, Ban,
 } from "lucide-react";
 import toast, { Toaster } from "react-hot-toast";
 
 import { StaffSidebar } from "@/app/hooks/useStaffSidebar";
 import DashboardNavbar from "../components/layout/Navbar";
 import API from "@/lib/api";
+import { getAuthMe, peekAuthMe } from "@/lib/authMeCache";
 import { ChangeDialerNumber, useZoomDialer } from "@/app/csr/components/dialer/ZoomDialerProvider";
 import { formatEstDayMonth } from "@/lib/estTime";
 import { binCategory, binReasonLabel } from "@/app/csr/hooks/useBinData";
@@ -41,7 +42,7 @@ type BinLead = {
 };
 
 type CSR = { id: string; name: string; csrCode: string | null };
-type TabKey = "all" | "notpicked" | "notinterested" | "deleted";
+type TabKey = "all" | "notpicked" | "notinterested" | "notuseful" | "deleted";
 
 export default function AdminBinPage() {
   const dialer = useZoomDialer();
@@ -59,6 +60,12 @@ export default function AdminBinPage() {
   const [csrOptions,    setCsrOptions]    = useState<CSR[]>([]);
   const [selectedCsrId, setSelectedCsrId] = useState("");
   const [isReassigning, setIsReassigning] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [deleting, setDeleting] = useState(false);
+  const [canDeleteNotUseful, setCanDeleteNotUseful] = useState(() => {
+    const role = peekAuthMe()?.role;
+    return role === "admin" || role === "manager";
+  });
 
   const mapLeads = (raw: unknown[]): BinLead[] =>
     (raw as Array<Record<string, unknown>>).map(l => ({
@@ -83,7 +90,7 @@ export default function AdminBinPage() {
   const fetchLeads = useCallback(async () => {
     try {
       setLoading(true);
-      const params: Record<string, string | number> = { page: 1, limit: 500 };
+      const params: Record<string, string | number> = { page: 1, limit: 2000 };
       if (filterCSR !== "all") params.csrId = filterCSR;
       const res = await API.get("/admin/bin", { params });
       setLeads(mapLeads(res.data.leads ?? []));
@@ -104,6 +111,16 @@ export default function AdminBinPage() {
   }, []);
 
   useEffect(() => { void fetchLeads(); }, [fetchLeads]);
+
+  useEffect(() => {
+    const role = peekAuthMe()?.role;
+    setCanDeleteNotUseful(role === "admin" || role === "manager");
+    getAuthMe(false).then(me => {
+      setCanDeleteNotUseful(me?.role === "admin" || me?.role === "manager");
+    }).catch(() => {});
+  }, []);
+
+  useEffect(() => { setSelectedIds([]); }, [tab, filterCSR, search, stateFilter, phoneFilter]);
 
   const openReassign = (lead: BinLead) => {
     setReassignLead(lead);
@@ -129,9 +146,10 @@ export default function AdminBinPage() {
   };
 
   const byTab = useMemo(() => ({
-    notpicked:     leads.filter(l => binCategory(l.binReason) === "notpicked"),
-    notinterested: leads.filter(l => binCategory(l.binReason) === "notinterested"),
-    deleted:       leads.filter(l => binCategory(l.binReason) === "deleted"),
+    notpicked:     leads.filter(l => binCategory(l.binReason, l.status) === "notpicked"),
+    notinterested: leads.filter(l => binCategory(l.binReason, l.status) === "notinterested"),
+    notuseful:     leads.filter(l => binCategory(l.binReason, l.status) === "notuseful"),
+    deleted:       leads.filter(l => binCategory(l.binReason, l.status) === "deleted"),
   }), [leads]);
 
   const currentList = tab === "all" ? leads : byTab[tab];
@@ -145,14 +163,46 @@ export default function AdminBinPage() {
         l.company.toLowerCase().includes(q) ||
         l.phone.includes(q) ||
         l.csr.name.toLowerCase().includes(q) ||
+        (l.status || "").toLowerCase().includes(q) ||
         binReasonLabel(l.binReason).toLowerCase().includes(q);
     });
   }, [currentList, search, stateFilter, phoneFilter]);
+
+  const showDelete = tab === "notuseful" && canDeleteNotUseful;
+  const allVisibleSelected = filtered.length > 0 && filtered.every(l => selectedIds.includes(l.id));
+
+  const toggleAllVisible = () => {
+    setSelectedIds(allVisibleSelected ? [] : filtered.map(l => l.id));
+  };
+
+  const toggleOne = (id: string) => {
+    setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  };
+
+  const deleteSelected = async () => {
+    if (selectedIds.length === 0) return;
+    const count = selectedIds.length;
+    if (!window.confirm(`Permanently delete ${count} Not useful lead${count === 1 ? "" : "s"}?`)) return;
+    setDeleting(true);
+    try {
+      const res = await API.post("/admin/bin/not-useful/delete", { ids: selectedIds });
+      const deleted = Number(res.data?.deleted ?? count);
+      const gone = new Set(selectedIds);
+      setLeads(prev => prev.filter(l => !gone.has(l.id)));
+      setSelectedIds([]);
+      toast.success(`${deleted} lead${deleted === 1 ? "" : "s"} deleted.`);
+    } catch {
+      toast.error("Failed to delete leads.");
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   const tabs: CapsuleTabItem<TabKey>[] = [
     { key: "all",           label: "All",            count: leads.length,               icon: Trash2     },
     { key: "notpicked",     label: "Not Picked",     count: byTab.notpicked.length,     icon: PhoneOff   },
     { key: "notinterested", label: "Not Interested", count: byTab.notinterested.length, icon: ThumbsDown },
+    { key: "notuseful",     label: "Not useful",     count: byTab.notuseful.length,     icon: Ban        },
     { key: "deleted",       label: "Deleted",        count: byTab.deleted.length,       icon: Star       },
   ];
 
@@ -182,6 +232,7 @@ export default function AdminBinPage() {
                 data={[
                   { name: "Not Picked", value: byTab.notpicked.length },
                   { name: "Not Interested", value: byTab.notinterested.length },
+                  { name: "Not useful", value: byTab.notuseful.length },
                   { name: "Deleted", value: byTab.deleted.length },
                   { name: "Total", value: leads.length },
                 ]}
@@ -216,7 +267,18 @@ export default function AdminBinPage() {
             <div className="p-4 sm:p-5 border-b border-gray-100 shrink-0">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <h3 className="font-semibold text-gray-800 text-base sm:text-lg">Bin Leads</h3>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                  {showDelete && (
+                    <button
+                      type="button"
+                      onClick={() => void deleteSelected()}
+                      disabled={selectedIds.length === 0 || deleting}
+                      className="h-9 px-3 rounded-xl bg-[#B8112D] text-white text-xs font-semibold inline-flex items-center gap-1.5 disabled:opacity-40"
+                    >
+                      <Trash2 size={13} />
+                      {deleting ? "Deleting…" : `Delete selected${selectedIds.length ? ` (${selectedIds.length})` : ""}`}
+                    </button>
+                  )}
                   <div className="relative flex-1 min-w-[150px] sm:w-[220px]">
                     <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                     <input
@@ -239,6 +301,17 @@ export default function AdminBinPage() {
               <table className="w-full" style={{ minWidth: "860px" }}>
                 <thead className={CSR_THEAD}>
                   <tr className="border-b border-gray-100">
+                    {showDelete && (
+                      <th className="text-left py-3 px-2">
+                        <input
+                          type="checkbox"
+                          checked={allVisibleSelected}
+                          onChange={toggleAllVisible}
+                          aria-label="Select all Not useful leads"
+                          className="h-4 w-4 accent-[#B8112D]"
+                        />
+                      </th>
+                    )}
                     {["#","CSR","Client","Company","Phone","Service","Reason","Updated","Action"].map(h => (
                       <th key={h} className="text-left py-3 px-2 text-[11px] sm:text-[12px] font-semibold text-gray-400 whitespace-nowrap">{h}</th>
                     ))}
@@ -255,6 +328,17 @@ export default function AdminBinPage() {
                     ))
                   ) : filtered.length > 0 ? filtered.map((lead, idx) => (
                     <tr key={lead.id} className="border-b border-gray-50 hover:bg-gray-50">
+                      {showDelete && (
+                        <td className="py-3.5 px-2">
+                          <input
+                            type="checkbox"
+                            checked={selectedIds.includes(lead.id)}
+                            onChange={() => toggleOne(lead.id)}
+                            aria-label={`Select ${lead.client}`}
+                            className="h-4 w-4 accent-[#B8112D]"
+                          />
+                        </td>
+                      )}
                       <td className="py-3.5 px-2 text-xs text-gray-400">{idx + 1}</td>
                       <td className="py-3.5 px-2">
                         <div className="min-w-0">
@@ -291,7 +375,7 @@ export default function AdminBinPage() {
                       </td>
                       <td className="py-3.5 px-2">
                         <span className="text-[11px] font-semibold text-gray-600 bg-gray-100 px-2 py-1 rounded-lg whitespace-nowrap">
-                          {binReasonLabel(lead.binReason)}
+                          {binCategory(lead.binReason, lead.status) === "notuseful" ? "Not useful" : binReasonLabel(lead.binReason)}
                         </span>
                       </td>
                       <td className="py-3.5 px-2">
@@ -307,7 +391,7 @@ export default function AdminBinPage() {
                     </tr>
                   )) : (
                     <tr>
-                      <td colSpan={9} className="py-20 text-center">
+                      <td colSpan={showDelete ? 10 : 9} className="py-20 text-center">
                         <Trash2 size={28} className="text-gray-200 mx-auto mb-3"/>
                         <p className="text-gray-400 text-sm">{search ? "No leads match your search." : "Bin is empty."}</p>
                       </td>

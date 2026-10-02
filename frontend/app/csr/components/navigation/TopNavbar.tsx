@@ -458,7 +458,7 @@ export default function TopNavbar() {
                           <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
                             isToday ? "bg-[#FFF1F3] text-[#B8112D]" : "bg-[#FFF7E6] text-[#B54708]"
                           }`}>
-                            <Phone size={14} />
+                            <Phone size={18} />
                           </div>
                           <div className="flex-1 min-w-0">
                             <p className="text-[13px] font-semibold text-crm-text truncate">{c.client}</p>

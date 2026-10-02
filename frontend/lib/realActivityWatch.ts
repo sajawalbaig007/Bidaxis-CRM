@@ -1,9 +1,13 @@
-/** Click, typing, or scroll. Cursor movement does not count. */
+/** How long the CRM can sit in the background before the warning. */
 export const REAL_ACTION_MS = 5 * 60 * 1000;
-/** Time to click, type, or scroll after the warning before checkout. */
+/** Extra time on the warning before checkout. */
 export const CONFIRM_MS = 30 * 1000;
 
 let latestActionAt: string | null = null;
+
+function presenceKey(storageKey: string) {
+  return `${storageKey}:desk`;
+}
 
 export function peekLastActionAt() {
   return latestActionAt;
@@ -13,12 +17,13 @@ export function clearRealAction(storageKey: string) {
   latestActionAt = null;
   try {
     sessionStorage.removeItem(storageKey);
+    localStorage.removeItem(presenceKey(storageKey));
   } catch {
     /* ignore */
   }
 }
 
-function readStored(storageKey: string): number | null {
+function readAction(storageKey: string): number | null {
   try {
     const raw = sessionStorage.getItem(storageKey);
     if (!raw) return null;
@@ -29,7 +34,7 @@ function readStored(storageKey: string): number | null {
   }
 }
 
-function writeStored(storageKey: string, ms: number) {
+function writeAction(storageKey: string, ms: number) {
   const iso = new Date(ms).toISOString();
   latestActionAt = iso;
   try {
@@ -39,12 +44,36 @@ function writeStored(storageKey: string, ms: number) {
   }
 }
 
-/** True when this tab or another open tab had a real action inside the window. */
+function readPresence(storageKey: string): number {
+  try {
+    const n = Number(localStorage.getItem(presenceKey(storageKey)));
+    return Number.isFinite(n) ? n : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function writePresence(storageKey: string, ms = Date.now()) {
+  try {
+    localStorage.setItem(presenceKey(storageKey), String(ms));
+  } catch {
+    /* ignore */
+  }
+}
+
+/** The CRM window is the one the person is using. */
+export function deskIsOpen(): boolean {
+  return document.visibilityState === "visible" && document.hasFocus();
+}
+
+/**
+ * Stay checked in while any CRM tab is open in front.
+ * A click, key, or scroll also counts, including from another tab.
+ */
 export function actionIsRecent(storageKey: string, withinMs = REAL_ACTION_MS): boolean {
-  const stored = readStored(storageKey) ?? 0;
-  const memory = latestActionAt ? Date.parse(latestActionAt) : 0;
-  const newest = Math.max(stored, Number.isNaN(memory) ? 0 : memory);
-  return newest > 0 && Date.now() - newest < withinMs;
+  if (typeof document !== "undefined" && deskIsOpen()) return true;
+  const seen = readPresence(storageKey);
+  return seen > 0 && Date.now() - seen < withinMs;
 }
 
 export function watchRealActivity(handlers: {
@@ -53,11 +82,11 @@ export function watchRealActivity(handlers: {
   promptEvent: string;
   storageKey: string;
 }): () => void {
-  let last = Date.now();
-  writeStored(handlers.storageKey, last);
-
   let promptedAt: number | null = null;
   let stopped = false;
+  writePresence(handlers.storageKey);
+  const storedAction = readAction(handlers.storageKey);
+  if (storedAction != null) latestActionAt = new Date(storedAction).toISOString();
 
   const hidePrompt = () => {
     window.dispatchEvent(new CustomEvent(handlers.promptEvent, { detail: { show: false } }));
@@ -65,61 +94,62 @@ export function watchRealActivity(handlers: {
   const showPrompt = () => {
     window.dispatchEvent(new CustomEvent(handlers.promptEvent, { detail: { show: true } }));
   };
-  const syncLast = () => {
-    const stored = readStored(handlers.storageKey);
-    if (stored != null && stored > last) last = stored;
-    return last;
-  };
-  const markActive = () => {
-    last = Date.now();
-    writeStored(handlers.storageKey, last);
+  const markHere = () => {
+    writePresence(handlers.storageKey);
     if (promptedAt != null) {
       promptedAt = null;
       hidePrompt();
     }
   };
   const bump = (event: Event) => {
-    if (stopped) return;
-    if (event.isTrusted === false) return;
-    markActive();
+    if (stopped || event.isTrusted === false) return;
+    writeAction(handlers.storageKey, Date.now());
+    markHere();
   };
 
-  const names = ["pointerdown", "mousedown", "click", "dblclick", "contextmenu", "keydown", "keyup", "wheel", "input", "beforeinput"] as const;
+  const names = ["pointerdown", "mousedown", "click", "keydown", "keyup", "wheel"] as const;
   for (const name of names) window.addEventListener(name, bump, true);
   window.addEventListener("scroll", bump, true);
-  document.addEventListener("scroll", bump, true);
-
+  const onFocus = () => {
+    if (stopped || !deskIsOpen()) return;
+    markHere();
+  };
   const onConfirm = () => {
-    if (stopped) return;
-    markActive();
+    if (!stopped) markHere();
   };
   window.addEventListener(handlers.confirmEvent, onConfirm);
+  window.addEventListener("focus", onFocus);
+  document.addEventListener("visibilitychange", onFocus);
 
   const timer = window.setInterval(() => {
     if (stopped) return;
-    const seen = syncLast();
-    const now = Date.now();
-    if (now - seen < REAL_ACTION_MS) {
+    if (deskIsOpen()) {
+      markHere();
+      return;
+    }
+    const away = Date.now() - readPresence(handlers.storageKey);
+    if (away < REAL_ACTION_MS) {
       if (promptedAt != null) {
         promptedAt = null;
         hidePrompt();
       }
       return;
     }
+    if (document.visibilityState !== "visible") {
+      if (!actionIsRecent(handlers.storageKey)) handlers.onCheckout();
+      return;
+    }
+    const now = Date.now();
     if (promptedAt == null) {
       promptedAt = now;
       showPrompt();
       return;
     }
-    if (now - promptedAt < CONFIRM_MS) return;
-    if (Date.now() - syncLast() < REAL_ACTION_MS) {
+    if (now - promptedAt >= CONFIRM_MS && !actionIsRecent(handlers.storageKey)) {
       promptedAt = null;
       hidePrompt();
-      return;
+      handlers.onCheckout();
     }
-    promptedAt = null;
-    hidePrompt();
-    handlers.onCheckout();
   }, 1000);
 
   return () => {
@@ -128,7 +158,8 @@ export function watchRealActivity(handlers: {
     hidePrompt();
     for (const name of names) window.removeEventListener(name, bump, true);
     window.removeEventListener("scroll", bump, true);
-    document.removeEventListener("scroll", bump, true);
     window.removeEventListener(handlers.confirmEvent, onConfirm);
+    window.removeEventListener("focus", onFocus);
+    document.removeEventListener("visibilitychange", onFocus);
   };
 }

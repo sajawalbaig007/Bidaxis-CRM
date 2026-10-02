@@ -17,7 +17,7 @@ export default function PhoneAreaCodeFilterInput({
 }: PhoneAreaCodeFilterInputProps) {
   return (
     <div className={`relative ${fullWidth ? "w-full min-w-0" : "shrink-0"} ${className}`}>
-      <Phone size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+      <Phone size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
       <input
         type="text"
         inputMode="numeric"

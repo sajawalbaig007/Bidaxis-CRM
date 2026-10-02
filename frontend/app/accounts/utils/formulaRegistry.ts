@@ -124,7 +124,7 @@ export const BUILTIN_FORMULAS: FormulaDef[] = [
     section: "Payroll — Technical Manager",
     title: "Same as Technical Team (9 AM late)",
     expression:
-      "Same as Technical Team · Late shift 09:00 · relief ≤ 09:30 · 09:30–10:00 = ¼ day · 10:00–11:00 = ⅓ day · 11:00+ = ½ day · ≥9h worked → waived · Net = Earning − Deduction + Occasional",
+      "Same as Technical Team, unless the CEO saved Chief Estimator deduction ranges for this month. Then per day = selected parts (basic, commission, overtime, allowance) ÷ 30, and the matching time range cuts that percent. Otherwise late shift 09:00 · relief ≤ 09:30 · 09:30–10:00 = ¼ day · 10:00–11:00 = ⅓ day · 11:00+ = ½ day · ≥9h worked → waived.",
     appliesTo: "Income Statement → Team Salaries → Technical Manager",
   },
 
@@ -141,7 +141,7 @@ export const BUILTIN_FORMULAS: FormulaDef[] = [
     section: "Payroll — Administration",
     title: "Late Arrival (6 PM shift)",
     expression:
-      "Shift 18:00 · relief ≤ 18:15 · 18:15–18:30 = ⅕ day · 18:30–19:00 = ¼ day · 19:00–20:00 = ⅓ day · 20:00+ = ½ day",
+      "If the CEO saved Admin deduction ranges for this month, per day = selected parts ÷ 30 and the matching range cuts that percent. Otherwise shift 18:00 · relief ≤ 18:15 · 18:15–18:30 = ⅕ day · 18:30–19:00 = ¼ day · 19:00–20:00 = ⅓ day · 20:00+ = ½ day",
     appliesTo: "Administration late deduction",
   },
 
@@ -158,7 +158,7 @@ export const BUILTIN_FORMULAS: FormulaDef[] = [
     id: "sales-earning",
     section: "Payroll — Sales Team",
     title: "Total Earning",
-    expression: "Total Earning = Basic + Allowance + Total Commission · 6 PM shift · no overtime",
+    expression: "Total Earning = Basic + Allowance + Total Commission · no overtime. Late cut uses the CEO’s CSR ranges for this month when they are saved; otherwise the 6 PM slabs.",
     appliesTo: "Income Statement → Team Salaries → Sales Team Salaries",
   },
   {

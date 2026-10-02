@@ -96,6 +96,16 @@ export function buildNotBinWhere(csrId?: string): Prisma.LeadWhereInput {
   return { NOT: buildBinWhere(csrId) };
 }
 
+/** CEO / Admin bin also lists Not useful leads so they can be deleted from that tab. */
+export function buildAdminBinWhere(csrId?: string): Prisma.LeadWhereInput {
+  const notUseful: Prisma.LeadWhereInput = {
+    status: { equals: "Not useful", mode: "insensitive" },
+    ...notInBinFilter(),
+  };
+  if (csrId) notUseful.assignedTo = csrId;
+  return { OR: [buildBinWhere(csrId), notUseful] };
+}
+
 /** CSR or admin bin — limit reached and manually deleted leads */
 export function buildBinWhere(csrId?: string): Prisma.LeadWhereInput {
   const where: Prisma.LeadWhereInput = {

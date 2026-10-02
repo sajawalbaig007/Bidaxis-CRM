@@ -250,7 +250,7 @@ router.get("/tab-leads", verifyToken, allowRoles("csr"), async (req: any, res) =
 
     const validTabs: CsrTabKey[] = [
       "today", "pending", "important", "schedule", "interested", "projectwon",
-      "notinterested", "notpicked", "noowner", "notinservice", "inhouse",
+      "notinterested", "notpicked", "noowner", "notinservice", "inhouse", "notuseful",
     ];
     if (!validTabs.includes(tab)) {
       return res.status(400).json({ success: false, message: "Invalid tab." });
@@ -772,6 +772,7 @@ router.put("/lead/:id", verifyToken, allowRoles("csr"), async (req: any, res) =>
       /* Canonical status strings used across CSR pages */
       const canonical =
         n === "not interested" ? "Not Interested" :
+        n === "not useful" ? "Not useful" :
         n === "not picked" || n === "notpicked" ? "not picked" :
         n === "not completed" ? "not completed" :
         n === "close client" ? "Close Client" :
@@ -891,7 +892,8 @@ router.put("/lead/:id", verifyToken, allowRoles("csr"), async (req: any, res) =>
         canonical === "pending" ||
         canonical === "no owner available" ||
         canonical === "not in service" ||
-        canonical === "in house"
+        canonical === "in house" ||
+        canonical === "Not useful"
       ) {
         if (nextSchedule === undefined) updateData.nextSchedule = null;
         if (nextTime === undefined) updateData.nextTime = null;
@@ -1364,7 +1366,7 @@ router.delete("/lead/:id/subcontacts/:subId", verifyToken, allowRoles("csr"), as
 
 router.get("/shift-history", verifyToken, allowRoles("csr"), async (req: any, res) => {
   try {
-    const days = await listUserShiftHistory(req.user.id, true);
+    const days = await listUserShiftHistory(req.user.id, "csr");
     return res.json({ success: true, days });
   } catch (error) {
     console.log(error);

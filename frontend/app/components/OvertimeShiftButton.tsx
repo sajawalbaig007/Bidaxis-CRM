@@ -63,7 +63,7 @@ export default function OvertimeShiftButton({ compact = false }: { compact?: boo
     };
     setStartedAt(readTimerStart());
     load();
-    const id = window.setInterval(load, 30_000);
+    const id = window.setInterval(load, 15_000);
     const tick = window.setInterval(() => setNow(Date.now()), 1000);
     return () => {
       stop = true;
@@ -73,9 +73,10 @@ export default function OvertimeShiftButton({ compact = false }: { compact?: boo
   }, []);
 
   const liveMs = gate.shiftMs + (gate.open ? Math.max(0, now - gate.at) : 0);
-  const ready = gate.weekend || liveMs >= NINE_MS;
+  const ready = gate.allowed || gate.weekend || liveMs >= NINE_MS;
   const running = startedAt != null;
   const elapsed = running ? Math.max(0, now - startedAt) : 0;
+  const shiftLabel = formatTimer(liveMs);
 
   const start = () => {
     const at = Date.now();
@@ -103,7 +104,7 @@ export default function OvertimeShiftButton({ compact = false }: { compact?: boo
     <button
       type="button"
       disabled={busy || (!ready && !running)}
-      title={running ? "Stop overtime" : ready ? "Start overtime" : "Available on Saturday and Sunday, or after a 9 hour weekday shift"}
+      title={running ? "Stop overtime" : ready ? "Start overtime" : `Weekday overtime opens after a 9 hour shift. This shift is ${shiftLabel}.`}
       onClick={() => { if (running) void stop(); else start(); }}
       className={`${compact ? "h-9 text-xs" : "h-10 text-sm"} px-2.5 rounded-xl font-semibold inline-flex items-center gap-1 disabled:opacity-40 touch-manipulation tabular-nums ${
         running ? "bg-[#B8112D] text-white" : "bg-[#FEF3C7] text-[#92400E]"

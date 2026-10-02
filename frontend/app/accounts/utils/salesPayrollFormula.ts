@@ -1,3 +1,5 @@
+import { lateFromPolicy } from "./latePolicy";
+
 /** Sales team payroll — commission + 6 PM late (no overtime) */
 
 export type ProjectCurrency = "USD" | "CAD";
@@ -280,7 +282,15 @@ export function computeSalesEmployeePayroll(
   const medicalAllowance = Number(emp.medicalAllowance) || 0;
   const daySalary = basic / 30;
   const comm = calcSalesCommission(emp.commission, emp.role, opts);
-  const late = calcSalesLateDeduction(daySalary, emp.checkIn, emp.lateDeductionOverride);
+  const policyLate = emp.lateDeductionOverride == null
+    ? lateFromPolicy("csr", emp.checkIn, {
+        basic,
+        commission: comm.totalCommission,
+        overtime: 0,
+        allowance: allowance + homeAllowance + fuelAllowance + medicalAllowance,
+      })
+    : null;
+  const late = policyLate ?? calcSalesLateDeduction(daySalary, emp.checkIn, emp.lateDeductionOverride);
   const unpaidDays = Number(emp.unpaidLeaveDays) || 0;
   const unpaidLeaveDeduction = unpaidDays * daySalary;
   const loanThisMonth = Number(emp.loanThisMonth) || 0;

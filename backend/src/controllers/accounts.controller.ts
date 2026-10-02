@@ -31,8 +31,10 @@ import {
   sumDayCollections,
   serializeChannelFx,
   monthStartIso,
+  monthEndIso,
   yearMonthFromDate,
   yearMonthsInclusive,
+  pickLatestRecordOnOrBefore,
 } from "../utils/projectCurrencyCollections";
 import { accountsUploadFolder } from "../utils/accountsStorage";
 import {
@@ -564,9 +566,16 @@ export async function getAccountsDashboardSummary(req: AuthRequest, res: Respons
       ];
       const collectionsByMonth = await aggregateCollectionsForMonths(collectionMonths);
       paymentFx = sumDayCollections(collectionsByMonth.values());
+      const rateSeed =
+        mode === "all_time"
+          ? null
+          : await prisma.accountsRecord.findFirst({
+              where: { page: "dashboard", recordDate: { lt: fromDate } },
+              orderBy: { recordDate: "desc" },
+            });
+      const rateHistory = rateSeed ? [rateSeed, ...dashRecs] : dashRecs;
       const dashForMonth = (ym: string) => {
-        const inMonth = dashRecs.filter(r => yearMonthFromDate(r.recordDate) === ym);
-        const picked = pickLatestMeaningful(inMonth);
+        const picked = pickLatestRecordOnOrBefore(rateHistory, monthEndIso(ym));
         const raw =
           (picked?.data as Record<string, unknown> | undefined) ??
           defaultAccountsData("dashboard");
@@ -621,6 +630,7 @@ export async function getAccountsDashboardSummary(req: AuthRequest, res: Respons
           : { payroll: 0, opex: 0, loans: 0, pf: 0 };
         assignIncomeSummaries(summaries, { revenue, payroll: parts.payroll, opex: parts.opex, loans: parts.loans, pf: parts.pf });
         if (latestIs) recordDate = latestIs.recordDate;
+        dashData = dash;
       }
 
       const bs = bsRecs[0];
@@ -655,11 +665,13 @@ export async function getAccountsDashboardSummary(req: AuthRequest, res: Respons
 
       persistedPages.income_statement = isRecs.length > 0;
       persistedPages.dashboard = dashRecs.length > 0;
-      const latestDash = pickLatestMeaningful(dashRecs);
-      dashData = latestDash
-        ? dashForMonth(yearMonthFromDate(latestDash.recordDate))
-        : defaultAccountsData("dashboard");
-      if (mode === "all_time") recordDate = toDate;
+      if (mode === "all_time") {
+        const latestDash = pickLatestMeaningful(dashRecs);
+        dashData = latestDash
+          ? dashForMonth(yearMonthFromDate(latestDash.recordDate))
+          : defaultAccountsData("dashboard");
+        recordDate = toDate;
+      }
     } else {
     const pages: AccountsPageKey[] = [
       "balance_sheet",
@@ -701,7 +713,13 @@ export async function getAccountsDashboardSummary(req: AuthRequest, res: Respons
       }
 
       const dashResolved = await resolveAccountsSnapshot("dashboard", toDate);
-      const dash = dashResolved.record;
+      let dash = dashResolved.record;
+      if (!dash) {
+        dash = await prisma.accountsRecord.findFirst({
+          where: { page: "dashboard", recordDate: { lt: toDate } },
+          orderBy: { recordDate: "desc" },
+        });
+      }
       const dayCollections = await aggregateCollectionsForDate(toDate);
       paymentFx = dayCollections;
       dashData = applyCollectionsToDashboardData(
@@ -805,9 +823,13 @@ export async function getIncomeBudgetActuals(req: AuthRequest, res: Response) {
       ]),
     ];
     const collectionsByMonth = await aggregateCollectionsForMonths(collectionMonths);
+    const rateSeed = await prisma.accountsRecord.findFirst({
+      where: { page: "dashboard", recordDate: { lt: fromDate } },
+      orderBy: { recordDate: "desc" },
+    });
+    const rateHistory = rateSeed ? [rateSeed, ...dashRecs] : dashRecs;
     const dashForMonth = (ym: string) => {
-      const inMonth = dashRecs.filter(r => yearMonthFromDate(r.recordDate) === ym);
-      const picked = pickLatestMeaningful(inMonth);
+      const picked = pickLatestRecordOnOrBefore(rateHistory, monthEndIso(ym));
       const raw =
         (picked?.data as Record<string, unknown> | undefined) ??
         defaultAccountsData("dashboard");

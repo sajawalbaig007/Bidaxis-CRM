@@ -47,6 +47,7 @@ export default function PhoneWithTzCell({
   const numberClass = extras > 0 ? "truncate min-w-0 max-w-[72px] sm:max-w-[96px]" : "truncate min-w-0";
   const chip = (
     <>
+      <Phone size={18} className="text-[#B8112D] shrink-0" aria-hidden />
       <span className={canDial ? `${numberClass} underline-offset-[3px] decoration-current group-hover:underline` : numberClass}>
         {primary}
       </span>

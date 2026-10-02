@@ -1,10 +1,10 @@
 import prisma from "../config/db";
-import { CSR_REPORT_TIMEZONE, estDateYmd, parseEstDateTimeLocal } from "./estTime";
+import { parseEstDateTimeLocal } from "./estTime";
 import { adminAdjustCsrWorkSession } from "./csrSessionTracking";
 import {
   AttendanceDept,
-  EVENING_SHIFT_START,
   addCalendarDays,
+  attendanceShift,
   isValidDay,
   isValidTime,
   pktShiftDay,
@@ -141,8 +141,8 @@ export function toPublicRequest(row: {
   };
 }
 
-function wallOnShift(day: string, time: string, evening: boolean): string {
-  const calendar = evening && time < EVENING_SHIFT_START ? addCalendarDays(day, 1) : day;
+function wallOnShift(day: string, time: string, overnight: boolean, shiftStart: string): string {
+  const calendar = overnight && time < shiftStart ? addCalendarDays(day, 1) : day;
   return `${calendar}T${time}`;
 }
 
@@ -165,8 +165,7 @@ export async function applyApprovedRequest(row: {
   }
 
   if (row.department === "csr" || row.department === "estimator") {
-    const evening = row.department === "csr";
-    const tz = evening ? "Asia/Karachi" : CSR_REPORT_TIMEZONE;
+    const window = attendanceShift(row.department, row.personKey, new Date(`${row.day}T12:00:00+05:00`));
     const from = new Date(`${addCalendarDays(row.day, -2)}T00:00:00.000Z`);
     const to = new Date(`${addCalendarDays(row.day, 3)}T00:00:00.000Z`);
     const sessions = await prisma.csrWorkSession.findMany({
@@ -174,12 +173,14 @@ export async function applyApprovedRequest(row: {
       select: { id: true, loginAt: true },
     });
     const ids = sessions
-      .filter((session) => (evening ? pktShiftDay(session.loginAt) : estDateYmd(session.loginAt, tz)) === row.day)
+      .filter((session) => pktShiftDay(session.loginAt, row.department, row.personKey) === row.day)
       .map((session) => session.id);
     if (!ids.length) return { ok: false as const, message: "No check-in that day to update." };
-    const checkInAt = parseEstDateTimeLocal(wallOnShift(row.day, row.checkIn, evening), tz);
+    const checkInAt = parseEstDateTimeLocal(wallOnShift(row.day, row.checkIn, window.overnight, window.start), "Asia/Karachi");
     if (!checkInAt) return { ok: false as const, message: "Invalid check-in time." };
-    const checkOutAt = row.checkOut ? parseEstDateTimeLocal(wallOnShift(row.day, row.checkOut, evening), tz) : null;
+    const checkOutAt = row.checkOut
+      ? parseEstDateTimeLocal(wallOnShift(row.day, row.checkOut, window.overnight, window.start), "Asia/Karachi")
+      : null;
     if (row.checkOut && !checkOutAt) return { ok: false as const, message: "Invalid check-out time." };
     const adjusted = await adminAdjustCsrWorkSession({
       sessionId: ids[0]!,

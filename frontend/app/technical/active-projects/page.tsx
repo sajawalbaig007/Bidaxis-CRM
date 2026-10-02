@@ -2403,7 +2403,7 @@ export function TechnicalActiveProjectsPageInner({
         mode="admin"
         createMode
         saving={addSaving}
-        onSave={(data) => void saveBimProject(data)}
+        onSave={(data) => saveBimProject(data)}
       />
     </TechnicalPageShell>
   );

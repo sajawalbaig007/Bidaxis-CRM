@@ -28,17 +28,49 @@ export type AttendanceDept = RosterDept | "chief_estimator" | "bim_manager" | "a
 
 const IP_GATED: AttendanceDept[] = ["dev", "office_boy", "hr", "bim_modeler"];
 
-/** These roles work one shift from 5:00 PM PKT until the next day at 5:00 PM PKT. */
+/** These roles work one shift from 5:00 PM PKT until the next day at 5:00 PM PKT, until the CEO sets a month. */
 export const EVENING_SHIFT_START = "17:00";
 
-export function isEveningShiftDept(department: string): boolean {
-  return department === "admin" || department === "accounts" || department === "hr" || department === "bim_modeler";
+export type ShiftWindow = { start: string; end: string; overnight: boolean };
+
+const DEFAULT_WINDOWS: Record<string, ShiftWindow> = {
+  csr: { start: "17:00", end: "17:00", overnight: true },
+  admin: { start: "17:00", end: "17:00", overnight: true },
+  accounts: { start: "17:00", end: "17:00", overnight: true },
+  hr: { start: "17:00", end: "17:00", overnight: true },
+  bim_modeler: { start: "17:00", end: "17:00", overnight: true },
+};
+
+function defaultShiftWindow(department: string): ShiftWindow {
+  return DEFAULT_WINDOWS[department] ?? { start: "00:00", end: "23:59", overnight: false };
 }
 
-/** Shift date is the evening the window opens. Before 5:00 PM PKT that is still yesterday. */
-export function pktShiftDay(d = new Date()): string {
+let shiftLookup: (department: string, personKey: string, at: Date) => ShiftWindow = (department) =>
+  defaultShiftWindow(department);
+
+/** Installed by the schedule loader so punch code stays synchronous. */
+export function setShiftLookup(fn: (department: string, personKey: string, at: Date) => ShiftWindow) {
+  shiftLookup = fn;
+}
+
+export function attendanceShift(department: string, personKey = "", at = new Date()): ShiftWindow {
+  try {
+    return shiftLookup(department, personKey, at);
+  } catch {
+    return defaultShiftWindow(department);
+  }
+}
+
+export function isEveningShiftDept(department: string): boolean {
+  return attendanceShift(department).overnight;
+}
+
+/** Shift date in PKT. Overnight windows that have not opened yet still belong to yesterday. */
+export function pktShiftDay(d = new Date(), department = "csr", personKey = ""): string {
   const now = pktNow(d);
-  return now.time < EVENING_SHIFT_START ? addCalendarDays(now.day, -1) : now.day;
+  const window = attendanceShift(department, personKey, d);
+  if (!window.overnight) return now.day;
+  return now.time < window.start ? addCalendarDays(now.day, -1) : now.day;
 }
 
 export function pktShiftNow(d = new Date()): { day: string; time: string } {
@@ -46,13 +78,30 @@ export function pktShiftNow(d = new Date()): { day: string; time: string } {
   return { day: pktShiftDay(d), time: now.time };
 }
 
-/** Inclusive 5:00 PM PKT on `ymd` through 4:59:59.999 PM PKT the next day. */
-export function pktShiftBounds(ymd: string): { start: Date; end: Date } | null {
+/** UTC range of one shift day. Overnight windows run from the start clock until that clock the next day. */
+export function pktShiftBounds(ymd: string, department = "csr", personKey = ""): { start: Date; end: Date } | null {
   if (!isValidDay(ymd)) return null;
-  const start = new Date(`${ymd}T${EVENING_SHIFT_START}:00+05:00`);
-  const end = new Date(`${addCalendarDays(ymd, 1)}T16:59:59.999+05:00`);
+  const window = attendanceShift(department, personKey, new Date(`${ymd}T12:00:00+05:00`));
+  if (window.overnight) {
+    const start = new Date(`${ymd}T${window.start}:00+05:00`);
+    const end = new Date(`${addCalendarDays(ymd, 1)}T${window.start}:00+05:00`);
+    end.setTime(end.getTime() - 1);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return null;
+    return { start, end };
+  }
+  const start = new Date(`${ymd}T00:00:00+05:00`);
+  const end = new Date(`${ymd}T23:59:59.999+05:00`);
   if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return null;
   return { start, end };
+}
+
+/** First day of the previous Pakistan month. Employee history keeps that month and the current one. */
+export function employeeHistoryStart(now = new Date()): string {
+  const { day } = pktNow(now);
+  const [year, month] = day.split("-").map(Number);
+  const prevMonth = month === 1 ? 12 : month - 1;
+  const prevYear = month === 1 ? year - 1 : year;
+  return `${prevYear}-${String(prevMonth).padStart(2, "0")}-01`;
 }
 
 export function pktNow(d = new Date()): { day: string; time: string } {
@@ -99,12 +148,11 @@ export function isOvernightShift(checkIn: string | null | undefined, checkOut: s
 
 const AUTO_CHECKOUT_MS = (9 * 60 + 30) * 60 * 1000;
 
-/** Wall-clock instant of a stored check-in. Evening shifts before 5:00 PM are the next calendar day. */
-export function staffCheckInInstant(department: string, day: string, checkIn: string): Date | null {
+/** Wall-clock instant of a stored check-in. Overnight shifts before the window opens are the next calendar day. */
+export function staffCheckInInstant(department: string, day: string, checkIn: string, personKey = ""): Date | null {
   if (!isValidDay(day) || !isValidTime(checkIn)) return null;
-  const calendar = isEveningShiftDept(department) && checkIn < EVENING_SHIFT_START
-    ? addCalendarDays(day, 1)
-    : day;
+  const window = attendanceShift(department, personKey, new Date(`${day}T12:00:00+05:00`));
+  const calendar = window.overnight && checkIn < window.start ? addCalendarDays(day, 1) : day;
   const instant = new Date(`${calendar}T${checkIn}:00+05:00`);
   return Number.isNaN(instant.getTime()) ? null : instant;
 }
@@ -123,7 +171,7 @@ export async function closeForgottenStaffShifts() {
   const now = Date.now();
   for (const row of rows) {
     if (!row.checkIn || row.checkOut) continue;
-    const start = staffCheckInInstant(row.department, row.day, row.checkIn);
+    const start = staffCheckInInstant(row.department, row.day, row.checkIn, row.personKey);
     if (!start) continue;
     const due = new Date(start.getTime() + AUTO_CHECKOUT_MS);
     if (due.getTime() > now) continue;

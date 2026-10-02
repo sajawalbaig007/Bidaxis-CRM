@@ -4,7 +4,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { LogIn, LogOut, Loader2, Pause, Play } from "lucide-react";
 import toast from "react-hot-toast";
 import API, { apiErrorMessage, getApiBase, getClientAuthToken } from "@/lib/api";
-import { formatEstCheckInLabel } from "@/lib/estTime";
 import { CSR_IDLE_RECHECK_KEY, requestCsrIdlePermission } from "@/app/csr/hooks/useCsrPresence";
 import ShiftHistoryButton from "@/app/components/ShiftHistoryButton";
 import StaffRequestButton from "@/app/components/StaffRequestButton";
@@ -43,7 +42,16 @@ function formatDurationMs(ms: number): string {
 }
 
 function formatCheckInLabel(iso: string): string {
-  return formatEstCheckInLabel(iso);
+  try {
+    return new Intl.DateTimeFormat("en-US", {
+      timeZone: "Asia/Karachi",
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+    }).format(new Date(iso));
+  } catch {
+    return "";
+  }
 }
 
 function postKeepalive(path: "/csr/pause" | "/csr/resume") {

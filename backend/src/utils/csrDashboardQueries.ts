@@ -28,7 +28,8 @@ export type CsrTabKey =
   | "notpicked"
   | "noowner"
   | "notinservice"
-  | "inhouse";
+  | "inhouse"
+  | "notuseful";
 
 export function buildCsrTabWhere(csrId: string, tab: CsrTabKey): Prisma.LeadWhereInput {
   const base = activeCsrLeadWhere(csrId);
@@ -63,6 +64,8 @@ export function buildCsrTabWhere(csrId: string, tab: CsrTabKey): Prisma.LeadWher
       return { ...base, status: { equals: "not in service", mode: "insensitive" } };
     case "inhouse":
       return { ...base, status: { equals: "in house", mode: "insensitive" } };
+    case "notuseful":
+      return { ...base, status: { equals: "Not useful", mode: "insensitive" } };
     default:
       return base;
   }

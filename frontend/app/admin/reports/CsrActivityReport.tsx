@@ -383,7 +383,7 @@ export default function CsrActivityReport({
   const [requests, setRequests] = useState<StaffRequestItem[]>([]);
   const [overtimeNotes, setOvertimeNotes] = useState<ShiftOvertimeItem[]>([]);
   const [summary, setSummary] = useState<SummaryRow[]>([]);
-  const [clockTz, setClockTz] = useState<ClockTz>("est");
+  const [clockTz, setClockTz] = useState<ClockTz>("pkt");
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(defaultOpen);
   const [view, setView] = useState<"sessions" | "summary">("sessions");

@@ -90,6 +90,7 @@ const ADMIN_STATUS_OPTIONS = [
   { value: "interested", label: "Interested" },
   { value: "Close Client", label: "Closed" },
   { value: "Not Interested", label: "Not Interested" },
+  { value: "Not useful", label: "Not useful" },
   { value: "not picked", label: "Not Picked" },
   { value: "no owner available", label: "No Owner Available" },
   { value: "not in service", label: "Not In Service" },
@@ -564,7 +565,7 @@ export default function LeadDetailModal({ lead, onClose, onSaved, onNoteAdded, o
                 {/* PHONE + EMAIL */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className={`${labelClass} mb-2`}><Phone size={11} className="text-[#B8112D]"/>Phone Number</label>
+                    <label className={`${labelClass} mb-2`}><Phone size={18} className="text-[#B8112D]"/>Phone Number</label>
                     <input type="text" value={phone} onChange={e => setPhone(e.target.value)}
                       placeholder="+1 234 567 890" className={inputClass}/>
                   </div>
@@ -768,13 +769,13 @@ export default function LeadDetailModal({ lead, onClose, onSaved, onNoteAdded, o
                                       })}
                                       className="flex items-center gap-1 text-[11px] text-[#B8112D] font-medium underline-offset-[3px] hover:underline cursor-pointer"
                                     >
-                                      <Phone size={9}/>{sub.phone}
+                                      <Phone size={16}/>{sub.phone}
                                     </button>
                                     <ChangeDialerNumber />
                                   </span>
                                 ) : (
                                   <span className="flex items-center gap-1 text-[11px] text-gray-500">
-                                    <Phone size={9}/>{sub.phone}
+                                    <Phone size={16}/>{sub.phone}
                                   </span>
                                 )
                               )}

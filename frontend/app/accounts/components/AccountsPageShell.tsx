@@ -15,6 +15,7 @@ import {
 } from "../utils/accountsPeriodFilters";
 import { STAFF_PAGE_PAD } from "@/lib/staffPageLayout";
 import { useAccountsVisualPdf } from "../utils/useAccountsVisualPdf";
+import LatePolicyProvider from "./LatePolicyProvider";
 
 type AccountsPageShellProps = {
   title: string;
@@ -132,6 +133,7 @@ export default function AccountsPageShell({
   );
 
   return (
+    <LatePolicyProvider month={monthKey}>
     <div className={STAFF_PAGE_PAD}>
       <header className="rounded-2xl border border-gray-100 dark:border-crm-border bg-crm-surface px-5 sm:px-6 py-4">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -391,5 +393,6 @@ export default function AccountsPageShell({
         </div>
       )}
     </div>
+    </LatePolicyProvider>
   );
 }

@@ -13,6 +13,8 @@ import { initChatSocket } from "./chat/chatSocket";
 import { addEstDays, estDateYmd, estDayBoundsUtc } from "./utils/estTime";
 import { closeForgottenWorkSessions } from "./utils/csrSessionTracking";
 import { closeForgottenStaffShifts } from "./utils/staffAttendance";
+import { refreshShiftSchedules } from "./utils/shiftSchedule";
+import { refreshLatePolicies } from "./utils/lateDeduction";
 
 const PORT = process.env.PORT || 5000;
 
@@ -32,6 +34,8 @@ function runAutoCheckout() {
 }
 runAutoCheckout();
 setInterval(runAutoCheckout, 60 * 1000);
+void refreshShiftSchedules().catch((err) => console.error("[shift-schedules]", err));
+void refreshLatePolicies().catch((err) => console.error("[late-deductions]", err));
 
 setInterval(async () => {
   if (_offlinePaused) return;
