@@ -30,6 +30,7 @@ import {
 import { listEstimatorShiftRows, overtimeGate, overtimePublic, reviewOvertime, saveOvertimeComment, submitShiftOvertime } from "../utils/overtimeRequest";
 import { applyApprovedRequest, parseRequestDraft, toPublicRequest } from "../utils/staffRequest";
 import { SHIFT_DEPARTMENTS, clearShiftSchedule, listShiftSchedules, saveShiftSchedule } from "../utils/shiftSchedule";
+import { SEED_USER_EMAILS } from "../constants/seedUsers";
 import { ceoSetPortalShiftDay } from "../utils/csrSessionTracking";
 import { clearLatePolicy, listLatePolicies, saveLatePolicy } from "../utils/lateDeduction";
 
@@ -664,8 +665,17 @@ router.get("/report", verifyToken, allowRoles("admin", "manager", "technical_man
       where: { department: { in: ["dev", "chief_estimator", "bim_modeler"] }, day: { gte: start, lte: end } },
     });
     const byKey = new Map(notes.map((note) => [`${note.department}:${note.personKey}:${note.day}`, note]));
+    const seedUsers = await prisma.user.findMany({
+      where: { email: { in: SEED_USER_EMAILS } },
+      select: { id: true },
+    });
+    const seedIds = new Set(seedUsers.map((user) => user.id));
     const users = await prisma.user.findMany({
-      where: { isActive: true, role: { in: ["technical_manager", "bim_manager", "manager", "accounts"] } },
+      where: {
+        isActive: true,
+        role: { in: ["technical_manager", "bim_manager", "manager", "accounts"] },
+        email: { notIn: SEED_USER_EMAILS },
+      },
       select: { id: true, name: true, role: true },
       orderBy: { name: "asc" },
     });
@@ -692,7 +702,7 @@ router.get("/report", verifyToken, allowRoles("admin", "manager", "technical_man
       success: true,
       from: start,
       to: end,
-      rows: rows.map((row) => ({
+      rows: rows.filter((row) => !seedIds.has(row.personKey)).map((row) => ({
         ...toPublic(row),
         ...overtimePublic(byKey.get(`${row.department}:${row.personKey}:${row.day}`)),
       })),

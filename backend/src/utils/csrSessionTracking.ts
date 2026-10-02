@@ -3,6 +3,7 @@ import prisma from "../config/db";
 import { detectBrowser } from "./sessions";
 import { formatDurationMs, formatEstDateTime, estDateYmd, CSR_REPORT_TIMEZONE } from "./estTime";
 import { pktNow, pktShiftDay, attendanceShift, employeeHistoryStart, staffCheckInInstant, addCalendarDays } from "./staffAttendance";
+import { SEED_USER_EMAILS } from "../constants/seedUsers";
 
 const MAX_TICK_MS = 5 * 60 * 1000;
 /**
@@ -575,7 +576,7 @@ export async function buildCsrSessionReport(opts: {
     const openWhere: Prisma.CsrWorkSessionWhereInput = {
       ...(opts.csrId ? { userId: opts.csrId } : {}),
       OR: [{ logoutAt: null }, { logoutAt: { isSet: false } }],
-      user: { is: { role: staffRole } },
+      user: { is: { role: staffRole, email: { notIn: SEED_USER_EMAILS } } },
     };
     const openRows = await prisma.csrWorkSession.findMany({
       where: openWhere,
@@ -607,7 +608,7 @@ export async function buildCsrSessionReport(opts: {
   const where: Prisma.CsrWorkSessionWhereInput = {
     ...(opts.csrId ? { userId: opts.csrId } : {}),
     ...(range.gte || range.lte ? { loginAt: range } : {}),
-    user: { is: { role: staffRole } },
+    user: { is: { role: staffRole, email: { notIn: SEED_USER_EMAILS } } },
   };
 
   const rows = await prisma.csrWorkSession.findMany({
