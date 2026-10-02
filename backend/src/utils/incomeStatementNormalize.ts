@@ -266,9 +266,8 @@ function placeSalaryHeads(teams: TeamRow[]): TeamRow[] {
         subs.push(sub);
         continue;
       }
-      const dupBasic = Number(dup.salary?.basic) || 0;
-      const nextBasic = Number(sub.salary?.basic) || 0;
-      if (nextBasic > dupBasic) {
+      const worth = (row: SubHead) => Math.max(Number(row.salary?.basic) || 0, Number(row.amount) || 0);
+      if (worth(sub) > worth(dup)) {
         const index = subs.indexOf(dup);
         subs[index] = { ...dup, ...sub, id: dup.id || sub.id };
       }
