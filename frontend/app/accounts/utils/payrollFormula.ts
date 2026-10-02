@@ -24,6 +24,8 @@ export type EmployeeSalaryDetail = {
   /** Check-in / check-out HH:mm (24h) — used for late relief & 9h shift waiver */
   checkIn: string;
   checkOut: string;
+  /** Late-deduction department from the attendance report (accounts, hr, office_boy, admin). */
+  lateDepartment?: string;
   /** Manual late override — if set, used instead of time-based late calc */
   lateDeductionOverride?: number | null;
 
@@ -282,8 +284,9 @@ export function computeAdminSalary(detail: EmployeeSalaryDetail): SalaryBreakdow
 
   const totalEarning = monthlySalary;
 
+  const lateDept = detail.lateDepartment || "admin";
   const policyLate = detail.lateDeductionOverride == null
-    ? lateFromPolicy("admin", detail.checkIn, {
+    ? lateFromPolicy(lateDept, detail.checkIn, {
         basic,
         commission: 0,
         overtime: 0,

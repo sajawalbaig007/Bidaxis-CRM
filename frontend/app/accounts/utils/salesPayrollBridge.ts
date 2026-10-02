@@ -86,6 +86,8 @@ export function payrollKindForTeamTitle(title: string): PayrollKind {
     return "sales";
   }
   if (t.includes("sales") && t.includes("sal") && !t.includes("technical")) return "sales";
+  if (t.includes("bim model")) return "technical";
+  if (/\bdev\b/.test(t)) return "admin";
   if (t.includes("admin")) return "admin";
   if (t.includes("executive")) return "executive";
   return "technical";
@@ -106,6 +108,7 @@ export function inferPayrollKindFromSubs(subs: SubHeadEntry[] | undefined): Payr
 
 export function resolvePayrollKind(title: string, subs?: SubHeadEntry[]): PayrollKind {
   const fromTitle = payrollKindForTeamTitle(title);
+  if (title.trim().toLowerCase().includes("bim model")) return "technical";
   if (fromTitle !== "technical") return fromTitle;
   return inferPayrollKindFromSubs(subs) ?? "technical";
 }

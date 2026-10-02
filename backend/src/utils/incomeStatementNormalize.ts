@@ -2,9 +2,14 @@
  *  + ensure executive commission defaults + recompute executive totals from net profit base.
  */
 
+import { pfNamesAreSamePerson } from "./pfNameAlias";
+
 const HAMMAD_TEAM_LEAD_ID = "stl-hammad";
 const SALES_TEAM = "Sales Team Salaries";
 const SALES_TEAM_LEAD = "Sales Team Lead Salaries";
+const BIM_MODELER_TEAM = "BIM Modeler Salaries";
+const DEV_TEAM = "Dev Salaries";
+const ADMIN_TEAM = "Administration Salaries";
 
 const EXEC_COMMISSION_DEFAULTS: [RegExp, number][] = [
   [/mohsin/i, 15],
@@ -198,6 +203,85 @@ function rid(prefix: string, n: number) {
   return `${prefix}-${n}`;
 }
 
+function nameTokens(label: string): string[] {
+  return String(label ?? "")
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .split(/\s+/)
+    .filter(Boolean);
+}
+
+function isAhmadModeler(label: string): boolean {
+  const tokens = nameTokens(label);
+  const ahmad = tokens.includes("ahmad") || tokens.includes("ahmed");
+  return ahmad && (tokens.includes("nadeem") || tokens.includes("naseem"));
+}
+
+function isDevPerson(label: string): boolean {
+  const first = nameTokens(label)[0] ?? "";
+  return first === "ahmer" || first === "sajawal";
+}
+
+function sumTeam(subs: SubHead[]): number {
+  return subs.reduce((total, sub) => total + (Number(sub.amount) || 0), 0);
+}
+
+function ensureTeam(teams: TeamRow[], name: string): TeamRow {
+  const found = teams.find((team) => String(team.team ?? "").trim() === name);
+  if (found) return found;
+  const created: TeamRow = { id: `team-${name.toLowerCase().replace(/\s+/g, "-")}`, team: name, totalSalary: 0, subHeads: [] };
+  teams.push(created);
+  return created;
+}
+
+/** Move Ahmad onto BIM Modeler, and Ahmer / Sajawal onto Dev, keeping their salary fields. */
+function placeSalaryHeads(teams: TeamRow[]): TeamRow[] {
+  const pulledBim: SubHead[] = [];
+  const pulledDev: SubHead[] = [];
+  for (const team of teams) {
+    const title = String(team.team ?? "").trim();
+    const keep: SubHead[] = [];
+    for (const sub of team.subHeads ?? []) {
+      const label = String(sub.label ?? "");
+      if (title !== BIM_MODELER_TEAM && isAhmadModeler(label)) {
+        pulledBim.push(sub);
+        continue;
+      }
+      if (title !== DEV_TEAM && /admin/i.test(title) && isDevPerson(label)) {
+        pulledDev.push(sub);
+        continue;
+      }
+      keep.push(sub);
+    }
+    team.subHeads = keep;
+    team.totalSalary = sumTeam(keep);
+  }
+
+  const place = (head: string, incoming: SubHead[]) => {
+    const team = ensureTeam(teams, head);
+    const subs = [...(team.subHeads ?? [])];
+    for (const sub of incoming) {
+      const dup = subs.find((row) => row.id === sub.id || pfNamesAreSamePerson(String(row.label ?? ""), String(sub.label ?? "")));
+      if (!dup) {
+        subs.push(sub);
+        continue;
+      }
+      const dupBasic = Number(dup.salary?.basic) || 0;
+      const nextBasic = Number(sub.salary?.basic) || 0;
+      if (nextBasic > dupBasic) {
+        const index = subs.indexOf(dup);
+        subs[index] = { ...dup, ...sub, id: dup.id || sub.id };
+      }
+    }
+    team.subHeads = subs;
+    team.totalSalary = sumTeam(subs);
+  };
+
+  place(BIM_MODELER_TEAM, pulledBim);
+  place(DEV_TEAM, pulledDev);
+  return teams;
+}
+
 function emptyLeadTeam(): TeamRow {
   return {
     id: rid("t", 6),
@@ -212,7 +296,7 @@ export function normalizeIncomeStatementData(data: Record<string, unknown>): Rec
   const raw = [...((data.teamSalaries as TeamRow[] | undefined) ?? [])];
   if (!raw.length) return data;
 
-  let teams: TeamRow[] = raw.map(t => ({ ...t, subHeads: [...(t.subHeads ?? [])] }));
+  let teams: TeamRow[] = placeSalaryHeads(raw.map(t => ({ ...t, subHeads: [...(t.subHeads ?? [])] })));
   const salesIdx = teams.findIndex(t => String(t.team ?? "").trim() === SALES_TEAM);
   let leadIdx = teams.findIndex(t => String(t.team ?? "").trim() === SALES_TEAM_LEAD);
 
@@ -248,7 +332,9 @@ export function normalizeIncomeStatementData(data: Record<string, unknown>): Rec
     SALES_TEAM,
     SALES_TEAM_LEAD,
     "Email Marketing Team Salaries",
-    "Administration Salaries",
+    BIM_MODELER_TEAM,
+    ADMIN_TEAM,
+    DEV_TEAM,
     "Executive Salaries",
   ];
   const byName = new Map(teams.map(t => [String(t.team ?? "").trim(), t]));

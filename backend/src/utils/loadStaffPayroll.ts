@@ -4,6 +4,23 @@ import {
   mergeStaffPayrollIntoIncomeStatement,
   type StaffPayrollPerson,
 } from "./staffPayrollSync";
+import { applyAttendanceCheckIns } from "./salaryAttendanceSync";
+
+const BIM_HEAD = "BIM Modeler Salaries";
+const DEV_HEAD = "Dev Salaries";
+
+function forcedPayrollHead(name: string): string | null {
+  const tokens = name
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .split(/\s+/)
+    .filter(Boolean);
+  const ahmad = tokens.includes("ahmad") || tokens.includes("ahmed");
+  if (ahmad && (tokens.includes("nadeem") || tokens.includes("naseem"))) return BIM_HEAD;
+  const first = tokens[0] ?? "";
+  if (first === "ahmer" || first === "sajawal") return DEV_HEAD;
+  return null;
+}
 
 /** Load assigned staff employees (profile from User when linked). */
 export async function loadStaffPayrollPeople(): Promise<StaffPayrollPerson[]> {
@@ -32,6 +49,11 @@ export async function loadStaffPayrollPeople(): Promise<StaffPayrollPerson[]> {
     const u = r.userId ? byId.get(r.userId) : null;
     const name = (u?.name || r.name || "").trim();
     if (!name) continue;
+    const forced = forcedPayrollHead(name);
+    const payrollHead = forced ?? r.payrollHead;
+    if (forced && forced !== r.payrollHead) {
+      await prisma.staffEmployee.update({ where: { id: r.id }, data: { payrollHead: forced } });
+    }
     out.push({
       id: r.id,
       name,
@@ -39,7 +61,7 @@ export async function loadStaffPayrollPeople(): Promise<StaffPayrollPerson[]> {
       currentAddress: u?.currentAddress ?? r.currentAddress ?? null,
       contactNo: u?.contactNo ?? r.contactNo ?? null,
       cnic: u?.cnic ?? r.cnic ?? null,
-      payrollHead: r.payrollHead,
+      payrollHead,
       payrollStartMonth: r.payrollStartMonth,
     });
   }
@@ -53,10 +75,11 @@ export async function applyStaffPayrollToIncomeData(
   try {
     const people = await loadStaffPayrollPeople();
     if (!people.length) {
-      // Still prune stale staff-emp-* if assignments cleared
-      return mergeStaffPayrollIntoIncomeStatement(data, recordDate, []);
+      const pruned = mergeStaffPayrollIntoIncomeStatement(data, recordDate, []);
+      return applyAttendanceCheckIns(pruned, recordDate);
     }
-    return mergeStaffPayrollIntoIncomeStatement(data, recordDate, people);
+    const merged = mergeStaffPayrollIntoIncomeStatement(data, recordDate, people);
+    return applyAttendanceCheckIns(merged, recordDate);
   } catch (err) {
     console.error("[staffPayroll] merge failed", err);
     return data;

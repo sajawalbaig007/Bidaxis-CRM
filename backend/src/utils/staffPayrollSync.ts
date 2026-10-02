@@ -9,7 +9,9 @@ export const ACCOUNTS_PAYROLL_HEADS = [
   "Sales Team Lead Salaries",
   "Technical Manager Salaries",
   "Email Marketing Team Salaries",
+  "BIM Modeler Salaries",
   "Administration Salaries",
+  "Dev Salaries",
   "Executive Salaries",
 ] as const;
 
@@ -86,7 +88,7 @@ function isSeededLeadPlaceholder(sub: SubHead): boolean {
 }
 
 function isAdminHead(team: string): boolean {
-  return /administration/i.test(team);
+  return /administration/i.test(team) || /\bdev\b/i.test(team);
 }
 
 function isTechMgrHead(team: string): boolean {
