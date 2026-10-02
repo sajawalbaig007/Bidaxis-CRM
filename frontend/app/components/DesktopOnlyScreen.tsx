@@ -9,7 +9,7 @@ export default function DesktopOnlyScreen() {
         </div>
         <h1 className="text-xl font-bold text-[#0B1220]">Desktop only</h1>
         <p className="mt-2 text-sm leading-relaxed text-gray-600">
-          This CRM opens on a desktop computer — Windows, Mac, or Linux. It does not open on a phone.
+          This CRM opens on a desktop computer — Windows, Mac, or Linux. It does not open on a phone, including when Chrome is set to Desktop site.
         </p>
       </div>
     </div>

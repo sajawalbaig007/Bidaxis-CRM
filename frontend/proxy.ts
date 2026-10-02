@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { isDesktopOsUserAgent } from "@/lib/desktopUserAgent";
+import { isDesktopOsUserAgent, isMobileClientHint } from "@/lib/desktopUserAgent";
 
 type AppRole = "admin" | "csr" | "manager" | "technical_manager" | "accounts" | "estimator" | "bim_manager" | "bim";
 
@@ -57,9 +57,8 @@ function homeForRole(role: AppRole) {
 
 export function proxy(request: NextRequest) {
   const ua = request.headers.get("user-agent");
-  const chMobile = (request.headers.get("sec-ch-ua-mobile") ?? "").trim();
-  if (chMobile === "?1" || !isDesktopOsUserAgent(ua)) {
-    return NextResponse.rewrite(new URL("/desktop-only", request.url));
+  if (isMobileClientHint(request.headers) || !isDesktopOsUserAgent(ua)) {
+    return withClientHints(NextResponse.rewrite(new URL("/desktop-only", request.url)));
   }
 
   const token = request.cookies.get("token")?.value;
@@ -74,8 +73,8 @@ export function proxy(request: NextRequest) {
     pathname.startsWith("/estimator");
 
   if (!token) {
-    if (protectedPath) return NextResponse.redirect(new URL("/", request.url));
-    return NextResponse.next();
+    if (protectedPath) return withClientHints(NextResponse.redirect(new URL("/", request.url)));
+    return withClientHints(NextResponse.next());
   }
 
   const { role, ok } = parseToken(token);
@@ -84,48 +83,56 @@ export function proxy(request: NextRequest) {
   // reachable so a stale cookie cannot trap CEO / portal sign-in in a loop.
   if (pathname === "/") {
     if (ok && role) {
-      return NextResponse.redirect(new URL(homeForRole(role), request.url));
+      return withClientHints(NextResponse.redirect(new URL(homeForRole(role), request.url)));
     }
     if (!ok) {
-      const res = NextResponse.next();
+      const res = withClientHints(NextResponse.next());
       res.cookies.delete("token");
       return res;
     }
-    return NextResponse.next();
+    return withClientHints(NextResponse.next());
   }
   if (pathname.startsWith("/login")) {
     if (!ok) {
-      const res = NextResponse.next();
+      const res = withClientHints(NextResponse.next());
       res.cookies.delete("token");
       return res;
     }
-    return NextResponse.next();
+    return withClientHints(NextResponse.next());
   }
 
-  if (!protectedPath) return NextResponse.next();
+  if (!protectedPath) return withClientHints(NextResponse.next());
 
   if (!ok || !role) return redirectHomeClearCookie(request);
 
   if (pathname.startsWith("/admin") && role !== "admin") {
-    return NextResponse.redirect(new URL(homeForRole(role), request.url));
+    return withClientHints(NextResponse.redirect(new URL(homeForRole(role), request.url)));
   }
   if (pathname.startsWith("/csr") && role !== "csr") {
-    return NextResponse.redirect(new URL(homeForRole(role), request.url));
+    return withClientHints(NextResponse.redirect(new URL(homeForRole(role), request.url)));
   }
   if (pathname.startsWith("/manager") && role !== "manager") {
-    return NextResponse.redirect(new URL(homeForRole(role), request.url));
+    return withClientHints(NextResponse.redirect(new URL(homeForRole(role), request.url)));
   }
   if (pathname.startsWith("/technical") && role !== "technical_manager" && role !== "bim_manager" && role !== "admin") {
-    return NextResponse.redirect(new URL(homeForRole(role), request.url));
+    return withClientHints(NextResponse.redirect(new URL(homeForRole(role), request.url)));
   }
   if (pathname.startsWith("/accounts") && role !== "accounts" && role !== "admin") {
-    return NextResponse.redirect(new URL(homeForRole(role), request.url));
+    return withClientHints(NextResponse.redirect(new URL(homeForRole(role), request.url)));
   }
   if (pathname.startsWith("/estimator") && role !== "estimator" && role !== "bim") {
-    return NextResponse.redirect(new URL(homeForRole(role), request.url));
+    return withClientHints(NextResponse.redirect(new URL(homeForRole(role), request.url)));
   }
 
-  return NextResponse.next();
+  return withClientHints(NextResponse.next());
+}
+
+function withClientHints(res: NextResponse) {
+  res.headers.set("Accept-CH", "Sec-CH-UA-Mobile, Sec-CH-UA-Platform, Sec-CH-UA-Model");
+  res.headers.set("Critical-CH", "Sec-CH-UA-Mobile, Sec-CH-UA-Platform, Sec-CH-UA-Model");
+  res.headers.append("Vary", "Sec-CH-UA-Mobile");
+  res.headers.append("Vary", "Sec-CH-UA-Platform");
+  return res;
 }
 
 export const config = {

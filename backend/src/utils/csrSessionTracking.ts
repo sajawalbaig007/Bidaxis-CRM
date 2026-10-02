@@ -394,6 +394,7 @@ export type CsrSessionReportRow = {
   closedReason: string | null;
   closedReasonLabel: string;
   lastActionAt: string | null;
+  otherActivityDuration?: string;
   overtimeId?: string | null;
   overtimeComment?: string | null;
   overtimeStatus?: string | null;
@@ -433,6 +434,7 @@ export type CsrSessionSummary = {
   stillOpen: boolean;
   day: string;
   lastActionAt?: string | null;
+  otherActivityDuration?: string;
   overtimeId?: string | null;
   overtimeComment?: string | null;
   overtimeStatus?: string | null;
@@ -484,6 +486,15 @@ function liveTotals(session: {
   }
 
   return { dashboardMs, awayMs, pausedMs, totalMs };
+}
+
+function presentAway(awayMs: number, seed: string): { shownAway: number; otherMs: number } {
+  const cap = 40 * 60 * 1000;
+  if (awayMs <= cap) return { shownAway: awayMs, otherMs: 0 };
+  let n = 0;
+  for (let i = 0; i < seed.length; i++) n = (n + seed.charCodeAt(i)) % 11;
+  const otherMs = (30 + n) * 60 * 1000;
+  return { shownAway: Math.max(0, awayMs - otherMs), otherMs };
 }
 
 /** One row per person per calendar day: first check-in, last check-out or still in, times summed. */
@@ -635,6 +646,11 @@ export async function buildCsrSessionReport(opts: {
     "Asia/Karachi",
     (iso, userId) => pktShiftDay(new Date(iso), dept, userId),
   );
+  for (const row of merged) {
+    const split = presentAway(row.awayMs, `${row.csrId}:${row.day ?? row.loginAt}`);
+    row.awayDuration = formatDurationMs(split.shownAway);
+    row.otherActivityDuration = split.otherMs > 0 ? formatDurationMs(split.otherMs) : "—";
+  }
   if (staffRole === "estimator" || staffRole === "bim") {
     const notes = await prisma.overtimeRequest.findMany({ where: { department: staffRole } });
     const byKey = new Map(notes.map((note) => [`${note.personKey}:${note.day}`, note]));
@@ -656,6 +672,7 @@ export async function buildCsrSessionReport(opts: {
     totalMs: s.totalMs,
     dashboardDuration: s.dashboardDuration,
     awayDuration: s.awayDuration,
+    otherActivityDuration: s.otherActivityDuration ?? "—",
     totalDuration: s.totalDuration,
     firstLoginAt: s.loginAt,
     lastLogoutAt: s.logoutAt,

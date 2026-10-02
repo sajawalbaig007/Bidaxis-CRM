@@ -435,11 +435,15 @@ function DeptCard({
     });
   }, [rows, person, fromDate, toDate]);
 
-  const applyPeriod = (key: "daily" | "weekly" | "monthly" | "all") => {
+  const applyPeriod = (key: "daily" | "previous" | "weekly" | "monthly" | "all") => {
     const today = calendarYmd(clock.tz);
     if (key === "daily") {
       setFromDate(today);
       setToDate(today);
+    } else if (key === "previous") {
+      const yesterday = addDays(today, -1);
+      setFromDate(yesterday);
+      setToDate(yesterday);
     } else if (key === "weekly") {
       setFromDate(addDays(today, -6));
       setToDate(today);
@@ -508,6 +512,7 @@ function DeptCard({
           <div className="flex flex-wrap gap-2">
             {([
               ["daily", "Daily"],
+              ["previous", "Previous day"],
               ["weekly", "Weekly"],
               ["monthly", "Monthly"],
               ["all", "All time"],
@@ -687,7 +692,8 @@ function DeptCard({
             <div className="p-5 space-y-3.5">
               <div>
                 <label className="text-[10px] font-semibold text-gray-500 uppercase mb-1 block">Date</label>
-                <input type="date" value={editDay} onChange={(e) => setEditDay(e.target.value)} className="w-full h-11 rounded-xl border-2 border-gray-200 px-3 text-sm outline-none focus:border-[#B8112D]" />
+                <input type="date" value={editDay} max={calendarYmd(clock.tz)} onChange={(e) => setEditDay(e.target.value)} className="w-full h-11 rounded-xl border-2 border-gray-200 px-3 text-sm outline-none focus:border-[#B8112D]" />
+                <p className="text-[11px] text-gray-400 mt-1">Today or any previous day.</p>
               </div>
               <div>
                 <label className="text-[10px] font-semibold text-gray-500 uppercase mb-1 block">Check in</label>

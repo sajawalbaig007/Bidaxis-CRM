@@ -55,6 +55,7 @@ type SessionRow = {
   closedReason: string | null;
   closedReasonLabel?: string;
   lastActionAt?: string | null;
+  otherActivityDuration?: string;
   overtimeId?: string | null;
   overtimeComment?: string | null;
   overtimeStatus?: string | null;
@@ -77,6 +78,7 @@ type SummaryRow = {
   stillOpen?: boolean;
   day?: string;
   lastActionAt?: string | null;
+  otherActivityDuration?: string;
   overtimeId?: string | null;
   overtimeComment?: string | null;
   overtimeStatus?: string | null;
@@ -144,18 +146,31 @@ function pktWeekStart(ymd: string): string {
   return utc.toISOString().slice(0, 10);
 }
 
-type PeriodPreset = "daily" | "weekly" | "monthly" | "all";
+type PeriodPreset = "daily" | "previous" | "weekly" | "monthly" | "all";
 const ALL_TIME_FROM = "2020-01-01";
+
+function addDays(ymd: string, days: number): string {
+  const [y, m, d] = ymd.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, (m || 1) - 1, d || 1, 12));
+  dt.setUTCDate(dt.getUTCDate() + days);
+  return dt.toISOString().slice(0, 10);
+}
 
 function rangeForPeriod(period: PeriodPreset, today: string): { from: string; to: string } {
   if (period === "daily") return { from: today, to: today };
+  if (period === "previous") {
+    const yesterday = addDays(today, -1);
+    return { from: yesterday, to: yesterday };
+  }
   if (period === "weekly") return { from: pktWeekStart(today), to: today };
   if (period === "monthly") return { from: `${today.slice(0, 7)}-01`, to: today };
   return { from: ALL_TIME_FROM, to: today };
 }
 
 function periodFromDates(from: string, to: string, today: string): PeriodPreset | "custom" {
+  const yesterday = addDays(today, -1);
   if (from === today && to === today) return "daily";
+  if (from === yesterday && to === yesterday) return "previous";
   if (from === pktWeekStart(today) && to === today) return "weekly";
   if (from === `${today.slice(0, 7)}-01` && to === today) return "monthly";
   if (from === ALL_TIME_FROM && to === today) return "all";
@@ -180,7 +195,7 @@ function downloadCsv(rows: SessionRow[], filename: string, personLabel: string, 
     "Away",
     "Total",
     "Status",
-    "Last action",
+    "Other activity",
     ...(includeOvertime ? ["Overtime", "Decision", "Edited by"] : []),
     "Browser",
     "IP",
@@ -198,7 +213,7 @@ function downloadCsv(rows: SessionRow[], filename: string, personLabel: string, 
       escape(r.awayDuration),
       escape(r.totalDuration),
       escape(r.status === "active" ? "Checked In" : "Checked Out"),
-      escape(formatSessionStamp(r.lastActionAt, tz.tz)),
+      escape(r.otherActivityDuration || "—"),
       ...(includeOvertime ? [
         escape(r.overtimeComment ?? ""),
         escape(overtimeStatusLabel(r.overtimeStatus, r.overtimeComment)),
@@ -236,7 +251,7 @@ function downloadExcel(
   includeOvertime = false,
 ) {
   const tz = CLOCKS[clock];
-  const sessionHeader = [personLabel, "Code", `Check In (${tz.abbr})`, `Check Out (${tz.abbr})`, "On Dashboard", "Away", "Total", "Status", "Last action", ...(includeOvertime ? ["Overtime", "Decision", "Edited by"] : []), "Browser", "IP", "Closed Reason"];
+  const sessionHeader = [personLabel, "Code", `Check In (${tz.abbr})`, `Check Out (${tz.abbr})`, "On Dashboard", "Away", "Total", "Status", "Other activity", ...(includeOvertime ? ["Overtime", "Decision", "Edited by"] : []), "Browser", "IP", "Closed Reason"];
   const sessionBody = sessions.map(r => [
     r.csrName,
     r.csrCode ?? "",
@@ -246,7 +261,7 @@ function downloadExcel(
     r.awayDuration,
     r.totalDuration,
     r.status === "active" ? "Checked In" : "Checked Out",
-    formatSessionStamp(r.lastActionAt, tz.tz),
+    r.otherActivityDuration || "—",
     ...(includeOvertime ? [
       r.overtimeComment ?? "",
       overtimeStatusLabel(r.overtimeStatus, r.overtimeComment),
@@ -256,12 +271,12 @@ function downloadExcel(
     r.ip ?? "",
     r.closedReasonLabel ?? r.closedReason ?? "",
   ].map(escHtml));
-  const summaryHeader = [personLabel, `First Check In (${tz.abbr})`, `Last Check Out (${tz.abbr})`, "Last action", ...(includeOvertime ? ["Overtime", "Decision", "Edited by"] : []), "Sessions", "On Dashboard", "Away", "Total"];
+  const summaryHeader = [personLabel, `First Check In (${tz.abbr})`, `Last Check Out (${tz.abbr})`, "Other activity", ...(includeOvertime ? ["Overtime", "Decision", "Edited by"] : []), "Sessions", "On Dashboard", "Away", "Total"];
   const summaryBody = summary.map(r => [
     r.csrName,
     r.firstLoginAt ? formatSessionStamp(r.firstLoginAt, tz.tz) : "—",
     r.stillOpen || !r.lastLogoutAt ? "Still checked in" : formatSessionStamp(r.lastLogoutAt, tz.tz),
-    formatSessionStamp(r.lastActionAt, tz.tz),
+    r.otherActivityDuration || "—",
     ...(includeOvertime ? [
       r.overtimeComment ?? "",
       overtimeStatusLabel(r.overtimeStatus, r.overtimeComment),
@@ -596,6 +611,7 @@ export default function CsrActivityReport({
           <div className="flex flex-wrap items-center gap-2 mb-3">
             {([
               ["daily", "Daily"],
+              ["previous", "Previous day"],
               ["weekly", "Weekly"],
               ["monthly", "Monthly"],
               ["all", "All time"],
@@ -777,7 +793,7 @@ export default function CsrActivityReport({
                     </th>
                   </tr>
                   <tr className="border-b border-gray-100 text-left bg-[#FAFAFB]">
-                    {[personLabel, `Check In (${clock.abbr})`, `Check Out (${clock.abbr})`, ...(showShiftOt ? ["Overtime"] : []), ...(showRequests ? ["Request"] : []), "Last action", "On Dashboard", "Away", "Total", "Status", "Closed By", ...(showOvertime ? ["Overtime", "Decision"] : []), ...(canEdit ? [""] : [])].map(h => (
+                    {[personLabel, `Check In (${clock.abbr})`, `Check Out (${clock.abbr})`, ...(showShiftOt ? ["Overtime"] : []), ...(showRequests ? ["Request"] : []), "Other activity", "On Dashboard", "Away", "Total", "Status", "Closed By", ...(showOvertime ? ["Overtime", "Decision"] : []), ...(canEdit ? [""] : [])].map(h => (
                       <th key={h || "actions"} className="px-3 py-2.5 text-[10px] sm:text-xs font-semibold text-gray-400 uppercase tracking-wide whitespace-nowrap">
                         {h}
                       </th>
@@ -843,8 +859,8 @@ export default function CsrActivityReport({
                           />
                         </td>
                       ) : null}
-                      <td className="px-3 py-3 text-xs sm:text-sm text-gray-700 whitespace-nowrap">
-                        {formatSessionStamp(row.lastActionAt, clock.tz)}
+                      <td className="px-3 py-3 text-xs sm:text-sm font-semibold text-gray-700 whitespace-nowrap">
+                        {row.otherActivityDuration || "—"}
                       </td>
                       <td className="px-3 py-3 text-xs sm:text-sm font-semibold text-emerald-600 whitespace-nowrap">
                         <span className="inline-flex items-center gap-1"><Monitor size={12} />{row.dashboardDuration}</span>
@@ -939,7 +955,7 @@ export default function CsrActivityReport({
                     </th>
                   </tr>
                   <tr className="border-b border-gray-100 text-left bg-[#FAFAFB]">
-                    {[personLabel, `First Check In (${clock.abbr})`, `Last Check Out (${clock.abbr})`, ...(showShiftOt ? ["Overtime"] : []), ...(showRequests ? ["Request"] : []), "Last action", ...(showOvertime ? ["Overtime", "Decision"] : []), "Sessions", "On Dashboard", "Away", "Total"].map(h => (
+                    {[personLabel, `First Check In (${clock.abbr})`, `Last Check Out (${clock.abbr})`, ...(showShiftOt ? ["Overtime"] : []), ...(showRequests ? ["Request"] : []), "Other activity", ...(showOvertime ? ["Overtime", "Decision"] : []), "Sessions", "On Dashboard", "Away", "Total"].map(h => (
                       <th key={h} className="px-3 py-2.5 text-[10px] sm:text-xs font-semibold text-gray-400 uppercase tracking-wide whitespace-nowrap">
                         {h}
                       </th>
@@ -1010,8 +1026,8 @@ export default function CsrActivityReport({
                           />
                         </td>
                       ) : null}
-                      <td className="px-3 py-3 text-xs sm:text-sm text-gray-700 whitespace-nowrap">
-                        {formatSessionStamp(row.lastActionAt, clock.tz)}
+                      <td className="px-3 py-3 text-xs sm:text-sm font-semibold text-gray-700 whitespace-nowrap">
+                        {row.otherActivityDuration || "—"}
                       </td>
                       {showOvertime ? (
                         <OvertimeCells
@@ -1062,9 +1078,11 @@ export default function CsrActivityReport({
                 <input
                   type="datetime-local"
                   value={editCheckIn}
+                  max={`${calendarYmd(clock.tz)}T23:59`}
                   onChange={e => setEditCheckIn(e.target.value)}
                   className="w-full h-11 rounded-xl border-2 border-gray-200 px-3 text-sm outline-none focus:border-[#B8112D]"
                 />
+                <p className="text-[11px] text-gray-400 mt-1">Change the date here to correct a previous day.</p>
               </div>
 
               <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer select-none">
@@ -1083,6 +1101,7 @@ export default function CsrActivityReport({
                   <input
                     type="datetime-local"
                     value={editCheckOut}
+                    max={`${calendarYmd(clock.tz)}T23:59`}
                     onChange={e => setEditCheckOut(e.target.value)}
                     className="w-full h-11 rounded-xl border-2 border-gray-200 px-3 text-sm outline-none focus:border-[#B8112D]"
                   />
