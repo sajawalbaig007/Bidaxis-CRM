@@ -13,18 +13,12 @@ const LateDeductionCard = dynamic(() => import("../LateDeductionCard"), {
   loading: () => <div className="h-24 rounded-xl bg-gray-100 animate-pulse" />,
 });
 
-const CeoPastDayCard = dynamic(() => import("../CeoPastDayCard"), {
-  ssr: false,
-  loading: () => <div className="h-24 rounded-xl bg-gray-100 animate-pulse" />,
-});
-
 export default function ShiftHoursPage() {
   return (
     <ReportsSubpage
       title="Shift time and deductions"
       subtitle="Set check-in and check-out by month, then the late deduction ranges for each department."
     >
-      <CeoPastDayCard />
       <ShiftHoursCard />
       <LateDeductionCard />
     </ReportsSubpage>

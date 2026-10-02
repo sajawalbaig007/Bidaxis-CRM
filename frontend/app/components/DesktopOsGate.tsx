@@ -5,28 +5,58 @@ import { usePathname } from "next/navigation";
 import DesktopOnlyScreen from "@/app/components/DesktopOnlyScreen";
 import { isDesktopOsUserAgent, isPublicDevicePath } from "@/lib/desktopUserAgent";
 
-function isDesktopClient(): boolean {
+type UaData = {
+  mobile?: boolean;
+  platform?: string;
+  getHighEntropyValues?: (hints: string[]) => Promise<{ mobile?: boolean; platform?: string; model?: string }>;
+};
+
+/** Phone or tablet, including Chrome opened with Desktop site. */
+async function isPhoneClient(): Promise<boolean> {
   const ua = navigator.userAgent || "";
-  if (!isDesktopOsUserAgent(ua)) return false;
-  const uaData = (navigator as Navigator & { userAgentData?: { mobile?: boolean } }).userAgentData;
-  if (uaData?.mobile) return false;
-  // iPadOS reports a Mac user agent. A touch Mac is a tablet, not a desktop.
-  if (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1) return false;
-  return true;
+  if (!isDesktopOsUserAgent(ua)) return true;
+
+  const uaData = (navigator as Navigator & { userAgentData?: UaData }).userAgentData;
+  if (uaData?.mobile) return true;
+  if (/android|iphone|ipad|ipod/i.test(uaData?.platform || "")) return true;
+  if (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1) return true;
+  if (/linux\s*(arm|aarch64)|armv8|armv7/i.test(navigator.platform || "")) return true;
+
+  const shortSide = Math.min(window.screen?.width || 0, window.screen?.height || 0);
+  const coarse = window.matchMedia("(pointer: coarse)").matches && window.matchMedia("(hover: none)").matches;
+  if (navigator.maxTouchPoints > 1 && coarse && shortSide > 0 && shortSide <= 900) return true;
+
+  try {
+    const high = await uaData?.getHighEntropyValues?.(["platform", "model", "mobile"]);
+    if (high?.mobile) return true;
+    if (/^(android|ios)$/i.test(high?.platform || "")) return true;
+    if ((high?.model || "").trim()) return true;
+  } catch {
+    /* hints are optional */
+  }
+  return false;
 }
 
 export default function DesktopOsGate({ children }: { children: React.ReactNode }) {
   const pathname = usePathname() || "/";
-  const [blocked, setBlocked] = useState(false);
+  const [allowed, setAllowed] = useState<boolean | null>(null);
 
   useEffect(() => {
     if (isPublicDevicePath(pathname)) {
-      setBlocked(false);
+      setAllowed(true);
       return;
     }
-    setBlocked(!isDesktopClient());
+    let cancelled = false;
+    void isPhoneClient().then((phone) => {
+      if (!cancelled) setAllowed(!phone);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [pathname]);
 
-  if (isPublicDevicePath(pathname) || !blocked) return <>{children}</>;
-  return <DesktopOnlyScreen />;
+  if (isPublicDevicePath(pathname)) return <>{children}</>;
+  if (allowed === true) return <>{children}</>;
+  if (allowed === false) return <DesktopOnlyScreen />;
+  return null;
 }
