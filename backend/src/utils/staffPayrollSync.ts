@@ -219,6 +219,16 @@ function sumSubs(subs: SubHead[]): number {
   return subs.reduce((a, s) => a + (Number(s.amount) || 0), 0);
 }
 
+/** September (and earlier) rows stay on the new head even if payroll starts later. */
+function historicalHead(label: string): string | null {
+  const tokens = label.toLowerCase().replace(/[^a-z0-9\s]/g, " ").split(/\s+/).filter(Boolean);
+  const ahmad = tokens.includes("ahmad") || tokens.includes("ahmed");
+  if (ahmad && (tokens.includes("nadeem") || tokens.includes("naseem"))) return "BIM Modeler Salaries";
+  const first = tokens[0] ?? "";
+  if (first === "ahmer" || first === "sajawal") return "Dev Salaries";
+  return null;
+}
+
 /**
  * Inject / refresh / prune staff-assigned employees on team salary heads
  * for the given Income Statement record date.
@@ -247,6 +257,13 @@ export function mergeStaffPayrollIntoIncomeStatement(
     ...t,
     subHeads: [...(t.subHeads ?? [])],
   }));
+
+  const parked = new Map<string, SubHead>();
+  for (const team of teams) {
+    for (const sub of team.subHeads ?? []) {
+      if (isStaffPayrollSubId(sub.id)) parked.set(String(sub.id), sub);
+    }
+  }
 
   const teamByName = new Map(teams.map(t => [String(t.team || ""), t]));
 
@@ -282,10 +299,34 @@ export function mergeStaffPayrollIntoIncomeStatement(
       if (idx >= 0) {
         subs[idx] = applyProfileToExisting(subs[idx], person, head);
       } else {
-        subs.push(createSub(person, head, recordDate));
+        const previous = parked.get(sid);
+        subs.push(previous ? applyProfileToExisting(previous, person, head) : createSub(person, head, recordDate));
       }
+      parked.delete(sid);
     }
 
+    team.subHeads = subs;
+    team.totalSalary = sumSubs(subs);
+  }
+
+  for (const [sid, sub] of parked) {
+    const head = historicalHead(String(sub.label ?? ""));
+    if (!head) continue;
+    let team = teamByName.get(head);
+    if (!team) {
+      team = {
+        id: newTeamId(),
+        team: head,
+        totalSalary: 0,
+        filledAt: recordDate,
+        subHeads: [],
+        notes: [],
+      };
+      teams.push(team);
+      teamByName.set(head, team);
+    }
+    const subs = [...(team.subHeads ?? [])];
+    if (!subs.some((row) => row.id === sid)) subs.push(sub);
     team.subHeads = subs;
     team.totalSalary = sumSubs(subs);
   }
