@@ -639,7 +639,9 @@ router.get("/lead/:id", verifyToken, allowRoles("admin", "manager", "technical_m
       },
     });
     if (!lead) return res.status(404).json({ success: false, message: "Lead not found" });
-    if (!leadVisibleOnDesk(lead, (req as AuthRequest).user?.role)) {
+    const viewerRole = (req as AuthRequest).user?.role;
+    const adminProjectDb = viewerRole === "admin" || viewerRole === "manager";
+    if (!adminProjectDb && !leadVisibleOnDesk(lead, viewerRole)) {
       return res.status(404).json({ success: false, message: "Lead not found" });
     }
     return res.json({ success: true, lead });
@@ -1370,9 +1372,11 @@ router.get("/projects", verifyToken, allowRoles("admin", "manager", "technical_m
       prisma.lead.count({ where }),
     ]);
 
+    const viewerRole = (req as AuthRequest).user?.role;
+    const adminProjectDb = viewerRole === "admin" || viewerRole === "manager";
     let leads = rawLeads
       .filter(isDisplayableProjectLead)
-      .filter((lead) => leadVisibleOnDesk(lead, (req as AuthRequest).user?.role));
+      .filter((lead) => adminProjectDb || leadVisibleOnDesk(lead, viewerRole));
 
     // Soft-hide from Technical only (do not use Prisma where — breaks Mongo when field unset).
     // Completed projects always stay on Chief Estimator, even if previously hidden by mark-complete.
@@ -1423,10 +1427,10 @@ router.get("/projects", verifyToken, allowRoles("admin", "manager", "technical_m
 
     const payload = {
       success: true,
-      leads: technicalView
+      leads: technicalView && viewerRole !== "bim_manager"
         ? leads.map((l) => ({
             ...l,
-            // Technical Manager must not see client name
+            // Technical Manager must not see client name. BIM Manager keeps phone and the rest.
             name: null,
             ownerName: null,
           }))

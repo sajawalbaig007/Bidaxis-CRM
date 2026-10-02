@@ -155,20 +155,20 @@ function threadNotesHistory(
     }));
 }
 
-function projectToWorkbench(p: Project): ProjectWorkbenchData {
+function projectToWorkbench(p: Project, keepClient = false): ProjectWorkbenchData {
   return {
     id: p.id,
-    name: "",
-    company: "",
-    phone: "",
-    email: "",
-    ownerName: "",
+    name: keepClient ? (p.name ?? "") : "",
+    company: keepClient ? (p.company ?? "") : "",
+    phone: keepClient ? (p.phone ?? "") : "",
+    email: keepClient ? (p.email ?? "") : "",
+    ownerName: keepClient ? (p.ownerName ?? "") : "",
     state: p.state ?? "",
     projectCode: p.projectCode || p.clientCode || "",
     projectTitle: p.projectTitle ?? "",
     projectScope: p.projectScope ?? "",
     interestedService: p.interestedService ?? "",
-    projectBudget: "",
+    projectBudget: keepClient ? (p.projectBudget ?? "") : "",
     projectDeadline: (p.projectDeadline ?? "").split("T")[0],
     deadlineTiming: (p.deadlineTiming === "morning" || p.deadlineTiming === "cob" ? p.deadlineTiming : "") as "" | "morning" | "cob",
     projectPhase: p.projectPhase ?? "not_started",
@@ -929,7 +929,6 @@ export function TechnicalActiveProjectsPageInner({
   const bimDesk = peekAuthMe()?.role === "bim_manager";
   const [addOpen, setAddOpen] = useState(false);
   const [addSaving, setAddSaving] = useState(false);
-  const [addForm, setAddForm] = useState({ name: "", projectTitle: "", interestedService: "BIM", projectDeadline: "" });
   const [search, setSearch] = useState("");
   const [stateFilter, setStateFilter] = useState("");
   const [phoneFilter, setPhoneFilter] = useState("");
@@ -971,23 +970,37 @@ export function TechnicalActiveProjectsPageInner({
     }
   }, [dateFrom, dateTo, isRevisions]);
 
-  const saveBimProject = async () => {
-    if (!addForm.name.trim() || !addForm.projectTitle.trim() || !addForm.interestedService.trim() || !addForm.projectDeadline) {
-      toast.error("Client, title, service, and deadline are required.");
+  const saveBimProject = async (data: ProjectWorkbenchData) => {
+    if (!data.name.trim() || !data.phone.trim() || !data.projectTitle.trim() || !data.interestedService.trim() || !data.projectDeadline) {
+      toast.error("Client, phone, title, service, and deadline are required.");
       return;
     }
     setAddSaving(true);
     try {
       await API.post("/admin/project", {
-        name: addForm.name.trim(),
-        projectTitle: addForm.projectTitle.trim(),
-        interestedService: addForm.interestedService.trim(),
-        projectDeadline: addForm.projectDeadline,
+        name: data.name.trim(),
+        company: data.company.trim() || undefined,
+        phone: data.phone.trim(),
+        email: data.email.trim() || undefined,
+        ownerName: data.ownerName.trim() || undefined,
+        state: data.state.trim() || undefined,
+        projectCode: data.projectCode.trim() || undefined,
+        projectTitle: data.projectTitle.trim(),
+        projectScope: data.projectScope.trim() || undefined,
+        interestedService: data.interestedService.trim(),
+        projectDeadline: data.projectDeadline,
+        deadlineTiming: data.deadlineTiming || "",
+        projectBudget: data.projectBudget.trim() || undefined,
+        projectNotes: data.projectNotes?.trim() || undefined,
+        projectPhase: data.projectPhase,
+        takeoffDeadline: data.takeoffDeadline || undefined,
+        pricingDeadline: data.pricingDeadline || undefined,
+        qaDeadline: data.qaDeadline || undefined,
+        projectPayments: data.projectPayments,
         status: "Close Client",
       });
-      toast.success("Project added for BIM.");
+      toast.success("Project added. It is in your list and in Admin Project DB → BIM.");
       setAddOpen(false);
-      setAddForm({ name: "", projectTitle: "", interestedService: "BIM", projectDeadline: "" });
       await fetchProjects();
     } catch (err) {
       toast.error(apiErrorMessage(err, "Could not add the project."));
@@ -1366,6 +1379,17 @@ export function TechnicalActiveProjectsPageInner({
     try {
       // Technical must not overwrite client identity fields
       const res = await API.put(`/admin/project/${data.id}`, {
+        ...(bimDesk
+          ? {
+              name: data.name.trim(),
+              company: data.company.trim() || null,
+              phone: data.phone.trim(),
+              email: data.email.trim() || null,
+              ownerName: data.ownerName.trim() || null,
+              projectBudget: data.projectBudget.trim() || null,
+              projectPayments: data.projectPayments,
+            }
+          : {}),
         state: data.state,
         projectCode: data.projectCode,
         projectTitle: data.projectTitle,
@@ -1380,7 +1404,11 @@ export function TechnicalActiveProjectsPageInner({
         projectNotes: data.projectNotes,
       });
       const lead = res.data.lead as Project;
-      setProjects((prev) => prev.map((p) => (p.id === lead.id ? { ...p, ...lead, name: null, ownerName: null } : p)));
+      setProjects((prev) => prev.map((p) => (
+        p.id === lead.id
+          ? { ...p, ...lead, ...(bimDesk ? {} : { name: null, ownerName: null }) }
+          : p
+      )));
       setEditProject(null);
       toast.success("Project updated");
     } catch {
@@ -1533,7 +1561,7 @@ export function TechnicalActiveProjectsPageInner({
                 {isRevisions
                   ? "Admin-sent revision projects — assign estimators like Active Projects."
                   : bimDesk
-                    ? "Upload a BIM project here. It goes to BIM only, not the admin project panel."
+                    ? "Upload a BIM project with client, phone, and the rest. It also appears in Admin Project DB → BIM."
                     : "Technical workflow — assign estimators, track takeoff, pricing & submission."}
               </p>
             </div>
@@ -2335,7 +2363,7 @@ export function TechnicalActiveProjectsPageInner({
       <ProjectWorkbenchModal
         open={!!editProject}
         onClose={() => setEditProject(null)}
-        initial={editProject ? projectToWorkbench(editProject) : emptyWorkbench()}
+        initial={editProject ? projectToWorkbench(editProject, bimDesk) : emptyWorkbench()}
         mode="admin"
         saving={editSaving}
         onSave={saveEdit}
@@ -2366,27 +2394,17 @@ export function TechnicalActiveProjectsPageInner({
               }
             : undefined
         }
-        hideClientFinanceSections
+        hideClientFinanceSections={!bimDesk}
       />
-      {addOpen && (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
-          <button type="button" className="absolute inset-0 bg-black/40" aria-label="Close" onClick={() => setAddOpen(false)} />
-          <div className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl border border-gray-100 p-5 space-y-3">
-            <h2 className="text-lg font-bold text-[#0F172A]">Add BIM project</h2>
-            <p className="text-xs text-gray-400">This project stays on the BIM desk. Assign it to BIM from the list.</p>
-            <input value={addForm.name} onChange={(e) => setAddForm({ ...addForm, name: e.target.value })} placeholder="Client name" className="w-full h-10 px-3 rounded-xl border border-gray-200 text-sm" />
-            <input value={addForm.projectTitle} onChange={(e) => setAddForm({ ...addForm, projectTitle: e.target.value })} placeholder="Project title" className="w-full h-10 px-3 rounded-xl border border-gray-200 text-sm" />
-            <input value={addForm.interestedService} onChange={(e) => setAddForm({ ...addForm, interestedService: e.target.value })} placeholder="Service" className="w-full h-10 px-3 rounded-xl border border-gray-200 text-sm" />
-            <input type="date" value={addForm.projectDeadline} onChange={(e) => setAddForm({ ...addForm, projectDeadline: e.target.value })} className="w-full h-10 px-3 rounded-xl border border-gray-200 text-sm" />
-            <div className="flex justify-end gap-2 pt-1">
-              <button type="button" onClick={() => setAddOpen(false)} className="h-10 px-4 rounded-xl border border-gray-200 text-sm font-semibold">Cancel</button>
-              <button type="button" disabled={addSaving} onClick={() => void saveBimProject()} className="h-10 px-4 rounded-xl bg-[#0F398A] text-white text-sm font-semibold disabled:opacity-60">
-                {addSaving ? "Saving…" : "Add project"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ProjectWorkbenchModal
+        open={addOpen}
+        onClose={() => setAddOpen(false)}
+        initial={{ ...emptyWorkbench(), interestedService: "BIM" }}
+        mode="admin"
+        createMode
+        saving={addSaving}
+        onSave={(data) => void saveBimProject(data)}
+      />
     </TechnicalPageShell>
   );
 }
