@@ -28,7 +28,11 @@ type TabKey = "all" | "notpicked" | "notinterested" | "deleted" | "inhouse" | "n
 
 export default function CSRBinPage() {
   const dialer = useZoomDialer();
-  const { leads, setLeads, loading, refetch } = useBinData();
+  const { leads: rawLeads, setLeads, loading, refetch } = useBinData();
+  const leads = useMemo(
+    () => rawLeads.filter(l => binCategory(l.binReason, l.status, l.binPreviousStatus) !== "notuseful"),
+    [rawLeads],
+  );
 
   const [search, setSearch] = useState("");
   const [stateFilter, setStateFilter] = useState("");

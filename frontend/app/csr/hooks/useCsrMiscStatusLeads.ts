@@ -14,15 +14,17 @@ export function useCsrMiscStatusLeads() {
   const refetch = useCallback(async (force = false) => {
     try {
       setLoading(true);
-      const [noOwner, notInService, inHouse] = await Promise.all([
+      const [noOwner, notInService, inHouse, notUseful] = await Promise.all([
         fetchCsrTabLeadsCached("noowner", 1, undefined, undefined, force, MISC_TAB_PAGE_SIZE),
         fetchCsrTabLeadsCached("notinservice", 1, undefined, undefined, force, MISC_TAB_PAGE_SIZE),
         fetchCsrTabLeadsCached("inhouse", 1, undefined, undefined, force, MISC_TAB_PAGE_SIZE),
+        fetchCsrTabLeadsCached("notuseful", 1, undefined, undefined, force, 500),
       ]);
       const merged = [
         ...(noOwner.leads as BackendLead[]),
         ...(notInService.leads as BackendLead[]),
         ...(inHouse.leads as BackendLead[]),
+        ...(notUseful.leads as BackendLead[]),
       ].map(mapBackendLead);
       setLeads(merged);
     } catch (err) {

@@ -85,7 +85,8 @@ export function useBinData() {
   return { leads, setLeads, loading, refetch };
 }
 
-export function binCategory(reason: string | null | undefined, status?: string | null, binPreviousStatus?: string | null): "notpicked" | "notinterested" | "deleted" | "inhouse" | "noowner" | "notinservice" {
+export function binCategory(reason: string | null | undefined, status?: string | null, binPreviousStatus?: string | null): "notpicked" | "notinterested" | "deleted" | "inhouse" | "noowner" | "notinservice" | "notuseful" {
+  if ((status || "").trim().toLowerCase() === "not useful") return "notuseful";
   const prev = (binPreviousStatus || status || "").toLowerCase();
   if (prev === "in house") return "inhouse";
   if (prev === "no owner available") return "noowner";

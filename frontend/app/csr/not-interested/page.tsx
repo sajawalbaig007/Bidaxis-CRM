@@ -6,7 +6,7 @@ import {
   X, RefreshCw,
   ChevronDown, ChevronUp, Eye, Users,
   Check,
-  History, UserX, Ban, Home, Layers,
+  History, UserX, Ban, Home, Layers, CircleOff,
 } from "lucide-react";
 import toast from "react-hot-toast";
 
@@ -42,8 +42,10 @@ import {
   STATUS_NO_OWNER,
   STATUS_NOT_IN_SERVICE,
   STATUS_IN_HOUSE,
+  STATUS_NOT_USEFUL,
   isNotInterestedStatus,
   isNotPickedStatus,
+  isNotUsefulStatus,
   statusDisplayLabel,
 } from "../constants/leadStatuses";
 import type { Lead } from "../types/lead";
@@ -54,7 +56,7 @@ const NOT_INTERESTED_LIMIT = 3;
 const NOT_PICKED_LIMIT     = 7;
 const PAGE_SIZE            = 30;
 
-type FollowUpTab = "all" | "notinterested" | "notpicked" | "noowner" | "notinservice" | "inhouse";
+type FollowUpTab = "all" | "notinterested" | "notpicked" | "noowner" | "notinservice" | "inhouse" | "notuseful";
 
 function leadToNiLead(l: Lead): NiLead {
   return {
@@ -78,7 +80,7 @@ function followUpRetryMeta(lead: Pick<NiLead, "status" | "notInterestedCount" | 
 
 export default function NotInterestedPage() {
   const { leads, setLeads, loading, refetch } = useNotInterested();
-  const { leads: dashboardLeads, loading: dashLoading } = useCsrMiscStatusLeads();
+  const { leads: dashboardLeads, loading: dashLoading, refetch: refetchMisc } = useCsrMiscStatusLeads();
 
   const [activeTab, setActiveTab] = useState<FollowUpTab>("notinterested");
   const [search,       setSearch]       = useState("");
@@ -127,9 +129,10 @@ export default function NotInterestedPage() {
   const noOwner       = useMemo(() => uniqueLeadsByPhone(dashboardLeads.filter(l => l.status === STATUS_NO_OWNER).map(leadToNiLead)), [dashboardLeads]);
   const notInService  = useMemo(() => uniqueLeadsByPhone(dashboardLeads.filter(l => l.status === STATUS_NOT_IN_SERVICE).map(leadToNiLead)), [dashboardLeads]);
   const inHouse       = useMemo(() => uniqueLeadsByPhone(dashboardLeads.filter(l => l.status === STATUS_IN_HOUSE).map(leadToNiLead)), [dashboardLeads]);
+  const notUseful     = useMemo(() => uniqueLeadsByPhone(dashboardLeads.filter(l => isNotUsefulStatus(l.status)).map(leadToNiLead)), [dashboardLeads]);
   const allFollowUp   = useMemo(
-    () => uniqueLeadsByPhone([...notInterested, ...notPicked, ...noOwner, ...notInService, ...inHouse]),
-    [notInterested, notPicked, noOwner, notInService, inHouse],
+    () => uniqueLeadsByPhone([...notInterested, ...notPicked, ...noOwner, ...notInService, ...inHouse, ...notUseful]),
+    [notInterested, notPicked, noOwner, notInService, inHouse, notUseful],
   );
 
   const currentList = activeTab === "all" ? allFollowUp
@@ -137,6 +140,7 @@ export default function NotInterestedPage() {
     : activeTab === "notpicked" ? notPicked
     : activeTab === "noowner" ? noOwner
     : activeTab === "notinservice" ? notInService
+    : activeTab === "notuseful" ? notUseful
     : inHouse;
   const pageLoading = activeTab === "all" ? (loading || dashLoading)
     : (activeTab === "notinterested" || activeTab === "notpicked") ? loading
@@ -179,8 +183,14 @@ export default function NotInterestedPage() {
           { label: "Safe NP",     value: notPicked.length - nearNP, color: "#15803D" },
         ],
       },
+      {
+        label: "Not useful",
+        segments: [
+          { label: "Not useful", value: notUseful.length, color: "#7C3AED" },
+        ],
+      },
     ];
-  }, [notInterested, notPicked]);
+  }, [notInterested, notPicked, notUseful]);
 
   /* ── Handlers ── */
   const bustCaches = () => {
@@ -254,7 +264,8 @@ export default function NotInterestedPage() {
       (isNotPickedStatus(status) && isNotPickedStatus(lead.status)) ||
       (status === STATUS_NO_OWNER && lead.status === STATUS_NO_OWNER) ||
       (status === STATUS_NOT_IN_SERVICE && lead.status === STATUS_NOT_IN_SERVICE) ||
-      (status === STATUS_IN_HOUSE && lead.status === STATUS_IN_HOUSE);
+      (status === STATUS_IN_HOUSE && lead.status === STATUS_IN_HOUSE) ||
+      (isNotUsefulStatus(status) && isNotUsefulStatus(lead.status));
 
     if (sameStatus && followUpRetryMeta(lead).isRetry) {
       await handleRetry(lead);
@@ -282,12 +293,15 @@ export default function NotInterestedPage() {
       const res = await API.put(`/csr/lead/${lead.id}`, { status });
       consumeLeadDial(lead.id);
       bustCaches();
+      void refetch();
+      void refetchMisc();
       const staysOnPage = activeTab === "all" && (
         isNotInterestedStatus(status) ||
         isNotPickedStatus(status) ||
         status === STATUS_NO_OWNER ||
         status === STATUS_NOT_IN_SERVICE ||
-        status === STATUS_IN_HOUSE
+        status === STATUS_IN_HOUSE ||
+        isNotUsefulStatus(status)
       );
       if (staysOnPage) {
         const updated = res.data?.lead;
@@ -392,7 +406,7 @@ export default function NotInterestedPage() {
             Leads Follow-up
           </h1>
           <p className="text-gray-500 mt-1 sm:mt-2 text-xs sm:text-sm">
-            Track Not Interested, Not Picked, No Owner, Not In Service &amp; In House leads.
+            Track Not Interested, Not useful, Not Picked, No Owner, Not In Service &amp; In House leads.
           </p>
         </div>
 
@@ -415,6 +429,7 @@ export default function NotInterestedPage() {
           tabs={[
             { key: "all",           label: "All",            count: activeTab === "all"           ? searchFiltered.length : allFollowUp.length,     icon: Layers     },
             { key: "notinterested", label: "Not Interested", count: activeTab === "notinterested" ? searchFiltered.length : notInterested.length,  icon: ThumbsDown },
+            { key: "notuseful",     label: "Not useful",     count: activeTab === "notuseful"     ? searchFiltered.length : notUseful.length,      icon: CircleOff  },
             { key: "notpicked",     label: "Not Picked",     count: activeTab === "notpicked"     ? searchFiltered.length : notPicked.length,      icon: PhoneOff   },
             { key: "noowner",       label: "No Owner",       count: activeTab === "noowner"       ? searchFiltered.length : noOwner.length,        icon: UserX      },
             { key: "notinservice",  label: "Not In Service", count: activeTab === "notinservice"  ? searchFiltered.length : notInService.length,   icon: Ban        },
@@ -431,6 +446,7 @@ export default function NotInterestedPage() {
                 <h3 className="text-lg sm:text-[22px] font-bold text-[#0F172A]">
                   {activeTab === "all" ? "All Follow-up"
                     : activeTab === "notinterested" ? "Not Interested"
+                    : activeTab === "notuseful" ? "Not useful"
                     : activeTab === "notpicked" ? "Not Picked"
                     : activeTab === "noowner" ? "No Owner Available"
                     : activeTab === "notinservice" ? "Not In Service"
@@ -610,6 +626,7 @@ export default function NotInterestedPage() {
                             >
                               <option value="">Update Status</option>
                               <option value="Not Interested">Not Interested</option>
+                              <option value={STATUS_NOT_USEFUL}>Not useful</option>
                               <option value="not picked">Not Picked</option>
                               <option value={STATUS_NO_OWNER}>No Owner Available</option>
                               <option value={STATUS_NOT_IN_SERVICE}>Not In Service</option>

@@ -21,7 +21,7 @@ import {
   paidDatesFromPayments,
   syncAccountsCurrencyForDates,
 } from "../utils/projectCurrencyCollections";
-import { buildBinWhere, filterActiveLeads, notInBinFilter } from "../utils/binLeads";
+import { buildAdminBinWhere, filterActiveLeads, notInBinFilter } from "../utils/binLeads";
 import { findLeadsByPhone, buildPhoneLookupResponse } from "../utils/leadPhoneLookup";
 import { findDuplicateLead } from "../utils/leadDuplicateCheck";
 import { CSR_UPLOAD_FILE_SELECT } from "../utils/uploadSourceSelect";
@@ -754,6 +754,7 @@ router.put("/lead/:id", verifyToken, allowRoles("admin", "manager", "technical_m
       const n = raw.toLowerCase();
       const canonical =
         n === "not interested" ? "Not Interested" :
+        n === "not useful" ? "Not useful" :
         n === "not picked" || n === "notpicked" ? "not picked" :
         n === "close client" || n === "closed" ? "Close Client" :
         n === "no owner available" ? "no owner available" :
@@ -3399,13 +3400,13 @@ router.get("/bin", verifyToken, allowRoles("admin", "manager", "technical_manage
   try {
     const csrId = typeof req.query.csrId === "string" ? req.query.csrId : undefined;
     const page  = Math.max(1, parseInt(String(req.query.page ?? "1"), 10) || 1);
-    const limit = Math.min(100, Math.max(1, parseInt(String(req.query.limit ?? "50"), 10) || 50));
+    const limit = Math.min(2000, Math.max(1, parseInt(String(req.query.limit ?? "50"), 10) || 50));
     const cacheKey = `admin:bin:${csrId ?? "all"}:${page}:${limit}`;
 
     const cached = getCache<object>(cacheKey);
     if (cached) return res.json(cached);
 
-    const where = buildBinWhere(csrId);
+    const where = buildAdminBinWhere(csrId);
 
     const [leads, total] = await Promise.all([
       prisma.lead.findMany({
@@ -3427,6 +3428,42 @@ router.get("/bin", verifyToken, allowRoles("admin", "manager", "technical_manage
   } catch (error) {
     console.log(error);
     return res.status(500).json({ success: false, message: "Failed to fetch bin" });
+  }
+});
+
+/* Permanently delete Not useful leads. CEO and Admin only — CSR has no delete. */
+router.post("/bin/not-useful/delete", verifyToken, allowRoles("admin", "manager"), async (req, res) => {
+  try {
+    const ids: string[] = Array.isArray(req.body?.ids)
+      ? [...new Set(
+          (req.body.ids as unknown[])
+            .map((id) => String(id).trim())
+            .filter((id) => id.length > 0),
+        )]
+      : [];
+    if (ids.length === 0) {
+      return res.status(400).json({ success: false, message: "Select at least one lead." });
+    }
+
+    const leads = await prisma.lead.findMany({
+      where: {
+        id: { in: ids },
+        status: { equals: "Not useful", mode: "insensitive" },
+      },
+      select: { id: true, assignedTo: true },
+    });
+    if (leads.length === 0) {
+      return res.status(404).json({ success: false, message: "No Not useful leads found." });
+    }
+
+    const deleted = await deleteLeadsCascade(leads.map((lead) => lead.id));
+    const csrIds = [...new Set(leads.map((lead) => lead.assignedTo).filter((id): id is string => !!id))];
+    await invalidateAllLeadCaches(csrIds);
+
+    return res.json({ success: true, deleted });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({ success: false, message: "Failed to delete leads" });
   }
 });
 

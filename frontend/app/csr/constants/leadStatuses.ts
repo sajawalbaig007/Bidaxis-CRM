@@ -1,4 +1,5 @@
 export const STATUS_NOT_INTERESTED = "Not Interested";
+export const STATUS_NOT_USEFUL = "Not useful";
 export const STATUS_NOT_PICKED = "not picked";
 export const STATUS_NOT_COMPLETED = "not completed";
 export const STATUS_NO_OWNER = "no owner available";
@@ -37,8 +38,13 @@ export function isNotInterestedStatus(s: string) {
   return s === STATUS_NOT_INTERESTED || normStatus(s) === "completed";
 }
 
+export function isNotUsefulStatus(s?: string | null) {
+  return normStatus(s) === normStatus(STATUS_NOT_USEFUL);
+}
+
 export function statusDisplayLabel(s: string): string {
   const n = normStatus(s);
+  if (isNotUsefulStatus(s)) return "Not useful";
   if (isNotInterestedStatus(s)) return "Not Interested";
   if (isNotPickedStatus(s)) return "Not Picked";
   if (n === normStatus(STATUS_NO_OWNER)) return "No Owner Available";
@@ -54,6 +60,7 @@ export function statusDisplayLabel(s: string): string {
 export function statusBadgeClass(s: string): string {
   const n = normStatus(s);
   if (isNotPickedStatus(s)) return "bg-[#FFF7E6] text-[#B54708]";
+  if (isNotUsefulStatus(s)) return "bg-[#F3E8FF] text-[#6D28D9]";
   if (isNotInterestedStatus(s)) return "bg-[#F1F5F9] text-[#475569]";
   if (n === normStatus(STATUS_NO_OWNER)) return "bg-[#FEF3C7] text-[#B45309]";
   if (n === normStatus(STATUS_NOT_IN_SERVICE)) return "bg-[#F3E8FF] text-[#7C3AED]";

@@ -49,6 +49,7 @@ import {
   STATUS_NO_OWNER,
   STATUS_NOT_IN_SERVICE,
   STATUS_IN_HOUSE,
+  STATUS_NOT_USEFUL,
 } from "./constants/leadStatuses";
 import StatusWithTimestamp from "./components/shared/StatusWithTimestamp";
 
@@ -274,7 +275,7 @@ export default function CSRPage() {
       } catch (err) { console.log(err); }
       return;
     }
-    if (status === STATUS_NO_OWNER || status === STATUS_NOT_IN_SERVICE || status === STATUS_IN_HOUSE) {
+    if (status === STATUS_NO_OWNER || status === STATUS_NOT_IN_SERVICE || status === STATUS_IN_HOUSE || status === STATUS_NOT_USEFUL) {
       try {
         await updateLead(id, { status });
         leaveTab(id);
@@ -664,6 +665,7 @@ export default function CSRPage() {
                         >
                           <option value="">Update Status</option>
                           <option value="Not Interested">Not Interested</option>
+                          <option value={STATUS_NOT_USEFUL}>Not useful</option>
                           <option value="not picked">Not Picked</option>
                           <option value={STATUS_NO_OWNER}>No Owner Available</option>
                           <option value={STATUS_NOT_IN_SERVICE}>Not In Service</option>

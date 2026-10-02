@@ -23,7 +23,7 @@ export default function BinStatsChart({
         <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: "#9CA3AF" }} width={28} />
         <Tooltip contentStyle={{ borderRadius: "12px", border: "1px solid #e5e7eb", fontSize: "12px" }} />
         <Bar dataKey="value" radius={[7, 7, 0, 0]} name="Count">
-          {["#F59E0B", "#B8112D", "#6366F1", "#6B7280"].map((fill, i) => (
+          {["#F59E0B", "#B8112D", "#7C3AED", "#6366F1", "#6B7280"].map((fill, i) => (
             <Cell key={i} fill={fill} />
           ))}
         </Bar>

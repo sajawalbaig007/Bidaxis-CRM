@@ -90,6 +90,7 @@ const ADMIN_STATUS_OPTIONS = [
   { value: "interested", label: "Interested" },
   { value: "Close Client", label: "Closed" },
   { value: "Not Interested", label: "Not Interested" },
+  { value: "Not useful", label: "Not useful" },
   { value: "not picked", label: "Not Picked" },
   { value: "no owner available", label: "No Owner Available" },
   { value: "not in service", label: "Not In Service" },
