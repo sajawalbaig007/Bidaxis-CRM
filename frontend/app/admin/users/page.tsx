@@ -48,7 +48,7 @@ function cnicDocumentPreview(url: string): { kind: "image" | "pdf"; src: string 
   return { kind: "pdf", src: u };
 }
 
-type UserRole = "CSR" | "CEO" | "Admin" | "Chief Estimator" | "Accounts" | "Estimator";
+type UserRole = "CSR" | "CEO" | "Admin" | "Chief Estimator" | "Accounts" | "Estimator" | "BIM Manager" | "BIM";
 
 type PortalCompany = "BEM" | "GPS";
 type CompanyFilter = PortalCompany | "EMPLOYEES";
@@ -75,6 +75,8 @@ const PORTAL_DASHBOARDS: PortalDashboard[] = [
   { role: "CEO", company: "BEM", shortLabel: "CEO", onlineLabel: "CEO Online", formLabel: "CEO" },
   { role: "Chief Estimator", company: "GPS", shortLabel: "Chief Est.", onlineLabel: "Chief Estimator Online", formLabel: "Chief Estimator" },
   { role: "Estimator", company: "GPS", shortLabel: "Estimator", onlineLabel: "Estimators Online", formLabel: "Estimator" },
+  { role: "BIM Manager", company: "GPS", shortLabel: "BIM Mgr", onlineLabel: "BIM Manager Online", formLabel: "BIM Manager" },
+  { role: "BIM", company: "GPS", shortLabel: "BIM", onlineLabel: "BIM Online", formLabel: "BIM" },
 ];
 
 const BEM_ROLES: UserRole[] = PORTAL_DASHBOARDS.filter((d) => d.company === "BEM").map((d) => d.role);
@@ -254,6 +256,8 @@ const roleColor = (role: UserRole) => {
   if (role === "Chief Estimator") return "bg-amber-100 text-amber-700";
   if (role === "Accounts") return "bg-cyan-100 text-cyan-700";
   if (role === "Estimator") return "bg-purple-100 text-purple-700";
+  if (role === "BIM Manager") return "bg-blue-100 text-blue-800";
+  if (role === "BIM") return "bg-sky-100 text-sky-800";
   return "bg-emerald-100 text-emerald-600";
 };
 
@@ -467,6 +471,8 @@ export default function UsersPage() {
                   : u.role === "technical_manager" ? "Chief Estimator"
                   : u.role === "accounts" ? "Accounts"
                   : u.role === "estimator" ? "Estimator"
+                  : u.role === "bim_manager" ? "BIM Manager"
+                  : u.role === "bim" ? "BIM"
                   : "CEO",
         csrCode:    u.csrCode    ?? null,
         employeeCode: u.employeeCode ?? null,
@@ -671,6 +677,8 @@ export default function UsersPage() {
         : form.role === "Chief Estimator" ? "technical_manager"
         : form.role === "Accounts" ? "accounts"
         : form.role === "Estimator" ? "estimator"
+        : form.role === "BIM Manager" ? "bim_manager"
+        : form.role === "BIM" ? "bim"
         : "admin";
       const url    = editingUser ? `${apiBase()}/users/${editingUser.id}` : `${apiBase()}/auth/register`;
       const method = editingUser ? "PUT" : "POST";
@@ -680,7 +688,7 @@ export default function UsersPage() {
         fatherName: form.fatherName.trim() || null,
         currentAddress: form.currentAddress.trim() || null,
         contactNo: form.contactNo.trim() || null,
-        csrCode:    role === "csr" || role === "estimator" ? (form.csrCode.trim() || null) : null,
+        csrCode:    role === "csr" || role === "estimator" || role === "bim" ? (form.csrCode.trim() || null) : null,
         cnic:       form.cnic.trim() || null,
         cnicPdfUrl: form.cnicPdfUrl || null,
         profilePic: form.profilePic  || null,
@@ -712,7 +720,7 @@ export default function UsersPage() {
         fatherName: form.fatherName.trim() || null,
         currentAddress: form.currentAddress.trim() || null,
         contactNo: form.contactNo.trim() || null,
-        csrCode: role === "csr" || role === "estimator" ? (form.csrCode.trim() || null) : null,
+        csrCode: role === "csr" || role === "estimator" || role === "bim" ? (form.csrCode.trim() || null) : null,
         cnic: form.cnic.trim() || null,
         cnicPdfUrl: form.cnicPdfUrl || null,
         profilePic: form.profilePic || null,
@@ -1461,7 +1469,9 @@ export default function UsersPage() {
                       ? [{ label: "CSR Code", value: detailUser.csrCode }]
                       : detailUser.role === "Estimator" && detailUser.csrCode
                         ? [{ label: "Estimator Code", value: detailUser.csrCode }]
-                        : []),
+                        : detailUser.role === "BIM" && detailUser.csrCode
+                          ? [{ label: "BIM Code", value: detailUser.csrCode }]
+                          : []),
                   ].map(({ label, value }) => (
                     <div key={label}>
                       <p className="text-xs text-gray-400 mb-0.5">{label}</p>
@@ -1848,25 +1858,25 @@ export default function UsersPage() {
                 </div>
 
                 {/* CSR / Estimator code — separate from employee code */}
-                {(form.role === "CSR" || form.role === "Estimator") && (
+                {(form.role === "CSR" || form.role === "Estimator" || form.role === "BIM") && (
                   <div className="rounded-2xl border border-[#B8112D]/20 bg-[#FFF8F9] p-3.5 space-y-2">
                     <p className="text-[10px] font-bold uppercase tracking-wider text-[#B8112D]/70">
-                      {form.role === "Estimator" ? "Estimator Code" : "CSR Code"} — client coding
+                      {form.role === "Estimator" ? "Estimator Code" : form.role === "BIM" ? "BIM Code" : "CSR Code"} — client coding
                     </p>
                     <label className="text-sm text-gray-500 block">
-                      {form.role === "Estimator" ? "Estimator Code" : "CSR Code"}{" "}
+                      {form.role === "Estimator" ? "Estimator Code" : form.role === "BIM" ? "BIM Code" : "CSR Code"}{" "}
                       {form.role === "CSR" ? <span className="text-[#B8112D] font-semibold">*</span> : (
                         <span className="text-xs text-gray-400">(optional)</span>
                       )}
                       <span className="text-xs text-gray-400 ml-2">
-                        {form.role === "Estimator" ? "e.g. TECH-01" : "e.g. 1000, 1001, 1002…"}
+                        {form.role === "Estimator" ? "e.g. TECH-01" : form.role === "BIM" ? "e.g. BIM-01" : "e.g. 1000, 1001, 1002…"}
                       </span>
                     </label>
                     <input
                       type="text"
                       value={form.csrCode}
                       onChange={e => setForm({ ...form, csrCode: e.target.value })}
-                      placeholder={form.role === "Estimator" ? "e.g. TECH-01" : "e.g. 1000"}
+                      placeholder={form.role === "Estimator" ? "e.g. TECH-01" : form.role === "BIM" ? "e.g. BIM-01" : "e.g. 1000"}
                       maxLength={10}
                       className="w-full border-2 border-[#B8112D]/30 rounded-2xl px-4 py-3 outline-none focus:border-[#B8112D] text-sm font-mono font-bold tracking-wider bg-white"
                     />

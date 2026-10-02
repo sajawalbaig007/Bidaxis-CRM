@@ -14,6 +14,8 @@ enum Role {
   technical_manager
   accounts
   estimator
+  bim_manager
+  bim
 }
 
 model User {
@@ -113,6 +115,8 @@ model Lead {
   projectWorkStatus    String?
   /** Soft-removed from Technical portal only — still visible in Admin Project DB. */
   hiddenOnTechnical    Boolean   @default(false)
+  /** estimation (admin + chief estimator) or bim (BIM manager + BIM only). */
+  projectDesk          String?   @default("estimation")
   /** Admin sent project back for revision — shows in TM Revisions section. */
   needsRevision          Boolean   @default(false)
   revisionRequestedAt    DateTime?
@@ -530,6 +534,8 @@ model TechnicalNotification {
   changeSummary String?
   /** Estimator user id. Empty = every estimator on the project (notes). Set = only that person (assignment). */
   recipientId   String?
+  /** estimation | bim. BIM alerts stay with the BIM manager. */
+  desk          String?
   readAt        DateTime?
   createdAt     DateTime  @default(now())
 
@@ -720,4 +726,34 @@ model StaffRequest {
   @@index([personKey, day])
   @@index([department, day])
   @@map("staff_requests")
+}
+
+/** Zoom Phone account a CSR can dial from. */
+model ZoomDialerAccount {
+  id        String   @id @default(cuid()) @map("_id")
+  label     String
+  sortOrder Int      @default(0)
+  isActive  Boolean  @default(true)
+  /** Zoom sign-in. Admin only — never sent to CSR dialer responses. */
+  email     String   @default("")
+  password  String   @default("")
+  /** Caller IDs on this Zoom account, as entered by admin. */
+  numbers   String[] @default([])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([isActive, sortOrder])
+  @@map("zoom_dialer_accounts")
+}
+
+/** Per-CSR default Zoom account + caller ID. Stays until they change it. */
+model CsrDialerPreference {
+  id           String   @id @default(cuid()) @map("_id")
+  userId       String   @unique
+  accountId    String
+  callerNumber String
+  updatedAt    DateTime @updatedAt
+
+  @@index([accountId])
+  @@map("csr_dialer_preferences")
 }

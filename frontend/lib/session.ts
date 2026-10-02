@@ -57,20 +57,22 @@ export function resolveLoginRole(data: {
     r === "manager" ||
     r === "technical_manager" ||
     r === "accounts" ||
-    r === "estimator"
+    r === "estimator" ||
+    r === "bim_manager" ||
+    r === "bim"
   ) {
     return r;
   }
   return null;
 }
 
-export type PortalRole = "admin" | "csr" | "manager" | "technical_manager" | "accounts" | "estimator";
+export type PortalRole = "admin" | "csr" | "manager" | "technical_manager" | "accounts" | "estimator" | "bim_manager" | "bim";
 
 export function dashboardPathForRole(role: PortalRole): string {
   if (role === "admin") return "/admin";
   if (role === "manager") return "/manager";
-  if (role === "technical_manager") return "/technical";
+  if (role === "technical_manager" || role === "bim_manager") return "/technical";
   if (role === "accounts") return "/accounts";
-  if (role === "estimator") return "/estimator";
+  if (role === "estimator" || role === "bim") return "/estimator";
   return "/csr";
 }

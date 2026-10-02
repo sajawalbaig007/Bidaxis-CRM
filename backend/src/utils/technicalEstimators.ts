@@ -78,12 +78,11 @@ const SEED_ESTIMATORS: TechnicalEstimator[] = [
   { id: "tech-8", name: "Afaq", code: "TECH-08" },
 ];
 
-/** Live estimator users from Admin Users (role=estimator). */
-export async function listTechnicalEstimators(): Promise<TechnicalEstimator[]> {
+/** Live estimator or BIM users from Admin Users. */
+export async function listTechnicalEstimators(staffRole: "estimator" | "bim" = "estimator"): Promise<TechnicalEstimator[]> {
   try {
-    // Prefer active estimators; if none active, still return inactive so Miss can see roster.
     const users = await prisma.user.findMany({
-      where: { role: "estimator" },
+      where: { role: staffRole },
       select: { id: true, name: true, csrCode: true, isActive: true },
       orderBy: { name: "asc" },
     });
@@ -93,7 +92,7 @@ export async function listTechnicalEstimators(): Promise<TechnicalEstimator[]> {
       return pool.map((u, i) => ({
         id: u.id,
         name: u.name,
-        code: (u.csrCode ?? "").trim() || `EST-${String(i + 1).padStart(2, "0")}`,
+        code: (u.csrCode ?? "").trim() || `${staffRole === "bim" ? "BIM" : "EST"}-${String(i + 1).padStart(2, "0")}`,
       }));
     }
   } catch (err) {

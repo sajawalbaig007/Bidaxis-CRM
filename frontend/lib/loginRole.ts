@@ -1,4 +1,4 @@
-export type PortalRole = "admin" | "csr" | "manager" | "technical_manager" | "accounts" | "estimator";
+export type PortalRole = "admin" | "csr" | "manager" | "technical_manager" | "accounts" | "estimator" | "bim_manager" | "bim";
 
 export const PORTAL_OPTIONS: { value: PortalRole; label: string; hint: string }[] = [
   { value: "admin", label: "CEO", hint: "Full CEO dashboard" },
@@ -6,6 +6,8 @@ export const PORTAL_OPTIONS: { value: PortalRole; label: string; hint: string }[
   { value: "manager", label: "Admin", hint: "Leads, reports & projects" },
   { value: "technical_manager", label: "Chief Estimator", hint: "Projects, KPI & team" },
   { value: "estimator", label: "Estimator", hint: "Assigned takeoffs & deadlines" },
+  { value: "bim_manager", label: "BIM Manager", hint: "BIM projects, KPI & team" },
+  { value: "bim", label: "BIM", hint: "Assigned BIM work & deadlines" },
   { value: "accounts", label: "Accounts", hint: "Statements, payroll & assets" },
 ];
 
@@ -73,6 +75,26 @@ export const PORTAL_LOGIN_COPY: Record<
       { title: "Estimator Dashboard", subtitle: "Your assigned projects and takeoff queue." },
       { title: "Deadlines & Hours", subtitle: "See man hours and due dates for every job." },
       { title: "Mark Progress", subtitle: "Update takeoff done and add project notes." },
+    ],
+  },
+  bim_manager: {
+    eyebrow: "BIM Manager Portal",
+    heading: "BIM Manager Sign In",
+    subheading: "Upload BIM projects, assign the BIM team, and review their reports.",
+    slides: [
+      { title: "BIM Projects", subtitle: "Your projects stay on the BIM desk." },
+      { title: "Team & KPI", subtitle: "Assign BIM staff and track delivery." },
+      { title: "Reports", subtitle: "BIM project reports and check-in history." },
+    ],
+  },
+  bim: {
+    eyebrow: "BIM Portal",
+    heading: "BIM Sign In",
+    subheading: "View assigned BIM projects, hours, deadlines, and check in for the day.",
+    slides: [
+      { title: "BIM Dashboard", subtitle: "Projects assigned by the BIM manager." },
+      { title: "Deadlines & Hours", subtitle: "See man hours and due dates for every job." },
+      { title: "Check In", subtitle: "Check in and check out from this desk." },
     ],
   },
   accounts: {

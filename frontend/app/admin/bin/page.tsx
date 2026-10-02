@@ -11,6 +11,7 @@ import toast, { Toaster } from "react-hot-toast";
 import { StaffSidebar } from "@/app/hooks/useStaffSidebar";
 import DashboardNavbar from "../components/layout/Navbar";
 import API from "@/lib/api";
+import { ChangeDialerNumber, useZoomDialer } from "@/app/csr/components/dialer/ZoomDialerProvider";
 import { formatEstDayMonth } from "@/lib/estTime";
 import { binCategory, binReasonLabel } from "@/app/csr/hooks/useBinData";
 import { CSR_THEAD } from "@/app/csr/components/shared/csrTableStyles";
@@ -43,6 +44,7 @@ type CSR = { id: string; name: string; csrCode: string | null };
 type TabKey = "all" | "notpicked" | "notinterested" | "deleted";
 
 export default function AdminBinPage() {
+  const dialer = useZoomDialer();
   const [leads,      setLeads]      = useState<BinLead[]>([]);
   const [loading,    setLoading]    = useState(true);
   const [search,     setSearch]     = useState("");
@@ -263,9 +265,22 @@ export default function AdminBinPage() {
                       <td className="py-3.5 px-2"><span className="font-semibold text-[13px] text-gray-800">{lead.client}</span></td>
                       <td className="py-3.5 px-2"><span className="text-[13px] text-gray-700 truncate block max-w-[100px]">{lead.company}</span></td>
                       <td className="py-3.5 px-2">
-                        <div className="flex items-center gap-1 bg-gray-100 text-gray-600 px-2.5 py-1.5 rounded-xl text-[11px] font-medium w-fit">
-                          <Phone size={10}/>{lead.phone}
-                        </div>
+                        <span className="inline-flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            disabled={!lead.phone || lead.phone === "N/A"}
+                            onClick={() => dialer?.open({
+                              destination: lead.phone,
+                              leadId: lead.id,
+                              clientName: lead.company || lead.client,
+                            })}
+                            className="group flex items-center gap-1 bg-gray-100 text-gray-600 px-2.5 py-1.5 rounded-xl text-[11px] font-medium w-fit hover:bg-[#FFF6F7] hover:text-[#B8112D] disabled:cursor-default"
+                            title="Call this number"
+                          >
+                            <Phone size={10}/><span className="underline-offset-[3px] group-hover:underline group-disabled:no-underline">{lead.phone}</span>
+                          </button>
+                          {lead.phone && lead.phone !== "N/A" && <ChangeDialerNumber />}
+                        </span>
                       </td>
                       <td className="py-3.5 px-2">
                         {lead.interestedService ? (

@@ -24,7 +24,7 @@ export const DEPT_ROSTER = {
 } as const;
 
 export type RosterDept = keyof typeof DEPT_ROSTER;
-export type AttendanceDept = RosterDept | "chief_estimator" | "admin" | "accounts";
+export type AttendanceDept = RosterDept | "chief_estimator" | "bim_manager" | "admin" | "accounts";
 
 const IP_GATED: AttendanceDept[] = ["dev", "office_boy", "hr", "bim_modeler"];
 

@@ -7,7 +7,7 @@ import toast, { Toaster } from "react-hot-toast";
 import {
   Search, FolderKanban, Calendar, Users, ClipboardList, CheckCircle2,
   Calculator, Send, Layers, UserPlus, Check, Eye, Trash2, RefreshCw, RotateCcw,
-  ArrowRightLeft,
+  ArrowRightLeft, Plus,
 } from "lucide-react";
 import {
   Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, Tooltip, XAxis, YAxis,
@@ -155,20 +155,20 @@ function threadNotesHistory(
     }));
 }
 
-function projectToWorkbench(p: Project): ProjectWorkbenchData {
+function projectToWorkbench(p: Project, keepClient = false): ProjectWorkbenchData {
   return {
     id: p.id,
-    name: "",
-    company: "",
-    phone: "",
-    email: "",
-    ownerName: "",
+    name: keepClient ? (p.name ?? "") : "",
+    company: keepClient ? (p.company ?? "") : "",
+    phone: keepClient ? (p.phone ?? "") : "",
+    email: keepClient ? (p.email ?? "") : "",
+    ownerName: keepClient ? (p.ownerName ?? "") : "",
     state: p.state ?? "",
     projectCode: p.projectCode || p.clientCode || "",
     projectTitle: p.projectTitle ?? "",
     projectScope: p.projectScope ?? "",
     interestedService: p.interestedService ?? "",
-    projectBudget: "",
+    projectBudget: keepClient ? (p.projectBudget ?? "") : "",
     projectDeadline: (p.projectDeadline ?? "").split("T")[0],
     deadlineTiming: (p.deadlineTiming === "morning" || p.deadlineTiming === "cob" ? p.deadlineTiming : "") as "" | "morning" | "cob",
     projectPhase: p.projectPhase ?? "not_started",
@@ -926,6 +926,9 @@ export function TechnicalActiveProjectsPageInner({
 
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
+  const bimDesk = peekAuthMe()?.role === "bim_manager";
+  const [addOpen, setAddOpen] = useState(false);
+  const [addSaving, setAddSaving] = useState(false);
   const [search, setSearch] = useState("");
   const [stateFilter, setStateFilter] = useState("");
   const [phoneFilter, setPhoneFilter] = useState("");
@@ -966,6 +969,45 @@ export function TechnicalActiveProjectsPageInner({
       if (!silent) setLoading(false);
     }
   }, [dateFrom, dateTo, isRevisions]);
+
+  const saveBimProject = async (data: ProjectWorkbenchData) => {
+    if (!data.name.trim() || !data.phone.trim() || !data.projectTitle.trim() || !data.interestedService.trim() || !data.projectDeadline) {
+      toast.error("Client, phone, title, service, and deadline are required.");
+      return;
+    }
+    setAddSaving(true);
+    try {
+      await API.post("/admin/project", {
+        name: data.name.trim(),
+        company: data.company.trim() || undefined,
+        phone: data.phone.trim(),
+        email: data.email.trim() || undefined,
+        ownerName: data.ownerName.trim() || undefined,
+        state: data.state.trim() || undefined,
+        projectCode: data.projectCode.trim() || undefined,
+        projectTitle: data.projectTitle.trim(),
+        projectScope: data.projectScope.trim() || undefined,
+        interestedService: data.interestedService.trim(),
+        projectDeadline: data.projectDeadline,
+        deadlineTiming: data.deadlineTiming || "",
+        projectBudget: data.projectBudget.trim() || undefined,
+        projectNotes: data.projectNotes?.trim() || undefined,
+        projectPhase: data.projectPhase,
+        takeoffDeadline: data.takeoffDeadline || undefined,
+        pricingDeadline: data.pricingDeadline || undefined,
+        qaDeadline: data.qaDeadline || undefined,
+        projectPayments: data.projectPayments,
+        status: "Close Client",
+      });
+      toast.success("Project added. It is in your list and in Admin Project DB → BIM.");
+      setAddOpen(false);
+      await fetchProjects();
+    } catch (err) {
+      toast.error(apiErrorMessage(err, "Could not add the project."));
+    } finally {
+      setAddSaving(false);
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -1337,6 +1379,17 @@ export function TechnicalActiveProjectsPageInner({
     try {
       // Technical must not overwrite client identity fields
       const res = await API.put(`/admin/project/${data.id}`, {
+        ...(bimDesk
+          ? {
+              name: data.name.trim(),
+              company: data.company.trim() || null,
+              phone: data.phone.trim(),
+              email: data.email.trim() || null,
+              ownerName: data.ownerName.trim() || null,
+              projectBudget: data.projectBudget.trim() || null,
+              projectPayments: data.projectPayments,
+            }
+          : {}),
         state: data.state,
         projectCode: data.projectCode,
         projectTitle: data.projectTitle,
@@ -1351,7 +1404,11 @@ export function TechnicalActiveProjectsPageInner({
         projectNotes: data.projectNotes,
       });
       const lead = res.data.lead as Project;
-      setProjects((prev) => prev.map((p) => (p.id === lead.id ? { ...p, ...lead, name: null, ownerName: null } : p)));
+      setProjects((prev) => prev.map((p) => (
+        p.id === lead.id
+          ? { ...p, ...lead, ...(bimDesk ? {} : { name: null, ownerName: null }) }
+          : p
+      )));
       setEditProject(null);
       toast.success("Project updated");
     } catch {
@@ -1503,10 +1560,21 @@ export function TechnicalActiveProjectsPageInner({
               <p className="text-xs sm:text-sm text-crm-text-muted mt-0.5 sm:mt-1">
                 {isRevisions
                   ? "Admin-sent revision projects — assign estimators like Active Projects."
-                  : "Technical workflow — assign estimators, track takeoff, pricing & submission."}
+                  : bimDesk
+                    ? "Upload a BIM project with client, phone, and the rest. It also appears in Admin Project DB → BIM."
+                    : "Technical workflow — assign estimators, track takeoff, pricing & submission."}
               </p>
             </div>
             <div className="flex items-center gap-2 flex-wrap shrink-0">
+              {bimDesk && !isRevisions && (
+                <button
+                  type="button"
+                  onClick={() => setAddOpen(true)}
+                  className="h-9 sm:h-10 px-3 sm:px-4 rounded-xl bg-[#0F398A] text-white text-xs sm:text-sm font-semibold inline-flex items-center justify-center gap-2"
+                >
+                  <Plus size={14} /> Add project
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => void fetchProjects()}
@@ -2295,7 +2363,7 @@ export function TechnicalActiveProjectsPageInner({
       <ProjectWorkbenchModal
         open={!!editProject}
         onClose={() => setEditProject(null)}
-        initial={editProject ? projectToWorkbench(editProject) : emptyWorkbench()}
+        initial={editProject ? projectToWorkbench(editProject, bimDesk) : emptyWorkbench()}
         mode="admin"
         saving={editSaving}
         onSave={saveEdit}
@@ -2326,7 +2394,16 @@ export function TechnicalActiveProjectsPageInner({
               }
             : undefined
         }
-        hideClientFinanceSections
+        hideClientFinanceSections={!bimDesk}
+      />
+      <ProjectWorkbenchModal
+        open={addOpen}
+        onClose={() => setAddOpen(false)}
+        initial={{ ...emptyWorkbench(), interestedService: "BIM" }}
+        mode="admin"
+        createMode
+        saving={addSaving}
+        onSave={(data) => saveBimProject(data)}
       />
     </TechnicalPageShell>
   );

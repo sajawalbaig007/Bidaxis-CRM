@@ -203,7 +203,7 @@ function emptyMember(id: string, name: string, code: string): MutableMember {
   };
 }
 
-export async function buildTechnicalMonitoring(): Promise<{
+export async function buildTechnicalMonitoring(staffRole: "estimator" | "bim" = "estimator"): Promise<{
   generatedAt: string;
   kpi: TechnicalKpiPayload;
   team: TechnicalTeamMember[];
@@ -213,9 +213,12 @@ export async function buildTechnicalMonitoring(): Promise<{
   const today = startOfToday();
 
   const [roster, rawLeads] = await Promise.all([
-    listTechnicalEstimators(),
+    listTechnicalEstimators(staffRole),
     prisma.lead.findMany({
-      where: buildProjectLeadWhere(),
+      where: {
+        ...buildProjectLeadWhere(),
+        ...(staffRole === "bim" ? { projectDesk: "bim" } : {}),
+      },
       select: {
         id: true,
         status: true,
@@ -227,6 +230,7 @@ export async function buildTechnicalMonitoring(): Promise<{
         projectWorkStatus: true,
         technicalAssignments: true,
         hiddenOnTechnical: true,
+        projectDesk: true,
         inBin: true,
         updatedAt: true,
       },
@@ -237,6 +241,7 @@ export async function buildTechnicalMonitoring(): Promise<{
 
   const leads = rawLeads
     .filter(isDisplayableProjectLead)
+    .filter((l) => (staffRole === "bim" ? l.projectDesk === "bim" : l.projectDesk !== "bim"))
     .filter((l) => (l as { hiddenOnTechnical?: boolean | null }).hiddenOnTechnical !== true);
 
   const pipeline = {

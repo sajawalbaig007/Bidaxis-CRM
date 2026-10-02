@@ -494,6 +494,9 @@ export default function ReportsPage() {
               <CsrActivityReport staffRole="estimator" />
             </div>
             <div className="md:col-span-12 min-w-0">
+              <CsrActivityReport staffRole="bim" />
+            </div>
+            <div className="md:col-span-12 min-w-0">
               <StaffAttendanceReport />
             </div>
 

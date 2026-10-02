@@ -7,19 +7,22 @@ import StillWorkingPrompt from "../components/StillWorkingPrompt";
 import CsrDataResetListener from "./components/CsrDataResetListener";
 import DevToolsGuard from "../components/DevToolsGuard";
 import CrmMailProvider from "../components/mail/CrmMailProvider";
+import { ZoomDialerProvider } from "./components/dialer/ZoomDialerProvider";
 
 export default function CsrLayout({ children }: { children: React.ReactNode }) {
   return (
     <CrmMailProvider>
-      <DevToolsGuard allowSelection />
-      <SessionNotifierInit />
-      <StaffPresenceInit />
-      <CsrDataResetListener />
-      <CsrPresenceInit />
-      <StillWorkingPrompt promptEvent="csr-activity-prompt" confirmEvent="csr-activity-confirm" />
-      <StaffChatNotifier />
-      <ChatLayoutCleanup />
-      {children}
+      <ZoomDialerProvider>
+        <DevToolsGuard allowSelection />
+        <SessionNotifierInit />
+        <StaffPresenceInit />
+        <CsrDataResetListener />
+        <CsrPresenceInit />
+        <StillWorkingPrompt promptEvent="csr-activity-prompt" confirmEvent="csr-activity-confirm" />
+        <StaffChatNotifier />
+        <ChatLayoutCleanup />
+        {children}
+      </ZoomDialerProvider>
     </CrmMailProvider>
   );
 }

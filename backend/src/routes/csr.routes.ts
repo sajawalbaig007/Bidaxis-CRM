@@ -52,7 +52,6 @@ import {
 } from "../utils/csrDashboardQueries";
 import { ensureMasterFormatTrades } from "../utils/masterFormatTrades";
 import { allocateNextProjectCode } from "../utils/nextProjectCode";
-
 const router = express.Router();
 
 async function logStatusChange(csrId: string, leadId: string, status: string) {

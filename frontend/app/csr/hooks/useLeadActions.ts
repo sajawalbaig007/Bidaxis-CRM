@@ -1,10 +1,12 @@
 import { Dispatch, SetStateAction } from "react";
-import API from "@/lib/api";
+import API, { apiErrorMessage } from "@/lib/api";
 import { invalidateAllCsrListCaches } from "@/lib/csrApiCache";
 import { invalidateCsrTabCaches } from "@/lib/csrTabApiCache";
 import { Lead } from "../types/lead";
 import { NoteEntry } from "./useLeadsData";
 import { normStatus } from "../constants/leadStatuses";
+import toast from "react-hot-toast";
+import { consumeLeadDial } from "../components/dialer/dialUnlock";
 
 /** Keep optimistic flags in sync with status so lists/tabs don't drift. */
 function flagsFromStatus(status: unknown): Partial<Lead> {
@@ -181,6 +183,7 @@ export function useLeadActions(setLeads: Dispatch<SetStateAction<Lead[]>>) {
   };
 
   const updateLead = async (id: string, payload: Record<string, unknown>) => {
+    const changingStatus = "status" in payload && String(payload.status ?? "").trim() !== "";
     const now = new Date().toISOString();
     const flagPatch = "status" in payload ? flagsFromStatus(payload.status) : {};
     const uiPatch = { ...safeLeadPatch(payload), ...flagPatch };
@@ -192,7 +195,18 @@ export function useLeadActions(setLeads: Dispatch<SetStateAction<Lead[]>>) {
       return next;
     }));
 
-    const res = await API.put(`/csr/lead/${id}`, sanitizePayloadForApi(payload));
+    let res;
+    try {
+      res = await API.put(`/csr/lead/${id}`, sanitizePayloadForApi(payload));
+    } catch (err) {
+      if (changingStatus) {
+        const message = apiErrorMessage(err, "Could not update status.");
+        if (message.includes("Zoom dialer")) consumeLeadDial(id);
+        toast.error(message);
+      }
+      throw err;
+    }
+    if (changingStatus) consumeLeadDial(id);
     invalidateCaches();
 
     /* Only sync status/flags from server — never copy Prisma `name`/`phone` onto UI Lead */

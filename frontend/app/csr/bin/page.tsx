@@ -20,12 +20,14 @@ import { matchesStateLocationFilter, matchesPhoneAreaCodeFilter } from "@/lib/st
 import SubContactsCell from "@/app/components/clients/SubContactsCell";
 import CapsuleTabs, { type CapsuleTabItem } from "@/app/components/CapsuleTabs";
 import API from "@/lib/api";
+import { ChangeDialerNumber, useZoomDialer } from "../components/dialer/ZoomDialerProvider";
 import { formatEstDayMonth } from "@/lib/estTime";
 
 const PAGE_SIZE = 30;
 type TabKey = "all" | "notpicked" | "notinterested" | "deleted" | "inhouse" | "noowner" | "notinservice";
 
 export default function CSRBinPage() {
+  const dialer = useZoomDialer();
   const { leads, setLeads, loading, refetch } = useBinData();
 
   const [search, setSearch] = useState("");
@@ -223,9 +225,22 @@ export default function CSRBinPage() {
                       <span className="text-[13px] font-medium text-[#0F172A] max-w-[100px] truncate block">{lead.company}</span>
                     </td>
                     <td className="py-4 px-2">
-                      <div className="flex items-center gap-1 bg-[#FFF7E6] text-[#B54708] px-2.5 py-1.5 rounded-xl text-[11px] font-medium w-fit whitespace-nowrap">
-                        <Phone size={18}/>{lead.phone}
-                      </div>
+                      <span className="inline-flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          disabled={!dialer || !lead.phone || lead.phone === "N/A"}
+                          onClick={() => dialer?.open({
+                            destination: lead.phone,
+                            leadId: lead.id,
+                            clientName: lead.company || lead.client,
+                          })}
+                          className="group flex items-center gap-1 bg-[#FFF7E6] text-[#B54708] px-2.5 py-1.5 rounded-xl text-[11px] font-medium w-fit whitespace-nowrap hover:opacity-80 disabled:cursor-default disabled:hover:no-underline"
+                          title="Call this number"
+                        >
+                          <Phone size={18}/><span className="underline-offset-[3px] group-hover:underline group-disabled:no-underline">{lead.phone}</span>
+                        </button>
+                        {dialer && lead.phone && lead.phone !== "N/A" && <ChangeDialerNumber />}
+                      </span>
                     </td>
                     <td className={`hidden lg:table-cell py-4 px-2`}>
                       <SubContactsCell contacts={lead.subContacts} />

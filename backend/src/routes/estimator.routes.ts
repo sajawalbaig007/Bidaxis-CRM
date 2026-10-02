@@ -3,6 +3,7 @@ import prisma from "../config/db";
 import { verifyToken, AuthRequest } from "../middleware/auth.middleware";
 import { allowRoles } from "../middleware/role.middleware";
 import { buildProjectLeadWhere, isDisplayableProjectLead } from "../utils/projectLeads";
+import { deskWhereForRole, leadVisibleOnDesk } from "../utils/projectDesk";
 import {
   assignmentBelongsToEstimator,
   parseTechnicalAssignments,
@@ -80,7 +81,7 @@ router.get("/lead/:id", async (req: AuthRequest, res) => {
     const mine = parseTechnicalAssignments(lead.technicalAssignments).some((a) =>
       assignmentBelongsToEstimator(a, me),
     );
-    if (!mine) {
+    if (!mine || !leadVisibleOnDesk(lead, req.user?.role)) {
       return res.status(403).json({ success: false, message: "This project is not assigned to you" });
     }
     return res.json({ success: true, lead: withMyAssignment(lead, me) });
@@ -101,6 +102,7 @@ router.get("/projects", async (req: AuthRequest, res) => {
     const raw = await prisma.lead.findMany({
       where: {
         ...buildProjectLeadWhere(),
+        ...deskWhereForRole(req.user?.role),
         technicalAssignments: { not: null },
       },
       include: projectInclude(),
@@ -110,6 +112,7 @@ router.get("/projects", async (req: AuthRequest, res) => {
 
     const leads = raw
       .filter(isDisplayableProjectLead)
+      .filter((lead) => leadVisibleOnDesk(lead, req.user?.role))
       .filter((lead) => (lead as { hiddenOnTechnical?: boolean }).hiddenOnTechnical !== true)
       .map((lead) => {
         const all = parseTechnicalAssignments(lead.technicalAssignments);
@@ -147,6 +150,7 @@ router.get("/dashboard", async (req: AuthRequest, res) => {
     const raw = await prisma.lead.findMany({
       where: {
         ...buildProjectLeadWhere(),
+        ...deskWhereForRole(req.user?.role),
         technicalAssignments: { not: null },
       },
       select: {
@@ -159,12 +163,14 @@ router.get("/dashboard", async (req: AuthRequest, res) => {
         technicalNotes: true,
         updatedAt: true,
         hiddenOnTechnical: true,
+        projectDesk: true,
       },
       orderBy: { updatedAt: "desc" },
       take: 200,
     });
 
     const mine = raw
+      .filter((lead) => leadVisibleOnDesk(lead, req.user?.role))
       .filter((lead) => lead.hiddenOnTechnical !== true)
       .map((lead) => {
         const all = parseTechnicalAssignments(lead.technicalAssignments);
@@ -628,11 +634,12 @@ router.get("/notifications", async (req: AuthRequest, res) => {
     if (!me) return res.status(401).json({ success: false, message: "Unauthorized" });
 
     const leads = await prisma.lead.findMany({
-      where: buildProjectLeadWhere(),
-      select: { id: true, technicalAssignments: true },
+      where: { ...buildProjectLeadWhere(), ...deskWhereForRole(req.user?.role) },
+      select: { id: true, technicalAssignments: true, projectDesk: true },
       take: 500,
     });
     const myLeadIds = leads
+      .filter((l) => leadVisibleOnDesk(l, req.user?.role))
       .filter((l) =>
         parseTechnicalAssignments(l.technicalAssignments).some((a) =>
           assignmentBelongsToEstimator(a, me),

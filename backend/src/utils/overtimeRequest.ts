@@ -228,9 +228,9 @@ type SessionHit = {
 };
 
 /** Estimator shifts grouped by the check-in day. A next-morning checkout stays on that day. */
-export async function listEstimatorShiftRows() {
+export async function listEstimatorShiftRows(staffRole: "estimator" | "bim" = "estimator") {
   const sessions = await prisma.csrWorkSession.findMany({
-    where: { user: { is: { role: "estimator" } } },
+    where: { user: { is: { role: staffRole } } },
     orderBy: { loginAt: "asc" },
     take: 8000,
     select: {
@@ -249,7 +249,7 @@ export async function listEstimatorShiftRows() {
   };
   const map = new Map<string, Bucket>();
   for (const row of sessions as SessionHit[]) {
-    const day = pktShiftDay(row.loginAt, "estimator", row.user.id);
+    const day = pktShiftDay(row.loginAt, staffRole, row.user.id);
     const key = `${row.user.id}:${day}`;
     const hit = map.get(key);
     if (!hit) {
@@ -272,7 +272,7 @@ export async function listEstimatorShiftRows() {
     }
   }
   const notes = await prisma.overtimeRequest.findMany({
-    where: { department: "estimator" },
+    where: { department: staffRole },
   });
   const byKey = new Map(notes.map((note) => [`${note.personKey}:${note.day}`, note]));
   return [...map.values()]
@@ -283,7 +283,7 @@ export async function listEstimatorShiftRows() {
         id: note?.id ?? `estimator:${bucket.personKey}:${bucket.day}`,
         personKey: bucket.personKey,
         personName: bucket.personName,
-        department: "estimator",
+        department: staffRole,
         day: bucket.day,
         checkIn: null,
         checkOut: null,

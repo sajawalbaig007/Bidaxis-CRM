@@ -107,6 +107,7 @@ type Project = {
   revisionRequestedAt?: string | null;
   revisionNotes?: string | null;
   hiddenOnTechnical?: boolean;
+  projectDesk?:      string | null;
   isOldClient:       boolean;
   createdAt?:        string;
   updatedAt:         string;
@@ -781,7 +782,7 @@ export default function AdminProjectsPage() {
   const [allCsrs,     setAllCsrs]     = useState<CSROption[]>([]);
   const [workbenchProject, setWorkbenchProject] = useState<Project | null>(null);
   const [workbenchSaving, setWorkbenchSaving]   = useState(false);
-  const [projectTab,  setProjectTab]  = useState<"all" | "active" | "completed">("all");
+  const [projectTab,  setProjectTab]  = useState<"all" | "active" | "completed" | "bim">("all");
   const [markingCompletedId, setMarkingCompletedId] = useState<string | null>(null);
   const [togglingTechnicalId, setTogglingTechnicalId] = useState<string | null>(null);
   const [excelUploading, setExcelUploading] = useState(false);
@@ -1352,19 +1353,24 @@ export default function AdminProjectsPage() {
     return matchSearch && matchState && matchPhone && matchCsr && matchDates && matchMonth && matchPaymentType;
   });
 
-  const allProjects    = baseFiltered;
-  const activeProjects = baseFiltered.filter(isProjectActive);
-  const completedProjects = baseFiltered.filter((p) => getProjectWorkStatus(p).key === "completed");
+  const estimationProjects = baseFiltered.filter((p) => p.projectDesk !== "bim");
+  const bimProjects = baseFiltered.filter((p) => p.projectDesk === "bim");
+  const allProjects    = estimationProjects;
+  const activeProjects = estimationProjects.filter(isProjectActive);
+  const completedProjects = estimationProjects.filter((p) => getProjectWorkStatus(p).key === "completed");
   const displayedProjects =
-    projectTab === "all"
-      ? allProjects
-      : projectTab === "active"
-        ? activeProjects
-        : completedProjects;
+    projectTab === "bim"
+      ? bimProjects
+      : projectTab === "all"
+        ? allProjects
+        : projectTab === "active"
+          ? activeProjects
+          : completedProjects;
 
   const phasePieData = useMemo(() => {
     const counts = new Map<string, number>();
     for (const p of projects) {
+      if (p.projectDesk === "bim") continue;
       const key = p.projectPhase ?? "not_started";
       counts.set(key, (counts.get(key) ?? 0) + 1);
     }
@@ -1583,10 +1589,13 @@ export default function AdminProjectsPage() {
               { key: "all", label: "All Projects", shortLabel: "All", count: allProjects.length },
               { key: "active", label: "Active Projects", shortLabel: "Active", count: activeProjects.length },
               { key: "completed", label: "Completed", shortLabel: "Done", count: completedProjects.length },
+              { key: "bim", label: "BIM", shortLabel: "BIM", count: bimProjects.length },
             ]}
           />
           <p className="mt-2 text-[11px] sm:text-xs text-gray-400">
-            {projectTab === "all"
+            {projectTab === "bim"
+              ? "Projects uploaded by BIM Manager. They stay in this tab only."
+              : projectTab === "all"
               ? "New, old, completed & in-progress"
               : projectTab === "active"
                 ? "Currently in progress only"

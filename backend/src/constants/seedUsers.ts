@@ -15,6 +15,8 @@ export const SEED_USERS: {
   { name: "Manager User", email: "manager@gmail.com", role: Role.manager },
   { name: "Chief Estimator", email: "technical@gmail.com", role: Role.technical_manager },
   { name: "Estimator User", email: "estimator@gmail.com", role: Role.estimator, csrCode: "EST001" },
+  { name: "BIM Manager", email: "bimmanager@gmail.com", role: Role.bim_manager },
+  { name: "BIM User", email: "bim@gmail.com", role: Role.bim, csrCode: "BIM001" },
   { name: "Accounts User", email: "accounts@gmail.com", role: Role.accounts },
 ];
 

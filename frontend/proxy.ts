@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { isDesktopOsUserAgent } from "@/lib/desktopUserAgent";
 
-type AppRole = "admin" | "csr" | "manager" | "technical_manager" | "accounts" | "estimator";
+type AppRole = "admin" | "csr" | "manager" | "technical_manager" | "accounts" | "estimator" | "bim_manager" | "bim";
 
 type TokenPayload = { role?: string; exp?: number; sid?: string };
 
@@ -28,7 +28,9 @@ function parseToken(token: string): { role: AppRole | null; ok: boolean } {
       role === "manager" ||
       role === "technical_manager" ||
       role === "accounts" ||
-      role === "estimator"
+      role === "estimator" ||
+      role === "bim_manager" ||
+      role === "bim"
     ) {
       return { role, ok: true };
     }
@@ -47,9 +49,9 @@ function redirectHomeClearCookie(request: NextRequest) {
 function homeForRole(role: AppRole) {
   if (role === "admin") return "/admin";
   if (role === "manager") return "/manager";
-  if (role === "technical_manager") return "/technical";
+  if (role === "technical_manager" || role === "bim_manager") return "/technical";
   if (role === "accounts") return "/accounts";
-  if (role === "estimator") return "/estimator";
+  if (role === "estimator" || role === "bim") return "/estimator";
   return "/csr";
 }
 
@@ -113,13 +115,13 @@ export function proxy(request: NextRequest) {
   if (pathname.startsWith("/manager") && role !== "manager") {
     return NextResponse.redirect(new URL(homeForRole(role), request.url));
   }
-  if (pathname.startsWith("/technical") && role !== "technical_manager" && role !== "admin") {
+  if (pathname.startsWith("/technical") && role !== "technical_manager" && role !== "bim_manager" && role !== "admin") {
     return NextResponse.redirect(new URL(homeForRole(role), request.url));
   }
   if (pathname.startsWith("/accounts") && role !== "accounts" && role !== "admin") {
     return NextResponse.redirect(new URL(homeForRole(role), request.url));
   }
-  if (pathname.startsWith("/estimator") && role !== "estimator") {
+  if (pathname.startsWith("/estimator") && role !== "estimator" && role !== "bim") {
     return NextResponse.redirect(new URL(homeForRole(role), request.url));
   }
 
