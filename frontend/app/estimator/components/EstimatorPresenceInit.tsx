@@ -16,7 +16,7 @@ const ACTION_KEY = "estimator_last_real_action";
 export function requestEstimatorIdlePermission(): void {
   armCheckoutAlert();
 }
-
+//
 /** Heartbeat ticks open work session (dashboard/away) after Check In. */
 export function useEstimatorPresence() {
   const [checkedIn, setCheckedIn] = useState(false);
