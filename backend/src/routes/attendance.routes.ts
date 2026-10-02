@@ -19,6 +19,7 @@ import {
   employeeHistoryStart,
   attendanceShift,
   EVENING_SHIFT_START,
+  DEPT_ROSTER,
   publicRoster,
   rosterPerson,
   RosterDept,
@@ -107,6 +108,7 @@ router.delete("/late-deductions", verifyToken, allowRoles("admin"), async (req: 
 
 const PORTAL_ROLE: Record<string, Role> = {
   chief_estimator: "technical_manager",
+  bim_manager: "bim_manager",
   admin: "manager",
   accounts: "accounts",
 };
@@ -119,7 +121,7 @@ router.post("/ceo-day", verifyToken, allowRoles("admin"), async (req: AuthReques
     const day = String(req.body?.day ?? "").trim();
     const checkIn = String(req.body?.checkIn ?? "").trim();
     const checkOutRaw = String(req.body?.checkOut ?? "").trim();
-    if (!SHIFT_DEPARTMENTS.some((dept) => dept.id === department)) {
+    if (!SHIFT_DEPARTMENTS.some((dept) => dept.id === department) && department !== "bim" && department !== "bim_manager") {
       return res.status(400).json({ success: false, message: "Unknown department." });
     }
     if (!personKey || !personName) return res.status(400).json({ success: false, message: "Choose an employee." });
@@ -131,7 +133,7 @@ router.post("/ceo-day", verifyToken, allowRoles("admin"), async (req: AuthReques
     if (checkOut && !isValidTime(checkOut)) {
       return res.status(400).json({ success: false, message: "Enter a valid check-out time." });
     }
-    if (department === "csr" || department === "estimator") {
+    if (department === "csr" || department === "estimator" || department === "bim") {
       const user = await prisma.user.findFirst({
         where: { id: personKey, role: department, isActive: true },
         select: { id: true },
@@ -662,6 +664,30 @@ router.get("/report", verifyToken, allowRoles("admin", "manager", "technical_man
       where: { department: { in: ["dev", "chief_estimator", "bim_modeler"] }, day: { gte: start, lte: end } },
     });
     const byKey = new Map(notes.map((note) => [`${note.department}:${note.personKey}:${note.day}`, note]));
+    const users = await prisma.user.findMany({
+      where: { isActive: true, role: { in: ["technical_manager", "bim_manager", "manager", "accounts"] } },
+      select: { id: true, name: true, role: true },
+      orderBy: { name: "asc" },
+    });
+    const roleDept: Record<string, string> = {
+      technical_manager: "chief_estimator",
+      bim_manager: "bim_manager",
+      manager: "admin",
+      accounts: "accounts",
+    };
+    const people = [
+      ...(["dev", "office_boy", "hr", "bim_modeler"] as const).flatMap((department) =>
+        DEPT_ROSTER[department].map((person) => ({
+          department,
+          personKey: person.key,
+          personName: person.name,
+        })),
+      ),
+      ...users.flatMap((user) => {
+        const department = roleDept[user.role];
+        return department ? [{ department, personKey: user.id, personName: user.name }] : [];
+      }),
+    ];
     return res.json({
       success: true,
       from: start,
@@ -671,6 +697,7 @@ router.get("/report", verifyToken, allowRoles("admin", "manager", "technical_man
         ...overtimePublic(byKey.get(`${row.department}:${row.personKey}:${row.day}`)),
       })),
       estimators,
+      people,
     });
   } catch (error) {
     console.error("[attendance/report]", error);
