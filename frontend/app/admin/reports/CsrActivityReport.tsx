@@ -33,7 +33,7 @@ function formatSessionStamp(iso: string | null | undefined, timeZone: string, em
   }).format(d);
 }
 
-type CsrOption = { id: string; name: string; csrCode?: string | null };
+type CsrOption = { id: string; name: string; csrCode?: string | null; isActive?: boolean };
 
 type SessionRow = {
   id: string;
@@ -119,6 +119,36 @@ function calendarYmd(timeZone: string, value: Date = new Date()): string {
     month: "2-digit",
     day: "2-digit",
   }).format(value);
+}
+
+function zonedParts(date: Date, timeZone: string): { day: string; time: string } {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(date);
+  const get = (type: string) => parts.find((part) => part.type === type)?.value ?? "";
+  const hour = get("hour") === "24" ? "00" : get("hour");
+  return { day: `${get("year")}-${get("month")}-${get("day")}`, time: `${hour.padStart(2, "0")}:${get("minute").padStart(2, "0")}` };
+}
+
+function wallToPkt(day: string, time: string, tz: string): { day: string; time: string } | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || !/^\d{2}:\d{2}$/.test(time)) return null;
+  if (tz === "Asia/Karachi") return { day, time };
+  const [y, m, d] = day.split("-").map(Number);
+  const [hh, mm] = time.split(":").map(Number);
+  let utc = Date.UTC(y, (m || 1) - 1, d || 1, hh || 0, mm || 0);
+  for (let i = 0; i < 3; i++) {
+    const wall = zonedParts(new Date(utc), tz);
+    const [wy, wm, wd] = wall.day.split("-").map(Number);
+    const [wh, wmin] = wall.time.split(":").map(Number);
+    utc += Date.UTC(y, (m || 1) - 1, d || 1, hh || 0, mm || 0) - Date.UTC(wy, (wm || 1) - 1, wd || 1, wh || 0, wmin || 0);
+  }
+  return zonedParts(new Date(utc), "Asia/Karachi");
 }
 
 function formatClockLocalInput(iso: string | null | undefined, timeZone: string): string {
@@ -445,6 +475,31 @@ export default function CsrActivityReport({
     setSavingEdit(false);
   };
 
+  const openMissing = (person: CsrOption) => {
+    setEditing({
+      id: `new:${person.id}`,
+      csrId: person.id,
+      csrName: person.name,
+      csrCode: person.csrCode ?? null,
+      loginAt: "",
+      logoutAt: null,
+      loginAtEst: "",
+      logoutAtEst: "",
+      dashboardDuration: "—",
+      awayDuration: "—",
+      totalDuration: "—",
+      status: "closed",
+      browser: null,
+      ip: null,
+      closedReason: null,
+      day: fromDate,
+    });
+    setEditCheckIn(`${fromDate}T09:00`);
+    setEditCheckOut("");
+    setEditStillOpen(false);
+    setEditNote("admin_adjusted");
+  };
+
   const saveEdit = async () => {
     if (!editing || !editCheckIn) {
       toast.error("Check-in time is required.");
@@ -456,6 +511,37 @@ export default function CsrActivityReport({
     }
     try {
       setSavingEdit(true);
+      if (editing.id.startsWith("new:")) {
+        const tz = CLOCKS[clockTz].tz;
+        const checkInMatch = /^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/.exec(editCheckIn);
+        const checkInPkt = checkInMatch ? wallToPkt(checkInMatch[1], checkInMatch[2], tz) : null;
+        if (!checkInPkt) {
+          toast.error("Enter a valid check-in time.");
+          return;
+        }
+        let checkOut = "";
+        if (!editStillOpen) {
+          const checkOutMatch = /^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/.exec(editCheckOut);
+          const checkOutPkt = checkOutMatch ? wallToPkt(checkOutMatch[1], checkOutMatch[2], tz) : null;
+          if (!checkOutPkt) {
+            toast.error("Enter a valid check-out time.");
+            return;
+          }
+          checkOut = checkOutPkt.time;
+        }
+        await API.post("/attendance/ceo-day", {
+          department: staffRole,
+          personKey: editing.csrId,
+          personName: editing.csrName,
+          day: checkInPkt.day,
+          checkIn: checkInPkt.time,
+          checkOut,
+        });
+        toast.success("Time saved.");
+        closeEdit();
+        await loadReport();
+        return;
+      }
       await API.put(`/admin/csr-work-session/${editing.id}`, {
         checkInAt: editCheckIn,
         checkOutAt: editStillOpen ? null : editCheckOut,
@@ -476,14 +562,15 @@ export default function CsrActivityReport({
 
   useEffect(() => {
     const load = () => {
-      API.get(isEstimator ? "/admin/csrs?role=estimator" : "/admin/csrs")
+      const role = isBim ? "bim" : isEstimator ? "estimator" : "csr";
+      API.get(`/admin/csrs?role=${role}`)
         .then(res => setCsrs(res.data.csrs ?? []))
         .catch(() => {});
     };
     load();
     window.addEventListener("focus", load);
     return () => window.removeEventListener("focus", load);
-  }, [isEstimator]);
+  }, [isBim, isEstimator]);
 
   useEffect(() => {
     if (!dropdownOpen) return;
@@ -564,6 +651,13 @@ export default function CsrActivityReport({
     sessions: sessions.length,
     csrs: summary.length,
   }), [sessions, summary]);
+
+  const missingPeople = useMemo(() => {
+    const today = calendarYmd("Asia/Karachi");
+    if (!canEdit || fromDate !== toDate || fromDate > today) return [];
+    const present = new Set(sessions.map((row) => row.csrId));
+    return csrs.filter((person) => person.isActive !== false && !present.has(person.id) && (csrId === "all" || csrId === person.id));
+  }, [canEdit, fromDate, toDate, sessions, csrs, csrId]);
 
   return (
     <div className="rounded-[1.75rem] border border-gray-100/90 bg-white dark:bg-crm-surface shadow-[0_10px_40px_-24px_rgba(15,23,42,0.35)] p-4 sm:p-5 overflow-hidden">
@@ -811,13 +905,15 @@ export default function CsrActivityReport({
                         ))}
                       </tr>
                     ))
-                  ) : sessions.length === 0 ? (
+                  ) : sessions.length === 0 && missingPeople.length === 0 ? (
                     <tr>
                       <td colSpan={sessionCols} className="py-12 text-center text-gray-400 text-sm">
-                        No {personLabel.toLowerCase()} check-in sessions in this date range
+                        {canEdit && fromDate !== toDate
+                          ? "Pick one day to add a time for someone who did not check in."
+                          : `No ${personLabel.toLowerCase()} check-in sessions in this date range`}
                       </td>
                     </tr>
-                  ) : sessions.map(row => (
+                  ) : <>{sessions.map(row => (
                     <tr key={row.id} className="border-b border-gray-50 hover:bg-[#FAFAFB]">
                       <td className="px-3 py-3">
                         <div className="font-semibold text-sm text-[#111827]">{row.csrName}</div>
@@ -913,6 +1009,40 @@ export default function CsrActivityReport({
                       ) : null}
                     </tr>
                   ))}
+                  {missingPeople.map((person) => (
+                    <tr key={`missing-${person.id}`} className="border-b border-gray-50">
+                      <td className="px-3 py-3">
+                        <div className="font-semibold text-sm text-[#111827]">{person.name}</div>
+                        {person.csrCode ? <div className="text-[10px] text-gray-400">{person.csrCode}</div> : null}
+                      </td>
+                      <td className="px-3 py-3 text-xs text-gray-400">—</td>
+                      <td className="px-3 py-3 text-xs text-gray-400">—</td>
+                      {showShiftOt ? <td className="px-3 py-3" /> : null}
+                      {showRequests ? <td className="px-3 py-3" /> : null}
+                      <td className="px-3 py-3 text-xs text-gray-400">—</td>
+                      <td className="px-3 py-3 text-xs text-gray-400">—</td>
+                      <td className="px-3 py-3 text-xs text-gray-400">—</td>
+                      <td className="px-3 py-3 text-xs text-gray-400">—</td>
+                      <td className="px-3 py-3">
+                        <span className="text-[10px] sm:text-xs font-bold px-2 py-1 rounded-full bg-amber-50 text-amber-700">No check-in</span>
+                      </td>
+                      <td className="px-3 py-3 text-xs text-gray-400">—</td>
+                      {showOvertime ? <><td className="px-3 py-3" /><td className="px-3 py-3" /></> : null}
+                      {canEdit ? (
+                        <td className="px-3 py-3">
+                          <button
+                            type="button"
+                            onClick={() => openMissing(person)}
+                            className="inline-flex items-center gap-1 h-8 px-2.5 rounded-lg bg-[#FFF1F3] text-[#B8112D] text-[11px] font-bold hover:bg-[#B8112D] hover:text-white transition-colors"
+                          >
+                            <Pencil size={12} />
+                            Edit
+                          </button>
+                        </td>
+                      ) : null}
+                    </tr>
+                  ))}
+                  </>}
                 </tbody>
               </table>
               {showRequests && requests.some((item) => item.department === staffRole && !sessions.some((row) => row.csrId === item.personKey && row.day === item.day)) ? (

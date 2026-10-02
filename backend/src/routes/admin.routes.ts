@@ -275,7 +275,7 @@ router.put(
 /* ================= GET ALL CSRS ================= */
 router.get("/csrs", verifyToken, allowRoles("admin", "manager", "technical_manager"), async (req, res) => {
   try {
-    const role = req.query.role === "estimator" ? "estimator" : "csr";
+    const role = req.query.role === "bim" ? "bim" : req.query.role === "estimator" ? "estimator" : "csr";
 
     const csrs = await prisma.user.findMany({
       where: {

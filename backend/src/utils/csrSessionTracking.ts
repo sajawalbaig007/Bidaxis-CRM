@@ -488,13 +488,23 @@ function liveTotals(session: {
   return { dashboardMs, awayMs, pausedMs, totalMs };
 }
 
+function hashSeed(seed: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < seed.length; i++) {
+    h ^= seed.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+
+/** Different Other activity per person. Random, and never past about one hour. */
 function presentAway(awayMs: number, seed: string): { shownAway: number; otherMs: number } {
-  const cap = 40 * 60 * 1000;
-  if (awayMs <= cap) return { shownAway: awayMs, otherMs: 0 };
-  let n = 0;
-  for (let i = 0; i < seed.length; i++) n = (n + seed.charCodeAt(i)) % 11;
-  const otherMs = (30 + n) * 60 * 1000;
-  return { shownAway: Math.max(0, awayMs - otherMs), otherMs };
+  const hash = hashSeed(seed);
+  const minutes = 18 + (hash % 43);
+  const seconds = minutes >= 60 ? 0 : (hash >>> 8) % 60;
+  const otherMs = (minutes * 60 + seconds) * 1000;
+  if (awayMs <= otherMs) return { shownAway: awayMs, otherMs: 0 };
+  return { shownAway: awayMs - otherMs, otherMs };
 }
 
 /** One row per person per calendar day: first check-in, last check-out or still in, times summed. */
@@ -698,7 +708,7 @@ export async function buildCsrSessionReport(opts: {
 /** CEO writes one shift day for a CSR or estimator, creating the session when that day has none. */
 export async function ceoSetPortalShiftDay(input: {
   userId: string;
-  department: "csr" | "estimator";
+  department: "csr" | "estimator" | "bim";
   day: string;
   checkIn: string;
   checkOut: string | null;
@@ -770,7 +780,7 @@ export async function adminAdjustCsrWorkSession(opts: {
     return { ok: false as const, message: "Session not found." };
   }
   const user = rows[0]!.user;
-  if (user.role !== "csr" && user.role !== "estimator") {
+  if (user.role !== "csr" && user.role !== "estimator" && user.role !== "bim") {
     return { ok: false as const, message: "Session not found." };
   }
   if (rows.some(r => r.userId !== user.id)) {
@@ -867,7 +877,7 @@ export async function adminClearCsrWorkDay(memberIds: string[]) {
     where: { id: { in: ids } },
     select: { id: true, user: { select: { role: true } } },
   });
-  const allowed = rows.filter((row) => row.user.role === "csr" || row.user.role === "estimator");
+  const allowed = rows.filter((row) => row.user.role === "csr" || row.user.role === "estimator" || row.user.role === "bim");
   if (!allowed.length) return { ok: false as const, message: "Session not found." };
   await prisma.csrWorkSession.deleteMany({ where: { id: { in: allowed.map((row) => row.id) } } });
   return { ok: true as const, removed: allowed.length };

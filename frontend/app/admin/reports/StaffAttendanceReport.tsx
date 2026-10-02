@@ -45,6 +45,8 @@ type Row = {
   overtimeEditedBy?: string | null;
 };
 
+type Person = { department: string; personKey: string; personName: string };
+
 function calendarYmd(timeZone: string): string {
   return new Intl.DateTimeFormat("en-CA", {
     timeZone,
@@ -210,6 +212,7 @@ export default function StaffAttendanceReport({ scope = "all" }: { scope?: "all"
   const [requests, setRequests] = useState<StaffRequestItem[]>([]);
   const [overtimeNotes, setOvertimeNotes] = useState<ShiftOvertimeItem[]>([]);
   const [estimators, setEstimators] = useState<Row[]>([]);
+  const [people, setPeople] = useState<Person[]>([]);
   const [loading, setLoading] = useState(false);
   const [loaded, setLoaded] = useState(false);
 
@@ -223,6 +226,7 @@ export default function StaffAttendanceReport({ scope = "all" }: { scope?: "all"
       setRequests(reqs.data.requests ?? []);
       setOvertimeNotes(ot.data.overtime ?? []);
       setEstimators(res.data.estimators ?? []);
+      setPeople(res.data.people ?? []);
       setLoaded(true);
     } catch {
       setRows([]);
@@ -251,7 +255,9 @@ export default function StaffAttendanceReport({ scope = "all" }: { scope?: "all"
         <DeptCard
           key={dept.key}
           title={dept.title}
+          department={dept.key}
           personLabel={dept.person}
+          roster={people.filter((person) => person.department === dept.key)}
           rows={rows.filter((r) => r.department === dept.key)}
           requests={requests.filter((r) => r.department === dept.key)}
           overtimeNotes={overtimeNotes.filter((item) => item.department === dept.key && (item.status === "approved" || item.status === "declined"))}
@@ -301,7 +307,9 @@ export default function StaffAttendanceReport({ scope = "all" }: { scope?: "all"
 
 function DeptCard({
   title,
+  department = "",
   personLabel,
+  roster = [],
   rows,
   requests = [],
   overtimeNotes = [],
@@ -316,7 +324,9 @@ function DeptCard({
   onRefresh,
 }: {
   title: string;
+  department?: string;
   personLabel: string;
+  roster?: Person[];
   rows: Row[];
   requests?: StaffRequestItem[];
   overtimeNotes?: ShiftOvertimeItem[];
@@ -382,7 +392,7 @@ function DeptCard({
     setEditDay(cin.day);
     setEditCheckIn(cin.time);
     setEditCheckOut(cout.time);
-    setEditStillOpen(!row.checkOut);
+    setEditStillOpen(row.id.startsWith("missing:") ? false : !row.checkOut);
   };
 
   const saveEdit = async () => {
@@ -407,11 +417,22 @@ function DeptCard({
     }
     try {
       setSavingEdit(true);
-      await API.put(`/attendance/report/${editing.id}`, {
-        day: checkInPkt.day,
-        checkIn: checkInPkt.time,
-        checkOut: checkOutPkt?.time ?? null,
-      });
+      if (editing.id.startsWith("missing:")) {
+        await API.post("/attendance/ceo-day", {
+          department,
+          personKey: editing.personKey,
+          personName: editing.personName,
+          day: checkInPkt.day,
+          checkIn: checkInPkt.time,
+          checkOut: checkOutPkt?.time ?? "",
+        });
+      } else {
+        await API.put(`/attendance/report/${editing.id}`, {
+          day: checkInPkt.day,
+          checkIn: checkInPkt.time,
+          checkOut: checkOutPkt?.time ?? null,
+        });
+      }
       toast.success("Time saved.");
       setEditing(null);
       onRefresh();
@@ -424,16 +445,33 @@ function DeptCard({
 
   const people = useMemo(() => {
     const map = new Map<string, string>();
+    for (const member of roster) map.set(member.personKey, member.personName);
     for (const row of rows) map.set(row.personKey, row.personName);
     return [...map.entries()].map(([key, name]) => ({ key, name }));
-  }, [rows]);
+  }, [roster, rows]);
 
   const visible = useMemo(() => {
-    return rows.filter((row) => {
+    const matched = rows.filter((row) => {
       if (person !== "all" && row.personKey !== person) return false;
       return row.day >= fromDate && row.day <= toDate;
     });
-  }, [rows, person, fromDate, toDate]);
+    const today = calendarYmd("Asia/Karachi");
+    const oneDay = canEdit && fromDate === toDate && fromDate <= today && /^\d{4}-\d{2}-\d{2}$/.test(fromDate);
+    if (!oneDay) return matched;
+    const present = new Set(matched.map((row) => row.personKey));
+    const missing = people
+      .filter((member) => !present.has(member.key) && (person === "all" || person === member.key))
+      .map((member): Row => ({
+        id: `missing:${member.key}`,
+        personKey: member.key,
+        personName: member.name,
+        department,
+        day: fromDate,
+        checkIn: null,
+        checkOut: null,
+      }));
+    return [...matched, ...missing];
+  }, [rows, person, fromDate, toDate, canEdit, people, department]);
 
   const applyPeriod = (key: "daily" | "previous" | "weekly" | "monthly" | "all") => {
     const today = calendarYmd(clock.tz);
@@ -461,7 +499,7 @@ function DeptCard({
   const headers = ["Name", "Date", `Check In (${clock.abbr})`, `Check Out (${clock.abbr})`, ...(showShiftOt ? ["Overtime"] : []), "Request", "Total", "Status", "Comment"];
   const tableHeaders = showOvertime ? [...headers, "Overtime", "Decision"] : headers;
   const excelHeaders = showOvertime ? [...tableHeaders, "Edited by"] : headers;
-  const excelBody = visible.map((row) => {
+  const excelBody = visible.filter((row) => !row.id.startsWith("missing:")).map((row) => {
     const out = rowCheckOut(row, clock.tz);
     const base = [
       row.personName,
@@ -497,7 +535,7 @@ function DeptCard({
           <div className="text-left min-w-0">
             <h2 className="text-base sm:text-lg font-bold text-[#111827] truncate">{title}</h2>
             <p className="text-xs text-gray-400 truncate">
-              {open ? `All times in ${clock.label}` : loaded ? `${visible.length} day${visible.length === 1 ? "" : "s"} · click to expand` : "Click to expand"}
+              {open ? `All times in ${clock.label}` : loaded ? `${visible.filter((row) => !row.id.startsWith("missing:")).length} day${visible.filter((row) => !row.id.startsWith("missing:")).length === 1 ? "" : "s"} · click to expand` : "Click to expand"}
             </p>
           </div>
         </div>
@@ -545,7 +583,7 @@ function DeptCard({
             </button>
             <button
               type="button"
-              disabled={!visible.length}
+              disabled={!visible.some((row) => !row.id.startsWith("missing:"))}
               onClick={() => downloadExcel(title, `${personLabel.toLowerCase().replace(/\s+/g, "-")}-attendance-${fromDate}-${toDate}`, clock.label, excelHeaders, excelBody)}
               className="h-10 px-4 rounded-xl border border-gray-200 text-sm font-semibold text-gray-600 inline-flex items-center gap-2 disabled:opacity-50"
             >
@@ -565,19 +603,21 @@ function DeptCard({
                 {loading ? (
                   <tr><td colSpan={tableHeaders.length + (canEdit ? 1 : 0)} className="px-3 py-8 text-gray-400">Loading…</td></tr>
                 ) : visible.length === 0 ? (
-                  <tr><td colSpan={tableHeaders.length + (canEdit ? 1 : 0)} className="px-3 py-8 text-center text-gray-400">No check-in sessions in this date range</td></tr>
-                ) : visible.map((row) => (
+                  <tr><td colSpan={tableHeaders.length + (canEdit ? 1 : 0)} className="px-3 py-8 text-center text-gray-400">{canEdit && fromDate !== toDate ? "Pick one day to add a time for someone who did not check in." : "No check-in sessions in this date range"}</td></tr>
+                ) : visible.map((row) => {
+                  const absent = row.id.startsWith("missing:");
+                  return (
                   <tr key={row.id} className="border-b border-gray-50">
                     <td className="px-3 py-3 font-semibold">{row.personName}</td>
                     <td className="px-3 py-3 tabular-nums">{row.day}</td>
                     <td className="px-3 py-3 whitespace-nowrap">
-                      <span className="inline-flex items-center gap-1"><LogIn size={12} className="text-green-500" />{rowCheckIn(row, clock.tz)}</span>
+                      <span className="inline-flex items-center gap-1"><LogIn size={12} className="text-green-500" />{absent ? "—" : rowCheckIn(row, clock.tz)}</span>
                     </td>
                     <td className="px-3 py-3 whitespace-nowrap">
                       <span className="inline-flex items-center gap-1">
-                        <LogOut size={12} className={row.checkOut || row.checkOutAt ? "text-gray-400" : "text-amber-500"} />
-                        {rowCheckOut(row, clock.tz).text}
-                        {rowCheckOut(row, clock.tz).nextDay ? <span className="ml-1 text-[10px] font-bold text-[#B8112D]">next day</span> : null}
+                        <LogOut size={12} className={absent ? "text-gray-300" : row.checkOut || row.checkOutAt ? "text-gray-400" : "text-amber-500"} />
+                        {absent ? "—" : rowCheckOut(row, clock.tz).text}
+                        {!absent && rowCheckOut(row, clock.tz).nextDay ? <span className="ml-1 text-[10px] font-bold text-[#B8112D]">next day</span> : null}
                       </span>
                     </td>
                     {showShiftOt ? (
@@ -596,10 +636,10 @@ function DeptCard({
                     <td className="px-3 py-3">
                       <StaffRequestCell items={rowRequests(row)} canApprove={canApproveRequests} onChanged={onRefresh} />
                     </td>
-                    <td className="px-3 py-3 font-semibold">{durationLabel(row.day, row.checkIn, row.checkOut, row)}</td>
+                    <td className="px-3 py-3 font-semibold">{absent ? "—" : durationLabel(row.day, row.checkIn, row.checkOut, row)}</td>
                     <td className="px-3 py-3">
-                      <span className={`text-[10px] font-bold px-2 py-1 rounded-full ${row.checkOut || row.checkOutAt ? "bg-gray-100 text-gray-500" : "bg-green-50 text-green-700"}`}>
-                        {row.checkOut || row.checkOutAt ? "Checked Out" : "Checked In"}
+                      <span className={`text-[10px] font-bold px-2 py-1 rounded-full ${absent ? "bg-amber-50 text-amber-700" : row.checkOut || row.checkOutAt ? "bg-gray-100 text-gray-500" : "bg-green-50 text-green-700"}`}>
+                        {absent ? "No check-in" : row.checkOut || row.checkOutAt ? "Checked Out" : "Checked In"}
                       </span>
                     </td>
                     <td className="px-3 py-3 text-xs text-gray-700 max-w-[220px]">{row.comment?.trim() || "—"}</td>
@@ -644,6 +684,7 @@ function DeptCard({
                             <Pencil size={12} />
                             Edit
                           </button>
+                          {absent ? null : (
                           <button
                             type="button"
                             disabled={resettingId === row.id}
@@ -653,11 +694,13 @@ function DeptCard({
                             <RotateCcw size={12} />
                             Reset
                           </button>
+                          )}
                         </div>
                       </td>
                     ) : null}
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>

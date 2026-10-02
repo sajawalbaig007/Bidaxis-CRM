@@ -89,7 +89,6 @@ export default function PhoneWithTzCell({
           const row = (
             <>
               <span className="text-gray-300 text-[10px] shrink-0">{idx + 1}.</span>
-              {canDial && <Phone size={11} className="shrink-0" />}
               <span className={canDial ? "truncate underline-offset-[3px] decoration-current group-hover:underline" : "truncate"}>{ph}</span>
               {pt && (
                 <span className={`ml-auto inline-flex items-center px-1 py-0.5 rounded text-[9px] font-bold border shrink-0 ${tzBadgeClass(pt)}`}>
@@ -140,7 +139,6 @@ export default function PhoneWithTzCell({
           className={`${shellClass} group cursor-pointer hover:opacity-80 transition-opacity`}
           title="Call this number"
         >
-          <Phone size={12} className="shrink-0" />
           {chip}
         </button>
         <ChangeDialerNumber />
