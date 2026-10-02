@@ -224,7 +224,7 @@ export default function CSRBinPage() {
                     </td>
                     <td className="py-4 px-2">
                       <div className="flex items-center gap-1 bg-[#FFF7E6] text-[#B54708] px-2.5 py-1.5 rounded-xl text-[11px] font-medium w-fit whitespace-nowrap">
-                        <Phone size={10}/>{lead.phone}
+                        <Phone size={18}/>{lead.phone}
                       </div>
                     </td>
                     <td className={`hidden lg:table-cell py-4 px-2`}>

@@ -2,7 +2,7 @@ import type { Prisma } from "@prisma/client";
 import prisma from "../config/db";
 import { detectBrowser } from "./sessions";
 import { formatDurationMs, formatEstDateTime, estDateYmd, CSR_REPORT_TIMEZONE } from "./estTime";
-import { pktNow, pktShiftDay } from "./staffAttendance";
+import { pktNow, pktShiftDay, attendanceShift, employeeHistoryStart, staffCheckInInstant, addCalendarDays } from "./staffAttendance";
 
 const MAX_TICK_MS = 5 * 60 * 1000;
 /**
@@ -490,12 +490,12 @@ function liveTotals(session: {
 function mergeSessionsByCalendarDay(
   sessions: CsrSessionReportRow[],
   timeZone?: string,
-  dayOf?: (loginAtIso: string) => string,
+  dayOf?: (loginAtIso: string, userId: string) => string,
 ): CsrSessionReportRow[] {
   const map = new Map<string, CsrSessionReportRow>();
   const ordered = [...sessions].sort((a, b) => a.loginAt.localeCompare(b.loginAt));
   for (const s of ordered) {
-    const day = dayOf ? dayOf(s.loginAt) : estDateYmd(new Date(s.loginAt), timeZone);
+    const day = dayOf ? dayOf(s.loginAt, s.csrId) : estDateYmd(new Date(s.loginAt), timeZone);
     const key = `${s.csrId}:${day}`;
     const hit = map.get(key);
     if (!hit) {
@@ -628,16 +628,17 @@ export async function buildCsrSessionReport(opts: {
     };
   });
 
+  const dept = staffRole === "estimator" ? "estimator" : "csr";
   const merged = mergeSessionsByCalendarDay(
     sessions,
-    tz,
-    staffRole === "csr" ? (iso) => pktShiftDay(new Date(iso)) : undefined,
+    "Asia/Karachi",
+    (iso, userId) => pktShiftDay(new Date(iso), dept, userId),
   );
   if (staffRole === "estimator") {
     const notes = await prisma.overtimeRequest.findMany({ where: { department: "estimator" } });
     const byKey = new Map(notes.map((note) => [`${note.personKey}:${note.day}`, note]));
     for (const row of merged) {
-      const note = byKey.get(`${row.csrId}:${estDateYmd(new Date(row.loginAt), tz)}`);
+      const note = byKey.get(`${row.csrId}:${pktShiftDay(new Date(row.loginAt), "estimator", row.csrId)}`);
       row.overtimeId = note?.id ?? null;
       row.overtimeComment = note?.comment ?? null;
       row.overtimeStatus = note?.status ?? null;
@@ -658,7 +659,7 @@ export async function buildCsrSessionReport(opts: {
     firstLoginAt: s.loginAt,
     lastLogoutAt: s.logoutAt,
     stillOpen: s.status === "active",
-    day: staffRole === "csr" ? pktShiftDay(new Date(s.loginAt)) : estDateYmd(new Date(s.loginAt), tz),
+    day: s.day || pktShiftDay(new Date(s.loginAt), dept, s.csrId),
     lastActionAt: s.lastActionAt ?? null,
     overtimeId: s.overtimeId ?? null,
     overtimeComment: s.overtimeComment ?? null,
@@ -674,6 +675,61 @@ export async function buildCsrSessionReport(opts: {
     sessions: merged,
     summary,
   };
+}
+
+/** CEO writes one shift day for a CSR or estimator, creating the session when that day has none. */
+export async function ceoSetPortalShiftDay(input: {
+  userId: string;
+  department: "csr" | "estimator";
+  day: string;
+  checkIn: string;
+  checkOut: string | null;
+}) {
+  const checkInAt = staffCheckInInstant(input.department, input.day, input.checkIn, input.userId);
+  if (!checkInAt) return { ok: false as const, message: "Invalid check-in time." };
+  let checkOutAt: Date | null = null;
+  if (input.checkOut) {
+    checkOutAt = staffCheckInInstant(input.department, input.day, input.checkOut, input.userId);
+    if (!checkOutAt) return { ok: false as const, message: "Invalid check-out time." };
+    if (checkOutAt.getTime() <= checkInAt.getTime()) {
+      checkOutAt = new Date(checkOutAt.getTime() + 24 * 60 * 60 * 1000);
+    }
+  }
+  const from = new Date(`${addCalendarDays(input.day, -2)}T00:00:00.000Z`);
+  const to = new Date(`${addCalendarDays(input.day, 3)}T00:00:00.000Z`);
+  const sessions = await prisma.csrWorkSession.findMany({
+    where: { userId: input.userId, loginAt: { gte: from, lt: to } },
+    select: { id: true, loginAt: true },
+  });
+  const ids = sessions
+    .filter((session) => pktShiftDay(session.loginAt, input.department, input.userId) === input.day)
+    .map((session) => session.id);
+  if (ids.length) {
+    const adjusted = await adminAdjustCsrWorkSession({
+      sessionId: ids[0]!,
+      memberIds: ids,
+      checkInAt,
+      checkOutAt,
+      clearCheckOut: !checkOutAt,
+      note: "ceo_adjusted",
+    });
+    if (!adjusted.ok) return adjusted;
+    return { ok: true as const };
+  }
+  const span = checkOutAt ? Math.max(0, checkOutAt.getTime() - checkInAt.getTime()) : 0;
+  await prisma.csrWorkSession.create({
+    data: {
+      userId: input.userId,
+      loginAt: checkInAt,
+      logoutAt: checkOutAt,
+      dashboardMs: span,
+      awayMs: 0,
+      lastHeartbeatAt: checkOutAt ?? new Date(),
+      lastVisible: true,
+      closedReason: checkOutAt ? "ceo_adjusted" : null,
+    },
+  });
+  return { ok: true as const };
 }
 
 /** Admin override of check-in / check-out times. */
@@ -818,19 +874,20 @@ function historyClock(value: Date, timeZone: string): string {
   }).format(value);
 }
 
-/** Recent days: first check-in and last check-out. CSR days run 5:00 PM PKT to the next 5:00 PM. */
-export async function listUserShiftHistory(userId: string, evening = false) {
-  const since = new Date(Date.now() - 40 * 24 * 60 * 60 * 1000);
+/** Recent days: first check-in and last check-out, grouped on the PKT shift day. */
+export async function listUserShiftHistory(userId: string, department = "estimator") {
+  const since = new Date(`${employeeHistoryStart()}T00:00:00+05:00`);
+  since.setTime(since.getTime() - 2 * 24 * 60 * 60 * 1000);
   const rows = await prisma.csrWorkSession.findMany({
     where: { userId, loginAt: { gte: since } },
     orderBy: { loginAt: "asc" },
     select: { loginAt: true, logoutAt: true },
   });
-  const tz = evening ? "Asia/Karachi" : CSR_REPORT_TIMEZONE;
+  const tz = "Asia/Karachi";
   type Bucket = { day: string; first: Date; lastOut: Date | null; open: boolean };
   const map = new Map<string, Bucket>();
   for (const row of rows) {
-    const day = evening ? pktShiftDay(row.loginAt) : estDateYmd(row.loginAt, tz);
+    const day = pktShiftDay(row.loginAt, department, userId);
     const hit = map.get(day);
     if (!hit) {
       map.set(day, { day, first: row.loginAt, lastOut: row.logoutAt, open: !row.logoutAt });
@@ -844,24 +901,23 @@ export async function listUserShiftHistory(userId: string, evening = false) {
       hit.lastOut = row.logoutAt;
     }
   }
+  const historyFrom = employeeHistoryStart();
   const days = [...map.values()]
+    .filter((bucket) => bucket.day >= historyFrom)
     .sort((a, b) => b.day.localeCompare(a.day))
-    .slice(0, 30)
     .map((bucket) => {
       const checkInCal = pktNow(bucket.first).day;
       const checkOutCal = bucket.lastOut ? pktNow(bucket.lastOut).day : null;
-      const overnight = evening
-        ? !!checkOutCal && checkOutCal > checkInCal
-        : !!checkOutCal && estDateYmd(bucket.lastOut!, tz) > bucket.day;
-      const checkOutDay = evening ? checkOutCal : (bucket.lastOut ? estDateYmd(bucket.lastOut, tz) : null);
+      const window = attendanceShift(department, userId, bucket.first);
+      const overnight = !!checkOutCal && checkOutCal > bucket.day;
       return {
         day: bucket.day,
         dayLabel: historyDayLabel(bucket.day),
         checkIn: historyClock(bucket.first, tz),
         checkOut: bucket.open || !bucket.lastOut ? null : historyClock(bucket.lastOut, tz),
         overnight,
-        checkOutLabel: overnight && checkOutDay ? historyDayLabel(checkOutDay) : null,
-        checkInLabel: evening && checkInCal !== bucket.day ? historyDayLabel(checkInCal) : null,
+        checkOutLabel: overnight && checkOutCal ? historyDayLabel(checkOutCal) : null,
+        checkInLabel: window.overnight && checkInCal !== bucket.day ? historyDayLabel(checkInCal) : null,
       };
     });
   return days;

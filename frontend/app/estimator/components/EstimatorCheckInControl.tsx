@@ -41,20 +41,12 @@ function formatDurationMs(ms: number): string {
 function formatCheckInLabel(iso: string): string {
   try {
     const d = new Date(iso);
-    const now = new Date();
-    const sameDay =
-      d.getFullYear() === now.getFullYear() &&
-      d.getMonth() === now.getMonth() &&
-      d.getDate() === now.getDate();
-    if (sameDay) {
-      return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-    }
-    return d.toLocaleString([], {
-      month: "short",
-      day: "numeric",
-      hour: "2-digit",
+    return new Intl.DateTimeFormat("en-US", {
+      timeZone: "Asia/Karachi",
+      hour: "numeric",
       minute: "2-digit",
-    });
+      hour12: true,
+    }).format(d);
   } catch {
     return "";
   }

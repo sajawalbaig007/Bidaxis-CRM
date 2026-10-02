@@ -547,7 +547,7 @@ export default function LeadDetailModal({ lead, onClose, onSaved, onNoteAdded, o
                 {/* PHONE + EMAIL */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className={`${labelClass} mb-2`}><Phone size={11} className="text-[#B8112D]"/>Phone Number</label>
+                    <label className={`${labelClass} mb-2`}><Phone size={18} className="text-[#B8112D]"/>Phone Number</label>
                     <input type="text" value={phone} onChange={e => setPhone(e.target.value)}
                       placeholder="+1 234 567 890" className={inputClass}/>
                   </div>
@@ -741,7 +741,7 @@ export default function LeadDetailModal({ lead, onClose, onSaved, onNoteAdded, o
                             <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1">
                               {sub.phone && (
                                 <span className="flex items-center gap-1 text-[11px] text-gray-500">
-                                  <Phone size={9}/>{sub.phone}
+                                  <Phone size={16}/>{sub.phone}
                                 </span>
                               )}
                               {sub.email && (

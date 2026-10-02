@@ -69,6 +69,28 @@ export function monthStartIso(yearMonth: string): string {
   return `${yearMonth}-01`;
 }
 
+/** Last calendar day of YYYY-MM, as YYYY-MM-DD. */
+export function monthEndIso(yearMonth: string): string {
+  const y = Number(yearMonth.slice(0, 4));
+  const m = Number(yearMonth.slice(5, 7));
+  if (!y || !m) return `${yearMonth}-28`;
+  const last = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  return `${yearMonth}-${String(last).padStart(2, "0")}`;
+}
+
+/** Latest row on or before a day. Rate-only saves count — amounts are filled from payments. */
+export function pickLatestRecordOnOrBefore<T extends { recordDate: string }>(
+  recs: T[],
+  onOrBefore: string,
+): T | undefined {
+  let best: T | undefined;
+  for (const rec of recs) {
+    if (rec.recordDate > onOrBefore) continue;
+    if (!best || rec.recordDate > best.recordDate) best = rec;
+  }
+  return best;
+}
+
 export function yearMonthFromDate(isoDate: string): string {
   return isoDate.slice(0, 7);
 }

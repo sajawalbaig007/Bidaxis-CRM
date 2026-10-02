@@ -2,6 +2,8 @@
 
 import { useMemo, useState, useEffect, useRef, useCallback } from "react";
 import dynamic from "next/dynamic";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import toast from "react-hot-toast";
 import DashboardNavbar  from "../components/layout/Navbar";
 import { StaffSidebar } from "@/app/hooks/useStaffSidebar";
@@ -10,7 +12,7 @@ import API, { apiErrorMessage } from "@/lib/api";
 
 import {
   PhoneCall, ShoppingCart, Clock3, FileBarChart2,
-  TrendingUp, Database, AlertTriangle, ChevronDown, Users,
+  TrendingUp, Database, AlertTriangle, ChevronDown, Users, ClipboardList,
 } from "lucide-react";
 
 const ReportCharts = dynamic(() => import("./ReportCharts"), {
@@ -43,6 +45,8 @@ const BENTO =
 
 /* ── Main Page ── */
 export default function ReportsPage() {
+  const pathname = usePathname();
+  const reportsBase = pathname.startsWith("/manager") ? "/manager/reports" : "/admin/reports";
   const [reportData,    setReportData]    = useState<ReportResponse | null>(null);
   const [activePeriod,  setActivePeriod]  = useState<"today" | "week" | "month" | "all">("week");
   const [loadingReport, setLoadingReport] = useState(false);
@@ -251,6 +255,17 @@ export default function ReportsPage() {
               </button>
             </div>
           </header>
+
+          <div className="flex flex-wrap gap-2">
+            {reportsBase.startsWith("/admin") ? (
+              <Link href={`${reportsBase}/hours`} className="inline-flex items-center gap-2 h-11 px-3 rounded-2xl border border-gray-200 bg-white text-sm font-semibold text-[#0F172A] dark:bg-crm-surface dark:text-white dark:border-crm-border">
+                <Clock3 size={16} /> Shift time and deductions
+              </Link>
+            ) : null}
+            <Link href={`${reportsBase}/requests`} className="inline-flex items-center gap-2 h-11 px-3 rounded-2xl border border-gray-200 bg-white text-sm font-semibold text-[#0F172A] dark:bg-crm-surface dark:text-white dark:border-crm-border">
+              <ClipboardList size={16} /> Employee requests
+            </Link>
+          </div>
 
           <section className={`${BENTO} p-3 sm:p-4`}>
             <div className="flex flex-wrap items-center gap-2">

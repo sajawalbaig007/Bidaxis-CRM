@@ -1365,7 +1365,7 @@ router.delete("/lead/:id/subcontacts/:subId", verifyToken, allowRoles("csr"), as
 
 router.get("/shift-history", verifyToken, allowRoles("csr"), async (req: any, res) => {
   try {
-    const days = await listUserShiftHistory(req.user.id, true);
+    const days = await listUserShiftHistory(req.user.id, "csr");
     return res.json({ success: true, days });
   } catch (error) {
     console.log(error);

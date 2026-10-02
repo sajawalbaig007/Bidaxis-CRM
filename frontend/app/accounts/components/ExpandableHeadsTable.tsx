@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, Fragment } from "react";
+import { useEffect, useState, Fragment } from "react";
+import { getAuthMe, peekAuthMe } from "@/lib/authMeCache";
 import { ChevronDown, ChevronRight, FilePenLine, Loader2, Pencil, Plus, Save, Trash2 } from "lucide-react";
 import type { DatedNote, SubHeadEntry } from "../types";
 import { currency, isInventoryAssetHead, lineAmount, normalizeNotes, newRowId, subHeadLineAmount, sumSubHeads, todayIso } from "../types";
@@ -29,6 +30,15 @@ import type { SalarySlipCompanyKey } from "../utils/salarySlipCompanies";
 import { DEFAULT_SALARY_SLIP_COMPANY } from "../utils/salarySlipCompanies";
 import { slipKindTitle } from "../utils/salarySlipFieldConfig";
 import { BEM_INVENTORY_CATEGORIES, matchInventoryCategory } from "../utils/bemAssetInventorySeed";
+
+function moneyClose(a: number, b: number) {
+  return Math.abs(a - b) < 0.009;
+}
+
+/** Same amount as the time rule stays automatic. Any other amount is a manual deduction. */
+function deductionOverride(typed: number, calculated: number): number | null {
+  return moneyClose(typed, calculated) ? null : typed;
+}
 
 export type ExpandableHeadRow = {
   id: string;
@@ -101,6 +111,16 @@ export default function ExpandableHeadsTable({
   const [editing, setEditing] = useState<HeadDetailModel | null>(null);
   const [slipEditorKind, setSlipEditorKind] = useState<PayrollKind | null>(null);
   const calcOpts = useSalesPayrollCalcOpts(recordDate);
+  const [role, setRole] = useState(() => peekAuthMe()?.role ?? "");
+  useEffect(() => {
+    const peeked = peekAuthMe()?.role;
+    if (peeked) {
+      if (peeked !== role) setRole(peeked);
+      return;
+    }
+    void getAuthMe().then((user) => setRole(user?.role ?? ""));
+  }, [role]);
+  const canEditDeduction = role === "admin" || role === "accounts";
 
   const toggle = (id: string) => {
     setOpenIds(prev => {
@@ -659,7 +679,7 @@ export default function ExpandableHeadsTable({
                                         <th className="px-2 py-2 text-right font-bold uppercase tracking-wide text-[9px]">Earning</th>
                                       </>
                                     )}
-                                    <th className="px-2 py-2 text-right font-bold uppercase tracking-wide text-[9px]">Late</th>
+                                    <th className="px-2 py-2 text-right font-bold uppercase tracking-wide text-[9px]">Deduction</th>
                                     <th className="px-2 py-2 text-right font-bold uppercase tracking-wide text-[9px]">Unpaid</th>
                                     <th className="px-2 py-2 text-right font-bold uppercase tracking-wide text-[9px]">Loan</th>
                                     <th className="px-2 py-2 text-right font-bold uppercase tracking-wide text-[9px]">Remaining</th>
@@ -667,7 +687,7 @@ export default function ExpandableHeadsTable({
                                     <th className="px-2 py-2 text-right font-bold uppercase tracking-wide text-[9px]">Tax</th>
                                     <th className="px-2 py-2 text-right font-bold uppercase tracking-wide text-[9px]">Deduct</th>
                                     <th className="px-2 py-2 text-right font-bold uppercase tracking-wide text-[9px]">Occas.</th>
-                                    <th className="px-2 py-2 text-right font-bold uppercase tracking-wide text-[9px]">Net</th>
+                                    <th className="px-2 py-2 text-right font-bold uppercase tracking-wide text-[9px]">After deduction</th>
                                     <th className="w-10 px-1 py-2 text-center font-bold uppercase tracking-wide text-[9px]">Slip</th>
                                     {onPersist && <th className="w-10 px-1 py-2 text-center font-bold uppercase tracking-wide text-[9px]">Save</th>}
                                   </tr>
@@ -685,7 +705,27 @@ export default function ExpandableHeadsTable({
                                           <td className="px-2 py-2 text-right tabular-nums text-emerald-700">{currency(b.totalCommission + extra)}</td>
                                           <td className="px-2 py-2 text-right tabular-nums">{currency(sp.basic)}</td>
                                           <td className="px-2 py-2 text-right tabular-nums">{currency(sp.allowance)}</td>
-                                          <td className="px-2 py-2 text-right tabular-nums">{currency(b.lateDeduction)}</td>
+                                          <td className="px-2 py-2 text-right tabular-nums" title={b.lateRuleApplied}>
+                                            {canEditDeduction ? (
+                                              <AmountInput
+                                                aria-label={`${s.label} deduction`}
+                                                value={b.lateDeduction}
+                                                onChange={(typed) => {
+                                                  const calculated = computeSalesEmployeePayroll(
+                                                    { ...sp, lateDeductionOverride: null },
+                                                    extra,
+                                                    calcOpts,
+                                                  ).lateDeduction;
+                                                  const next = { ...sp, lateDeductionOverride: deductionOverride(typed, calculated) };
+                                                  const net = computeSalesEmployeePayroll(next, extra, calcOpts).netSalary;
+                                                  patchSub(row.id, s.id, { salesPayroll: next, amount: net });
+                                                }}
+                                                className="h-7 w-[4.75rem] rounded-md border border-amber-200 bg-amber-50 px-1.5 text-right text-xs tabular-nums text-amber-950 outline-none focus:border-[#B8112D] dark:border-amber-900 dark:bg-[#0B1220] dark:text-white"
+                                              />
+                                            ) : (
+                                              currency(b.lateDeduction)
+                                            )}
+                                          </td>
                                           <td className="px-2 py-2 text-right tabular-nums">{currency(b.unpaidLeaveDeduction)}</td>
                                           <td className="px-2 py-2 text-right tabular-nums">{currency(sp.loanThisMonth)}</td>
                                           <td className={`px-2 py-2 text-right tabular-nums ${b.loanRemaining > 0 ? "text-orange-800 font-semibold" : ""}`}>
@@ -744,7 +784,37 @@ export default function ExpandableHeadsTable({
                                         <td className="px-2 py-2 text-right tabular-nums">{b ? currency(sal!.allowance) : "—"}</td>
                                         <td className="px-2 py-2 text-right tabular-nums">{b ? currency(b.totalOvertime) : "—"}</td>
                                         <td className="px-2 py-2 text-right tabular-nums text-emerald-700">{b ? currency(b.totalEarning) : "—"}</td>
-                                        <td className="px-2 py-2 text-right tabular-nums">{b ? currency(b.lateDeduction) : "—"}</td>
+                                        <td className="px-2 py-2 text-right tabular-nums" title={b?.lateRuleApplied}>
+                                          {b && canEditDeduction && sal ? (
+                                            <AmountInput
+                                              aria-label={`${s.label} deduction`}
+                                              value={b.lateDeduction}
+                                              onChange={(typed) => {
+                                                const bare = emptySalaryDetail({ ...sal, lateDeductionOverride: null });
+                                                const calculated = subKind === "admin"
+                                                  ? computeAdminSalary(bare).lateDeduction
+                                                  : subKind === "technical_manager"
+                                                    ? computeTechnicalManagerSalary(bare).lateDeduction
+                                                    : computeSalary(bare).lateDeduction;
+                                                const nextSal = emptySalaryDetail({
+                                                  ...sal,
+                                                  lateDeductionOverride: deductionOverride(typed, calculated),
+                                                });
+                                                const nextBreak = subKind === "admin"
+                                                  ? computeAdminSalary(nextSal)
+                                                  : subKind === "technical_manager"
+                                                    ? computeTechnicalManagerSalary(nextSal)
+                                                    : computeSalary(nextSal);
+                                                patchSub(row.id, s.id, { salary: nextSal, amount: nextBreak.totalSalary });
+                                              }}
+                                              className="h-7 w-[4.75rem] rounded-md border border-amber-200 bg-amber-50 px-1.5 text-right text-xs tabular-nums text-amber-950 outline-none focus:border-[#B8112D] dark:border-amber-900 dark:bg-[#0B1220] dark:text-white"
+                                            />
+                                          ) : b ? (
+                                            currency(b.lateDeduction)
+                                          ) : (
+                                            "—"
+                                          )}
+                                        </td>
                                         <td className="px-2 py-2 text-right tabular-nums">{b ? currency(b.unpaidLeaveDeduction) : "—"}</td>
                                         <td className="px-2 py-2 text-right tabular-nums">{b ? currency(b.loanThisMonth) : "—"}</td>
                                         <td className={`px-2 py-2 text-right tabular-nums ${b && b.loanRemaining > 0 ? "text-orange-800 font-semibold" : ""}`}>
@@ -783,11 +853,7 @@ export default function ExpandableHeadsTable({
                                 </tbody>
                               </table>
                               <p className="px-3 py-1.5 text-[10px] text-crm-text-faint border-t">
-                                {allowProofUpload
-                                  ? "Upload bill/screenshot per line · Preview anytime · Save record when done."
-                                  : isSalesRow
-                                    ? "Sales team: project commission · 6 PM shift · no overtime. Slip download = BEM Solutions format (more companies later)."
-                                    : "Open Edit to fill payroll + Employee ID / CNIC for slips. Download = BEM Solutions format (more companies later)."}
+                                Deduction follows the check-in time ranges. After deduction is the salary once that cut and the other cuts are taken. CEO and Accounts can type a different amount. Save the record to keep it.
                               </p>
                             </div>
                           ) : (

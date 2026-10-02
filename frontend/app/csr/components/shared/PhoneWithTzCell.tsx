@@ -1,6 +1,7 @@
 "use client";
 
 import { createPortal } from "react-dom";
+import { Phone } from "lucide-react";
 import { getTimezoneAbbrFromPhone, tzBadgeClass } from "../../constants/timezoneAbbr";
 import { useFixedPopover } from "../../hooks/useFixedPopover";
 
@@ -34,6 +35,7 @@ export default function PhoneWithTzCell({
 
   const chip = (
     <>
+      <Phone size={18} className="text-[#B8112D] shrink-0" aria-hidden />
       <span className={extras > 0 ? "truncate min-w-0 max-w-[72px] sm:max-w-[96px]" : "truncate min-w-0"}>
         {primary}
       </span>

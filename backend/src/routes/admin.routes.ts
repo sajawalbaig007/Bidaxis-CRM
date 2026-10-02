@@ -3992,19 +3992,20 @@ router.get(
       const timezoneLabel = tz === "Asia/Karachi" ? "Pakistan Time (PKT)" : ADMIN_SESSION_TZ_LABEL;
       const staffRole = req.query.role === "estimator" ? "estimator" as const : "csr" as const;
 
-      if (staffRole === "csr") {
+      if (staffRole === "csr" || tz === "Asia/Karachi") {
+        const dept = staffRole === "estimator" ? "estimator" : "csr";
         if (fromStr) {
-          const b = pktShiftBounds(fromStr);
+          const b = pktShiftBounds(fromStr, dept);
           if (b) from = b.start;
         }
         if (toStr) {
-          const b = pktShiftBounds(toStr);
+          const b = pktShiftBounds(toStr, dept);
           if (b) to = b.end;
         }
         if (!from && !to) {
-          const today = pktShiftDay();
-          from = pktShiftBounds(addEstDays(today, -6, "Asia/Karachi"))?.start;
-          to = pktShiftBounds(today)?.end;
+          const today = pktShiftDay(new Date(), dept);
+          from = pktShiftBounds(addEstDays(today, -6, "Asia/Karachi"), dept)?.start;
+          to = pktShiftBounds(today, dept)?.end;
         }
       } else {
         if (fromStr) {

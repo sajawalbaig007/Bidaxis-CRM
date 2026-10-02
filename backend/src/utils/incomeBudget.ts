@@ -10,6 +10,7 @@ import {
   computeSalesEmployeePayroll,
   type SalesPayrollCalcOpts,
 } from "./salesPayrollFormula";
+import { lateAmountFor, policyMonth, type PayAmounts } from "./lateDeduction";
 import type { SalesPayrollEmployee } from "./salesPayrollDefaults";
 
 export type CoreBudgetKey =
@@ -198,6 +199,7 @@ function incomeStatementLateDeduction(
 function incomeStatementTechnicalFromSalary(
   sal: Record<string, unknown> | undefined,
   lateShiftHour: 7 | 9,
+  month: string,
 ): { totalSalary: number; totalOvertime: number } {
   if (!sal) return { totalSalary: 0, totalOvertime: 0 };
   const basic = Number(sal.basic) || 0;
@@ -218,13 +220,25 @@ function incomeStatementTechnicalFromSalary(
     sal.lateDeductionOverride == null || String(sal.lateDeductionOverride) === ""
       ? null
       : Number(sal.lateDeductionOverride);
-  const late = incomeStatementLateDeduction(
-    daySalary,
-    String(sal.checkIn ?? ""),
-    String(sal.checkOut ?? ""),
-    lateOverride,
-    lateShiftHour,
-  );
+  const checkIn = String(sal.checkIn ?? "");
+  const amounts: PayAmounts = {
+    basic,
+    commission: 0,
+    overtime: totalOvertime,
+    allowance: allowance + travel,
+  };
+  const policyLate = lateOverride == null && lateShiftHour === 9
+    ? lateAmountFor("chief_estimator", month, checkIn, amounts)
+    : null;
+  const late = policyLate
+    ? policyLate.amount
+    : incomeStatementLateDeduction(
+        daySalary,
+        checkIn,
+        String(sal.checkOut ?? ""),
+        lateOverride,
+        lateShiftHour,
+      );
   const unpaidLeaveDeduction = (Number(sal.unpaidLeaveDays) || 0) * daySalary;
   const loanThisMonth = Number(sal.loanThisMonth) || 0;
   const loanFromSalary = String(sal.loanPaymentMode ?? "salary") === "cash" ? 0 : loanThisMonth;
@@ -290,7 +304,7 @@ export function accumulateCoreBudget(
             continue;
           }
           const shift: 7 | 9 = isTechnicalManagerPerson(title, sub.label) ? 9 : 7;
-          const b = incomeStatementTechnicalFromSalary(sub.salary, shift);
+          const b = incomeStatementTechnicalFromSalary(sub.salary, shift, policyMonth(opts.recordDate));
           net += b.totalSalary;
           overtime += b.totalOvertime;
         }

@@ -1,4 +1,5 @@
 import { Router } from "express";
+import type { Role } from "@prisma/client";
 import prisma from "../config/db";
 import { verifyToken, AuthRequest } from "../middleware/auth.middleware";
 import { allowRoles } from "../middleware/role.middleware";
@@ -13,9 +14,10 @@ import {
   isValidTime,
   officeNetworkMessage,
   isOvernightShift,
-  isEveningShiftDept,
   pktNow,
-  pktShiftNow,
+  pktShiftDay,
+  employeeHistoryStart,
+  attendanceShift,
   EVENING_SHIFT_START,
   publicRoster,
   rosterPerson,
@@ -26,8 +28,160 @@ import {
 } from "../utils/staffAttendance";
 import { listEstimatorShiftRows, overtimeGate, overtimePublic, reviewOvertime, saveOvertimeComment, submitShiftOvertime } from "../utils/overtimeRequest";
 import { applyApprovedRequest, parseRequestDraft, toPublicRequest } from "../utils/staffRequest";
+import { SHIFT_DEPARTMENTS, clearShiftSchedule, listShiftSchedules, saveShiftSchedule } from "../utils/shiftSchedule";
+import { ceoSetPortalShiftDay } from "../utils/csrSessionTracking";
+import { clearLatePolicy, listLatePolicies, saveLatePolicy } from "../utils/lateDeduction";
 
 const router = Router();
+
+router.get("/shift-schedules", verifyToken, allowRoles("admin"), async (req: AuthRequest, res) => {
+  try {
+    const month = String(req.query.month ?? "").trim();
+    const data = await listShiftSchedules(month);
+    if (!data) return res.status(400).json({ success: false, message: "Pick a month." });
+    return res.json({ success: true, ...data });
+  } catch (error) {
+    console.error("[attendance/shift-schedules]", error);
+    return res.status(500).json({ success: false, message: "Could not load shift hours." });
+  }
+});
+
+router.put("/shift-schedules", verifyToken, allowRoles("admin"), async (req: AuthRequest, res) => {
+  try {
+    const result = await saveShiftSchedule({
+      month: String(req.body?.month ?? ""),
+      department: String(req.body?.department ?? ""),
+      personKey: String(req.body?.personKey ?? ""),
+      personName: String(req.body?.personName ?? ""),
+      checkIn: String(req.body?.checkIn ?? ""),
+      checkOut: String(req.body?.checkOut ?? ""),
+      updatedBy: req.user!.id,
+    });
+    if (!result.ok) return res.status(400).json({ success: false, message: result.message });
+    return res.json({ success: true, message: "Shift hours saved." });
+  } catch (error) {
+    console.error("[attendance/shift-schedules save]", error);
+    return res.status(500).json({ success: false, message: "Could not save shift hours." });
+  }
+});
+
+router.get("/late-deductions", verifyToken, allowRoles("admin", "accounts"), async (req: AuthRequest, res) => {
+  try {
+    const month = String(req.query.month ?? "").trim();
+    const data = await listLatePolicies(month);
+    if (!data) return res.status(400).json({ success: false, message: "Pick a month." });
+    return res.json({ success: true, ...data });
+  } catch (error) {
+    console.error("[attendance/late-deductions]", error);
+    return res.status(500).json({ success: false, message: "Could not load deduction ranges." });
+  }
+});
+
+router.put("/late-deductions", verifyToken, allowRoles("admin"), async (req: AuthRequest, res) => {
+  try {
+    const result = await saveLatePolicy({
+      month: String(req.body?.month ?? ""),
+      department: String(req.body?.department ?? ""),
+      components: req.body?.components,
+      ranges: req.body?.ranges,
+      updatedBy: req.user!.id,
+    });
+    if (!result.ok) return res.status(400).json({ success: false, message: result.message });
+    return res.json({ success: true, message: "Deduction ranges saved." });
+  } catch (error) {
+    console.error("[attendance/late-deductions save]", error);
+    return res.status(500).json({ success: false, message: "Could not save deduction ranges." });
+  }
+});
+
+router.delete("/late-deductions", verifyToken, allowRoles("admin"), async (req: AuthRequest, res) => {
+  try {
+    const result = await clearLatePolicy(String(req.query.month ?? ""), String(req.query.department ?? ""));
+    if (!result.ok) return res.status(400).json({ success: false, message: result.message });
+    return res.json({ success: true, message: "Deduction ranges cleared." });
+  } catch (error) {
+    console.error("[attendance/late-deductions clear]", error);
+    return res.status(500).json({ success: false, message: "Could not clear deduction ranges." });
+  }
+});
+
+const PORTAL_ROLE: Record<string, Role> = {
+  chief_estimator: "technical_manager",
+  admin: "manager",
+  accounts: "accounts",
+};
+
+router.post("/ceo-day", verifyToken, allowRoles("admin"), async (req: AuthRequest, res) => {
+  try {
+    const department = String(req.body?.department ?? "");
+    const personKey = String(req.body?.personKey ?? "").trim();
+    const personName = String(req.body?.personName ?? "").trim();
+    const day = String(req.body?.day ?? "").trim();
+    const checkIn = String(req.body?.checkIn ?? "").trim();
+    const checkOutRaw = String(req.body?.checkOut ?? "").trim();
+    if (!SHIFT_DEPARTMENTS.some((dept) => dept.id === department)) {
+      return res.status(400).json({ success: false, message: "Unknown department." });
+    }
+    if (!personKey || !personName) return res.status(400).json({ success: false, message: "Choose an employee." });
+    if (!isValidDay(day) || day > pktNow().day) {
+      return res.status(400).json({ success: false, message: "Pick today or a past date." });
+    }
+    if (!isValidTime(checkIn)) return res.status(400).json({ success: false, message: "Enter a check-in time." });
+    const checkOut = checkOutRaw || null;
+    if (checkOut && !isValidTime(checkOut)) {
+      return res.status(400).json({ success: false, message: "Enter a valid check-out time." });
+    }
+    if (department === "csr" || department === "estimator") {
+      const user = await prisma.user.findFirst({
+        where: { id: personKey, role: department, isActive: true },
+        select: { id: true },
+      });
+      if (!user) return res.status(400).json({ success: false, message: "Unknown employee." });
+      const saved = await ceoSetPortalShiftDay({ userId: personKey, department, day, checkIn, checkOut });
+      if (!saved.ok) return res.status(400).json({ success: false, message: saved.message });
+      return res.json({ success: true, message: "Time saved." });
+    }
+    const role = PORTAL_ROLE[department];
+    if (role) {
+      const user = await prisma.user.findFirst({
+        where: { id: personKey, role, isActive: true },
+        select: { id: true },
+      });
+      if (!user) return res.status(400).json({ success: false, message: "Unknown employee." });
+    } else if (!isRosterDept(department) || !rosterPerson(department, personKey)) {
+      return res.status(400).json({ success: false, message: "Unknown employee." });
+    }
+    const saved = await saveAttendance({
+      personKey,
+      personName,
+      department: department as AttendanceDept,
+      day,
+      checkIn,
+      checkOut,
+      userId: role ? personKey : null,
+    });
+    if (!saved.ok) return res.status(400).json({ success: false, message: saved.message });
+    return res.json({ success: true, message: "Time saved." });
+  } catch (error) {
+    console.error("[attendance/ceo-day]", error);
+    return res.status(500).json({ success: false, message: "Could not save time." });
+  }
+});
+
+router.delete("/shift-schedules", verifyToken, allowRoles("admin"), async (req: AuthRequest, res) => {
+  try {
+    const result = await clearShiftSchedule(
+      String(req.query.month ?? ""),
+      String(req.query.department ?? ""),
+      String(req.query.personKey ?? ""),
+    );
+    if (!result.ok) return res.status(400).json({ success: false, message: result.message });
+    return res.json({ success: true, message: "Shift hours cleared." });
+  } catch (error) {
+    console.error("[attendance/shift-schedules clear]", error);
+    return res.status(500).json({ success: false, message: "Could not clear shift hours." });
+  }
+});
 
 const ROLE_DEPT: Record<string, AttendanceDept> = {
   technical_manager: "chief_estimator",
@@ -90,6 +244,7 @@ function historyClock(time: string | null | undefined): string | null {
 function toHistoryDays(
   rows: { day: string; checkIn: string | null; checkOut: string | null }[],
   evening = false,
+  shiftStart = EVENING_SHIFT_START,
 ) {
   return rows
     .filter((row): row is { day: string; checkIn: string; checkOut: string | null } => !!row.checkIn)
@@ -107,8 +262,8 @@ function toHistoryDays(
           checkInLabel: null as string | null,
         };
       }
-      const inNext = row.checkIn < EVENING_SHIFT_START;
-      const outNext = !!row.checkOut && row.checkOut < EVENING_SHIFT_START;
+      const inNext = row.checkIn < shiftStart;
+      const outNext = !!row.checkOut && row.checkOut < shiftStart;
       const checkInDay = inNext ? addCalendarDays(row.day, 1) : row.day;
       const checkOutDay = row.checkOut ? (outNext ? addCalendarDays(row.day, 1) : row.day) : null;
       return {
@@ -123,8 +278,9 @@ function toHistoryDays(
     });
 }
 
-function dayClock(department: string) {
-  return isEveningShiftDept(department) ? pktShiftNow() : pktNow();
+function dayClock(department: string, personKey = "") {
+  const now = pktNow();
+  return { day: pktShiftDay(new Date(), department, personKey), time: now.time };
 }
 
 /** Checkout the open shift: today, or yesterday when the shift runs past midnight. */
@@ -136,7 +292,7 @@ async function punchShift(input: {
   userId?: string | null;
   comment?: string | null;
 }) {
-  const now = dayClock(input.department);
+  const now = dayClock(input.department, input.personKey);
   if (input.action === "in") {
     return saveAttendance({
       personKey: input.personKey,
@@ -202,11 +358,11 @@ router.get("/history", async (req, res) => {
       return res.status(403).json({ success: false, code: "IP_NOT_ALLOWED", message: blocked });
     }
     const rows = await prisma.staffDayAttendance.findMany({
-      where: { personKey: person.key, department },
+      where: { personKey: person.key, department, day: { gte: employeeHistoryStart() } },
       orderBy: { day: "desc" },
-      take: 30,
     });
-    return res.json({ success: true, days: toHistoryDays(rows, isEveningShiftDept(department)) });
+    const window = attendanceShift(department, person.key);
+    return res.json({ success: true, days: toHistoryDays(rows, window.overnight, window.start) });
   } catch (error) {
     console.error("[attendance/history]", error);
     return res.status(500).json({ success: false, message: "Could not load history." });
@@ -310,7 +466,7 @@ router.post("/note", async (req, res) => {
     if (blocked) {
       return res.status(403).json({ success: false, code: "IP_NOT_ALLOWED", message: blocked });
     }
-    const now = dayClock(department);
+    const now = dayClock(department, person.key);
     const today = await prisma.staffDayAttendance.findUnique({
       where: { personKey_day: { personKey: person.key, day: now.day } },
     });
@@ -378,9 +534,8 @@ router.post("/times", async (req, res) => {
 router.get("/mine/history", verifyToken, allowRoles("technical_manager", "admin", "manager", "accounts"), async (req: AuthRequest, res) => {
   try {
     const rows = await prisma.staffDayAttendance.findMany({
-      where: { personKey: req.user!.id },
+      where: { personKey: req.user!.id, day: { gte: employeeHistoryStart() } },
       orderBy: { day: "desc" },
-      take: 30,
     });
     const evening = req.user?.role === "manager" || req.user?.role === "accounts";
     return res.json({ success: true, days: toHistoryDays(rows, evening) });
@@ -395,7 +550,7 @@ router.get("/mine", verifyToken, allowRoles("technical_manager", "admin", "manag
     const user = await prisma.user.findUnique({ where: { id: req.user!.id }, select: { name: true } });
     const department = mineDepartment(req.user!.role, wantsChiefDashboard(req.query.dashboard));
     if (!department) return res.status(403).json({ success: false, message: "Access denied" });
-    const day = dayClock(department).day;
+    const day = dayClock(department, req.user!.id).day;
     let row = await prisma.staffDayAttendance.findUnique({
       where: { personKey_day: { personKey: req.user!.id, day } },
     });

@@ -620,6 +620,46 @@ model CompanyCredential {
   @@map("company_credentials")
 }
 
+/**
+ * Shift window for one month. personKey empty = the whole department.
+ * A later month with no row keeps the previous month's times until the CEO sets it.
+ */
+model ShiftSchedule {
+  id         String   @id @default(cuid()) @map("_id")
+  month      String
+  department String
+  personKey  String   @default("")
+  personName String   @default("")
+  checkIn    String
+  checkOut   String
+  updatedBy  String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([month, department, personKey])
+  @@index([department, month])
+  @@map("shift_schedules")
+}
+
+/**
+ * Late cut for one month and department. A later month with no row keeps the previous month.
+ * Per day = selected pay parts ÷ 30. Each range cuts its own percent of that day.
+ */
+model LateDeductionPolicy {
+  id         String   @id @default(cuid()) @map("_id")
+  month      String
+  department String
+  components Json
+  ranges     Json
+  updatedBy  String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([month, department])
+  @@index([department, month])
+  @@map("late_deduction_policies")
+}
+
 /** Daily check-in / check-out. Stored times are what reports show. */
 model StaffDayAttendance {
   id         String   @id @default(cuid()) @map("_id")

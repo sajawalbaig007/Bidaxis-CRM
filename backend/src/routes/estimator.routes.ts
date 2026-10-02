@@ -34,7 +34,8 @@ import {
 } from "../utils/csrSessionTracking";
 import { buildPreviousMonthRatings } from "../utils/previousMonthRatings";
 import { getClientIp, getUserAgent } from "../utils/requestMeta";
-import { formatEstDateTime, estDateYmd } from "../utils/estTime";
+import { formatEstDateTime } from "../utils/estTime";
+import { pktShiftDay } from "../utils/staffAttendance";
 import { saveOvertimeComment } from "../utils/overtimeRequest";
 
 const router = express.Router();
@@ -779,7 +780,7 @@ router.post("/check-out", async (req: AuthRequest, res) => {
         personKey: me.id,
         personName: me.name,
         department: "estimator",
-        day: estDateYmd(open.loginAt),
+        day: pktShiftDay(open.loginAt, "estimator", me.id),
         comment: overtime,
       });
     }

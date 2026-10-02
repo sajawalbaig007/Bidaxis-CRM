@@ -1,3 +1,5 @@
+import { lateFromPolicy } from "./latePolicy";
+
 /** Technical-team (and shared) payroll formulas — editable inputs, computed outputs. */
 
 export type EmployeeSalaryDetail = {
@@ -280,7 +282,15 @@ export function computeAdminSalary(detail: EmployeeSalaryDetail): SalaryBreakdow
 
   const totalEarning = monthlySalary;
 
-  const late = calcAdminLateDeduction(daySalary, detail.checkIn, detail.lateDeductionOverride);
+  const policyLate = detail.lateDeductionOverride == null
+    ? lateFromPolicy("admin", detail.checkIn, {
+        basic,
+        commission: 0,
+        overtime: 0,
+        allowance: parts.total + travelAllowance,
+      })
+    : null;
+  const late = policyLate ?? calcAdminLateDeduction(daySalary, detail.checkIn, detail.lateDeductionOverride);
 
   const unpaidLeaveDays = Number(detail.unpaidLeaveDays) || 0;
   const unpaidLeaveDeduction = unpaidLeaveDays * daySalary;
@@ -434,7 +444,16 @@ export function computeSalary(
 
   const totalEarning = monthlySalary + totalOvertime;
 
-  const late = calcLateDeduction(
+  const chief = opts?.lateShiftHour === 9;
+  const policyLate = chief && detail.lateDeductionOverride == null
+    ? lateFromPolicy("chief_estimator", detail.checkIn, {
+        basic,
+        commission: 0,
+        overtime: totalOvertime,
+        allowance: parts.total + travelAllowance,
+      })
+    : null;
+  const late = policyLate ?? calcLateDeduction(
     daySalary,
     detail.checkIn,
     detail.checkOut,

@@ -1,6 +1,5 @@
 import prisma from "../config/db";
-import { estDateYmd, CSR_REPORT_TIMEZONE } from "./estTime";
-import { addCalendarDays, pktNow, staffCheckInInstant } from "./staffAttendance";
+import { addCalendarDays, pktShiftDay, staffCheckInInstant } from "./staffAttendance";
 
 const NINE_HOURS_MS = 9 * 60 * 60 * 1000;
 
@@ -98,60 +97,78 @@ export async function reviewOvertime(input: {
   return { ok: true as const, note: updated };
 }
 
-async function estimatorShiftMs(userId: string): Promise<number> {
-  const tz = CSR_REPORT_TIMEZONE;
-  const day = estDateYmd(new Date(), tz);
-  const from = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
-  const sessions = await prisma.csrWorkSession.findMany({
-    where: { userId, loginAt: { gte: from } },
-    select: { loginAt: true, logoutAt: true },
-  });
-  const now = Date.now();
-  let ms = 0;
-  for (const session of sessions) {
-    if (estDateYmd(session.loginAt, tz) !== day) continue;
-    const end = session.logoutAt ? session.logoutAt.getTime() : now;
-    ms += Math.max(0, end - session.loginAt.getTime());
-  }
-  return ms;
+/** Re-check-in within this gap still belongs to the same shift. */
+const SHIFT_GAP_MS = 3 * 60 * 60 * 1000;
+
+function hasClock(value: string | null | undefined): value is string {
+  return !!value && value !== "";
 }
 
-async function chiefShiftMs(userId: string): Promise<number> {
-  const day = pktNow().day;
-  const row = await prisma.staffDayAttendance.findUnique({
+/**
+ * Wall-clock of the current shift. A check-in that started before midnight
+ * Eastern still counts — Pakistani daytime shifts often cross that date line,
+ * so filtering to "today ET" left the button off after a full 9 hour shift.
+ */
+async function estimatorShiftMs(userId: string): Promise<{ ms: number; open: boolean }> {
+  const now = Date.now();
+  const sessions = await prisma.csrWorkSession.findMany({
+    where: { userId, loginAt: { gte: new Date(now - 36 * 60 * 60 * 1000) } },
+    select: { loginAt: true, logoutAt: true },
+    orderBy: { loginAt: "asc" },
+  });
+  if (sessions.length === 0) return { ms: 0, open: false };
+  let ms = 0;
+  let laterStart = Number.POSITIVE_INFINITY;
+  let open = false;
+  for (let i = sessions.length - 1; i >= 0; i--) {
+    const session = sessions[i];
+    const start = session.loginAt.getTime();
+    const ended = !!session.logoutAt;
+    const end = ended ? session.logoutAt!.getTime() : now;
+    if (laterStart !== Number.POSITIVE_INFINITY && laterStart - end > SHIFT_GAP_MS) break;
+    if (!ended) open = true;
+    const clippedEnd = Math.min(end, laterStart);
+    ms += Math.max(0, clippedEnd - start);
+    laterStart = Math.min(laterStart, start);
+  }
+  return { ms, open };
+}
+
+async function chiefShiftMs(userId: string): Promise<{ ms: number; open: boolean }> {
+  const day = pktShiftDay(new Date(), "chief_estimator", userId);
+  const today = await prisma.staffDayAttendance.findUnique({
     where: { personKey_day: { personKey: userId, day } },
   });
-  if (!row?.checkIn) return 0;
-  const start = staffCheckInInstant("chief_estimator", row.day, row.checkIn);
-  if (!start) return 0;
+  let row = today?.checkIn ? today : null;
+  if (!row) {
+    const prev = await prisma.staffDayAttendance.findUnique({
+      where: { personKey_day: { personKey: userId, day: addCalendarDays(day, -1) } },
+    });
+    if (prev?.checkIn && !hasClock(prev.checkOut)) row = prev;
+  }
+  if (!row?.checkIn) return { ms: 0, open: false };
+  const start = staffCheckInInstant(row.department || "chief_estimator", row.day, row.checkIn, row.personKey);
+  const open = !hasClock(row.checkOut);
+  if (!start) return { ms: 0, open };
   let end = new Date();
-  if (row.checkOut) {
+  if (!open && row.checkOut) {
     const outDay = row.checkOut < row.checkIn ? addCalendarDays(row.day, 1) : row.day;
     const out = new Date(`${outDay}T${row.checkOut}:00+05:00`);
     if (!Number.isNaN(out.getTime())) end = out;
   }
-  return Math.max(0, end.getTime() - start.getTime());
+  return { ms: Math.max(0, end.getTime() - start.getTime()), open };
 }
 
 export async function overtimeGate(userId: string, role: string) {
   const estimator = role === "estimator";
-  const timeZone = estimator ? CSR_REPORT_TIMEZONE : "Asia/Karachi";
+  const timeZone = "Asia/Karachi";
   const weekend = isWeekend(new Date(), timeZone);
-  const shiftMs = estimator ? await estimatorShiftMs(userId) : await chiefShiftMs(userId);
-  const open = estimator
-    ? !!(await prisma.csrWorkSession.findFirst({
-        where: { userId, OR: [{ logoutAt: null }, { logoutAt: { isSet: false } }] },
-        select: { id: true },
-      }))
-    : !!(await prisma.staffDayAttendance.findFirst({
-        where: { personKey: userId, department: "chief_estimator", checkIn: { not: null }, checkOut: null },
-        select: { id: true },
-      }));
+  const shift = estimator ? await estimatorShiftMs(userId) : await chiefShiftMs(userId);
   return {
-    allowed: weekend || shiftMs >= NINE_HOURS_MS,
+    allowed: weekend || shift.ms >= NINE_HOURS_MS,
     weekend,
-    shiftMs,
-    open,
+    shiftMs: shift.ms,
+    open: shift.open,
   };
 }
 
@@ -168,7 +185,7 @@ export async function submitShiftOvertime(input: { userId: string; role: string;
     return { ok: false as const, message: "Overtime opens on Saturday and Sunday, or after a 9 hour weekday shift." };
   }
   const department = input.role === "estimator" ? "estimator" : "chief_estimator";
-  const day = input.role === "estimator" ? estDateYmd(new Date()) : pktNow().day;
+  const day = pktShiftDay(new Date(), input.role === "estimator" ? "estimator" : "chief_estimator", input.userId);
   const comment = formatOvertimeMinutes(minutes);
   const where = { personKey_day_department: { personKey: input.userId, day, department } };
   const existing = await prisma.overtimeRequest.findUnique({ where });
@@ -222,7 +239,6 @@ export async function listEstimatorShiftRows() {
       user: { select: { id: true, name: true } },
     },
   });
-  const tz = CSR_REPORT_TIMEZONE;
   type Bucket = {
     personKey: string;
     personName: string;
@@ -233,7 +249,7 @@ export async function listEstimatorShiftRows() {
   };
   const map = new Map<string, Bucket>();
   for (const row of sessions as SessionHit[]) {
-    const day = estDateYmd(row.loginAt, tz);
+    const day = pktShiftDay(row.loginAt, "estimator", row.user.id);
     const key = `${row.user.id}:${day}`;
     const hit = map.get(key);
     if (!hit) {

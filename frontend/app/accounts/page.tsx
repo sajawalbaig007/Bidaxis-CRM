@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
   Activity,
@@ -247,6 +247,51 @@ type Summary = {
 type ChannelFxAmounts = { usdAmount: number; cadAmount: number; pkrAmount: number };
 type ChannelFx = Record<"AH" | "SN" | "CHQ" | "HM", ChannelFxAmounts>;
 
+type RateDraft = { AH: { usd: number; cad: number }; SN: { usd: number; cad: number } };
+
+/** Keep Ahmed / Sharjeel FX rates; amounts stay on the record until payments overwrite them. */
+function withSnapshotRates(local: DashboardCurrency, snap: DashboardCurrency | null): DashboardCurrency {
+  if (!snap) return local;
+  const next = normalizeCurrency(local);
+  const saved = normalizeCurrency(snap);
+  for (const key of ["AH", "SN"] as const) {
+    next.tabs[key] = {
+      ...next.tabs[key],
+      usdToPkrRate: Number(saved.tabs[key].usdToPkrRate) || next.tabs[key].usdToPkrRate,
+      cadToPkrRate: Number(saved.tabs[key].cadToPkrRate) || next.tabs[key].cadToPkrRate,
+    };
+  }
+  return next;
+}
+
+/** Month collections × the rates on screen. Same math the Income Statement uses. */
+function applyChannelAmounts(
+  tab: DashboardCurrencyTab,
+  key: CurrencyTabKey,
+  fx: ChannelFxAmounts | undefined,
+): DashboardCurrencyTab {
+  if (!fx) return tab;
+  if (key === "CHQ" || key === "HM") {
+    const usdRate = Number(tab.usdToPkrRate) || 280;
+    const cadRate = Number(tab.cadToPkrRate) || 200;
+    return {
+      ...tab,
+      usdAmount: 0,
+      cadAmount: 0,
+      pkrAmount:
+        (Number(fx.pkrAmount) || 0) +
+        (Number(fx.usdAmount) || 0) * usdRate +
+        (Number(fx.cadAmount) || 0) * cadRate,
+    };
+  }
+  return {
+    ...tab,
+    usdAmount: Number(fx.usdAmount) || 0,
+    cadAmount: Number(fx.cadAmount) || 0,
+    pkrAmount: Number(fx.pkrAmount) || 0,
+  };
+}
+
 type ViewTab = CurrencyTabKey | "ALL";
 
 type LiveFxRates = {
@@ -263,6 +308,12 @@ export default function AccountsDashboardPage() {
   useScrollToHash(!acc.loading);
   const [summaries, setSummaries] = useState<Summary>({});
   const [channelFx, setChannelFx] = useState<ChannelFx | null>(null);
+  const [formulaSnapshot, setFormulaSnapshot] = useState<DashboardCurrency | null>(null);
+  const [rateDraft, setRateDraft] = useState<RateDraft | null>(null);
+  const formulaSnapshotRef = useRef<DashboardCurrency | null>(null);
+  const rateDraftRef = useRef<RateDraft | null>(null);
+  formulaSnapshotRef.current = formulaSnapshot;
+  rateDraftRef.current = rateDraft;
   const [viewTab, setViewTab] = useState<ViewTab>("AH");
   const [formulaOpen, setFormulaOpen] = useState(false);
   const [formulaBookOpen, setFormulaBookOpen] = useState(false);
@@ -285,24 +336,48 @@ export default function AccountsDashboardPage() {
             : (mode === "month" || mode === "date_range") && acc.filterFrom && acc.filterTo
               ? `mode=range&from=${acc.filterFrom}&to=${acc.filterTo}`
               : `date=${acc.recordDate}`;
-        const res = await getAccountsDashboardSummary(qs) as {
+        const res = await getAccountsDashboardSummary(qs, true) as {
           summaries?: Summary;
           channelFx?: ChannelFx;
+          dashboard?: { currency?: DashboardCurrency };
         };
         if (!cancelled) {
           setSummaries(res.summaries ?? {});
           const fx = res.channelFx;
           setChannelFx(fx?.AH && typeof fx.AH.usdAmount === "number" ? fx : null);
+          setFormulaSnapshot(res.dashboard?.currency ? normalizeCurrency(res.dashboard.currency) : null);
         }
       } catch {
         if (!cancelled) {
           setSummaries({});
           setChannelFx(null);
+          setFormulaSnapshot(null);
         }
       }
     })();
     return () => { cancelled = true; };
   }, [acc.recordDate, acc.periodPreset, acc.filterFrom, acc.filterTo, acc.dirty, acc.saving]);
+
+  const draftScope = `${acc.periodPreset}:${acc.filterMonth}`;
+  const [draftScopeSeen, setDraftScopeSeen] = useState(draftScope);
+  if (draftScopeSeen !== draftScope) {
+    setDraftScopeSeen(draftScope);
+    if (rateDraft) {
+      rateDraftRef.current = null;
+      setRateDraft(null);
+    }
+  } else if (rateDraft && formulaSnapshot && !acc.saving) {
+    const snap = normalizeCurrency(formulaSnapshot);
+    const same =
+      snap.tabs.AH.usdToPkrRate === rateDraft.AH.usd &&
+      snap.tabs.AH.cadToPkrRate === rateDraft.AH.cad &&
+      snap.tabs.SN.usdToPkrRate === rateDraft.SN.usd &&
+      snap.tabs.SN.cadToPkrRate === rateDraft.SN.cad;
+    if (same) {
+      rateDraftRef.current = null;
+      setRateDraft(null);
+    }
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -332,18 +407,47 @@ export default function AccountsDashboardPage() {
     };
   }, [fxVersion]);
 
-  const currencyData = normalizeCurrency(acc.data.currency);
-  const sn = currencyData.tabs.SN;
-  const ah = currencyData.tabs.AH;
-  const chq = currencyData.tabs.CHQ;
-  const hm = currencyData.tabs.HM;
+  const periodMode = normalizePeriodPreset(acc.periodPreset);
+  const isAllTime = periodMode === "all_time";
+  const isMonth = periodMode === "month";
+  const isDateRange = periodMode === "date_range";
+  const usesPeriodSummary = isAllTime || isMonth || isDateRange;
+
+  const storedCurrency = normalizeCurrency(acc.data.currency);
+  const ratedCurrency = rateDraft
+    ? withSnapshotRates(storedCurrency, null)
+    : withSnapshotRates(storedCurrency, formulaSnapshot);
+  const currencyData = normalizeCurrency(
+    rateDraft
+      ? {
+          tabs: {
+            ...ratedCurrency.tabs,
+            AH: {
+              ...ratedCurrency.tabs.AH,
+              usdToPkrRate: rateDraft.AH.usd,
+              cadToPkrRate: rateDraft.AH.cad,
+            },
+            SN: {
+              ...ratedCurrency.tabs.SN,
+              usdToPkrRate: rateDraft.SN.usd,
+              cadToPkrRate: rateDraft.SN.cad,
+            },
+          },
+        }
+      : ratedCurrency,
+  );
+  const monthFx = isMonth ? channelFx : null;
+  const sn = applyChannelAmounts(currencyData.tabs.SN, "SN", monthFx?.SN);
+  const ah = applyChannelAmounts(currencyData.tabs.AH, "AH", monthFx?.AH);
+  const chq = applyChannelAmounts(currencyData.tabs.CHQ, "CHQ", monthFx?.CHQ);
+  const hm = applyChannelAmounts(currencyData.tabs.HM, "HM", monthFx?.HM);
   const snCalc = calcTab(sn);
   const ahCalc = calcTab(ah);
   const chqCalc = calcTab(chq);
   const hmCalc = calcTab(hm);
 
   const activeKey: CurrencyTabKey = viewTab === "ALL" ? "AH" : viewTab;
-  const active = currencyData.tabs[activeKey];
+  const active = activeKey === "AH" ? ah : activeKey === "SN" ? sn : activeKey === "CHQ" ? chq : hm;
   const activeCalc = calcTab(active);
 
   const displayCalc = viewTab === "ALL"
@@ -368,11 +472,6 @@ export default function AccountsDashboardPage() {
 
   const combinedTotal = ahCalc.total + snCalc.total + chqCalc.total + hmCalc.total;
 
-  const periodMode = normalizePeriodPreset(acc.periodPreset);
-  const isAllTime = periodMode === "all_time";
-  const isMonth = periodMode === "month";
-  const isDateRange = periodMode === "date_range";
-  const usesPeriodSummary = isAllTime || isMonth || isDateRange;
   const periodHint = isAllTime
     ? `All Time · through ${todayIso()}`
     : isMonth
@@ -380,12 +479,15 @@ export default function AccountsDashboardPage() {
       : isDateRange
         ? "This range · same as Income Statement"
         : `As of ${acc.recordDate || todayIso()}`;
-  const isRev = summaries.incomeTotalRevenue ?? 0;
-  const currencyCardTotal = usesPeriodSummary
-    ? isRev
-    : (summaries.incomeTotalRevenue ?? combinedTotal);
+  const serverRev = summaries.incomeTotalRevenue ?? 0;
+  const currencyCardTotal = isMonth && channelFx
+    ? combinedTotal
+    : usesPeriodSummary
+      ? serverRev
+      : (summaries.incomeTotalRevenue ?? combinedTotal);
+  const isRev = currencyCardTotal;
   const isExp = summaries.incomeTotalExpense ?? 0;
-  const isProfit = summaries.incomeNetProfit ?? 0;
+  const isProfit = (summaries.incomeNetProfit ?? 0) - serverRev + isRev;
   const netCashFlow = summaries.cashFlowNet ?? 0;
   const bsLiab = summaries.balanceSheetTotalLiabilities ?? 0;
   const bsEquity = summaries.balanceSheetTotalEquity ?? 0;
@@ -471,32 +573,54 @@ export default function AccountsDashboardPage() {
     },
   ];
 
-  const ensureNormalized = (prev: DashboardData): DashboardCurrency =>
-    normalizeCurrency(prev.currency);
-
   const setTabField = (tab: CurrencyTabKey, key: keyof DashboardCurrencyTab, val: number) => {
-    acc.setData(prev => {
-      const tabs = ensureNormalized(prev).tabs;
-      const locked =
-        tab === "CHQ"
-          ? { taxDeductionRate: 0.25 as const }
-          : tab === "HM"
-            ? { taxDeductionRate: 0.01 as const }
-            : tab === "AH"
-              ? { usdTaxFactor: 0.89, cadTaxFactor: 0.89 }
-              : tab === "SN"
-                ? { cadTaxFactor: 0.945 }
-                : {};
-      return {
-        ...prev,
-        currency: {
+    const stored = withSnapshotRates(
+      normalizeCurrency(acc.data.currency),
+      formulaSnapshotRef.current,
+    );
+    const draft = rateDraftRef.current;
+    const seeded: DashboardCurrency = draft
+      ? {
           tabs: {
-            ...tabs,
-            [tab]: { ...tabs[tab], [key]: val, ...locked },
+            ...stored.tabs,
+            AH: { ...stored.tabs.AH, usdToPkrRate: draft.AH.usd, cadToPkrRate: draft.AH.cad },
+            SN: { ...stored.tabs.SN, usdToPkrRate: draft.SN.usd, cadToPkrRate: draft.SN.cad },
           },
+        }
+      : stored;
+    const locked =
+      tab === "CHQ"
+        ? { taxDeductionRate: 0.25 as const }
+        : tab === "HM"
+          ? { taxDeductionRate: 0.01 as const }
+          : tab === "AH"
+            ? { usdTaxFactor: 0.89, cadTaxFactor: 0.89 }
+            : tab === "SN"
+              ? { cadTaxFactor: 0.945 }
+              : {};
+    const nextData: DashboardData = {
+      ...acc.data,
+      currency: {
+        tabs: {
+          ...seeded.tabs,
+          [tab]: { ...seeded.tabs[tab], [key]: val, ...locked },
         },
-      };
-    });
+      },
+    };
+    const nextDraft: RateDraft = {
+      AH: {
+        usd: nextData.currency.tabs.AH.usdToPkrRate,
+        cad: nextData.currency.tabs.AH.cadToPkrRate,
+      },
+      SN: {
+        usd: nextData.currency.tabs.SN.usdToPkrRate,
+        cad: nextData.currency.tabs.SN.cadToPkrRate,
+      },
+    };
+    rateDraftRef.current = nextDraft;
+    setRateDraft(nextDraft);
+    acc.setData(() => nextData);
+    void acc.save(nextData, { silent: true });
   };
 
   /** Formula Book — edits save straight into the dashboard record */
