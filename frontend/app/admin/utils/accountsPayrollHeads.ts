@@ -5,7 +5,9 @@ export const ACCOUNTS_PAYROLL_HEADS = [
   "Sales Team Lead Salaries",
   "Technical Manager Salaries",
   "Email Marketing Team Salaries",
+  "BIM Modeler Salaries",
   "Administration Salaries",
+  "Dev Salaries",
   "Executive Salaries",
 ] as const;
 

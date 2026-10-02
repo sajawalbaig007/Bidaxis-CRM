@@ -125,6 +125,7 @@ function isTechnicalManagerTeam(name: string): boolean {
 function isTechnicalTeam(name: string): boolean {
   const t = name.trim().toLowerCase();
   if (isTechnicalManagerTeam(t)) return false;
+  if (t.includes("bim model")) return true;
   return t.includes("technical") && t.includes("sal");
 }
 

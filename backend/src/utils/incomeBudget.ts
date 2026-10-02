@@ -54,7 +54,9 @@ export function budgetKeyForTeamTitle(teamTitle: string): CoreBudgetKey {
   const t = teamTitle.trim().toLowerCase();
   if (t.includes("email")) return "email_marketing";
   if (t.includes("sales")) return "sales";
+  if (t.includes("bim model")) return "technical";
   if (t.includes("technical")) return "technical";
+  if (/\bdev\b/.test(t)) return "administration";
   if (t.includes("admin")) return "administration";
   if (t.includes("executive")) return "executive";
   return "other_payroll";

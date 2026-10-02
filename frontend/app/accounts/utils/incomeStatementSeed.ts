@@ -205,6 +205,10 @@ const TEAM_SEED: Record<
       { label: "Afaq", amount: 0 },
     ],
   },
+  "BIM Modeler Salaries": {
+    total: 0,
+    people: [{ label: "Ahmad Nadeem", amount: 0 }],
+  },
   "Sales Team Salaries": {
     total: 0,
     people: [
@@ -239,11 +243,16 @@ const TEAM_SEED: Record<
       { label: "Muhammad Bilal (Accounts Officer)", amount: 0 },
       { label: "Mr. Noreed (Chartered)", amount: 0 },
       { label: "Hamza (Floor Manager)", amount: 0 },
-      { label: "Sajawal", amount: 0 },
-      { label: "Ahmer", amount: 0 },
       { label: "Mahnoor", amount: 0 },
       { label: "Office Boy", amount: 0 },
       { label: "Guard", amount: 0 },
+    ],
+  },
+  "Dev Salaries": {
+    total: 0,
+    people: [
+      { label: "Ahmer Shah", amount: 0 },
+      { label: "Sajawal", amount: 0 },
     ],
   },
   "Executive Salaries": {

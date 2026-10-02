@@ -215,11 +215,26 @@ export function defaultAccountsData(page: AccountsPageKey): Record<string, unkno
               sub("as", 4, "Muhammad Bilal (Accounts Officer)", 0),
               sub("as", 5, "Mr. Noreed (Chartered)", 0),
               sub("as", 6, "Hamza (Floor Manager)", 0),
-              sub("as", 7, "Sajawal", 0),
-              sub("as", 8, "Ahmer", 0),
-              sub("as", 9, "Mahnoor", 0),
-              sub("as", 10, "Office Boy", 0),
-              sub("as", 11, "Guard", 0),
+              sub("as", 7, "Mahnoor", 0),
+              sub("as", 8, "Office Boy", 0),
+              sub("as", 9, "Guard", 0),
+            ],
+          },
+          {
+            id: rid("t", 7),
+            team: "BIM Modeler Salaries",
+            totalSalary: 0,
+            subHeads: [
+              sub("bm", 1, "Ahmad Nadeem", 0),
+            ],
+          },
+          {
+            id: rid("t", 8),
+            team: "Dev Salaries",
+            totalSalary: 0,
+            subHeads: [
+              sub("dv", 1, "Ahmer Shah", 0),
+              sub("dv", 2, "Sajawal", 0),
             ],
           },
           {
