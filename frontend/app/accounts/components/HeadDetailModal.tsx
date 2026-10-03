@@ -570,10 +570,10 @@ export default function HeadDetailModal({
                         })
                       : ensureSalaryDetail(s.salary, s.amount);
                   const net = isAdminSub
-                    ? computeAdminSalary(sal).totalSalary
+                    ? computeAdminSalary(sal, s.label).totalSalary
                     : isTechMgrSub
-                      ? computeTechnicalManagerSalary(sal).totalSalary
-                      : computeSalary(sal).totalSalary;
+                      ? computeTechnicalManagerSalary(sal, s.label).totalSalary
+                      : computeSalary(sal, { personName: s.label }).totalSalary;
                   const slipKind =
                     isAdminSub ? "admin" : isTechMgrSub ? "technical_manager" : "technical";
                   const editorVariant =
@@ -611,10 +611,10 @@ export default function HeadDetailModal({
                             onChange={next => {
                               const hydrated = emptySalaryDetail(next);
                               const total = isAdminSub
-                                ? computeAdminSalary(hydrated).totalSalary
+                                ? computeAdminSalary(hydrated, s.label).totalSalary
                                 : isTechMgrSub
-                                  ? computeTechnicalManagerSalary(hydrated).totalSalary
-                                  : computeSalary(hydrated).totalSalary;
+                                  ? computeTechnicalManagerSalary(hydrated, s.label).totalSalary
+                                  : computeSalary(hydrated, { personName: s.label }).totalSalary;
                               updateSub(s.id, { salary: hydrated, amount: total });
                             }}
                           />

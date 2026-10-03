@@ -44,6 +44,8 @@ export type SalesPayrollEmployee = {
   assignedToLead: boolean;
   assignedTeamLeadId: string | null;
   checkIn: string;
+  payMonth?: string;
+  attendanceDays?: { day: string; checkIn?: string; checkOut?: string }[];
   lateDeductionOverride: number | null;
   paidLeaveDays: number;
   unpaidLeaveDays: number;

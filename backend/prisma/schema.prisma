@@ -655,13 +655,16 @@ model LateDeductionPolicy {
   id         String   @id @default(cuid()) @map("_id")
   month      String
   department String
+  /** Empty string is the whole department. A person key overrides that department. */
+  personKey  String   @default("")
+  personName String   @default("")
   components Json
   ranges     Json
   updatedBy  String?
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
-  @@unique([month, department])
+  @@unique([month, department, personKey])
   @@index([department, month])
   @@map("late_deduction_policies")
 }

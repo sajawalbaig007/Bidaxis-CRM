@@ -1,4 +1,4 @@
-import { lateFromPolicy } from "./latePolicy";
+import { monthLateFromPolicy, type AttendanceDay } from "./latePolicy";
 
 /** Sales team payroll — commission + 6 PM late (no overtime) */
 
@@ -55,6 +55,9 @@ export type SalesPayrollEmployee = {
   assignedToLead: boolean;
   assignedTeamLeadId: string | null;
   checkIn: string;
+  /** Statement month and punched days. A missing day deducts that day's set pay. */
+  payMonth?: string;
+  attendanceDays?: AttendanceDay[];
   lateDeductionOverride: number | null;
   paidLeaveDays: number;
   unpaidLeaveDays: number;
@@ -283,12 +286,12 @@ export function computeSalesEmployeePayroll(
   const daySalary = basic / 30;
   const comm = calcSalesCommission(emp.commission, emp.role, opts);
   const policyLate = emp.lateDeductionOverride == null
-    ? lateFromPolicy("csr", emp.checkIn, {
+    ? monthLateFromPolicy("csr", {
         basic,
         commission: comm.totalCommission,
         overtime: 0,
         allowance: allowance + homeAllowance + fuelAllowance + medicalAllowance,
-      })
+      }, { personName: emp.name }, emp.attendanceDays, emp.payMonth || yearMonthKey(opts?.recordDate) || "", emp.checkIn)
     : null;
   const late = policyLate ?? calcSalesLateDeduction(daySalary, emp.checkIn, emp.lateDeductionOverride);
   const unpaidDays = Number(emp.unpaidLeaveDays) || 0;
