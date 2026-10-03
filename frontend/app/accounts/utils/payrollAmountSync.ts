@@ -43,9 +43,9 @@ export function computeSubHeadPayrollAmount(
 
   if (!sub.salary) return Number(sub.amount) || 0;
   const sal = emptySalaryDetail(sub.salary);
-  if (kind === "admin") return computeAdminSalary(sal).totalSalary;
-  if (kind === "technical_manager") return computeTechnicalManagerSalary(sal).totalSalary;
-  return computeSalary(sal).totalSalary;
+  if (kind === "admin") return computeAdminSalary(sal, sub.label).totalSalary;
+  if (kind === "technical_manager") return computeTechnicalManagerSalary(sal, sub.label).totalSalary;
+  return computeSalary(sal, { personName: sub.label }).totalSalary;
 }
 
 /** Patch one sub so `amount` matches formula (preserves salary / salesPayroll). */

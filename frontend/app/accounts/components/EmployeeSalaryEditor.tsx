@@ -81,10 +81,10 @@ export default function EmployeeSalaryEditor({
   /** Technical Manager uses Technical Team formula with 9 AM late shift. */
   const isGpsTechnical = variant === "technical" || variant === "technical_manager";
   const b = isAdmin
-    ? computeAdminSalary(d)
+    ? computeAdminSalary(d, name)
     : isTechMgr
-      ? computeTechnicalManagerSalary(d)
-      : computeSalary(d);
+      ? computeTechnicalManagerSalary(d, name)
+      : computeSalary(d, { personName: name });
 
   const defaultCheckIn = isAdmin ? "18:00" : isTechMgr ? "09:00" : "07:00";
   const defaultCheckOut = isTechMgr ? "18:00" : "16:00";

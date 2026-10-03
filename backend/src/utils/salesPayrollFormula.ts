@@ -1,6 +1,6 @@
 import type { FixClientProject, ProjectSlabKey, SalesCommissionFields, SalesPayrollEmployee } from "./salesPayrollDefaults";
 import { PROJECT_SLABS } from "./salesPayrollDefaults";
-import { lateAmountFor, policyMonth } from "./lateDeduction";
+import { monthLateAmountFor, policyMonth } from "./lateDeduction";
 
 const OLD_RATE = 1000;
 const NEW_RATE = 3000;
@@ -186,12 +186,12 @@ export function computeSalesEmployeePayroll(
   const daySalary = basic / 30;
   const comm = calcSalesCommission(emp.commission, emp.role, opts);
   const policyLate = emp.lateDeductionOverride == null
-    ? lateAmountFor("csr", policyMonth(opts?.recordDate), emp.checkIn, {
+    ? monthLateAmountFor("csr", emp.payMonth || policyMonth(opts?.recordDate), {
         basic,
         commission: comm.totalCommission,
         overtime: 0,
         allowance: allowance + homeAllowance + fuelAllowance + medicalAllowance,
-      })
+      }, emp.attendanceDays, { personName: emp.name }, emp.checkIn)
     : null;
   const late = policyLate ?? calcSalesLateDeduction(daySalary, emp.checkIn, emp.lateDeductionOverride);
   const unpaidDays = Number(emp.unpaidLeaveDays) || 0;

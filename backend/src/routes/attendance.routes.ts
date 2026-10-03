@@ -84,6 +84,8 @@ router.put("/late-deductions", verifyToken, allowRoles("admin"), async (req: Aut
     const result = await saveLatePolicy({
       month: String(req.body?.month ?? ""),
       department: String(req.body?.department ?? ""),
+      personKey: String(req.body?.personKey ?? ""),
+      personName: String(req.body?.personName ?? ""),
       components: req.body?.components,
       ranges: req.body?.ranges,
       updatedBy: req.user!.id,
@@ -98,7 +100,11 @@ router.put("/late-deductions", verifyToken, allowRoles("admin"), async (req: Aut
 
 router.delete("/late-deductions", verifyToken, allowRoles("admin"), async (req: AuthRequest, res) => {
   try {
-    const result = await clearLatePolicy(String(req.query.month ?? ""), String(req.query.department ?? ""));
+    const result = await clearLatePolicy(
+      String(req.query.month ?? ""),
+      String(req.query.department ?? ""),
+      String(req.query.personKey ?? ""),
+    );
     if (!result.ok) return res.status(400).json({ success: false, message: result.message });
     return res.json({ success: true, message: "Deduction ranges cleared." });
   } catch (error) {

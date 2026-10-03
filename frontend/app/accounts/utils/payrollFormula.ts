@@ -1,4 +1,4 @@
-import { lateFromPolicy } from "./latePolicy";
+import { lateFromEmployee, lateFromPolicy, monthLateFromPolicy, type AttendanceDay } from "./latePolicy";
 
 /** Technical-team (and shared) payroll formulas — editable inputs, computed outputs. */
 
@@ -26,6 +26,12 @@ export type EmployeeSalaryDetail = {
   checkOut: string;
   /** Late-deduction department from the attendance report (accounts, hr, office_boy, admin). */
   lateDepartment?: string;
+  /** Attendance person key, so an employee late-deduction override beats the department. */
+  latePersonKey?: string;
+  /** Statement month YYYY-MM. Days in this month drive the late total. */
+  payMonth?: string;
+  /** Days this person actually punched. A missing day is a full day deduction. */
+  attendanceDays?: AttendanceDay[];
   /** Manual late override — if set, used instead of time-based late calc */
   lateDeductionOverride?: number | null;
 
@@ -275,7 +281,7 @@ export function calcAdminLateDeduction(
  * Late (6 PM slabs) + Unpaid leaves + Loan (this month) + PF (8% of basic) + Tax = Total Deduction.
  * Total Earning − Total Deduction = Total Salary.
  */
-export function computeAdminSalary(detail: EmployeeSalaryDetail): SalaryBreakdown {
+export function computeAdminSalary(detail: EmployeeSalaryDetail, personName = ""): SalaryBreakdown {
   const basic = Number(detail.basic) || 0;
   const parts = allowanceParts(detail);
   const travelAllowance = Number(detail.travelAllowance) || 0;
@@ -286,12 +292,12 @@ export function computeAdminSalary(detail: EmployeeSalaryDetail): SalaryBreakdow
 
   const lateDept = detail.lateDepartment || "admin";
   const policyLate = detail.lateDeductionOverride == null
-    ? lateFromPolicy(lateDept, detail.checkIn, {
+    ? monthLateFromPolicy(lateDept, {
         basic,
         commission: 0,
         overtime: 0,
         allowance: parts.total + travelAllowance,
-      })
+      }, { personKey: detail.latePersonKey, personName }, detail.attendanceDays, detail.payMonth || "", detail.checkIn)
     : null;
   const late = policyLate ?? calcAdminLateDeduction(daySalary, detail.checkIn, detail.lateDeductionOverride);
 
@@ -430,7 +436,7 @@ export function ensureExecutiveSalaryDetail(
 
 export function computeSalary(
   detail: EmployeeSalaryDetail,
-  opts?: { /** Technical Team = 7 · Technical Manager = 9 */ lateShiftHour?: 7 | 9 },
+  opts?: { /** Technical Team = 7 · Technical Manager = 9 */ lateShiftHour?: 7 | 9; personName?: string },
 ): SalaryBreakdown {
   const basic = Number(detail.basic) || 0;
   const parts = allowanceParts(detail);
@@ -448,14 +454,21 @@ export function computeSalary(
   const totalEarning = monthlySalary + totalOvertime;
 
   const chief = opts?.lateShiftHour === 9;
-  const policyLate = chief && detail.lateDeductionOverride == null
-    ? lateFromPolicy("chief_estimator", detail.checkIn, {
-        basic,
-        commission: 0,
-        overtime: totalOvertime,
-        allowance: parts.total + travelAllowance,
-      })
-    : null;
+  const person = { personKey: detail.latePersonKey, personName: opts?.personName };
+  const pay = {
+    basic,
+    commission: 0,
+    overtime: totalOvertime,
+    allowance: parts.total + travelAllowance,
+  };
+  const policyDept = chief ? "chief_estimator" : (detail.lateDepartment || "estimator");
+  const policyLate = detail.lateDeductionOverride != null
+    ? null
+    : detail.attendanceDays
+      ? monthLateFromPolicy(policyDept, pay, person, detail.attendanceDays, detail.payMonth || "", detail.checkIn)
+      : chief
+        ? lateFromPolicy("chief_estimator", detail.checkIn, pay, person)
+        : lateFromEmployee("estimator", detail.checkIn, pay, person);
   const late = policyLate ?? calcLateDeduction(
     daySalary,
     detail.checkIn,
@@ -532,8 +545,8 @@ export type TechManagerBreakdown = SalaryBreakdown & {
 /**
  * Technical Manager — same payroll as Technical Team, but late shift starts at 09:00.
  */
-export function computeTechnicalManagerSalary(detail: EmployeeSalaryDetail): TechManagerBreakdown {
-  const b = computeSalary(detail, { lateShiftHour: 9 });
+export function computeTechnicalManagerSalary(detail: EmployeeSalaryDetail, personName = ""): TechManagerBreakdown {
+  const b = computeSalary(detail, { lateShiftHour: 9, personName });
   const basic = Number(detail.basic) || 0;
   const medicalAllowance = Number(detail.medicalAllowance) || 0;
   const homeAllowance = Number(detail.homeAllowance) || 0;

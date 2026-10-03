@@ -766,10 +766,10 @@ export default function ExpandableHeadsTable({
                                     const sal = s.salary ? ensureSalaryDetail(s.salary, s.amount) : null;
                                     const b = sal
                                       ? subKind === "admin"
-                                        ? computeAdminSalary(sal)
+                                        ? computeAdminSalary(sal, s.label)
                                         : subKind === "technical_manager"
-                                          ? computeTechnicalManagerSalary(sal)
-                                          : computeSalary(sal)
+                                          ? computeTechnicalManagerSalary(sal, s.label)
+                                          : computeSalary(sal, { personName: s.label })
                                       : null;
                                     const slipKind =
                                       subKind === "admin"
@@ -792,19 +792,19 @@ export default function ExpandableHeadsTable({
                                               onChange={(typed) => {
                                                 const bare = emptySalaryDetail({ ...sal, lateDeductionOverride: null });
                                                 const calculated = subKind === "admin"
-                                                  ? computeAdminSalary(bare).lateDeduction
+                                                  ? computeAdminSalary(bare, s.label).lateDeduction
                                                   : subKind === "technical_manager"
-                                                    ? computeTechnicalManagerSalary(bare).lateDeduction
-                                                    : computeSalary(bare).lateDeduction;
+                                                    ? computeTechnicalManagerSalary(bare, s.label).lateDeduction
+                                                    : computeSalary(bare, { personName: s.label }).lateDeduction;
                                                 const nextSal = emptySalaryDetail({
                                                   ...sal,
                                                   lateDeductionOverride: deductionOverride(typed, calculated),
                                                 });
                                                 const nextBreak = subKind === "admin"
-                                                  ? computeAdminSalary(nextSal)
+                                                  ? computeAdminSalary(nextSal, s.label)
                                                   : subKind === "technical_manager"
-                                                    ? computeTechnicalManagerSalary(nextSal)
-                                                    : computeSalary(nextSal);
+                                                    ? computeTechnicalManagerSalary(nextSal, s.label)
+                                                    : computeSalary(nextSal, { personName: s.label });
                                                 patchSub(row.id, s.id, { salary: nextSal, amount: nextBreak.totalSalary });
                                               }}
                                               className="h-7 w-[4.75rem] rounded-md border border-amber-200 bg-amber-50 px-1.5 text-right text-xs tabular-nums text-amber-950 outline-none focus:border-[#B8112D] dark:border-amber-900 dark:bg-[#0B1220] dark:text-white"

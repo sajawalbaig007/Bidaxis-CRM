@@ -10,7 +10,7 @@ import {
   computeSalesEmployeePayroll,
   type SalesPayrollCalcOpts,
 } from "./salesPayrollFormula";
-import { lateAmountFor, policyMonth, type PayAmounts } from "./lateDeduction";
+import { monthLateAmountFor, policyMonth, type AttendanceDay, type PayAmounts } from "./lateDeduction";
 import type { SalesPayrollEmployee } from "./salesPayrollDefaults";
 
 export type CoreBudgetKey =
@@ -122,6 +122,8 @@ function salesEmpFromSub(teamTitle: string, sub: TeamSub): SalesPayrollEmployee 
     assignedToLead: !!sp?.assignedToLead,
     assignedTeamLeadId: sp?.assignedTeamLeadId ?? null,
     checkIn: String(sp?.checkIn || "18:00"),
+    payMonth: sp?.payMonth,
+    attendanceDays: sp?.attendanceDays,
     lateDeductionOverride: sp?.lateDeductionOverride ?? null,
     paidLeaveDays: Number(sp?.paidLeaveDays) || 0,
     unpaidLeaveDays: Number(sp?.unpaidLeaveDays) || 0,
@@ -202,6 +204,7 @@ function incomeStatementTechnicalFromSalary(
   sal: Record<string, unknown> | undefined,
   lateShiftHour: 7 | 9,
   month: string,
+  personName = "",
 ): { totalSalary: number; totalOvertime: number } {
   if (!sal) return { totalSalary: 0, totalOvertime: 0 };
   const basic = Number(sal.basic) || 0;
@@ -229,9 +232,21 @@ function incomeStatementTechnicalFromSalary(
     overtime: totalOvertime,
     allowance: allowance + travel,
   };
-  const policyLate = lateOverride == null && lateShiftHour === 9
-    ? lateAmountFor("chief_estimator", month, checkIn, amounts)
-    : null;
+  const person = {
+    personKey: typeof sal.latePersonKey === "string" ? sal.latePersonKey : "",
+    personName,
+  };
+  const days = Array.isArray(sal.attendanceDays) ? (sal.attendanceDays as AttendanceDay[]) : undefined;
+  const policyDept = lateShiftHour === 9
+    ? "chief_estimator"
+    : (typeof sal.lateDepartment === "string" && sal.lateDepartment ? sal.lateDepartment : "estimator");
+  const policyLate = lateOverride != null
+    ? null
+    : days
+      ? monthLateAmountFor(policyDept, month, amounts, days, person, checkIn)
+      : lateShiftHour === 9
+        ? monthLateAmountFor("chief_estimator", month, amounts, undefined, person, checkIn)
+        : monthLateAmountFor("estimator", month, amounts, undefined, person, checkIn, { employeeOnly: true });
   const late = policyLate
     ? policyLate.amount
     : incomeStatementLateDeduction(
@@ -306,7 +321,7 @@ export function accumulateCoreBudget(
             continue;
           }
           const shift: 7 | 9 = isTechnicalManagerPerson(title, sub.label) ? 9 : 7;
-          const b = incomeStatementTechnicalFromSalary(sub.salary, shift, policyMonth(opts.recordDate));
+          const b = incomeStatementTechnicalFromSalary(sub.salary, shift, policyMonth(opts.recordDate), sub.label);
           net += b.totalSalary;
           overtime += b.totalOvertime;
         }
