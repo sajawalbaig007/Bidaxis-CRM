@@ -9,10 +9,14 @@ function makeId(): string {
 
 export function getClientDeviceMacLikeId(): string {
   if (typeof window === "undefined") return "";
-  let v = localStorage.getItem(DEVICE_KEY);
-  if (!v) {
-    v = makeId();
-    localStorage.setItem(DEVICE_KEY, v);
+  try {
+    let v = localStorage.getItem(DEVICE_KEY);
+    if (!v) {
+      v = makeId();
+      localStorage.setItem(DEVICE_KEY, v);
+    }
+    return v;
+  } catch {
+    return "";
   }
-  return v;
 }

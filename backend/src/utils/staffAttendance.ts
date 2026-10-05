@@ -197,7 +197,13 @@ function normalizeIp(ip: string): string {
   return value;
 }
 
+/** Must match the website proxy. CRM_PROXY_SECRET on both hosts replaces this. */
+const PROXY_MARK = process.env.CRM_PROXY_SECRET?.trim() || "crm-office-proxy-v1";
+
 function requestIp(req: Request): string {
+  const marked = normalizeIp(String(req.headers["x-crm-client-ip"] ?? "").split(",")[0] ?? "");
+  const mark = String(req.headers["x-crm-proxy"] ?? "");
+  if (marked && mark === PROXY_MARK) return marked;
   const trusted = req.ip ? normalizeIp(req.ip) : "";
   if (trusted && trusted !== "unknown") return trusted;
   return normalizeIp(getClientIp(req));

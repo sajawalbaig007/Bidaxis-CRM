@@ -38,17 +38,11 @@ function isLocalHost(): boolean {
 }
 
 /**
- * Browser → same-origin `/api/backend` proxy (forwards httpOnly session cookie).
+ * Browser → same-origin `/api/backend` proxy, so any browser that opened the site can reach the API.
  * Server-side / SSR → direct BACKEND_URL.
  */
 export function resolveBaseURL(): string {
-  const direct = (process.env.NEXT_PUBLIC_API_URL ?? "").replace(/\/$/, "");
-
   if (typeof window !== "undefined") {
-    if (isLocalHost()) {
-      return "/api/backend";
-    }
-    if (direct && !/localhost|127\.0\.0\.1/i.test(direct)) return direct;
     return "/api/backend";
   }
 
