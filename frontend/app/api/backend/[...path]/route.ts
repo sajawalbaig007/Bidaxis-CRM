@@ -13,6 +13,9 @@ function backendRoot(): string {
   return raw.replace(/\/$/, "").replace(/:\/\/localhost\b/i, "://127.0.0.1");
 }
 
+/** Must match the backend attendance IP check. Override with CRM_PROXY_SECRET on both hosts. */
+const PROXY_MARK = process.env.CRM_PROXY_SECRET?.trim() || "crm-office-proxy-v1";
+
 /** Headers Node fetch cannot forward (breaks POST login with UND_ERR_NOT_SUPPORTED). */
 const SKIP_REQ_HEADERS = new Set([
   "host",
@@ -23,7 +26,16 @@ const SKIP_REQ_HEADERS = new Set([
   "keep-alive",
   "upgrade",
   "proxy-connection",
+  "x-crm-client-ip",
+  "x-crm-proxy",
 ]);
+
+function visitorIp(req: NextRequest): string {
+  const real = req.headers.get("x-real-ip")?.trim() ?? "";
+  if (real) return real;
+  const forwarded = req.headers.get("x-forwarded-for") ?? "";
+  return forwarded.split(",")[0]?.trim() ?? "";
+}
 const SKIP_RES_HEADERS = new Set(["transfer-encoding", "connection", "content-encoding"]);
 
 async function proxyRequest(req: NextRequest, pathSegments: string[]) {
@@ -40,6 +52,13 @@ async function proxyRequest(req: NextRequest, pathSegments: string[]) {
 
   const cookie = req.headers.get("cookie");
   if (cookie) headers.set("cookie", cookie);
+
+  const clientIp = visitorIp(req);
+  if (clientIp) {
+    headers.set("x-crm-client-ip", clientIp);
+    headers.set("x-forwarded-for", clientIp);
+  }
+  headers.set("x-crm-proxy", PROXY_MARK);
 
   const init: RequestInit = {
     method:  req.method,
