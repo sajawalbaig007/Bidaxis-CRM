@@ -190,11 +190,7 @@ export function lateAmountFor(
   return deductionFromPolicy(checkIn, row, amounts);
 }
 
-/**
- * Sum the month. A day with neither check-in nor check-out costs the full set day pay.
- * A day with either time uses that check-in's range percent.
- */
-/** Deduct the given days only. A day with neither time costs the full set day pay. */
+/** Deduct the given days from the time ranges. A day with neither time costs that day’s pay. */
 export function policyDeductionForDays(
   department: string,
   month: string,

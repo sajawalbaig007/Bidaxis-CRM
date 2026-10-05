@@ -30,7 +30,7 @@ export type EmployeeSalaryDetail = {
   latePersonKey?: string;
   /** Statement month YYYY-MM. Days in this month drive the late total. */
   payMonth?: string;
-  /** Days this person actually punched. A missing day is a full day deduction. */
+  /** Days this person actually punched. A missing day deducts that day’s pay. */
   attendanceDays?: AttendanceDay[];
   /** Manual late override — if set, used instead of time-based late calc */
   lateDeductionOverride?: number | null;

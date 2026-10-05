@@ -63,7 +63,7 @@ export default function DailyLateCard() {
         <div>
           <h2 className="font-bold text-[#0F172A] dark:text-white text-base sm:text-lg">Late time deduction</h2>
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-            Current date and the month so far fill in on their own.
+            A day with no check-in deducts that day’s pay. A check-in follows the time ranges. Current date and the month so far fill in on their own.
             {report ? ` Month total runs through ${report.through}.` : ""}
           </p>
         </div>

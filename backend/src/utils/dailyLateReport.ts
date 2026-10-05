@@ -20,6 +20,21 @@ type SalarySub = {
 
 type PersonCut = { name: string; department: string; day: number; month: number };
 
+function policyDepartment(teamName: string, sales: boolean): string {
+  if (sales) return "csr";
+  const title = teamName.toLowerCase();
+  if (title.includes("bim")) return "bim_modeler";
+  if (title.includes("dev")) return "dev";
+  if (title.includes("technical manager") || title.includes("chief")) return "chief_estimator";
+  if (title.includes("technical")) return "estimator";
+  if (title.includes("sales")) return "csr";
+  if (title.includes("admin")) return "admin";
+  if (title.includes("account")) return "accounts";
+  if (title.includes("office")) return "office_boy";
+  if (title === "hr" || title.includes("human resource")) return "hr";
+  return "";
+}
+
 function payAmounts(sub: SalarySub, recordDate: string): PayAmounts {
   const sal = sub.salary ?? {};
   const sp = sub.salesPayroll;
@@ -86,7 +101,12 @@ export async function dailyLateReport(date: string) {
       ) as AttendanceDay[] | undefined;
       if (!punches) continue;
       const amounts = payAmounts(sub, record?.recordDate || recordDate);
-      const department = sub.salesPayroll ? "csr" : String(sal.lateDepartment || "estimator");
+      const department = policyDepartment(teamName, !!sub.salesPayroll);
+      if (!department) {
+        const prevEmpty = byName.get(name.toLowerCase());
+        if (!prevEmpty) byName.set(name.toLowerCase(), { name, department: teamName || "—", day: 0, month: 0 });
+        continue;
+      }
       const person = {
         personKey: typeof sal.latePersonKey === "string" ? sal.latePersonKey : "",
         personName: name,

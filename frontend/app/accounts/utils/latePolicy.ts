@@ -166,8 +166,8 @@ export function elapsedMonthDays(month: string, today = pktToday()): string[] {
 }
 
 /**
- * Sum the month. A day with neither check-in nor check-out costs the full set day pay.
- * A day with either time uses that check-in's range percent.
+ * Sum the month. A day with neither check-in nor check-out costs that day’s pay.
+ * A day with a check-in uses the range that time falls in.
  */
 export function monthLateFromPolicy(
   department: string,
