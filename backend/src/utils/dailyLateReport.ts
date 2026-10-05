@@ -18,7 +18,7 @@ type SalarySub = {
   salesPayroll?: SalesPayrollEmployee;
 };
 
-type PersonCut = { name: string; day: number; month: number };
+type PersonCut = { name: string; department: string; day: number; month: number };
 
 function payAmounts(sub: SalarySub, recordDate: string): PayAmounts {
   const sal = sub.salary ?? {};
@@ -61,19 +61,22 @@ export async function dailyLateReport(date: string) {
   const today = pktToday();
   await refreshLatePolicies();
 
-  const record = await prisma.accountsRecord.findFirst({
-    where: { page: "income_statement", recordDate: { startsWith: month } },
+  const saved = await prisma.accountsRecord.findMany({
+    where: { page: "income_statement" },
     orderBy: { recordDate: "desc" },
+    take: 36,
   });
+  const record = saved.find((row) => row.recordDate.slice(0, 7) <= month) ?? saved[0];
   const raw = (record?.data as Record<string, unknown> | undefined) ?? {};
-  const recordDate = record?.recordDate || `${month}-01`;
+  const recordDate = `${month}-01`;
   const data = await applyStaffPayrollToIncomeData(raw, recordDate);
-  const teams = (data.teamSalaries as { subHeads?: SalarySub[] }[] | undefined) ?? [];
+  const teams = (data.teamSalaries as { team?: string; subHeads?: SalarySub[] }[] | undefined) ?? [];
   const monthDays = elapsedMonthDays(month, today);
   const dayList = date <= today ? [date] : [];
   const byName = new Map<string, PersonCut>();
 
   for (const team of teams) {
+    const teamName = String(team.team ?? "").replace(/\s*salaries\s*/i, "").trim();
     for (const sub of team.subHeads ?? []) {
       const name = String(sub.label ?? sub.salesPayroll?.name ?? "").trim();
       if (!name) continue;
@@ -82,7 +85,7 @@ export async function dailyLateReport(date: string) {
         Array.isArray(sal.attendanceDays) ? sal.attendanceDays : sub.salesPayroll?.attendanceDays
       ) as AttendanceDay[] | undefined;
       if (!punches) continue;
-      const amounts = payAmounts(sub, recordDate);
+      const amounts = payAmounts(sub, record?.recordDate || recordDate);
       const department = sub.salesPayroll ? "csr" : String(sal.lateDepartment || "estimator");
       const person = {
         personKey: typeof sal.latePersonKey === "string" ? sal.latePersonKey : "",
@@ -91,24 +94,16 @@ export async function dailyLateReport(date: string) {
       const dayCut = policyDeductionForDays(department, month, amounts, punches, dayList, person) ?? 0;
       const monthCut = policyDeductionForDays(department, month, amounts, punches, monthDays, person) ?? 0;
       const prev = byName.get(name.toLowerCase());
-      if (prev && prev.month >= monthCut) continue;
-      byName.set(name.toLowerCase(), { name, day: dayCut, month: monthCut });
+      if (prev && prev.month >= monthCut && prev.day >= dayCut) continue;
+      byName.set(name.toLowerCase(), { name, department: teamName || department, day: dayCut, month: monthCut });
     }
   }
 
-  const people = [...byName.values()].sort((a, b) => b.month - a.month || a.name.localeCompare(b.name));
-  const total = (key: "day" | "month") => people.reduce((sum, person) => sum + person[key], 0);
+  const people = [...byName.values()].sort((a, b) => a.department.localeCompare(b.department) || a.name.localeCompare(b.name));
   return {
     date,
     month,
     through: monthDays[monthDays.length - 1] ?? `${month}-01`,
-    day: {
-      total: total("day"),
-      people: people.filter((person) => person.day > 0).map((person) => ({ name: person.name, amount: person.day })),
-    },
-    monthToDate: {
-      total: total("month"),
-      people: people.filter((person) => person.month > 0).map((person) => ({ name: person.name, amount: person.month })),
-    },
+    people,
   };
 }

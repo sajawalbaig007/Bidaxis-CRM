@@ -6,15 +6,8 @@ import { Loader2 } from "lucide-react";
 import toast from "react-hot-toast";
 import API, { apiErrorMessage } from "@/lib/api";
 
-type PersonAmount = { name: string; amount: number };
-type Box = { total: number; people: PersonAmount[] };
-type Report = {
-  date: string;
-  month: string;
-  through: string;
-  day: Box;
-  monthToDate: Box;
-};
+type PersonCut = { name: string; department: string; day: number; month: number };
+type Report = { date: string; month: string; through: string; people: PersonCut[] };
 
 function pktToday() {
   return new Intl.DateTimeFormat("en-CA", {
@@ -32,7 +25,8 @@ function money(amount: number) {
 export default function DailyLateCard() {
   const pathname = usePathname();
   const ceo = pathname.startsWith("/admin");
-  const [date, setDate] = useState(pktToday);
+  const today = pktToday();
+  const [date, setDate] = useState(today);
   const [report, setReport] = useState<Report | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -40,7 +34,12 @@ export default function DailyLateCard() {
     setLoading(true);
     try {
       const res = await API.get("/attendance/late-daily", { params: { date: day } });
-      setReport(res.data as Report);
+      setReport({
+        date: res.data.date,
+        month: res.data.month,
+        through: res.data.through,
+        people: res.data.people ?? [],
+      });
     } catch (err) {
       toast.error(apiErrorMessage(err, "Could not load daily deductions."));
     } finally {
@@ -55,73 +54,62 @@ export default function DailyLateCard() {
 
   if (!ceo) return null;
 
+  const dayLabel = date === today ? "Current date" : date;
+  const people = report?.people ?? [];
+
   return (
     <section className="rounded-[1.5rem] sm:rounded-[1.75rem] border border-gray-100/90 dark:border-crm-border bg-white dark:bg-crm-surface shadow-[0_10px_40px_-24px_rgba(15,23,42,0.35)] p-4 sm:p-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h2 className="font-bold text-[#0F172A] dark:text-white text-base sm:text-lg">Late deduction</h2>
-          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 max-w-2xl">
-            A day with no check-in and no check-out takes that day’s set pay. A saved check-in or check-out uses the time ranges.
-            The month box is the total so far.
+          <h2 className="font-bold text-[#0F172A] dark:text-white text-base sm:text-lg">Late time deduction</h2>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+            Current date and the month so far fill in on their own.
+            {report ? ` Month total runs through ${report.through}.` : ""}
           </p>
         </div>
         <label className="text-xs text-gray-500 dark:text-gray-400">
-          Date
+          Specific date
           <input
             type="date"
             value={date}
-            max={pktToday()}
+            max={today}
             onChange={(e) => setDate(e.target.value)}
             className="mt-1 block rounded-lg border border-gray-200 dark:border-crm-border bg-white dark:bg-[#0B1220] px-2 py-1.5 text-sm text-[#0F172A] dark:text-white"
           />
         </label>
       </div>
 
-      {loading && !report ? (
+      {loading && people.length === 0 ? (
         <p className="mt-4 text-sm text-gray-400 inline-flex items-center gap-2">
           <Loader2 size={14} className="animate-spin" /> Loading deductions…
         </p>
+      ) : people.length === 0 ? (
+        <p className="mt-4 text-sm text-gray-400">No employees for this month.</p>
       ) : (
-        <div className="mt-4 grid gap-3 lg:grid-cols-2">
-          <DeductionBox
-            title="This day"
-            hint={report?.date || date}
-            box={report?.day}
-          />
-          <DeductionBox
-            title="This month so far"
-            hint={report ? `${report.month} through ${report.through}` : ""}
-            box={report?.monthToDate}
-          />
+        <div className="mt-4 overflow-x-auto">
+          <table className="w-full min-w-[32rem] text-sm">
+            <thead>
+              <tr className="text-left text-[11px] uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                <th className="py-2 pr-3 font-semibold">Employee</th>
+                <th className="py-2 pr-3 font-semibold text-right">{dayLabel}</th>
+                <th className="py-2 font-semibold text-right">So far this month</th>
+              </tr>
+            </thead>
+            <tbody>
+              {people.map((person) => (
+                <tr key={`${person.department}:${person.name}`} className="border-t border-gray-100 dark:border-crm-border">
+                  <td className="py-2 pr-3">
+                    <span className="font-semibold text-[#0F172A] dark:text-white">{person.name}</span>
+                    <span className="ml-2 text-[11px] text-gray-400">{person.department}</span>
+                  </td>
+                  <td className="py-2 pr-3 text-right tabular-nums font-semibold text-[#B8112D]">{money(person.day)}</td>
+                  <td className="py-2 text-right tabular-nums font-semibold text-[#0F172A] dark:text-white">{money(person.month)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
     </section>
-  );
-}
-
-function DeductionBox({ title, hint, box }: { title: string; hint: string; box?: Box }) {
-  const people = box?.people ?? [];
-  return (
-    <div className="rounded-xl border border-gray-100 dark:border-crm-border p-3 min-w-0">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-sm font-semibold text-[#0F172A] dark:text-white">{title}</p>
-          <p className="text-[11px] text-gray-500 dark:text-gray-400">{hint}</p>
-        </div>
-        <p className="text-sm font-bold text-[#B8112D] tabular-nums">{money(box?.total || 0)}</p>
-      </div>
-      {people.length === 0 ? (
-        <p className="mt-3 text-xs text-gray-400">No deduction for this period.</p>
-      ) : (
-        <ul className="mt-3 space-y-1.5 max-h-72 overflow-y-auto">
-          {people.map((person) => (
-            <li key={person.name} className="flex items-center justify-between gap-3 text-sm">
-              <span className="truncate text-[#0F172A] dark:text-white">{person.name}</span>
-              <span className="shrink-0 tabular-nums font-semibold text-[#0F172A] dark:text-white">{money(person.amount)}</span>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
   );
 }

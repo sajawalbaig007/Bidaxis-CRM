@@ -30,10 +30,6 @@ const StaffAttendanceReport = dynamic(() => import("./StaffAttendanceReport"), {
   loading: () => <div className="h-48 rounded-xl bg-gray-100 animate-pulse" />,
 });
 
-const DailyLateCard = dynamic(() => import("./DailyLateCard"), {
-  ssr: false,
-  loading: () => <div className="h-24 rounded-xl bg-gray-100 animate-pulse" />,
-});
 
 type ReportResponse = ReportsData;
 type CsrActualStats = {
@@ -271,8 +267,6 @@ export default function ReportsPage() {
               <ClipboardList size={16} /> Employee requests
             </Link>
           </div>
-
-          {reportsBase.startsWith("/admin") ? <DailyLateCard /> : null}
 
           <section className={`${BENTO} p-3 sm:p-4`}>
             <div className="flex flex-wrap items-center gap-2">
