@@ -194,6 +194,34 @@ export function lateAmountFor(
  * Sum the month. A day with neither check-in nor check-out costs the full set day pay.
  * A day with either time uses that check-in's range percent.
  */
+/** Deduct the given days only. A day with neither time costs the full set day pay. */
+export function policyDeductionForDays(
+  department: string,
+  month: string,
+  amounts: PayAmounts,
+  punches: AttendanceDay[] | undefined,
+  dayList: string[],
+  person?: LatePersonRef,
+): number | null {
+  const row = policyFor(department, month, person);
+  if (!row || !row.components.length || !row.ranges.length) return null;
+  const perDay = perDayOf(amounts, row.components);
+  const byDay = new Map((punches ?? []).filter((day) => day?.day).map((day) => [day.day, day]));
+  let amount = 0;
+  for (const day of dayList) {
+    const punch = byDay.get(day);
+    const checkIn = String(punch?.checkIn ?? "").trim();
+    const checkOut = String(punch?.checkOut ?? "").trim();
+    if (!checkIn && !checkOut) {
+      amount += perDay;
+      continue;
+    }
+    const hit = pickLateRange(checkIn, row.ranges);
+    if (hit) amount += (perDay * hit.percent) / 100;
+  }
+  return amount;
+}
+
 export function monthLateAmountFor(
   department: string,
   month: string,

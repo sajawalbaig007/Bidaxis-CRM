@@ -33,8 +33,21 @@ import { SHIFT_DEPARTMENTS, clearShiftSchedule, listShiftSchedules, saveShiftSch
 import { SEED_USER_EMAILS } from "../constants/seedUsers";
 import { ceoSetPortalShiftDay } from "../utils/csrSessionTracking";
 import { clearLatePolicy, listLatePolicies, saveLatePolicy } from "../utils/lateDeduction";
+import { dailyLateReport } from "../utils/dailyLateReport";
 
 const router = Router();
+
+router.get("/late-daily", verifyToken, allowRoles("admin"), async (req: AuthRequest, res) => {
+  try {
+    const date = String(req.query.date ?? pktNow().day);
+    const report = await dailyLateReport(date);
+    if (!report) return res.status(400).json({ success: false, message: "Pick a date." });
+    return res.json({ success: true, ...report });
+  } catch (error) {
+    console.error("[attendance/late-daily]", error);
+    return res.status(500).json({ success: false, message: "Could not load daily deductions." });
+  }
+});
 
 router.get("/shift-schedules", verifyToken, allowRoles("admin"), async (req: AuthRequest, res) => {
   try {

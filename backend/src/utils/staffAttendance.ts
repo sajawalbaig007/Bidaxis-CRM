@@ -187,6 +187,22 @@ export function timeOrderOk(checkIn: string | null | undefined, checkOut: string
   return true;
 }
 
+/** The two company networks. Attendance pages open only from these. */
+const ATTENDANCE_OFFICE_IPS = new Set(["39.61.51.134", "139.135.52.237"]);
+
+function normalizeIp(ip: string): string {
+  let value = ip.trim().replace(/^::ffff:/i, "");
+  const withPort = /^(\d{1,3}(?:\.\d{1,3}){3}):\d+$/.exec(value);
+  if (withPort) value = withPort[1];
+  return value;
+}
+
+function requestIp(req: Request): string {
+  const trusted = req.ip ? normalizeIp(req.ip) : "";
+  if (trusted && trusted !== "unknown") return trusted;
+  return normalizeIp(getClientIp(req));
+}
+
 let officeIpCache: { at: number; ips: string[] } | null = null;
 
 /** Company network: ADMIN_ALLOWED_IPS plus every active CSR in-house IP. */
@@ -218,24 +234,11 @@ export async function officeNetworkMessage(req: Request): Promise<string | null>
   return "This account is restricted to the company network.";
 }
 
-/** Attendance pages: company network plus optional IPs saved on manual employees. */
+/** Attendance pages open only from the two company IPs. A missing list does not leave them open. */
 export async function attendanceNetworkMessage(req: Request): Promise<string | null> {
-  const office = await getOfficeAllowedIps();
-  const staff = await prisma.staffEmployee.findMany({
-    where: { userId: null },
-    select: { allowedIps: true },
-  });
-  const allowed = new Set(office);
-  for (const row of staff) {
-    for (const ip of row.allowedIps ?? []) {
-      const cleaned = ip.trim();
-      if (cleaned) allowed.add(cleaned);
-    }
-  }
-  if (allowed.size === 0) return null;
-  const ip = getClientIp(req);
-  if (allowed.has(ip)) return null;
-  return "This account is restricted to the company network.";
+  const ip = requestIp(req);
+  if (ATTENDANCE_OFFICE_IPS.has(ip)) return null;
+  return "This page is only available from the company network.";
 }
 
 export function departmentNeedsOfficeIp(department: string): boolean {

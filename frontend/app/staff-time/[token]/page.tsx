@@ -149,6 +149,7 @@ function PersonRow({
 }) {
   const [checkIn, setCheckIn] = useState(row?.checkIn ?? "");
   const [checkOut, setCheckOut] = useState(row?.checkOut ?? "");
+  const [stillIn, setStillIn] = useState(Boolean(row?.checkIn) && !row?.checkOut);
 
   return (
     <div className="px-5 sm:px-7 py-5 border-t border-gray-50 space-y-3">
@@ -160,13 +161,30 @@ function PersonRow({
         </label>
         <label className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">
           Check out
-          <input type="time" value={checkOut} onChange={(e) => setCheckOut(e.target.value)} className="mt-1.5 w-full h-12 rounded-2xl border border-gray-200 bg-[#F8FAFC] px-3 text-base" />
+          <input
+            type="time"
+            value={stillIn ? "" : checkOut}
+            disabled={stillIn}
+            onChange={(e) => setCheckOut(e.target.value)}
+            className="mt-1.5 w-full h-12 rounded-2xl border border-gray-200 bg-[#F8FAFC] px-3 text-base disabled:opacity-50"
+          />
         </label>
       </div>
+      <label className="inline-flex items-center gap-2 text-sm text-[#0F172A]">
+        <input
+          type="checkbox"
+          checked={stillIn}
+          onChange={(e) => {
+            setStillIn(e.target.checked);
+            if (e.target.checked) setCheckOut("");
+          }}
+        />
+        Still checked in
+      </label>
       <button
         type="button"
         disabled={busy || !checkIn}
-        onClick={() => onSave(checkIn, checkOut)}
+        onClick={() => onSave(checkIn, stillIn ? "" : checkOut)}
         className="w-full sm:w-auto sm:min-w-40 h-12 px-5 rounded-2xl bg-[#0F172A] text-white text-sm font-semibold disabled:opacity-60"
       >
         {busy ? "Saving…" : "Save this date"}
