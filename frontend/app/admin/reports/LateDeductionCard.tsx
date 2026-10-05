@@ -194,7 +194,7 @@ export default function LateDeductionCard() {
             An employee row overrides the department. Choose basic, commission, overtime, and allowance.
             Per day is those monthly amounts divided by 30, and each range cuts its own percent of that day.
             A blank end time means from that time onward. A month you leave blank keeps the previous month.
-            A day with no check-in and no check-out deducts that full day. If a check-in or check-out is added, that day follows these ranges.
+            A day with no check-in and no check-out deducts that day’s pay. A saved check-in uses the range it falls in.
           </p>
         </div>
         <label className="text-xs text-gray-500 dark:text-gray-400">

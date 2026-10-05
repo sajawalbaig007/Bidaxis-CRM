@@ -2,8 +2,41 @@ import type { Role } from "@prisma/client";
 import prisma from "../config/db";
 import { SEED_USER_EMAILS } from "../constants/seedUsers";
 import type { AttendanceDay } from "./lateDeduction";
-import { pfNamesAreSamePerson } from "./pfNameAlias";
 import { addCalendarDays, DEPT_ROSTER, pktNow, pktShiftDay } from "./staffAttendance";
+
+function attendanceTokens(label: string): string[] {
+  return label
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .split(/\s+/)
+    .filter((token) => token && token !== "mr" && token !== "mrs" && token !== "ms");
+}
+
+function attendanceSame(a: string, b: string): boolean {
+  const left = attendanceTokens(a);
+  const right = attendanceTokens(b);
+  if (!left.length || !right.length) return false;
+  if (left.join(" ") === right.join(" ")) return true;
+  const [short, long] = left.length <= right.length ? [left, right] : [right, left];
+  return short.every((token, index) => long[index] === token);
+}
+
+function samePerson(label: string, people: PersonRef[]): PersonRef[] {
+  const exact = people.filter((item) => attendanceTokens(item.personName).join(" ") === attendanceTokens(label).join(" "));
+  if (exact.length) {
+    const extras = people.filter((item) => {
+      if (exact.includes(item)) return false;
+      const tokens = attendanceTokens(item.personName);
+      const labelTokens = attendanceTokens(label);
+      return tokens.length < labelTokens.length && tokens.every((token, index) => labelTokens[index] === token);
+    });
+    return [...exact, ...extras];
+  }
+  const prefix = people.filter((item) => attendanceSame(item.personName, label));
+  if (!prefix.length) return [];
+  const longest = Math.max(...prefix.map((item) => attendanceTokens(item.personName).length));
+  return prefix.filter((item) => attendanceTokens(item.personName).length === longest);
+}
 
 type SalarySub = {
   label?: string;
@@ -21,6 +54,8 @@ type SalaryTeam = {
 
 type PersonRef = { personKey: string; personName: string; department: string };
 
+const ROSTER_KEYS = new Set<string>(Object.values(DEPT_ROSTER).flatMap((rows) => rows.map((row) => row.key)));
+
 const ROLE_DEPARTMENT: Partial<Record<Role, string>> = {
   csr: "csr",
   estimator: "estimator",
@@ -35,9 +70,19 @@ function monthOf(recordDate: string): string {
   return /^\d{4}-\d{2}/.test(recordDate) ? recordDate.slice(0, 7) : "";
 }
 
-/** Department whose saved day-pay the salary formula reads. Dev follows Administration. */
+/**
+ * Salary-table department used when this person has no individual ranges.
+ * Administration salaries use Administration. An individual row, such as Khalil’s Office Boy time, still wins.
+ */
+function salaryLateDepartment(teamName: string, attendanceDepartment: string): string | null {
+  if (teamName.toLowerCase().includes("admin")) return "admin";
+  return lateDepartmentFor(attendanceDepartment);
+}
+
+/** Each attendance department uses the time ranges saved on that department. */
 function lateDepartmentFor(department: string): string | null {
-  if (department === "dev" || department === "admin") return "admin";
+  if (department === "admin") return "admin";
+  if (department === "dev") return "dev";
   if (
     department === "accounts"
     || department === "hr"
@@ -147,10 +192,17 @@ export async function applyAttendanceCheckIns(
   const nextTeams = teams.map((team) => {
     const subs = (team.subHeads ?? []).map((sub) => {
       const label = String(sub.label ?? "");
-      const person = people.find((item) => pfNamesAreSamePerson(item.personName, label));
+      const matches = samePerson(label, people);
+      const person = matches.find((item) => ROSTER_KEYS.has(item.personKey)) ?? matches[0];
       if (!person) return sub;
-      const days = [...(byPerson.get(person.personKey)?.values() ?? [])].sort((a, b) => a.day.localeCompare(b.day));
-      const lateDepartment = lateDepartmentFor(person.department);
+      const daysMap = new Map<string, AttendanceDay>();
+      for (const match of matches) {
+        for (const day of byPerson.get(match.personKey)?.values() ?? []) {
+          daysMap.set(day.day, mergeDay(daysMap.get(day.day), day));
+        }
+      }
+      const days = [...daysMap.values()].sort((a, b) => a.day.localeCompare(b.day));
+      const lateDepartment = salaryLateDepartment(String(team.team ?? ""), person.department);
       const latest = [...days].reverse().find((day) => day.checkIn);
       let next = sub;
 
