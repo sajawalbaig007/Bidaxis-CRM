@@ -1,6 +1,12 @@
-import axios from "axios";
+import axios, { type AxiosRequestConfig } from "axios";
 import toast from "react-hot-toast";
 import { getClientDeviceMacLikeId } from "./deviceIdentity";
+
+declare module "axios" {
+  interface AxiosRequestConfig {
+    officeProxy?: boolean;
+  }
+}
 
 const TOKEN_STORAGE_KEY = "crm_api_token";
 
@@ -76,7 +82,7 @@ const API = axios.create({
 let handling401 = false;
 
 /** Office check-in pages only. Keeps company login and the dashboards on the public API. */
-export const officeProxy = { officeProxy: true };
+export const officeProxy: AxiosRequestConfig = { officeProxy: true };
 
 API.interceptors.request.use((config) => {
   const office = (config as { officeProxy?: boolean }).officeProxy;
