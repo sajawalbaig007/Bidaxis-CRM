@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { LogIn, LogOut } from "lucide-react";
 import toast from "react-hot-toast";
-import API, { apiErrorMessage } from "@/lib/api";
+import API, { apiErrorMessage, officeProxy } from "@/lib/api";
 import AttendanceFrame from "@/app/components/AttendanceFrame";
 import ShiftHistoryButton from "@/app/components/ShiftHistoryButton";
 import StaffRequestButton from "@/app/components/StaffRequestButton";
@@ -52,7 +52,7 @@ export default function DeptAttendancePage({
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await API.get("/attendance/day", { params: { department } });
+      const res = await API.get("/attendance/day", { ...officeProxy, params: { department } });
       setDay(res.data.day);
       const list = (res.data.people ?? []) as Person[];
       setPeople(personKey ? list.filter((p) => p.key === personKey) : list);
@@ -72,7 +72,7 @@ export default function DeptAttendancePage({
 
   useEffect(() => {
     let cancelled = false;
-    API.get("/attendance/day", { params: { department } })
+    API.get("/attendance/day", { ...officeProxy, params: { department } })
       .then((res) => {
         if (cancelled) return;
         setDay(res.data.day);
@@ -114,7 +114,7 @@ export default function DeptAttendancePage({
         personKey: key,
         action,
         ...(overtimeComment ? { overtimeComment } : {}),
-      });
+      }, officeProxy);
       applyRow(res.data.row as Row | undefined);
       toast.success(res.data.message || "Saved.");
       setCheckoutFor(null);
@@ -127,7 +127,7 @@ export default function DeptAttendancePage({
 
   const saveComment = async (key: string, comment: string) => {
     try {
-      const res = await API.post("/attendance/note", { department, personKey: key, comment });
+      const res = await API.post("/attendance/note", { department, personKey: key, comment }, officeProxy);
       applyRow(res.data.row as Row | undefined);
       toast.success("Comment saved.");
     } catch (err) {
@@ -213,9 +213,11 @@ export default function DeptAttendancePage({
                     url="/attendance/history"
                     params={{ department, personKey: person.key }}
                     large
+                    office
                   />
                   <StaffRequestButton
                     large
+                    office
                     publicPunch
                     department={department}
                     personKey={person.key}

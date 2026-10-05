@@ -1,6 +1,12 @@
-import axios from "axios";
+import axios, { type AxiosRequestConfig } from "axios";
 import toast from "react-hot-toast";
 import { getClientDeviceMacLikeId } from "./deviceIdentity";
+
+declare module "axios" {
+  interface AxiosRequestConfig {
+    officeProxy?: boolean;
+  }
+}
 
 const TOKEN_STORAGE_KEY = "crm_api_token";
 
@@ -38,11 +44,16 @@ function isLocalHost(): boolean {
 }
 
 /**
- * Browser → same-origin `/api/backend` proxy, so any browser that opened the site can reach the API.
+ * Browser on this site → the public API directly.
+ * Localhost, and office check-in pages, use the same-origin `/api/backend` proxy.
  * Server-side / SSR → direct BACKEND_URL.
  */
 export function resolveBaseURL(): string {
+  const direct = (process.env.NEXT_PUBLIC_API_URL ?? "").replace(/\/$/, "");
+
   if (typeof window !== "undefined") {
+    if (isLocalHost()) return "/api/backend";
+    if (direct && !/localhost|127\.0\.0\.1/i.test(direct)) return direct;
     return "/api/backend";
   }
 
@@ -70,8 +81,12 @@ const API = axios.create({
 
 let handling401 = false;
 
+/** Office check-in pages only. Keeps company login and the dashboards on the public API. */
+export const officeProxy: AxiosRequestConfig = { officeProxy: true };
+
 API.interceptors.request.use((config) => {
-  config.baseURL = resolveBaseURL();
+  const office = (config as { officeProxy?: boolean }).officeProxy;
+  config.baseURL = office ? "/api/backend" : resolveBaseURL();
   const token = getClientAuthToken();
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
