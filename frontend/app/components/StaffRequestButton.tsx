@@ -3,7 +3,7 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { ClipboardList, X } from "lucide-react";
 import toast from "react-hot-toast";
-import API, { apiErrorMessage } from "@/lib/api";
+import API, { apiErrorMessage, officeProxy } from "@/lib/api";
 
 export type StaffRequestItem = {
   id: string;
@@ -77,6 +77,7 @@ export default function StaffRequestButton({
   personName,
   publicPunch = false,
   dashboard,
+  office = false,
 }: {
   compact?: boolean;
   large?: boolean;
@@ -86,6 +87,7 @@ export default function StaffRequestButton({
   personName?: string;
   publicPunch?: boolean;
   dashboard?: "chief";
+  office?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [kind, setKind] = useState<Kind | "">("");
@@ -130,7 +132,7 @@ export default function StaffRequestButton({
         detail,
         ...(publicPunch ? { department, personKey, personName } : {}),
         ...(dashboard ? { dashboard } : {}),
-      });
+      }, office ? officeProxy : undefined);
       toast.success("Request sent.");
       close();
     } catch (err) {

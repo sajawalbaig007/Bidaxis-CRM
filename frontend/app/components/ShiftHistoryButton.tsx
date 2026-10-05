@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { History, X } from "lucide-react";
 import toast from "react-hot-toast";
-import API, { apiErrorMessage } from "@/lib/api";
+import API, { apiErrorMessage, officeProxy } from "@/lib/api";
 
 type HistoryDay = {
   day: string;
@@ -20,11 +20,13 @@ export default function ShiftHistoryButton({
   params,
   compact = false,
   large = false,
+  office = false,
 }: {
   url: string;
   params?: Record<string, string>;
   compact?: boolean;
   large?: boolean;
+  office?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -34,7 +36,7 @@ export default function ShiftHistoryButton({
     setOpen(true);
     setLoading(true);
     try {
-      const res = await API.get(url, { params });
+      const res = await API.get(url, { params, ...(office ? officeProxy : {}) });
       setDays((res.data.days ?? []) as HistoryDay[]);
     } catch (err) {
       toast.error(apiErrorMessage(err, "Could not load history."));
