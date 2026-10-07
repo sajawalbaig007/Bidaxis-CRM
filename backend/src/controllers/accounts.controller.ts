@@ -22,6 +22,7 @@ import {
   recomputeTechnicalTeamInIncomeStatement,
 } from "../utils/technicalPayrollDefaults";
 import { currencyFormulaTotalFromDashboard, emptyCurrencyChannelNetTotals, addCurrencyChannelNetTotals } from "../utils/currencyFormula";
+import { pickCashFlowSnapshot, summarizeCashFlow } from "../utils/cashFlowSummary";
 import {
   aggregateCollectionsForDate,
   aggregateCollectionsForMonths,
@@ -405,34 +406,6 @@ export async function getAccountsDashboardSummary(req: AuthRequest, res: Respons
       };
     };
 
-    const cashRowNet = (row: {
-      netAmount?: number;
-      bankAmounts?: Record<string, { debit?: number; credit?: number }>;
-    }) => {
-      let debit = 0;
-      let credit = 0;
-      for (const amt of Object.values(row.bankAmounts ?? {})) {
-        debit += Number(amt?.debit) || 0;
-        credit += Number(amt?.credit) || 0;
-      }
-      if (debit === 0 && credit === 0) return Number(row.netAmount) || 0;
-      return debit - credit;
-    };
-
-    const summarizeCashFlow = (data: Record<string, unknown>) => {
-      const months =
-        (data.months as Array<{
-          rows: Array<{
-            netAmount?: number;
-            bankAmounts?: Record<string, { debit?: number; credit?: number }>;
-          }>;
-        }>) ?? [];
-      return months.reduce(
-        (acc, m) => acc + m.rows.reduce((a, r) => a + cashRowNet(r), 0),
-        0,
-      );
-    };
-
     const incomePartsFromRaw = async (raw: Record<string, unknown>, recordDate: string) => {
       const data = preparePageData(
         "income_statement",
@@ -538,9 +511,8 @@ export async function getAccountsDashboardSummary(req: AuthRequest, res: Respons
           take: 1,
         }),
         prisma.accountsRecord.findMany({
-          where: { page: "cash_flow", recordDate: stockWhere },
+          where: { page: "cash_flow", recordDate: { lte: toDate } },
           orderBy: { recordDate: "desc" },
-          take: 1,
         }),
         prisma.accountsRecord.findMany({
           where: { page: "total_assets", recordDate: stockWhere },
@@ -645,14 +617,12 @@ export async function getAccountsDashboardSummary(req: AuthRequest, res: Respons
         ),
       );
 
-      const cf = cfRecs[0];
+      const cfWindow = mode === "all_time" ? { to: toDate } : { from: fromDate, to: toDate };
+      const cf = pickCashFlowSnapshot(cfRecs, cfWindow);
       persistedPages.cash_flow = !!cf;
-      summaries.cashFlowNet = summarizeCashFlow(
-        preparePageData(
-          "cash_flow",
-          (cf?.data as Record<string, unknown> | undefined) ?? defaultAccountsData("cash_flow"),
-        ),
-      );
+      summaries.cashFlowNet = cf
+        ? summarizeCashFlow(cf.data as { months?: [] }, cfWindow)
+        : 0;
 
       const ta = taRecs[0];
       persistedPages.total_assets = !!ta;
@@ -706,7 +676,14 @@ export async function getAccountsDashboardSummary(req: AuthRequest, res: Respons
           );
           assignIncomeSummaries(summaries, { revenue, ...parts });
       } else if (page === "cash_flow") {
-          summaries.cashFlowNet = summarizeCashFlow(data);
+          const cfHistory = await prisma.accountsRecord.findMany({
+            where: { page: "cash_flow", recordDate: { lte: toDate } },
+            orderBy: { recordDate: "desc" },
+          });
+          const cf = pickCashFlowSnapshot(cfHistory, { to: toDate });
+          summaries.cashFlowNet = cf
+            ? summarizeCashFlow(cf.data as { months?: [] }, { to: toDate })
+            : summarizeCashFlow(data as { months?: [] }, { to: toDate });
       } else if (page === "total_assets") {
           summaries.totalAssetsRegister = summarizeTotalAssets(data);
         }

@@ -65,6 +65,7 @@ export function normalizeTechnicalPayrollData(raw: unknown): TechnicalPayrollDat
       checkOut: String(e.checkOut ?? "16:00"),
       lateDeductionOverride: e.lateDeductionOverride ?? null,
       paidLeaveDays: Number(e.paidLeaveDays) || 0,
+      paidLeaveDates: Array.isArray(e.paidLeaveDates) ? e.paidLeaveDates.map(String) : [],
       unpaidLeaveDays: Number(e.unpaidLeaveDays) || 0,
       loanTotal: Number(e.loanTotal) || 0,
       loanPaid: Number(e.loanPaid) || 0,

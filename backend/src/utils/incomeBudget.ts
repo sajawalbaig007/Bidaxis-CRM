@@ -240,13 +240,16 @@ function incomeStatementTechnicalFromSalary(
   const policyDept = lateShiftHour === 9
     ? "chief_estimator"
     : (typeof sal.lateDepartment === "string" && sal.lateDepartment ? sal.lateDepartment : "estimator");
+  const skipDays = new Set(
+    Array.isArray(sal.paidLeaveDates) ? sal.paidLeaveDates.map((day) => String(day)) : [],
+  );
   const policyLate = lateOverride != null
     ? null
     : days
-      ? monthLateAmountFor(policyDept, month, amounts, days, person, checkIn)
+      ? monthLateAmountFor(policyDept, month, amounts, days, person, checkIn, { skipDays })
       : lateShiftHour === 9
-        ? monthLateAmountFor("chief_estimator", month, amounts, undefined, person, checkIn)
-        : monthLateAmountFor("estimator", month, amounts, undefined, person, checkIn, { employeeOnly: true });
+        ? monthLateAmountFor("chief_estimator", month, amounts, undefined, person, checkIn, { skipDays })
+        : monthLateAmountFor("estimator", month, amounts, undefined, person, checkIn, { employeeOnly: true, skipDays });
   const late = policyLate
     ? policyLate.amount
     : incomeStatementLateDeduction(

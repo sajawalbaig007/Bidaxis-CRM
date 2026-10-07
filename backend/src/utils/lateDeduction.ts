@@ -74,6 +74,18 @@ export function perDayOf(amounts: PayAmounts, components: PayPart[]): number {
   return components.reduce((sum, part) => sum + (Number(amounts[part]) || 0), 0) / 30;
 }
 
+/** Weekend is Saturday and Sunday in Pakistan. No other day is a weekend. */
+export function isPktWeekend(ymd: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(ymd)) return false;
+  const [year, month, day] = ymd.split("-").map(Number);
+  const noonPkt = new Date(Date.UTC(year, month - 1, day, 7, 0, 0));
+  const weekday = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Karachi",
+    weekday: "short",
+  }).format(noonPkt);
+  return weekday === "Sat" || weekday === "Sun";
+}
+
 export function deductionFromPolicy(
   checkIn: string,
   policy: LatePolicy,
@@ -82,9 +94,9 @@ export function deductionFromPolicy(
   const hit = pickLateRange(checkIn, policy.ranges);
   const perDay = perDayOf(amounts, policy.components);
   if (!hit) return { amount: 0, rule: "Check-in is outside the deduction ranges" };
-  const amount = perDay * hit.percent / 100;
+  const amount = perDay * hit.percent;
   const end = hit.to || "onwards";
-  return { amount, rule: `${hit.from}–${end} → ${hit.percent}% of per day` };
+  return { amount, rule: `${hit.from}–${end} → per day × ${hit.percent}` };
 }
 
 function nameTokens(label: string): string[] {
@@ -190,7 +202,23 @@ export function lateAmountFor(
   return deductionFromPolicy(checkIn, row, amounts);
 }
 
-/** Deduct the given days from the time ranges. A day with neither time costs that day’s pay. */
+/** Per-day salary from the checked parts. Null when this person has no saved ranges. */
+export function perDayForPolicy(
+  department: string,
+  month: string,
+  amounts: PayAmounts,
+  person?: LatePersonRef,
+): number | null {
+  const row = policyFor(department, month, person);
+  if (!row || !row.components.length || !row.ranges.length) return null;
+  return perDayOf(amounts, row.components);
+}
+
+/**
+ * Deduct the given days from the time ranges.
+ * A check-in multiplies that day’s pay by the range number (0.2, 0.25, 0.5).
+ * Saturday and Sunday are not deducted.
+ */
 export function policyDeductionForDays(
   department: string,
   month: string,
@@ -198,6 +226,7 @@ export function policyDeductionForDays(
   punches: AttendanceDay[] | undefined,
   dayList: string[],
   person?: LatePersonRef,
+  skipDays?: ReadonlySet<string>,
 ): number | null {
   const row = policyFor(department, month, person);
   if (!row || !row.components.length || !row.ranges.length) return null;
@@ -205,15 +234,12 @@ export function policyDeductionForDays(
   const byDay = new Map((punches ?? []).filter((day) => day?.day).map((day) => [day.day, day]));
   let amount = 0;
   for (const day of dayList) {
+    if (isPktWeekend(day) || skipDays?.has(day)) continue;
     const punch = byDay.get(day);
     const checkIn = String(punch?.checkIn ?? "").trim();
-    const checkOut = String(punch?.checkOut ?? "").trim();
-    if (!checkIn && !checkOut) {
-      amount += perDay;
-      continue;
-    }
+    if (!checkIn) continue;
     const hit = pickLateRange(checkIn, row.ranges);
-    if (hit) amount += (perDay * hit.percent) / 100;
+    if (hit) amount += perDay * hit.percent;
   }
   return amount;
 }
@@ -225,7 +251,7 @@ export function monthLateAmountFor(
   days: AttendanceDay[] | undefined,
   person?: LatePersonRef,
   fallbackCheckIn = "",
-  opts?: { employeeOnly?: boolean },
+  opts?: { employeeOnly?: boolean; skipDays?: ReadonlySet<string> },
 ): { amount: number; rule: string } | null {
   const row = policyFor(department, month, person, opts?.employeeOnly);
   if (!row || !row.components.length || !row.ranges.length) return null;
@@ -233,24 +259,18 @@ export function monthLateAmountFor(
   const perDay = perDayOf(amounts, row.components);
   const byDay = new Map(days.filter((day) => day?.day).map((day) => [day.day, day]));
   let amount = 0;
-  let missed = 0;
   let lateDays = 0;
   for (const day of elapsedMonthDays(month)) {
+    if (isPktWeekend(day) || opts?.skipDays?.has(day)) continue;
     const punch = byDay.get(day);
     const checkIn = String(punch?.checkIn ?? "").trim();
-    const checkOut = String(punch?.checkOut ?? "").trim();
-    if (!checkIn && !checkOut) {
-      amount += perDay;
-      missed += 1;
-      continue;
-    }
+    if (!checkIn) continue;
     const hit = pickLateRange(checkIn, row.ranges);
     if (!hit) continue;
-    amount += (perDay * hit.percent) / 100;
+    amount += perDay * hit.percent;
     lateDays += 1;
   }
   const notes: string[] = [];
-  if (missed) notes.push(`${missed} day${missed === 1 ? "" : "s"} with no check-in or check-out`);
   if (lateDays) notes.push(`${lateDays} late day${lateDays === 1 ? "" : "s"}`);
   return { amount, rule: notes.join(", ") || "No deduction for this month" };
 }

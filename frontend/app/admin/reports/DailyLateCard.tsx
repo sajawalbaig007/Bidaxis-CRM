@@ -6,15 +6,15 @@ import { Loader2 } from "lucide-react";
 import toast from "react-hot-toast";
 import API, { apiErrorMessage } from "@/lib/api";
 
-type PersonCut = { name: string; department: string; day: number; month: number };
+type PersonCut = { name: string; department: string; perDay?: number; day: number; month: number };
 
 const ATTENDANCE_ROWS: PersonCut[] = [
-  { name: "Ahmer Shah", department: "Dev", day: 0, month: 0 },
-  { name: "Sajawal", department: "Dev", day: 0, month: 0 },
-  { name: "Khalil", department: "Administration", day: 0, month: 0 },
-  { name: "Ismail", department: "Administration", day: 0, month: 0 },
-  { name: "Mahnoor Imran", department: "Administration", day: 0, month: 0 },
-  { name: "Ahmad Nadeem", department: "BIM Modeler", day: 0, month: 0 },
+  { name: "Ahmer Shah", department: "Dev", perDay: 0, day: 0, month: 0 },
+  { name: "Sajawal", department: "Dev", perDay: 0, day: 0, month: 0 },
+  { name: "Khalil", department: "Administration", perDay: 0, day: 0, month: 0 },
+  { name: "Ismail", department: "Administration", perDay: 0, day: 0, month: 0 },
+  { name: "Mahnoor Imran", department: "Administration", perDay: 0, day: 0, month: 0 },
+  { name: "Ahmad Nadeem", department: "BIM Modeler", perDay: 0, day: 0, month: 0 },
 ];
 
 function nameTokens(name: string) {
@@ -30,10 +30,7 @@ function samePerson(a: string, b: string) {
   const right = nameTokens(b);
   if (!left.length || !right.length) return false;
   const [short, long] = left.length <= right.length ? [left, right] : [right, left];
-  for (let start = 0; start <= long.length - short.length; start += 1) {
-    if (short.every((token, index) => long[start + index] === token)) return true;
-  }
-  return false;
+  return short.every((token, index) => long[index] === token);
 }
 
 function withAttendanceRoster(people: PersonCut[]) {
@@ -45,6 +42,14 @@ function withAttendanceRoster(people: PersonCut[]) {
   return next.sort((a, b) => a.department.localeCompare(b.department) || a.name.localeCompare(b.name));
 }
 type Report = { date: string; month: string; through: string; people: PersonCut[] };
+
+type LeaveRow = {
+  id: string;
+  personName: string;
+  fromDay: string;
+  toDay: string;
+  status: string;
+};
 
 function pktToday() {
   return new Intl.DateTimeFormat("en-CA", {
@@ -71,6 +76,13 @@ export default function DailyLateCard() {
   const [date, setDate] = useState(today);
   const [report, setReport] = useState<Report | null>(null);
   const [loading, setLoading] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [leaveOpen, setLeaveOpen] = useState(false);
+  const [leaves, setLeaves] = useState<LeaveRow[]>([]);
+  const [leaveName, setLeaveName] = useState("");
+  const [leaveFrom, setLeaveFrom] = useState("");
+  const [leaveTo, setLeaveTo] = useState("");
+  const [leaveBusy, setLeaveBusy] = useState("");
 
   const load = useCallback(async (day: string) => {
     setLoading(true);
@@ -89,10 +101,68 @@ export default function DailyLateCard() {
     }
   }, []);
 
+  const loadLeaves = useCallback(async (month: string) => {
+    try {
+      const res = await API.get("/attendance/paid-leave", { params: { month } });
+      setLeaves(res.data.leaves ?? []);
+    } catch (err) {
+      toast.error(apiErrorMessage(err, "Could not load paid leave."));
+    }
+  }, []);
+
   useEffect(() => {
     if (!ceo) return;
     void load(date);
   }, [ceo, date, load]);
+
+  useEffect(() => {
+    if (!ceo || !leaveOpen || !report?.month) return;
+    void loadLeaves(report.month);
+  }, [ceo, leaveOpen, report?.month, loadLeaves]);
+
+  async function sendToAccounts() {
+    if (!report?.month || sending) return;
+    setSending(true);
+    try {
+      const res = await API.post("/attendance/late-to-accounts", { month: report.month });
+      toast.success(res.data.message || "Sent to accounts.");
+    } catch (err) {
+      toast.error(apiErrorMessage(err, "Could not send deductions to accounts."));
+    } finally {
+      setSending(false);
+    }
+  }
+
+  async function addLeave() {
+    if (!leaveName || !leaveFrom || !leaveTo) {
+      toast.error("Pick a name and both dates.");
+      return;
+    }
+    setLeaveBusy("add");
+    try {
+      await API.post("/attendance/paid-leave", { personName: leaveName, fromDay: leaveFrom, toDay: leaveTo });
+      setLeaveFrom("");
+      setLeaveTo("");
+      if (report?.month) await loadLeaves(report.month);
+    } catch (err) {
+      toast.error(apiErrorMessage(err, "Could not save paid leave."));
+    } finally {
+      setLeaveBusy("");
+    }
+  }
+
+  async function reviewLeave(id: string, status: "approved" | "declined") {
+    setLeaveBusy(id);
+    try {
+      await API.post(`/attendance/paid-leave/${id}/review`, { status });
+      if (report?.month) await loadLeaves(report.month);
+      await load(date);
+    } catch (err) {
+      toast.error(apiErrorMessage(err, "Could not update paid leave."));
+    } finally {
+      setLeaveBusy("");
+    }
+  }
 
   if (!ceo) return null;
 
@@ -105,11 +175,27 @@ export default function DailyLateCard() {
         <div>
           <h2 className="font-bold text-[#0F172A] dark:text-white text-base sm:text-lg">Late time deduction</h2>
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-            A day with no check-in deducts that day’s pay. A check-in follows the time ranges. Current date and the month so far fill in on their own.
+            Per day is the checked salary parts divided by 30. A late check-in multiplies that day by the number you set, so 0.2 on Rs 1,500 is Rs 300. Saturday, Sunday, and approved paid leave are not deducted. Send to accounts copies the month total into each person’s late deduction cell.
             {report ? ` Month total runs through ${report.through}.` : ""}
           </p>
         </div>
-        <label className="text-xs text-gray-500 dark:text-gray-400">
+        <div className="flex flex-wrap items-end gap-2">
+          <button
+            type="button"
+            onClick={() => setLeaveOpen((open) => !open)}
+            className="rounded-lg border border-gray-200 dark:border-crm-border px-3 py-1.5 text-xs font-semibold text-[#0F172A] dark:text-white"
+          >
+            Paid leave
+          </button>
+          <button
+            type="button"
+            disabled={sending || !report}
+            onClick={() => void sendToAccounts()}
+            className="rounded-lg bg-[#0F172A] px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
+          >
+            {sending ? "Sending…" : "Send to accounts"}
+          </button>
+          <label className="text-xs text-gray-500 dark:text-gray-400">
           Specific date
           <input
             type="date"
@@ -118,8 +204,80 @@ export default function DailyLateCard() {
             onChange={(e) => setDate(e.target.value)}
             className="mt-1 block rounded-lg border border-gray-200 dark:border-crm-border bg-white dark:bg-[#0B1220] px-2 py-1.5 text-sm text-[#0F172A] dark:text-white"
           />
-        </label>
+          </label>
+        </div>
       </div>
+
+      {leaveOpen ? (
+        <div className="mt-4 rounded-2xl border border-gray-100 dark:border-crm-border p-3">
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            Add each paid leave on its own. One month can hold several. Approve a range and those days are not deducted.
+          </p>
+          <div className="mt-3 flex flex-wrap items-end gap-2">
+            <label className="text-[11px] text-gray-500 dark:text-gray-400">
+              Employee
+              <select
+                value={leaveName}
+                onChange={(e) => setLeaveName(e.target.value)}
+                className="mt-1 block rounded-lg border border-gray-200 dark:border-crm-border bg-white dark:bg-[#0B1220] px-2 py-1.5 text-sm text-[#0F172A] dark:text-white"
+              >
+                <option value="">Select</option>
+                {people.map((person) => (
+                  <option key={`${person.department}:${person.name}`} value={person.name}>{person.name}</option>
+                ))}
+              </select>
+            </label>
+            <label className="text-[11px] text-gray-500 dark:text-gray-400">
+              From
+              <input
+                type="date"
+                value={leaveFrom}
+                onChange={(e) => setLeaveFrom(e.target.value)}
+                className="mt-1 block rounded-lg border border-gray-200 dark:border-crm-border bg-white dark:bg-[#0B1220] px-2 py-1.5 text-sm text-[#0F172A] dark:text-white"
+              />
+            </label>
+            <label className="text-[11px] text-gray-500 dark:text-gray-400">
+              To
+              <input
+                type="date"
+                value={leaveTo}
+                onChange={(e) => setLeaveTo(e.target.value)}
+                className="mt-1 block rounded-lg border border-gray-200 dark:border-crm-border bg-white dark:bg-[#0B1220] px-2 py-1.5 text-sm text-[#0F172A] dark:text-white"
+              />
+            </label>
+            <button
+              type="button"
+              disabled={leaveBusy === "add"}
+              onClick={() => void addLeave()}
+              className="rounded-lg bg-[#0F172A] px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
+            >
+              {leaveBusy === "add" ? "Saving…" : "Add leave"}
+            </button>
+          </div>
+          <div className="mt-3 space-y-2">
+            {leaves.length === 0 ? (
+              <p className="text-xs text-gray-400">No paid leave in this month yet.</p>
+            ) : leaves.map((leave) => (
+              <div key={leave.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-gray-100 dark:border-crm-border px-2 py-2">
+                <div>
+                  <p className="text-xs font-semibold text-[#0F172A] dark:text-white">{leave.personName}</p>
+                  <p className="text-[11px] text-gray-500 dark:text-gray-400">{leave.fromDay} to {leave.toDay} · {leave.status}</p>
+                </div>
+                {leave.status === "pending" ? (
+                  <button
+                    type="button"
+                    disabled={leaveBusy === leave.id}
+                    onClick={() => void reviewLeave(leave.id, "approved")}
+                    className="rounded-lg bg-emerald-700 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
+                  >
+                    {leaveBusy === leave.id ? "Saving…" : "Approve"}
+                  </button>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
 
       {loading && people.length === 0 ? (
         <p className="mt-4 text-sm text-gray-400 inline-flex items-center gap-2">
@@ -133,6 +291,7 @@ export default function DailyLateCard() {
             <thead>
               <tr className="bg-[#F8FAFC] dark:bg-[#0B1220] text-left text-[11px] uppercase tracking-wide text-gray-500 dark:text-gray-400">
                 <th className="px-3 py-3 font-semibold">Employee</th>
+                <th className="px-3 py-3 font-semibold text-right">Per day</th>
                 <th className="px-3 py-3 font-semibold text-right">{dayLabel}</th>
                 <th className="px-3 py-3 font-semibold text-right">So far this month</th>
               </tr>
@@ -151,6 +310,7 @@ export default function DailyLateCard() {
                       </div>
                     </div>
                   </td>
+                  <td className="px-3 py-3 text-right tabular-nums text-[#0F172A] dark:text-white">{money(person.perDay ?? 0)}</td>
                   <td className="px-3 py-3 text-right tabular-nums font-semibold text-[#B8112D]">{money(person.day)}</td>
                   <td className="px-3 py-3 text-right tabular-nums font-semibold text-[#0F172A] dark:text-white">{money(person.month)}</td>
                 </tr>

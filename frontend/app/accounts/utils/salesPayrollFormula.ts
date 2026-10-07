@@ -58,6 +58,8 @@ export type SalesPayrollEmployee = {
   /** Statement month and punched days. A missing day deducts that day's set pay. */
   payMonth?: string;
   attendanceDays?: AttendanceDay[];
+  /** Approved paid-leave dates. Those days are not deducted. */
+  paidLeaveDates?: string[];
   lateDeductionOverride: number | null;
   paidLeaveDays: number;
   unpaidLeaveDays: number;
@@ -291,7 +293,7 @@ export function computeSalesEmployeePayroll(
         commission: comm.totalCommission,
         overtime: 0,
         allowance: allowance + homeAllowance + fuelAllowance + medicalAllowance,
-      }, { personName: emp.name }, emp.attendanceDays, emp.payMonth || yearMonthKey(opts?.recordDate) || "", emp.checkIn)
+      }, { personName: emp.name }, emp.attendanceDays, emp.payMonth || yearMonthKey(opts?.recordDate) || "", emp.checkIn, emp.paidLeaveDates)
     : null;
   const late = policyLate ?? calcSalesLateDeduction(daySalary, emp.checkIn, emp.lateDeductionOverride);
   const unpaidDays = Number(emp.unpaidLeaveDays) || 0;

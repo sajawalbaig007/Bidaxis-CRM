@@ -46,6 +46,7 @@ export type SalesPayrollEmployee = {
   checkIn: string;
   payMonth?: string;
   attendanceDays?: { day: string; checkIn?: string; checkOut?: string }[];
+  paidLeaveDates?: string[];
   lateDeductionOverride: number | null;
   paidLeaveDays: number;
   unpaidLeaveDays: number;

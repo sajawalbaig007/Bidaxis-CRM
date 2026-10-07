@@ -34,6 +34,8 @@ import { SEED_USER_EMAILS } from "../constants/seedUsers";
 import { ceoSetPortalShiftDay } from "../utils/csrSessionTracking";
 import { clearLatePolicy, listLatePolicies, saveLatePolicy } from "../utils/lateDeduction";
 import { dailyLateReport } from "../utils/dailyLateReport";
+import { addPaidLeave, listPaidLeaves, reviewPaidLeave } from "../utils/paidLeave";
+import { sendLateToAccounts } from "../utils/sendLateToAccounts";
 
 const router = Router();
 
@@ -46,6 +48,61 @@ router.get("/late-daily", verifyToken, allowRoles("admin"), async (req: AuthRequ
   } catch (error) {
     console.error("[attendance/late-daily]", error);
     return res.status(500).json({ success: false, message: "Could not load daily deductions." });
+  }
+});
+
+router.post("/late-to-accounts", verifyToken, allowRoles("admin"), async (req: AuthRequest, res) => {
+  try {
+    const month = String(req.body?.month ?? "").trim();
+    const result = await sendLateToAccounts(month, req.user?.id);
+    if (!result.ok) return res.status(400).json({ success: false, message: result.message });
+    return res.json({ success: true, ...result, message: `Late deduction sent for ${result.updated} names.` });
+  } catch (error) {
+    console.error("[attendance/late-to-accounts]", error);
+    return res.status(500).json({ success: false, message: "Could not send deductions to accounts." });
+  }
+});
+
+router.get("/paid-leave", verifyToken, allowRoles("admin"), async (req: AuthRequest, res) => {
+  try {
+    const month = String(req.query.month ?? "").trim();
+    const leaves = await listPaidLeaves(month);
+    if (!leaves) return res.status(400).json({ success: false, message: "Pick a month." });
+    return res.json({ success: true, month, leaves });
+  } catch (error) {
+    console.error("[attendance/paid-leave]", error);
+    return res.status(500).json({ success: false, message: "Could not load paid leave." });
+  }
+});
+
+router.post("/paid-leave", verifyToken, allowRoles("admin"), async (req: AuthRequest, res) => {
+  try {
+    const result = await addPaidLeave({
+      personName: String(req.body?.personName ?? ""),
+      personKey: String(req.body?.personKey ?? ""),
+      fromDay: String(req.body?.fromDay ?? ""),
+      toDay: String(req.body?.toDay ?? ""),
+    });
+    if (!result.ok) return res.status(400).json({ success: false, message: result.message });
+    return res.json({ success: true, leave: result.leave });
+  } catch (error) {
+    console.error("[attendance/paid-leave save]", error);
+    return res.status(500).json({ success: false, message: "Could not save paid leave." });
+  }
+});
+
+router.post("/paid-leave/:id/review", verifyToken, allowRoles("admin"), async (req: AuthRequest, res) => {
+  try {
+    const status = String(req.body?.status ?? "");
+    if (status !== "approved" && status !== "declined") {
+      return res.status(400).json({ success: false, message: "Approve or decline this leave." });
+    }
+    const leave = await reviewPaidLeave(String(req.params.id), status);
+    if (!leave) return res.status(404).json({ success: false, message: "Leave not found." });
+    return res.json({ success: true, leave });
+  } catch (error) {
+    console.error("[attendance/paid-leave review]", error);
+    return res.status(500).json({ success: false, message: "Could not update paid leave." });
   }
 });
 
