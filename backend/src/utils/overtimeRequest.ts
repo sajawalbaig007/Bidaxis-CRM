@@ -237,6 +237,49 @@ export async function submitChiefOvertime(input: { userId: string; name: string;
   return { ok: true as const, note };
 }
 
+/** Chief Estimator sets or corrects an estimator's overtime for a shift day. */
+export async function chiefSetEstimatorOvertime(input: {
+  personKey: string;
+  personName: string;
+  day: string;
+  minutes: number;
+}) {
+  const minutes = Math.round(input.minutes);
+  if (!input.personKey || !/^\d{4}-\d{2}-\d{2}$/.test(input.day)) {
+    return { ok: false as const, message: "Pick the estimator and date." };
+  }
+  if (!Number.isInteger(minutes) || minutes < 1 || minutes > 12 * 60) {
+    return { ok: false as const, message: "Enter overtime from 1 minute up to 12 hours." };
+  }
+  const user = await prisma.user.findUnique({
+    where: { id: input.personKey },
+    select: { role: true, name: true },
+  });
+  if (user?.role !== "estimator") {
+    return { ok: false as const, message: "You can only edit estimator overtime." };
+  }
+  const comment = formatOvertimeMinutes(minutes);
+  const where = { personKey_day_department: { personKey: input.personKey, day: input.day, department: "estimator" } };
+  const existing = await prisma.overtimeRequest.findUnique({ where });
+  const note = existing
+    ? await prisma.overtimeRequest.update({
+        where: { id: existing.id },
+        data: { comment, personName: user.name || input.personName, editedBy: "Chief Estimator" },
+      })
+    : await prisma.overtimeRequest.create({
+        data: {
+          personKey: input.personKey,
+          personName: user.name || input.personName,
+          department: "estimator",
+          day: input.day,
+          comment,
+          status: "pending",
+          editedBy: "Chief Estimator",
+        },
+      });
+  return { ok: true as const, note };
+}
+
 export function overtimePublic(note: {
   id: string;
   comment: string;

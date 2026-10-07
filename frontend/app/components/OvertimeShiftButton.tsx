@@ -119,22 +119,38 @@ export default function OvertimeShiftButton({ compact = false, since }: { compac
   );
 }
 
+function splitOvertime(comment: string): { hours: string; mins: string } {
+  const match = /(\d+)\s*h\s*(\d+)\s*m/i.exec(comment);
+  if (!match) return { hours: "1", mins: "0" };
+  return { hours: String(Number(match[1])), mins: String(Number(match[2])) };
+}
+
 export function OvertimeShiftCell({
   item,
   canReview,
   onChanged,
+  draft,
 }: {
   item: ShiftOvertimeItem | null;
   canReview: boolean;
   onChanged: () => void;
+  draft?: { personKey: string; personName: string; day: string };
 }) {
   const [editing, setEditing] = useState(false);
-  const [hours, setHours] = useState("0");
+  const [hours, setHours] = useState("1");
   const [mins, setMins] = useState("0");
   const [busy, setBusy] = useState(false);
-  if (!item) return <span className="text-xs text-gray-300">—</span>;
+  if (!item && !(canReview && draft)) return <span className="text-xs text-gray-300">—</span>;
+
+  const openEdit = () => {
+    const parsed = splitOvertime(item?.comment ?? "");
+    setHours(parsed.hours);
+    setMins(parsed.mins);
+    setEditing(true);
+  };
 
   const review = async (action: "approve" | "decline" | "edit", minutes?: number) => {
+    if (!item) return;
     setBusy(true);
     try {
       await API.put(`/attendance/overtime/${item.id}`, { action, ...(minutes != null ? { minutes } : {}) });
@@ -148,19 +164,49 @@ export function OvertimeShiftCell({
     }
   };
 
+  const saveTime = async () => {
+    const minutes = Number(hours) * 60 + Number(mins);
+    if (!Number.isFinite(minutes) || minutes < 1) {
+      toast.error("Enter the overtime time.");
+      return;
+    }
+    if (item) {
+      await review("edit", minutes);
+      return;
+    }
+    if (!draft) return;
+    setBusy(true);
+    try {
+      await API.post("/attendance/overtime/estimator", { ...draft, minutes });
+      toast.success("Overtime saved.");
+      setEditing(false);
+      onChanged();
+    } catch (err) {
+      toast.error(apiErrorMessage(err, "Could not update overtime."));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
-    <div className="min-w-[150px]">
-      <p className="text-xs font-semibold text-[#111827]">{item.comment}</p>
-      <p className={`text-[10px] font-bold uppercase tracking-wide ${
-        item.status === "approved" ? "text-green-700" : item.status === "declined" ? "text-red-600" : "text-amber-600"
-      }`}>
-        {item.status}{item.editedBy ? ` · ${item.editedBy}` : ""}
-      </p>
-      {canReview && item.status === "pending" ? (
+    <div className="min-w-[168px]">
+      <p className="text-xs font-semibold text-[#111827]">{item?.comment || "No overtime"}</p>
+      {item ? (
+        <p className={`text-[10px] font-bold uppercase tracking-wide ${
+          item.status === "approved" ? "text-green-700" : item.status === "declined" ? "text-red-600" : "text-amber-600"
+        }`}>
+          {item.status}{item.editedBy ? ` · ${item.editedBy}` : ""}
+        </p>
+      ) : null}
+      {canReview ? (
         <div className="mt-1.5 flex flex-wrap gap-1">
-          <button type="button" disabled={busy} onClick={() => void review("approve")} className="h-7 px-2 rounded-lg bg-green-600 text-white text-[10px] font-bold disabled:opacity-50">Approve</button>
-          <button type="button" disabled={busy} onClick={() => void review("decline")} className="h-7 px-2 rounded-lg bg-red-600 text-white text-[10px] font-bold disabled:opacity-50">Decline</button>
-          <button type="button" disabled={busy} onClick={() => { setHours("1"); setMins("0"); setEditing(true); }} className="h-7 px-2 rounded-lg bg-gray-100 text-gray-700 text-[10px] font-bold">Edit</button>
+          {item?.status === "pending" ? (
+            <>
+              <button type="button" disabled={busy} onClick={() => void review("approve")} className="h-7 px-2 rounded-lg bg-green-600 text-white text-[10px] font-bold disabled:opacity-50">Approve</button>
+              <button type="button" disabled={busy} onClick={() => void review("decline")} className="h-7 px-2 rounded-lg bg-red-600 text-white text-[10px] font-bold disabled:opacity-50">Decline</button>
+            </>
+          ) : null}
+          <button type="button" disabled={busy} onClick={openEdit} className="h-7 px-2 rounded-lg bg-gray-100 text-gray-700 text-[10px] font-bold">Edit</button>
         </div>
       ) : null}
       {editing ? (
@@ -168,7 +214,7 @@ export function OvertimeShiftCell({
           <input type="number" min={0} max={12} value={hours} onChange={(e) => setHours(e.target.value)} className="w-14 h-8 rounded-lg border border-gray-200 px-2 text-xs" />
           <span className="text-[10px] text-gray-400">h</span>
           <input type="number" min={0} max={59} value={mins} onChange={(e) => setMins(e.target.value)} className="w-14 h-8 rounded-lg border border-gray-200 px-2 text-xs" />
-          <button type="button" disabled={busy} onClick={() => void review("edit", Number(hours) * 60 + Number(mins))} className="h-8 px-2 rounded-lg bg-[#B8112D] text-white text-[10px] font-bold">Save</button>
+          <button type="button" disabled={busy} onClick={() => void saveTime()} className="h-8 px-2 rounded-lg bg-[#B8112D] text-white text-[10px] font-bold">Save</button>
         </div>
       ) : null}
     </div>
