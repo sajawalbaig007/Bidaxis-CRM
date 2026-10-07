@@ -257,14 +257,22 @@ export default function ReportsPage() {
             </div>
           </header>
 
-          <div className="flex flex-wrap gap-2">
+          <div className="grid gap-3 sm:grid-cols-2">
             {reportsBase.startsWith("/admin") ? (
-              <Link href={`${reportsBase}/hours`} className="inline-flex items-center gap-2 h-11 px-3 rounded-2xl border border-gray-200 bg-white text-sm font-semibold text-[#0F172A] dark:bg-crm-surface dark:text-white dark:border-crm-border">
-                <Clock3 size={16} /> Shift time and deductions
+              <Link href={`${reportsBase}/hours`} className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm transition hover:border-[#B8112D] dark:bg-crm-surface dark:border-crm-border">
+                <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-[#FFF1F3] text-[#B8112D]">
+                  <Clock3 size={18} />
+                </span>
+                <p className="mt-3 text-base font-bold text-[#0F172A] dark:text-white">Shift time and deductions</p>
+                <p className="mt-1 text-xs leading-relaxed text-gray-500 dark:text-gray-400">Late cut for each employee, shift hours, and the deduction ranges.</p>
               </Link>
             ) : null}
-            <Link href={`${reportsBase}/requests`} className="inline-flex items-center gap-2 h-11 px-3 rounded-2xl border border-gray-200 bg-white text-sm font-semibold text-[#0F172A] dark:bg-crm-surface dark:text-white dark:border-crm-border">
-              <ClipboardList size={16} /> Employee requests
+            <Link href={`${reportsBase}/requests`} className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm transition hover:border-[#B8112D] dark:bg-crm-surface dark:border-crm-border">
+              <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-[#EEF2FF] text-[#3730A3]">
+                <ClipboardList size={18} />
+              </span>
+              <p className="mt-3 text-base font-bold text-[#0F172A] dark:text-white">Employee requests</p>
+              <p className="mt-1 text-xs leading-relaxed text-gray-500 dark:text-gray-400">Leave, attendance corrections, and other requests waiting for a decision.</p>
             </Link>
           </div>
 

@@ -7,6 +7,43 @@ import toast from "react-hot-toast";
 import API, { apiErrorMessage } from "@/lib/api";
 
 type PersonCut = { name: string; department: string; day: number; month: number };
+
+const ATTENDANCE_ROWS: PersonCut[] = [
+  { name: "Ahmer Shah", department: "Dev", day: 0, month: 0 },
+  { name: "Sajawal", department: "Dev", day: 0, month: 0 },
+  { name: "Khalil", department: "Administration", day: 0, month: 0 },
+  { name: "Ismail", department: "Administration", day: 0, month: 0 },
+  { name: "Mahnoor Imran", department: "Administration", day: 0, month: 0 },
+  { name: "Ahmad Nadeem", department: "BIM Modeler", day: 0, month: 0 },
+];
+
+function nameTokens(name: string) {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .split(/\s+/)
+    .filter((token) => token && token !== "mr" && token !== "mrs" && token !== "ms");
+}
+
+function samePerson(a: string, b: string) {
+  const left = nameTokens(a);
+  const right = nameTokens(b);
+  if (!left.length || !right.length) return false;
+  const [short, long] = left.length <= right.length ? [left, right] : [right, left];
+  for (let start = 0; start <= long.length - short.length; start += 1) {
+    if (short.every((token, index) => long[start + index] === token)) return true;
+  }
+  return false;
+}
+
+function withAttendanceRoster(people: PersonCut[]) {
+  const next = [...people];
+  for (const person of ATTENDANCE_ROWS) {
+    if (next.some((row) => samePerson(row.name, person.name))) continue;
+    next.push(person);
+  }
+  return next.sort((a, b) => a.department.localeCompare(b.department) || a.name.localeCompare(b.name));
+}
 type Report = { date: string; month: string; through: string; people: PersonCut[] };
 
 function pktToday() {
@@ -60,7 +97,7 @@ export default function DailyLateCard() {
   if (!ceo) return null;
 
   const dayLabel = date === today ? "Current date" : date;
-  const people = report?.people ?? [];
+  const people = withAttendanceRoster(report?.people ?? []);
 
   return (
     <section className="rounded-[1.5rem] sm:rounded-[1.75rem] border border-gray-100/90 dark:border-crm-border bg-white dark:bg-crm-surface shadow-[0_10px_40px_-24px_rgba(15,23,42,0.35)] p-4 sm:p-5">
