@@ -39,7 +39,7 @@ export type ShiftOvertimeItem = {
   editedBy: string | null;
 };
 
-export default function OvertimeShiftButton({ compact = false }: { compact?: boolean }) {
+export default function OvertimeShiftButton({ compact = false, since }: { compact?: boolean; since?: string }) {
   const [gate, setGate] = useState({ allowed: false, weekend: false, shiftMs: 0, open: false, at: Date.now() });
   const [now, setNow] = useState(Date.now());
   const [startedAt, setStartedAt] = useState<number | null>(null);
@@ -72,11 +72,14 @@ export default function OvertimeShiftButton({ compact = false }: { compact?: boo
     };
   }, []);
 
-  const liveMs = gate.shiftMs + (gate.open ? Math.max(0, now - gate.at) : 0);
+  const sinceMs = since ? new Date(since).getTime() : 0;
+  const fromCheckIn = Number.isFinite(sinceMs) && sinceMs > 0 ? Math.max(0, now - sinceMs) : 0;
+  const liveMs = Math.max(gate.shiftMs + (gate.open ? Math.max(0, now - gate.at) : 0), fromCheckIn);
   const ready = gate.allowed || gate.weekend || liveMs >= NINE_MS;
   const running = startedAt != null;
   const elapsed = running ? Math.max(0, now - startedAt) : 0;
   const shiftLabel = formatTimer(liveMs);
+  const waiting = !ready && !running && liveMs > 0;
 
   const start = () => {
     const at = Date.now();
@@ -111,7 +114,7 @@ export default function OvertimeShiftButton({ compact = false }: { compact?: boo
       }`}
     >
       <Clock size={compact ? 14 : 15} />
-      {running ? `${formatTimer(elapsed)} · Stop` : "Start"}
+      {running ? `${formatTimer(elapsed)} · Stop` : ready ? "Start" : waiting ? formatTimer(NINE_MS - liveMs) : "Start"}
     </button>
   );
 }

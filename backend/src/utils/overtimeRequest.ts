@@ -72,11 +72,11 @@ export async function reviewOvertime(input: {
   if (!note) return { ok: false as const, message: "Overtime comment not found." };
   const reviewer = overtimeReviewerLabel(input.role);
   if (!reviewer) return { ok: false as const, message: "You cannot review overtime." };
-  if (input.role === "technical_manager" && note.department !== "estimator" && note.department !== "chief_estimator") {
-    return { ok: false as const, message: "Chief Estimator reviews estimator and chief estimator overtime." };
+  if (input.role === "technical_manager" && note.department !== "estimator") {
+    return { ok: false as const, message: "Chief Estimator reviews estimator overtime. The CEO reviews Chief Estimator overtime." };
   }
-  if (input.role === "admin" && (note.department === "estimator" || note.department === "chief_estimator")) {
-    return { ok: false as const, message: "Chief Estimator reviews this overtime." };
+  if (input.role === "admin" && note.department === "estimator") {
+    return { ok: false as const, message: "Chief Estimator reviews estimator overtime." };
   }
   if (input.action === "edit") {
     const minutes = Number(input.minutes);
@@ -200,6 +200,36 @@ export async function submitShiftOvertime(input: { userId: string; role: string;
           personName: input.name,
           department,
           day,
+          comment,
+          status: "pending",
+        },
+      });
+  return { ok: true as const, note };
+}
+
+/** Chief Estimator enters their own overtime. The CEO approves it. */
+export async function submitChiefOvertime(input: { userId: string; name: string; day: string; minutes: number }) {
+  const minutes = Math.round(input.minutes);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(input.day)) {
+    return { ok: false as const, message: "Pick a date." };
+  }
+  if (!Number.isInteger(minutes) || minutes < 1 || minutes > 12 * 60) {
+    return { ok: false as const, message: "Enter overtime from 1 minute up to 12 hours." };
+  }
+  const comment = formatOvertimeMinutes(minutes);
+  const where = { personKey_day_department: { personKey: input.userId, day: input.day, department: "chief_estimator" } };
+  const existing = await prisma.overtimeRequest.findUnique({ where });
+  const note = existing
+    ? await prisma.overtimeRequest.update({
+        where: { id: existing.id },
+        data: { comment, personName: input.name, status: "pending", editedBy: null },
+      })
+    : await prisma.overtimeRequest.create({
+        data: {
+          personKey: input.userId,
+          personName: input.name,
+          department: "chief_estimator",
+          day: input.day,
           comment,
           status: "pending",
         },

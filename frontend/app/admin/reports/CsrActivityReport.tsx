@@ -407,20 +407,22 @@ export default function CsrActivityReport({
   const isEstimator = staffRole === "estimator" || staffRole === "bim";
   const isBim = staffRole === "bim";
   const today = isEstimator ? calendarYmd(CLOCKS.est.tz) : pktShiftYmd();
+  const chiefDesk = staffRole === "estimator" && pathname.startsWith("/technical");
+  const canAdjustTimes = canEdit || chiefDesk;
   const showOvertime = false;
   const canReviewOt = false;
   const showShiftOt = isEstimator && (pathname.startsWith("/technical") || pathname.startsWith("/admin") || pathname.startsWith("/manager"));
-  const canReviewShiftOt = isEstimator && pathname.startsWith("/technical");
+  const canReviewShiftOt = chiefDesk;
   const showRequests = pathname.startsWith("/admin") || pathname.startsWith("/manager");
   const canApproveRequests = pathname.startsWith("/admin");
-  const sessionCols = 9 + (showRequests ? 1 : 0) + (showShiftOt ? 1 : 0) + (showOvertime ? 2 : 0) + (canEdit ? 1 : 0);
+  const sessionCols = 9 + (showRequests ? 1 : 0) + (showShiftOt ? 1 : 0) + (showOvertime ? 2 : 0) + (canAdjustTimes ? 1 : 0);
   const summaryCols = 8 + (showRequests ? 1 : 0) + (showShiftOt ? 1 : 0) + (showOvertime ? 2 : 0);
   const title = isBim ? "BIM Check In / Check Out" : isEstimator ? "Estimator Check In / Check Out" : "CSR Check In / Check Out";
   const personLabel = isBim ? "BIM" : isEstimator ? "Estimator" : "CSR";
   const peopleLabel = isBim ? "BIM" : isEstimator ? "Estimators" : "CSRs";
   const allLabel = isBim ? "All BIM" : isEstimator ? "All Estimators" : "All CSRs";
 
-  const [fromDate, setFromDate] = useState(today);
+  const [fromDate, setFromDate] = useState(chiefDesk ? `${today.slice(0, 8)}01` : today);
   const [toDate, setToDate] = useState(today);
   const [csrId, setCsrId] = useState("all");
   const [csrs, setCsrs] = useState<CsrOption[]>([]);
@@ -887,7 +889,7 @@ export default function CsrActivityReport({
                     </th>
                   </tr>
                   <tr className="border-b border-gray-100 text-left bg-[#FAFAFB]">
-                    {[personLabel, `Check In (${clock.abbr})`, `Check Out (${clock.abbr})`, ...(showShiftOt ? ["Overtime"] : []), ...(showRequests ? ["Request"] : []), "Other activity", "On Dashboard", "Away", "Total", "Status", "Closed By", ...(showOvertime ? ["Overtime", "Decision"] : []), ...(canEdit ? [""] : [])].map(h => (
+                    {[personLabel, `Check In (${clock.abbr})`, `Check Out (${clock.abbr})`, ...(showShiftOt ? ["Overtime"] : []), ...(showRequests ? ["Request"] : []), "Other activity", "On Dashboard", "Away", "Total", "Status", "Closed By", ...(showOvertime ? ["Overtime", "Decision"] : []), ...(canAdjustTimes ? [""] : [])].map(h => (
                       <th key={h || "actions"} className="px-3 py-2.5 text-[10px] sm:text-xs font-semibold text-gray-400 uppercase tracking-wide whitespace-nowrap">
                         {h}
                       </th>
@@ -937,8 +939,7 @@ export default function CsrActivityReport({
                         <td className="px-3 py-3">
                           <OvertimeShiftCell
                             item={(() => {
-                              const hit = overtimeNotes.find((item) => item.department === "estimator" && item.personKey === row.csrId && item.day === row.day) ?? null;
-                              if (!hit || (!canReviewShiftOt && hit.status !== "approved" && hit.status !== "declined")) return null;
+                              const hit = overtimeNotes.find((item) => item.department === staffRole && item.personKey === row.csrId && item.day === row.day) ?? null;
                               return hit;
                             })()}
                             canReview={canReviewShiftOt}
@@ -982,7 +983,7 @@ export default function CsrActivityReport({
                           onEdit={() => { setOvertimeEdit(row); setOvertimeText(row.overtimeComment ?? ""); }}
                         />
                       ) : null}
-                      {canEdit ? (
+                      {canAdjustTimes ? (
                       <td className="px-3 py-3">
                         <div className="flex items-center gap-1.5">
                           <button
@@ -994,6 +995,7 @@ export default function CsrActivityReport({
                             <Pencil size={12} />
                             Edit
                           </button>
+                          {canEdit ? (
                           <button
                             type="button"
                             disabled={resettingId === row.id}
@@ -1004,6 +1006,7 @@ export default function CsrActivityReport({
                             <RotateCcw size={12} />
                             Reset
                           </button>
+                          ) : null}
                         </div>
                       </td>
                       ) : null}
@@ -1045,6 +1048,20 @@ export default function CsrActivityReport({
                   </>}
                 </tbody>
               </table>
+              {showShiftOt && overtimeNotes.some((item) => item.department === staffRole && !sessions.some((row) => row.csrId === item.personKey && row.day === item.day)) ? (
+                <div className="px-3 pb-3 space-y-2">
+                  <p className="text-[11px] font-bold uppercase tracking-wide text-gray-400">Overtime with no check-in on that day</p>
+                  {overtimeNotes.filter((item) => item.department === staffRole && !sessions.some((row) => row.csrId === item.personKey && row.day === item.day)).map((item) => (
+                    <div key={item.id} className="flex flex-wrap items-start gap-3 rounded-xl border border-gray-100 px-3 py-2">
+                      <div className="min-w-[140px]">
+                        <p className="text-sm font-semibold">{item.personName}</p>
+                        <p className="text-[11px] text-gray-400">{item.day}</p>
+                      </div>
+                      <OvertimeShiftCell item={item} canReview={canReviewShiftOt} onChanged={() => void loadReport()} />
+                    </div>
+                  ))}
+                </div>
+              ) : null}
               {showRequests && requests.some((item) => item.department === staffRole && !sessions.some((row) => row.csrId === item.personKey && row.day === item.day)) ? (
                 <div className="px-3 pb-3 space-y-2">
                   {requests.filter((item) => item.department === staffRole && !sessions.some((row) => row.csrId === item.personKey && row.day === item.day)).map((item) => (
@@ -1138,8 +1155,7 @@ export default function CsrActivityReport({
                         <td className="px-3 py-3">
                           <OvertimeShiftCell
                             item={(() => {
-                              const hit = overtimeNotes.find((item) => item.department === "estimator" && item.personKey === row.csrId && item.day === row.day) ?? null;
-                              if (!hit || (!canReviewShiftOt && hit.status !== "approved" && hit.status !== "declined")) return null;
+                              const hit = overtimeNotes.find((item) => item.department === staffRole && item.personKey === row.csrId && item.day === row.day) ?? null;
                               return hit;
                             })()}
                             canReview={canReviewShiftOt}
@@ -1183,7 +1199,7 @@ export default function CsrActivityReport({
         </div>
       </div>
 
-      {editing && canEdit && (
+      {editing && canAdjustTimes && (
         <div className="fixed inset-0 z-[120] bg-black/45 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
           <div className="w-full sm:max-w-md bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl overflow-hidden">
             <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">

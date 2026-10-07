@@ -63,6 +63,49 @@ function addDays(ymd: string, days: number): string {
   return dt.toISOString().slice(0, 10);
 }
 
+function ChiefOvertimeForm({ onSaved }: { onSaved: () => void }) {
+  const [day, setDay] = useState(() => calendarYmd("Asia/Karachi"));
+  const [hours, setHours] = useState("1");
+  const [mins, setMins] = useState("0");
+  const [busy, setBusy] = useState(false);
+  const save = async () => {
+    const minutes = Number(hours) * 60 + Number(mins);
+    if (!day || !Number.isFinite(minutes) || minutes < 1) {
+      toast.error("Pick a date and enter the overtime.");
+      return;
+    }
+    setBusy(true);
+    try {
+      await API.post("/attendance/overtime/manual", { day, minutes });
+      toast.success("Overtime sent to the CEO.");
+      onSaved();
+    } catch (err) {
+      toast.error(apiErrorMessage(err, "Could not save overtime."));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="flex flex-wrap items-end gap-2 rounded-xl border border-amber-100 bg-amber-50/60 px-3 py-3">
+      <div>
+        <p className="text-[10px] font-bold uppercase tracking-wide text-amber-800 mb-1">My overtime</p>
+        <input type="date" value={day} max={calendarYmd("Asia/Karachi")} onChange={(e) => setDay(e.target.value)} className="h-10 rounded-xl border border-amber-200 bg-white px-3 text-sm" />
+      </div>
+      <label className="text-[11px] font-semibold text-amber-900">
+        Hours
+        <input type="number" min={0} max={12} value={hours} onChange={(e) => setHours(e.target.value)} className="mt-1 block w-16 h-10 rounded-xl border border-amber-200 bg-white px-2 text-sm" />
+      </label>
+      <label className="text-[11px] font-semibold text-amber-900">
+        Minutes
+        <input type="number" min={0} max={59} value={mins} onChange={(e) => setMins(e.target.value)} className="mt-1 block w-16 h-10 rounded-xl border border-amber-200 bg-white px-2 text-sm" />
+      </label>
+      <button type="button" disabled={busy} onClick={() => void save()} className="h-10 px-4 rounded-xl bg-[#B8112D] text-white text-sm font-semibold disabled:opacity-50">
+        {busy ? "Sending…" : "Send to CEO"}
+      </button>
+    </div>
+  );
+}
+
 function pktInstant(day: string, time: string): Date | null {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || !/^\d{2}:\d{2}$/.test(time)) return null;
   const date = new Date(`${day}T${time}:00+05:00`);
@@ -260,8 +303,8 @@ export default function StaffAttendanceReport({ scope = "all" }: { scope?: "all"
           roster={people.filter((person) => person.department === dept.key)}
           rows={rows.filter((r) => r.department === dept.key)}
           requests={requests.filter((r) => r.department === dept.key)}
-          overtimeNotes={overtimeNotes.filter((item) => item.department === dept.key && (item.status === "approved" || item.status === "declined"))}
-          reviewOvertime={false}
+          overtimeNotes={overtimeNotes.filter((item) => item.department === dept.key && (dept.key === "chief_estimator" || item.status === "approved" || item.status === "declined"))}
+          reviewOvertime={dept.key === "chief_estimator" && pathname.startsWith("/admin")}
           loading={loading}
           loaded={loaded}
           canEdit={canEdit}
@@ -278,12 +321,14 @@ export default function StaffAttendanceReport({ scope = "all" }: { scope?: "all"
         rows={rows.filter((r) => r.department === "chief_estimator")}
         requests={requests.filter((r) => r.department === "chief_estimator")}
         overtimeNotes={overtimeNotes.filter((item) => item.department === "chief_estimator")}
-        reviewOvertime
+        reviewOvertime={false}
+        allowManualOvertime
         loading={loading}
         loaded={loaded}
         canEdit={false}
         showOvertime={false}
         canReview={false}
+        defaultOpen
         onRefresh={() => void load()}
       />
       ) : null}
@@ -314,6 +359,7 @@ function DeptCard({
   requests = [],
   overtimeNotes = [],
   reviewOvertime = false,
+  allowManualOvertime = false,
   loading,
   loaded,
   canEdit,
@@ -321,6 +367,7 @@ function DeptCard({
   showOvertime = false,
   canReview = false,
   defaultClock = "pkt",
+  defaultOpen = false,
   onRefresh,
 }: {
   title: string;
@@ -331,6 +378,7 @@ function DeptCard({
   requests?: StaffRequestItem[];
   overtimeNotes?: ShiftOvertimeItem[];
   reviewOvertime?: boolean;
+  allowManualOvertime?: boolean;
   loading: boolean;
   loaded: boolean;
   canEdit: boolean;
@@ -338,9 +386,10 @@ function DeptCard({
   showOvertime?: boolean;
   canReview?: boolean;
   defaultClock?: ClockTz;
+  defaultOpen?: boolean;
   onRefresh: () => void;
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(defaultOpen);
   const [clockTz, setClockTz] = useState<ClockTz>(defaultClock);
   const [fromDate, setFromDate] = useState(() => calendarYmd("Asia/Karachi"));
   const [toDate, setToDate] = useState(() => calendarYmd("Asia/Karachi"));
@@ -495,7 +544,7 @@ function DeptCard({
   };
 
   const rowRequests = (row: Row) => requests.filter((item) => item.personKey === row.personKey && item.day === row.day);
-  const showShiftOt = overtimeNotes.length > 0 || reviewOvertime;
+  const showShiftOt = overtimeNotes.length > 0 || reviewOvertime || allowManualOvertime;
   const headers = ["Name", "Date", `Check In (${clock.abbr})`, `Check Out (${clock.abbr})`, ...(showShiftOt ? ["Overtime"] : []), "Request", "Total", "Status", "Comment"];
   const tableHeaders = showOvertime ? [...headers, "Overtime", "Decision"] : headers;
   const excelHeaders = showOvertime ? [...tableHeaders, "Edited by"] : headers;
@@ -591,6 +640,7 @@ function DeptCard({
             </button>
           </div>
           <p className="text-[11px] text-gray-400">{clock.label}. Saved time is shown in the clock you pick.</p>
+          {allowManualOvertime ? <ChiefOvertimeForm onSaved={onRefresh} /> : null}
           <div className="overflow-x-auto">
             <table className="w-full min-w-[720px] text-sm">
               <thead>
@@ -624,9 +674,7 @@ function DeptCard({
                       <td className="px-3 py-3">
                         <OvertimeShiftCell
                           item={(() => {
-                            const hit = overtimeNotes.find((item) => item.personKey === row.personKey && item.day === row.day) ?? null;
-                            if (!hit || (!reviewOvertime && hit.status !== "approved" && hit.status !== "declined")) return null;
-                            return hit;
+                            return overtimeNotes.find((item) => item.personKey === row.personKey && item.day === row.day) ?? null;
                           })()}
                           canReview={reviewOvertime}
                           onChanged={onRefresh}
@@ -704,6 +752,20 @@ function DeptCard({
               </tbody>
             </table>
           </div>
+          {showShiftOt && overtimeNotes.filter((item) => item.day >= fromDate && item.day <= toDate && (person === "all" || item.personKey === person) && !visible.some((row) => row.personKey === item.personKey && row.day === item.day)).length ? (
+            <div className="mt-3 space-y-2">
+              <p className="text-[11px] font-bold uppercase tracking-wide text-gray-400">Overtime with no check-in that day</p>
+              {overtimeNotes.filter((item) => item.day >= fromDate && item.day <= toDate && (person === "all" || item.personKey === person) && !visible.some((row) => row.personKey === item.personKey && row.day === item.day)).map((item) => (
+                <div key={item.id} className="flex flex-wrap items-start gap-3 rounded-xl border border-gray-100 px-3 py-2">
+                  <div className="min-w-[140px]">
+                    <p className="text-sm font-semibold">{item.personName}</p>
+                    <p className="text-[11px] text-gray-400">{item.day}</p>
+                  </div>
+                  <OvertimeShiftCell item={item} canReview={reviewOvertime} onChanged={onRefresh} />
+                </div>
+              ))}
+            </div>
+          ) : null}
           {requests.filter((item) => item.day >= fromDate && item.day <= toDate && (person === "all" || item.personKey === person) && !visible.some((row) => row.personKey === item.personKey && row.day === item.day)).length ? (
             <div className="mt-3 space-y-2">
               <p className="text-[11px] font-bold uppercase tracking-wide text-gray-400">Requests with no check-in that day</p>

@@ -27,7 +27,7 @@ import {
   timeOrderOk,
   toPublic,
 } from "../utils/staffAttendance";
-import { listEstimatorShiftRows, overtimeGate, overtimePublic, reviewOvertime, saveOvertimeComment, submitShiftOvertime } from "../utils/overtimeRequest";
+import { listEstimatorShiftRows, overtimeGate, overtimePublic, reviewOvertime, saveOvertimeComment, submitChiefOvertime, submitShiftOvertime } from "../utils/overtimeRequest";
 import { applyApprovedRequest, parseRequestDraft, toPublicRequest } from "../utils/staffRequest";
 import { SHIFT_DEPARTMENTS, clearShiftSchedule, listShiftSchedules, saveShiftSchedule } from "../utils/shiftSchedule";
 import { SEED_USER_EMAILS } from "../constants/seedUsers";
@@ -759,6 +759,23 @@ router.post("/overtime", verifyToken, allowRoles("estimator", "technical_manager
   } catch (error) {
     console.error("[attendance/overtime submit]", error);
     return res.status(500).json({ success: false, message: "Could not send overtime." });
+  }
+});
+
+router.post("/overtime/manual", verifyToken, allowRoles("technical_manager"), async (req: AuthRequest, res) => {
+  try {
+    const user = await prisma.user.findUnique({ where: { id: req.user!.id }, select: { name: true } });
+    const result = await submitChiefOvertime({
+      userId: req.user!.id,
+      name: user?.name || "Chief Estimator",
+      day: String(req.body?.day ?? ""),
+      minutes: Number(req.body?.minutes),
+    });
+    if (!result.ok) return res.status(400).json({ success: false, message: result.message });
+    return res.json({ success: true, message: "Overtime sent to the CEO.", ...overtimePublic(result.note) });
+  } catch (error) {
+    console.error("[attendance/overtime manual]", error);
+    return res.status(500).json({ success: false, message: "Could not save overtime." });
   }
 });
 
