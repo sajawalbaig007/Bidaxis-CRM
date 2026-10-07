@@ -27,7 +27,7 @@ import {
   timeOrderOk,
   toPublic,
 } from "../utils/staffAttendance";
-import { listEstimatorShiftRows, overtimeGate, overtimePublic, reviewOvertime, saveOvertimeComment, submitChiefOvertime, submitShiftOvertime } from "../utils/overtimeRequest";
+import { chiefSetEstimatorOvertime, listEstimatorShiftRows, overtimeGate, overtimePublic, reviewOvertime, saveOvertimeComment, submitChiefOvertime, submitShiftOvertime } from "../utils/overtimeRequest";
 import { applyApprovedRequest, parseRequestDraft, toPublicRequest } from "../utils/staffRequest";
 import { SHIFT_DEPARTMENTS, clearShiftSchedule, listShiftSchedules, saveShiftSchedule } from "../utils/shiftSchedule";
 import { SEED_USER_EMAILS } from "../constants/seedUsers";
@@ -776,6 +776,22 @@ router.post("/overtime/manual", verifyToken, allowRoles("technical_manager"), as
   } catch (error) {
     console.error("[attendance/overtime manual]", error);
     return res.status(500).json({ success: false, message: "Could not save overtime." });
+  }
+});
+
+router.post("/overtime/estimator", verifyToken, allowRoles("technical_manager"), async (req: AuthRequest, res) => {
+  try {
+    const result = await chiefSetEstimatorOvertime({
+      personKey: String(req.body?.personKey ?? ""),
+      personName: String(req.body?.personName ?? ""),
+      day: String(req.body?.day ?? ""),
+      minutes: Number(req.body?.minutes),
+    });
+    if (!result.ok) return res.status(400).json({ success: false, message: result.message });
+    return res.json({ success: true, message: "Estimator overtime updated.", ...overtimePublic(result.note) });
+  } catch (error) {
+    console.error("[attendance/overtime estimator]", error);
+    return res.status(500).json({ success: false, message: "Could not update overtime." });
   }
 });
 

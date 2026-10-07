@@ -343,6 +343,34 @@ ${table(summaryHeader, summaryBody)}
   URL.revokeObjectURL(url);
 }
 
+function overtimeForRow(
+  row: {
+    csrId: string;
+    csrName: string;
+    day?: string;
+    overtimeId?: string | null;
+    overtimeComment?: string | null;
+    overtimeStatus?: string | null;
+    overtimeEditedBy?: string | null;
+  },
+  notes: ShiftOvertimeItem[],
+  staffRole: string,
+): ShiftOvertimeItem | null {
+  const hit = notes.find((item) => item.department === staffRole && item.personKey === row.csrId && !!row.day && item.day === row.day);
+  if (hit) return hit;
+  if (!row.overtimeId) return null;
+  return {
+    id: row.overtimeId,
+    personKey: row.csrId,
+    personName: row.csrName,
+    department: staffRole,
+    day: row.day ?? "",
+    comment: row.overtimeComment ?? "",
+    status: row.overtimeStatus ?? "pending",
+    editedBy: row.overtimeEditedBy ?? null,
+  };
+}
+
 function OvertimeCells({
   row,
   canReview,
@@ -938,11 +966,9 @@ export default function CsrActivityReport({
                       {showShiftOt ? (
                         <td className="px-3 py-3">
                           <OvertimeShiftCell
-                            item={(() => {
-                              const hit = overtimeNotes.find((item) => item.department === staffRole && item.personKey === row.csrId && item.day === row.day) ?? null;
-                              return hit;
-                            })()}
+                            item={overtimeForRow(row, overtimeNotes, staffRole)}
                             canReview={canReviewShiftOt}
+                            draft={canReviewShiftOt && row.day ? { personKey: row.csrId, personName: row.csrName, day: row.day } : undefined}
                             onChanged={() => void loadReport()}
                           />
                         </td>
@@ -1154,11 +1180,9 @@ export default function CsrActivityReport({
                       {showShiftOt ? (
                         <td className="px-3 py-3">
                           <OvertimeShiftCell
-                            item={(() => {
-                              const hit = overtimeNotes.find((item) => item.department === staffRole && item.personKey === row.csrId && item.day === row.day) ?? null;
-                              return hit;
-                            })()}
+                            item={overtimeForRow(row, overtimeNotes, staffRole)}
                             canReview={canReviewShiftOt}
+                            draft={canReviewShiftOt && row.day ? { personKey: row.csrId, personName: row.csrName, day: row.day } : undefined}
                             onChanged={() => void loadReport()}
                           />
                         </td>
