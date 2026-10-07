@@ -12,13 +12,25 @@ function attendanceTokens(label: string): string[] {
     .filter((token) => token && token !== "mr" && token !== "mrs" && token !== "ms");
 }
 
+function containsTokens(haystack: string[], needle: string[]): boolean {
+  if (!needle.length || needle.length > haystack.length) return false;
+  for (let start = 0; start <= haystack.length - needle.length; start += 1) {
+    if (needle.every((token, index) => haystack[start + index] === token)) return true;
+  }
+  return false;
+}
+
 function attendanceSame(a: string, b: string): boolean {
   const left = attendanceTokens(a);
   const right = attendanceTokens(b);
   if (!left.length || !right.length) return false;
   if (left.join(" ") === right.join(" ")) return true;
   const [short, long] = left.length <= right.length ? [left, right] : [right, left];
-  return short.every((token, index) => long[index] === token);
+  return containsTokens(long, short);
+}
+
+export function attendanceNameMatch(a: string, b: string): boolean {
+  return attendanceSame(a, b);
 }
 
 function samePerson(label: string, people: PersonRef[]): PersonRef[] {

@@ -24,13 +24,13 @@ export default function ReportsSubpage({
       <StaffSidebar />
       <main className="flex-1 min-w-0 overflow-x-hidden mt-[var(--app-header-h,64px)]">
         <DashboardNavbar />
-        <div className="w-full px-3 sm:px-5 lg:px-6 xl:px-8 2xl:px-10 py-4 sm:py-5 space-y-4">
-          <header>
+        <div className="w-full px-3 sm:px-5 lg:px-6 xl:px-8 2xl:px-10 py-4 sm:py-6 space-y-4">
+          <header className="rounded-[1.5rem] border border-gray-100/90 dark:border-crm-border bg-white dark:bg-crm-surface px-4 py-4 sm:px-5 sm:py-5 shadow-[0_10px_40px_-24px_rgba(15,23,42,0.35)]">
             <Link href={back} className="inline-flex items-center gap-1 text-xs font-semibold text-[#B8112D]">
               <ArrowLeft size={14} /> Reports
             </Link>
             <h1 className="mt-2 text-2xl sm:text-3xl font-bold text-[#0F172A] dark:text-crm-text tracking-tight">{title}</h1>
-            <p className="text-sm text-gray-500 dark:text-crm-text-muted mt-1">{subtitle}</p>
+            <p className="text-sm text-gray-500 dark:text-crm-text-muted mt-1 max-w-2xl">{subtitle}</p>
           </header>
           {children}
         </div>

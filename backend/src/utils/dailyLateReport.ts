@@ -1,5 +1,7 @@
 import prisma from "../config/db";
 import { applyStaffPayrollToIncomeData } from "./loadStaffPayroll";
+import { attendanceNameMatch } from "./salaryAttendanceSync";
+import { DEPT_ROSTER } from "./staffAttendance";
 import {
   elapsedMonthDays,
   pktToday,
@@ -99,7 +101,6 @@ export async function dailyLateReport(date: string) {
       const punches = (
         Array.isArray(sal.attendanceDays) ? sal.attendanceDays : sub.salesPayroll?.attendanceDays
       ) as AttendanceDay[] | undefined;
-      if (!punches) continue;
       const amounts = payAmounts(sub, record?.recordDate || recordDate);
       const department = policyDepartment(teamName, !!sub.salesPayroll);
       if (!department) {
@@ -111,11 +112,49 @@ export async function dailyLateReport(date: string) {
         personKey: typeof sal.latePersonKey === "string" ? sal.latePersonKey : "",
         personName: name,
       };
-      const dayCut = policyDeductionForDays(department, month, amounts, punches, dayList, person) ?? 0;
-      const monthCut = policyDeductionForDays(department, month, amounts, punches, monthDays, person) ?? 0;
+      const dayCut = policyDeductionForDays(department, month, amounts, punches ?? [], dayList, person) ?? 0;
+      const monthCut = policyDeductionForDays(department, month, amounts, punches ?? [], monthDays, person) ?? 0;
       const prev = byName.get(name.toLowerCase());
       if (prev && prev.month >= monthCut && prev.day >= dayCut) continue;
       byName.set(name.toLowerCase(), { name, department: teamName || department, day: dayCut, month: monthCut });
+    }
+  }
+
+  const alreadyListed = (name: string) =>
+    [...byName.keys()].some((key) => key === name.toLowerCase() || attendanceNameMatch(key, name));
+  const missing = Object.entries(DEPT_ROSTER).flatMap(([department, roster]) =>
+    roster
+      .filter((person) => !alreadyListed(person.name))
+      .map((person) => ({ ...person, department })),
+  );
+  if (missing.length) {
+    const staff = await prisma.staffDayAttendance.findMany({
+      where: {
+        personKey: { in: missing.map((person) => person.key) },
+        day: { gte: `${month}-01`, lte: `${month}-31` },
+      },
+    });
+    const rosterTitle: Record<string, string> = {
+      dev: "Dev",
+      office_boy: "Office Boy",
+      hr: "HR",
+      bim_modeler: "BIM Modeler",
+    };
+    for (const person of missing) {
+      const punches: AttendanceDay[] = staff
+        .filter((row) => row.personKey === person.key)
+        .map((row) => ({ day: row.day, checkIn: row.checkIn ?? "", checkOut: row.checkOut ?? "" }));
+      const onAdministration = person.department === "office_boy" || person.department === "hr";
+      const policyDept = onAdministration ? "admin" : person.department;
+      const amounts = { basic: 0, commission: 0, overtime: 0, allowance: 0 };
+      const dayCut = policyDeductionForDays(policyDept, month, amounts, punches, dayList, { personKey: person.key, personName: person.name }) ?? 0;
+      const monthCut = policyDeductionForDays(policyDept, month, amounts, punches, monthDays, { personKey: person.key, personName: person.name }) ?? 0;
+      byName.set(person.name.toLowerCase(), {
+        name: person.name,
+        department: onAdministration ? "Administration" : (rosterTitle[person.department] ?? person.department),
+        day: dayCut,
+        month: monthCut,
+      });
     }
   }
 
