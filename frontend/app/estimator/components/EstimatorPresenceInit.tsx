@@ -47,7 +47,7 @@ export function useEstimatorPresence() {
         body: JSON.stringify({ tabId }),
       }).catch(() => {});
     };
-
+//This is the first heartbeat after the page is loaded
     sendHeartbeat();
     const stopInterval = visibleInterval(sendHeartbeat, 60_000);
 
