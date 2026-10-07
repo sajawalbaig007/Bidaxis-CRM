@@ -14,7 +14,6 @@ import TmRemarksPreview from "../components/TmRemarksPreview";
 import { STAFF_PAGE_PAD, BENTO_CARD } from "@/lib/staffPageLayout";
 import CommentCell from "@/app/csr/components/shared/CommentCell";
 import { NoteEntry } from "@/app/csr/hooks/useLeadsData";
-import { buildNoteHistory } from "@/app/csr/utils/noteHistory";
 import {
   CsrColGroup,
   CSR_THEAD,
@@ -76,12 +75,6 @@ const formatDate = (iso: string | null | undefined) => {
     year: "numeric",
   });
 };
-
-function notesToHistory(
-  notes?: { id: string; text: string; createdAt: string; parentId?: string | null }[],
-): NoteEntry[] {
-  return buildNoteHistory({ notes: notes ?? [] }).noteHistory;
-}
 
 function threadNotesHistory(
   notes?: {
@@ -810,9 +803,9 @@ export default function EstimatorMyProjectsPage() {
                     id={p.id}
                     apiRole="estimator"
                     readOnly
+                    commentOnly
                     skipNotesFetch
                     comment={p.projectNotes ?? undefined}
-                    noteHistory={notesToHistory(p.notes)}
                   />
                 </div>
                 <div>
@@ -906,9 +899,9 @@ export default function EstimatorMyProjectsPage() {
                           id={p.id}
                           apiRole="estimator"
                           readOnly
+                          commentOnly
                           skipNotesFetch
                           comment={p.projectNotes ?? undefined}
-                          noteHistory={notesToHistory(p.notes)}
                         />
                       </td>
                       <td className="px-3 xl:px-4 py-3 xl:py-4">
