@@ -70,7 +70,14 @@ export default function StaffDayCheckBar({
 
   if (!visible) return null;
 
-  const overtime = showOvertime || department === "chief_estimator" ? <OvertimeShiftButton compact={compact} /> : null;
+  const shiftStart = (() => {
+    if (!row?.day || !row.checkIn || row.checkOut) return undefined;
+    const at = new Date(`${row.day}T${row.checkIn}:00+05:00`);
+    return Number.isNaN(at.getTime()) ? undefined : at.toISOString();
+  })();
+  const overtime = showOvertime || department === "chief_estimator"
+    ? <OvertimeShiftButton compact={compact} since={shiftStart} />
+    : null;
 
   if (compact) {
     return (

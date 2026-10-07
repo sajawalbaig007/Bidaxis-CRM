@@ -148,7 +148,7 @@ export default function EstimatorCheckInControl({ compact = false }: { compact?:
 
   const history = <ShiftHistoryButton url="/estimator/shift-history" compact={compact} />;
   const request = <StaffRequestButton compact={compact} mode="est" />;
-  const overtime = <OvertimeShiftButton compact={compact} />;
+  const overtime = <OvertimeShiftButton compact={compact} since={checkedIn ? session?.checkInAt : undefined} />;
 
   if (loading) {
     return (

@@ -1248,7 +1248,9 @@ export default function ChatPanel({
   };
 
   /* ── */
-  const activeConv = conversations.find(c => c.id === activeConvId) ?? null;
+  const activeConv = conversations.find(c => c.id === activeConvId)
+    ?? archivedConvs.find(c => c.id === activeConvId)
+    ?? null;
   const sendLocked = activeConv?.type === "group" && activeConv.whoCanSend === "admins" && activeConv.myMemberRole !== "admin";
   const filteredConvs = useMemo(() => { const q = convSearch.toLowerCase(); return !q ? conversations : conversations.filter(c => c.name.toLowerCase().includes(q)); }, [conversations, convSearch]);
   const filteredUsers = useMemo(() => { const q = (showGroupModal ? userSearch : dmSearch).toLowerCase(); return !q ? allUsers : allUsers.filter(u => u.name.toLowerCase().includes(q) || u.email?.toLowerCase().includes(q) || (u.csrCode ?? "").toLowerCase().includes(q)); }, [allUsers, userSearch, dmSearch, showGroupModal]);

@@ -4129,12 +4129,25 @@ router.post(
 router.put(
   "/csr-work-session/:id",
   verifyToken,
-  allowRoles("admin"),
-  async (req, res) => {
+  allowRoles("admin", "technical_manager"),
+  async (req: AuthRequest, res) => {
     try {
       const sessionId = String(req.params.id ?? "");
       if (!sessionId) {
         return res.status(400).json({ success: false, message: "Session id required." });
+      }
+      if (req.user?.role === "technical_manager") {
+        const memberIds = Array.isArray(req.body?.memberIds)
+          ? req.body.memberIds.map((id: unknown) => String(id ?? "")).filter(Boolean)
+          : [];
+        const ids = [...new Set([sessionId, ...memberIds])];
+        const owned = await prisma.csrWorkSession.findMany({
+          where: { id: { in: ids } },
+          select: { user: { select: { role: true } } },
+        });
+        if (!owned.length || owned.some((row) => row.user.role !== "estimator")) {
+          return res.status(403).json({ success: false, message: "You can only edit estimator start and end times." });
+        }
       }
       const {
         checkInAt,
