@@ -1,7 +1,8 @@
 "use client";
 
+import { useState } from "react";
 import { createPortal } from "react-dom";
-import { Phone } from "lucide-react";
+import { Check, Copy, Phone } from "lucide-react";
 import { getTimezoneAbbrFromPhone, tzBadgeClass } from "../../constants/timezoneAbbr";
 import { useFixedPopover } from "../../hooks/useFixedPopover";
 import { ChangeDialerNumber, useZoomDialer, type DialTarget } from "../dialer/ZoomDialerProvider";
@@ -17,6 +18,28 @@ interface PhoneWithTzCellProps {
   className?: string;
   /** When set, clicking a number opens the Zoom dialer for that destination. */
   dial?: Pick<DialTarget, "leadId" | "clientName">;
+}
+
+function CopyPhoneButton({ value }: { value: string }) {
+  const [copied, setCopied] = useState(false);
+  if (!value || value === "N/A") return null;
+  return (
+    <button
+      type="button"
+      title={copied ? "Copied" : "Copy phone number"}
+      aria-label="Copy phone number"
+      onClick={e => {
+        e.stopPropagation();
+        void navigator.clipboard.writeText(value).then(() => {
+          setCopied(true);
+          window.setTimeout(() => setCopied(false), 1200);
+        }).catch(() => {});
+      }}
+      className="inline-flex items-center justify-center w-5 h-5 rounded-md text-gray-400 hover:text-[#B8112D] hover:bg-[#FFF6F7] shrink-0"
+    >
+      {copied ? <Check size={11} /> : <Copy size={11} />}
+    </button>
+  );
 }
 
 /** Phone number + area-code timezone badge (company TZ stays on client name). */
@@ -126,10 +149,15 @@ export default function PhoneWithTzCell({
 
   if (!canOpen) {
     if (!canDial || !primary || primary === "N/A") {
-      return <div className={shellClass}>{chip}</div>;
+      return (
+        <span className="inline-flex items-center gap-1 min-w-0 max-w-full">
+          <div className={shellClass}>{chip}</div>
+          <CopyPhoneButton value={primary} />
+        </span>
+      );
     }
     return (
-      <span className="inline-flex items-center gap-1.5 min-w-0 max-w-full">
+      <span className="inline-flex items-center gap-1 min-w-0 max-w-full">
         <button
           type="button"
           onClick={e => {
@@ -141,6 +169,7 @@ export default function PhoneWithTzCell({
         >
           {chip}
         </button>
+        <CopyPhoneButton value={primary} />
         <ChangeDialerNumber />
       </span>
     );
@@ -148,7 +177,7 @@ export default function PhoneWithTzCell({
 
   return (
     <>
-      <span className="inline-flex items-center gap-1.5 min-w-0 max-w-full">
+      <span className="inline-flex items-center gap-1 min-w-0 max-w-full">
         <button
           ref={anchorRef}
           type="button"
@@ -162,6 +191,7 @@ export default function PhoneWithTzCell({
         >
           {chip}
         </button>
+        <CopyPhoneButton value={primary} />
         {canDial && <ChangeDialerNumber />}
       </span>
       {typeof document !== "undefined" && popup}
