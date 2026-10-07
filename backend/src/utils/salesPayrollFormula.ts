@@ -191,7 +191,9 @@ export function computeSalesEmployeePayroll(
         commission: comm.totalCommission,
         overtime: 0,
         allowance: allowance + homeAllowance + fuelAllowance + medicalAllowance,
-      }, emp.attendanceDays, { personName: emp.name }, emp.checkIn)
+      }, emp.attendanceDays, { personName: emp.name }, emp.checkIn, {
+        skipDays: new Set(emp.paidLeaveDates ?? []),
+      })
     : null;
   const late = policyLate ?? calcSalesLateDeduction(daySalary, emp.checkIn, emp.lateDeductionOverride);
   const unpaidDays = Number(emp.unpaidLeaveDays) || 0;

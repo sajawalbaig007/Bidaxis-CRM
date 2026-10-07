@@ -124,8 +124,8 @@ export function deductionFromPolicy(
     return (minutesOf(b.from) ?? 0) - (minutesOf(a.from) ?? 0);
   });
   const hit = hits[0];
-  const amount = perDay * (Number(hit.percent) || 0) / 100;
-  return { amount, rule: `${hit.from}–${hit.to || "onwards"} → ${hit.percent}% of per day` };
+  const amount = perDay * (Number(hit.percent) || 0);
+  return { amount, rule: `${hit.from}–${hit.to || "onwards"} → per day × ${hit.percent}` };
 }
 
 /** CEO ranges replace the old late slabs when this department has a saved policy. */
@@ -152,6 +152,18 @@ export function pktToday(now = new Date()): string {
   }).format(now);
 }
 
+/** Weekend is Saturday and Sunday in Pakistan. No other day is a weekend. */
+export function isPktWeekend(ymd: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(ymd)) return false;
+  const [year, month, day] = ymd.split("-").map(Number);
+  const noonPkt = new Date(Date.UTC(year, month - 1, day, 7, 0, 0));
+  const weekday = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Karachi",
+    weekday: "short",
+  }).format(noonPkt);
+  return weekday === "Sat" || weekday === "Sun";
+}
+
 export function elapsedMonthDays(month: string, today = pktToday()): string[] {
   if (!/^\d{4}-\d{2}$/.test(month) || today < `${month}-01`) return [];
   const [year, mon] = month.split("-").map(Number);
@@ -166,8 +178,8 @@ export function elapsedMonthDays(month: string, today = pktToday()): string[] {
 }
 
 /**
- * Sum the month. A day with neither check-in nor check-out costs that day’s pay.
- * A day with a check-in uses the range that time falls in.
+ * Sum the month. A check-in multiplies that day’s pay by the range number (0.2, 0.25, 0.5).
+ * Saturday and Sunday are not deducted.
  */
 export function monthLateFromPolicy(
   department: string,
@@ -176,35 +188,31 @@ export function monthLateFromPolicy(
   days: AttendanceDay[] | undefined,
   month: string,
   fallbackCheckIn = "",
+  skipDays?: string[],
 ): { amount: number; rule: string } | null {
   const policy = readLatePolicy(department, person);
   if (!policy) return null;
   if (!days || !month) return deductionFromPolicy(fallbackCheckIn, policy, amounts);
   const perDay = policy.components.reduce((sum, part) => sum + (Number(amounts[part]) || 0), 0) / 30;
+  const skip = new Set(skipDays ?? []);
   const byDay = new Map(days.filter((day) => day?.day).map((day) => [day.day, day]));
   let amount = 0;
-  let missed = 0;
   let lateDays = 0;
   for (const day of elapsedMonthDays(month)) {
+    if (isPktWeekend(day) || skip.has(day)) continue;
     const punch = byDay.get(day);
     const checkIn = String(punch?.checkIn ?? "").trim();
-    const checkOut = String(punch?.checkOut ?? "").trim();
-    if (!checkIn && !checkOut) {
-      amount += perDay;
-      missed += 1;
-      continue;
-    }
+    if (!checkIn) continue;
     const hit = policy.ranges.filter((range) => rangeHolds(checkIn, range));
     if (!hit.length) continue;
     hit.sort((a, b) => {
       if (!a.to !== !b.to) return a.to ? -1 : 1;
       return (minutesOf(b.from) ?? 0) - (minutesOf(a.from) ?? 0);
     });
-    amount += (perDay * (Number(hit[0].percent) || 0)) / 100;
+    amount += perDay * (Number(hit[0].percent) || 0);
     lateDays += 1;
   }
   const notes: string[] = [];
-  if (missed) notes.push(`${missed} day${missed === 1 ? "" : "s"} with no check-in or check-out`);
   if (lateDays) notes.push(`${lateDays} late day${lateDays === 1 ? "" : "s"}`);
   return { amount, rule: notes.join(", ") || "No deduction for this month" };
 }

@@ -1,10 +1,12 @@
 import prisma from "../config/db";
 import { applyStaffPayrollToIncomeData } from "./loadStaffPayroll";
+import { leaveDaysFor } from "./paidLeave";
 import { attendanceNameMatch } from "./salaryAttendanceSync";
 import { DEPT_ROSTER } from "./staffAttendance";
 import {
   elapsedMonthDays,
   pktToday,
+  perDayForPolicy,
   policyDeductionForDays,
   refreshLatePolicies,
   type AttendanceDay,
@@ -20,7 +22,7 @@ type SalarySub = {
   salesPayroll?: SalesPayrollEmployee;
 };
 
-type PersonCut = { name: string; department: string; day: number; month: number };
+type PersonCut = { name: string; department: string; perDay: number; day: number; month: number };
 
 function policyDepartment(teamName: string, sales: boolean): string {
   if (sales) return "csr";
@@ -90,6 +92,7 @@ export async function dailyLateReport(date: string) {
   const teams = (data.teamSalaries as { team?: string; subHeads?: SalarySub[] }[] | undefined) ?? [];
   const monthDays = elapsedMonthDays(month, today);
   const dayList = date <= today ? [date] : [];
+  const approvedLeaves = await prisma.paidLeave.findMany({ where: { month, status: "approved" } });
   const byName = new Map<string, PersonCut>();
 
   for (const team of teams) {
@@ -105,18 +108,20 @@ export async function dailyLateReport(date: string) {
       const department = policyDepartment(teamName, !!sub.salesPayroll);
       if (!department) {
         const prevEmpty = byName.get(name.toLowerCase());
-        if (!prevEmpty) byName.set(name.toLowerCase(), { name, department: teamName || "—", day: 0, month: 0 });
+        if (!prevEmpty) byName.set(name.toLowerCase(), { name, department: teamName || "—", perDay: 0, day: 0, month: 0 });
         continue;
       }
       const person = {
         personKey: typeof sal.latePersonKey === "string" ? sal.latePersonKey : "",
         personName: name,
       };
-      const dayCut = policyDeductionForDays(department, month, amounts, punches ?? [], dayList, person) ?? 0;
-      const monthCut = policyDeductionForDays(department, month, amounts, punches ?? [], monthDays, person) ?? 0;
+      const skip = leaveDaysFor(name, approvedLeaves, month);
+      const perDay = perDayForPolicy(department, month, amounts, person) ?? 0;
+      const dayCut = policyDeductionForDays(department, month, amounts, punches ?? [], dayList, person, skip) ?? 0;
+      const monthCut = policyDeductionForDays(department, month, amounts, punches ?? [], monthDays, person, skip) ?? 0;
       const prev = byName.get(name.toLowerCase());
       if (prev && prev.month >= monthCut && prev.day >= dayCut) continue;
-      byName.set(name.toLowerCase(), { name, department: teamName || department, day: dayCut, month: monthCut });
+      byName.set(name.toLowerCase(), { name, department: teamName || department, perDay, day: dayCut, month: monthCut });
     }
   }
 
@@ -147,11 +152,15 @@ export async function dailyLateReport(date: string) {
       const onAdministration = person.department === "office_boy" || person.department === "hr";
       const policyDept = onAdministration ? "admin" : person.department;
       const amounts = { basic: 0, commission: 0, overtime: 0, allowance: 0 };
-      const dayCut = policyDeductionForDays(policyDept, month, amounts, punches, dayList, { personKey: person.key, personName: person.name }) ?? 0;
-      const monthCut = policyDeductionForDays(policyDept, month, amounts, punches, monthDays, { personKey: person.key, personName: person.name }) ?? 0;
+      const personRef = { personKey: person.key, personName: person.name };
+      const skip = leaveDaysFor(person.name, approvedLeaves, month);
+      const perDay = perDayForPolicy(policyDept, month, amounts, personRef) ?? 0;
+      const dayCut = policyDeductionForDays(policyDept, month, amounts, punches, dayList, personRef, skip) ?? 0;
+      const monthCut = policyDeductionForDays(policyDept, month, amounts, punches, monthDays, personRef, skip) ?? 0;
       byName.set(person.name.toLowerCase(), {
         name: person.name,
         department: onAdministration ? "Administration" : (rosterTitle[person.department] ?? person.department),
+        perDay,
         day: dayCut,
         month: monthCut,
       });

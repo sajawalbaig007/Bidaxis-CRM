@@ -192,9 +192,9 @@ export default function LateDeductionCard() {
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 max-w-2xl">
             Pakistan time. Set check-in ranges for a department, or open Employees and set one person.
             An employee row overrides the department. Choose basic, commission, overtime, and allowance.
-            Per day is those monthly amounts divided by 30, and each range cuts its own percent of that day.
+            Per day is those monthly amounts divided by 30. A late check-in multiplies that day by the number you set, so 0.2 on Rs 1,500 is Rs 300.
             A blank end time means from that time onward. A month you leave blank keeps the previous month.
-            A day with no check-in and no check-out deducts that day’s pay. A saved check-in uses the range it falls in.
+            Saturday and Sunday are not deducted. A saved check-in uses the range it falls in.
           </p>
         </div>
         <label className="text-xs text-gray-500 dark:text-gray-400">

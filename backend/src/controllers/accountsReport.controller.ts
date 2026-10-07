@@ -32,6 +32,7 @@ import {
 } from "../utils/projectCurrencyCollections";
 import { defaultAccountsData } from "../utils/accountsDefaults";
 import { pickLatestMeaningful, pickLatestMeaningfulByMonth } from "../utils/accountsSnapshot";
+import { cashRowInWindow, cashRowNet, pickCashFlowSnapshot } from "../utils/cashFlowSummary";
 import { fetchLiveFxRates } from "../utils/fxRates";
 import {
   CORE_BUDGET_LINE_DEFS,
@@ -977,16 +978,11 @@ export async function getMonthlyAccountsReport(req: AuthRequest, res: Response) 
     const netProfit = revenue - totalCost;
 
     const cfRecords = await prisma.accountsRecord.findMany({
-      where: { page: "cash_flow" },
+      where: { page: "cash_flow", recordDate: { lte: monthEnd } },
       select: { recordDate: true, data: true },
       orderBy: { recordDate: "desc" },
     });
-    const cfInMonth = cfRecords.filter(r => r.recordDate.startsWith(month));
-    const cfRecord =
-      cfInMonth[0] ??
-      cfRecords.find(r => r.recordDate <= monthEnd) ??
-      cfRecords[0] ??
-      null;
+    const cfRecord = pickCashFlowSnapshot(cfRecords, { from: `${month}-01`, to: monthEnd }) ?? null;
 
     const bankDebit = new Map<string, number>();
     const bankCredit = new Map<string, number>();
@@ -1005,17 +1001,6 @@ export async function getMonthlyAccountsReport(req: AuthRequest, res: Response) 
     let monthEntries = 0;
     let bankHeads: string[] = [];
 
-    const rowNet = (row: CashFlowRow): number => {
-      let debit = 0;
-      let credit = 0;
-      for (const amt of Object.values(row.bankAmounts ?? {})) {
-        debit += Number(amt?.debit) || 0;
-        credit += Number(amt?.credit) || 0;
-      }
-      if (debit === 0 && credit === 0) return Number(row.netAmount) || 0;
-      return debit - credit;
-    };
-
     if (cfRecord) {
       const cf = cfRecord.data as CashFlowData;
       bankHeads = cf.bankHeads ?? [];
@@ -1023,10 +1008,10 @@ export async function getMonthlyAccountsReport(req: AuthRequest, res: Response) 
         const sectionName = String(m.month || "Section");
         for (const row of m.rows ?? []) {
           const date = String(row.date ?? "");
-          if (date && date > monthEnd) continue;
-          const net = rowNet(row);
+          if (!cashRowInWindow(row, sectionName, undefined, monthEnd)) continue;
+          const net = cashRowNet(row);
           closingNet += net;
-          const inMonth = !date || date.startsWith(month);
+          const inMonth = cashRowInWindow(row, sectionName, `${month}-01`, monthEnd);
           if (inMonth) {
             monthNet += net;
             monthEntries += 1;

@@ -30,8 +30,10 @@ export type EmployeeSalaryDetail = {
   latePersonKey?: string;
   /** Statement month YYYY-MM. Days in this month drive the late total. */
   payMonth?: string;
-  /** Days this person actually punched. A missing day deducts that day’s pay. */
+  /** Days this person actually punched. A late check-in multiplies that day’s pay by the range number. */
   attendanceDays?: AttendanceDay[];
+  /** Approved paid-leave dates. Those days are not deducted. */
+  paidLeaveDates?: string[];
   /** Manual late override — if set, used instead of time-based late calc */
   lateDeductionOverride?: number | null;
 
@@ -297,7 +299,7 @@ export function computeAdminSalary(detail: EmployeeSalaryDetail, personName = ""
         commission: 0,
         overtime: 0,
         allowance: parts.total + travelAllowance,
-      }, { personKey: detail.latePersonKey, personName }, detail.attendanceDays, detail.payMonth || "", detail.checkIn)
+      }, { personKey: detail.latePersonKey, personName }, detail.attendanceDays, detail.payMonth || "", detail.checkIn, detail.paidLeaveDates)
     : null;
   const late = policyLate ?? calcAdminLateDeduction(daySalary, detail.checkIn, detail.lateDeductionOverride);
 
@@ -465,7 +467,7 @@ export function computeSalary(
   const policyLate = detail.lateDeductionOverride != null
     ? null
     : detail.attendanceDays
-      ? monthLateFromPolicy(policyDept, pay, person, detail.attendanceDays, detail.payMonth || "", detail.checkIn)
+      ? monthLateFromPolicy(policyDept, pay, person, detail.attendanceDays, detail.payMonth || "", detail.checkIn, detail.paidLeaveDates)
       : chief
         ? lateFromPolicy("chief_estimator", detail.checkIn, pay, person)
         : lateFromEmployee("estimator", detail.checkIn, pay, person);

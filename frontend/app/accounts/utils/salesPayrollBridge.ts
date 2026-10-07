@@ -221,6 +221,7 @@ export function ensureSalesPayrollFromSub(
     checkIn: sal?.checkIn && sal.checkIn.startsWith("18") ? sal.checkIn : "18:00",
     lateDeductionOverride: sal?.lateDeductionOverride ?? null,
     paidLeaveDays: sal?.paidLeaveDays ?? 0,
+    paidLeaveDates: sal?.paidLeaveDates,
     unpaidLeaveDays: sal?.unpaidLeaveDays ?? 0,
     loanTotal: sal?.loanTotal ?? 0,
     loanPaid: sal?.loanPaid ?? 0,

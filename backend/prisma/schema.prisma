@@ -731,6 +731,23 @@ model StaffRequest {
   @@map("staff_requests")
 }
 
+/** Paid leave ranges. Several can sit in one month. Approved days are not deducted. */
+model PaidLeave {
+  id         String   @id @default(cuid()) @map("_id")
+  personName String
+  personKey  String   @default("")
+  fromDay    String
+  toDay      String
+  month      String
+  status     String   @default("pending")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([month, status])
+  @@index([personName, month])
+  @@map("paid_leaves")
+}
+
 /** Zoom Phone account a CSR can dial from. */
 model ZoomDialerAccount {
   id        String   @id @default(cuid()) @map("_id")
