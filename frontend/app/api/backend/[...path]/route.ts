@@ -87,7 +87,7 @@ async function proxyRequest(req: NextRequest, pathSegments: string[]) {
   const resHeaders = new Headers();
   upstream.headers.forEach((value, key) => {
     const lower = key.toLowerCase();
-    if (SKIP_RES_HEADERS.has(lower)) return;
+    if (SKIP_RES_HEADERS.has(lower) || lower === "content-length") return;
     if (lower === "set-cookie") {
       resHeaders.append(key, value);
     } else {
@@ -95,7 +95,12 @@ async function proxyRequest(req: NextRequest, pathSegments: string[]) {
     }
   });
 
-  return new NextResponse(upstream.body, {
+  // Node already decompressed the body. Forwarding the old content-length
+  // makes the browser stop early, so check-in pages get an empty list.
+  const bytes = await upstream.arrayBuffer();
+  resHeaders.set("content-length", String(bytes.byteLength));
+
+  return new NextResponse(bytes, {
     status:     upstream.status,
     statusText: upstream.statusText,
     headers:    resHeaders,

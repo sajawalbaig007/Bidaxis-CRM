@@ -20,6 +20,45 @@ type Row = {
 
 type Person = { key: string; name: string };
 
+const ROSTER: Record<"dev" | "office_boy" | "hr" | "bim_modeler", Person[]> = {
+  dev: [
+    { key: "ahmer-shah", name: "Ahmer Shah" },
+    { key: "sajawal", name: "Sajawal" },
+  ],
+  office_boy: [
+    { key: "khalil", name: "Khalil" },
+    { key: "ismail", name: "Ismail" },
+  ],
+  hr: [{ key: "mahnoor-imran", name: "Mahnoor Imran" }],
+  bim_modeler: [{ key: "ahmad-nadeem", name: "Ahmad Nadeem" }],
+};
+
+function rosterFor(
+  department: keyof typeof ROSTER,
+  personKey?: string,
+  personName?: string,
+): Person[] {
+  const all = ROSTER[department] ?? [];
+  if (!personKey) return all;
+  const hit = all.find((person) => person.key === personKey);
+  return [{ key: personKey, name: personName || hit?.name || personKey }];
+}
+
+function readDayPayload(data: unknown): { day?: string; people?: Person[]; rows?: Row[] } | null {
+  let body = data;
+  if (typeof body === "string") {
+    const text = body.trim();
+    if (!text) return null;
+    try {
+      body = JSON.parse(text) as unknown;
+    } catch {
+      return null;
+    }
+  }
+  if (!body || typeof body !== "object") return null;
+  return body as { day?: string; people?: Person[]; rows?: Row[] };
+}
+
 function formatClock(time: string | null | undefined): string {
   if (!time) return "—";
   const match = /^(\d{2}):(\d{2})$/.exec(time);
@@ -42,45 +81,29 @@ export default function DeptAttendancePage({
   personName?: string;
 }) {
   const [day, setDay] = useState("");
-  const [people, setPeople] = useState<Person[]>([]);
+  const [people, setPeople] = useState<Person[]>(() => rosterFor(department, personKey, personName));
   const [rows, setRows] = useState<Row[]>([]);
   const [blocked, setBlocked] = useState("");
-  const [loading, setLoading] = useState(true);
   const [busyKey, setBusyKey] = useState("");
   const [checkoutFor, setCheckoutFor] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await API.get("/attendance/day", { ...officeProxy, params: { department } });
-      setDay(res.data.day);
-      const list = (res.data.people ?? []) as Person[];
-      setPeople(personKey ? list.filter((p) => p.key === personKey) : list);
-      setRows(res.data.rows ?? []);
-      setBlocked("");
-    } catch (err: unknown) {
-      const code = (err as { response?: { data?: { code?: string; message?: string } } })?.response?.data;
-      if (code?.code === "IP_NOT_ALLOWED") {
-        setBlocked(code.message || "This page is only available from the company network.");
-      } else {
-        toast.error(apiErrorMessage(err, "Could not load attendance."));
-      }
-    } finally {
-      setLoading(false);
-    }
-  }, [department, personKey]);
+  const applyDay = useCallback((data: unknown) => {
+    const payload = readDayPayload(data);
+    if (!payload) return;
+    if (payload.day) setDay(payload.day);
+    if (Array.isArray(payload.rows)) setRows(payload.rows);
+    if (!Array.isArray(payload.people) || payload.people.length === 0) return;
+    const next = personKey ? payload.people.filter((person) => person.key === personKey) : payload.people;
+    if (next.length > 0) setPeople(next);
+  }, [personKey]);
 
   useEffect(() => {
     let cancelled = false;
     API.get("/attendance/day", { ...officeProxy, params: { department } })
       .then((res) => {
         if (cancelled) return;
-        setDay(res.data.day);
-        const list = (res.data.people ?? []) as Person[];
-        setPeople(personKey ? list.filter((p) => p.key === personKey) : list);
-        setRows(res.data.rows ?? []);
+        applyDay(res.data);
         setBlocked("");
-        setLoading(false);
       })
       .catch((err: unknown) => {
         if (cancelled) return;
@@ -90,12 +113,11 @@ export default function DeptAttendancePage({
         } else {
           toast.error(apiErrorMessage(err, "Could not load attendance."));
         }
-        setLoading(false);
       });
     return () => {
       cancelled = true;
     };
-  }, [department, personKey]);
+  }, [applyDay, department]);
 
   const applyRow = (saved: Row | undefined) => {
     if (!saved?.personKey) return;
@@ -151,12 +173,6 @@ export default function DeptAttendancePage({
     >
       {blocked ? (
         <div className="rounded-3xl border border-red-200 bg-white p-6 text-sm text-red-700 shadow-sm">{blocked}</div>
-      ) : loading ? (
-        <div className="grid gap-4 sm:grid-cols-2">
-          {[0, 1].map((i) => (
-            <div key={i} className="h-56 rounded-3xl bg-white border border-white shadow-sm animate-pulse" />
-          ))}
-        </div>
       ) : (
         <div className={`grid gap-4 ${shown.length > 1 ? "md:grid-cols-2" : "lg:max-w-2xl"}`}>
           {shown.map((person) => {
