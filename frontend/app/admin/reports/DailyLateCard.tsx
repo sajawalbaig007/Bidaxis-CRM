@@ -7,6 +7,43 @@ import toast from "react-hot-toast";
 import API, { apiErrorMessage } from "@/lib/api";
 
 type PersonCut = { name: string; department: string; day: number; month: number };
+
+const ATTENDANCE_ROWS: PersonCut[] = [
+  { name: "Ahmer Shah", department: "Dev", day: 0, month: 0 },
+  { name: "Sajawal", department: "Dev", day: 0, month: 0 },
+  { name: "Khalil", department: "Administration", day: 0, month: 0 },
+  { name: "Ismail", department: "Administration", day: 0, month: 0 },
+  { name: "Mahnoor Imran", department: "Administration", day: 0, month: 0 },
+  { name: "Ahmad Nadeem", department: "BIM Modeler", day: 0, month: 0 },
+];
+
+function nameTokens(name: string) {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .split(/\s+/)
+    .filter((token) => token && token !== "mr" && token !== "mrs" && token !== "ms");
+}
+
+function samePerson(a: string, b: string) {
+  const left = nameTokens(a);
+  const right = nameTokens(b);
+  if (!left.length || !right.length) return false;
+  const [short, long] = left.length <= right.length ? [left, right] : [right, left];
+  for (let start = 0; start <= long.length - short.length; start += 1) {
+    if (short.every((token, index) => long[start + index] === token)) return true;
+  }
+  return false;
+}
+
+function withAttendanceRoster(people: PersonCut[]) {
+  const next = [...people];
+  for (const person of ATTENDANCE_ROWS) {
+    if (next.some((row) => samePerson(row.name, person.name))) continue;
+    next.push(person);
+  }
+  return next.sort((a, b) => a.department.localeCompare(b.department) || a.name.localeCompare(b.name));
+}
 type Report = { date: string; month: string; through: string; people: PersonCut[] };
 
 function pktToday() {
@@ -20,6 +57,11 @@ function pktToday() {
 
 function money(amount: number) {
   return `Rs ${Math.round(amount).toLocaleString("en-PK")}`;
+}
+
+function initials(name: string) {
+  const parts = name.replace(/^(mr|mrs|ms)\.?\s+/i, "").split(/\s+/).filter(Boolean);
+  return ((parts[0]?.[0] ?? "") + (parts[1]?.[0] ?? "")).toUpperCase() || "•";
 }
 
 export default function DailyLateCard() {
@@ -55,7 +97,7 @@ export default function DailyLateCard() {
   if (!ceo) return null;
 
   const dayLabel = date === today ? "Current date" : date;
-  const people = report?.people ?? [];
+  const people = withAttendanceRoster(report?.people ?? []);
 
   return (
     <section className="rounded-[1.5rem] sm:rounded-[1.75rem] border border-gray-100/90 dark:border-crm-border bg-white dark:bg-crm-surface shadow-[0_10px_40px_-24px_rgba(15,23,42,0.35)] p-4 sm:p-5">
@@ -86,24 +128,31 @@ export default function DailyLateCard() {
       ) : people.length === 0 ? (
         <p className="mt-4 text-sm text-gray-400">No employees for this month.</p>
       ) : (
-        <div className="mt-4 overflow-x-auto">
-          <table className="w-full min-w-[32rem] text-sm">
+        <div className="mt-4 overflow-x-auto rounded-2xl border border-gray-100 dark:border-crm-border">
+          <table className="w-full min-w-[36rem] text-sm">
             <thead>
-              <tr className="text-left text-[11px] uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                <th className="py-2 pr-3 font-semibold">Employee</th>
-                <th className="py-2 pr-3 font-semibold text-right">{dayLabel}</th>
-                <th className="py-2 font-semibold text-right">So far this month</th>
+              <tr className="bg-[#F8FAFC] dark:bg-[#0B1220] text-left text-[11px] uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                <th className="px-3 py-3 font-semibold">Employee</th>
+                <th className="px-3 py-3 font-semibold text-right">{dayLabel}</th>
+                <th className="px-3 py-3 font-semibold text-right">So far this month</th>
               </tr>
             </thead>
             <tbody>
               {people.map((person) => (
                 <tr key={`${person.department}:${person.name}`} className="border-t border-gray-100 dark:border-crm-border">
-                  <td className="py-2 pr-3">
-                    <span className="font-semibold text-[#0F172A] dark:text-white">{person.name}</span>
-                    <span className="ml-2 text-[11px] text-gray-400">{person.department}</span>
+                  <td className="px-3 py-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#FFF1F3] text-[11px] font-bold text-[#B8112D]">
+                        {initials(person.name)}
+                      </span>
+                      <div className="min-w-0">
+                        <p className="font-semibold text-[#0F172A] dark:text-white truncate">{person.name}</p>
+                        <p className="text-[11px] text-gray-400">{person.department}</p>
+                      </div>
+                    </div>
                   </td>
-                  <td className="py-2 pr-3 text-right tabular-nums font-semibold text-[#B8112D]">{money(person.day)}</td>
-                  <td className="py-2 text-right tabular-nums font-semibold text-[#0F172A] dark:text-white">{money(person.month)}</td>
+                  <td className="px-3 py-3 text-right tabular-nums font-semibold text-[#B8112D]">{money(person.day)}</td>
+                  <td className="px-3 py-3 text-right tabular-nums font-semibold text-[#0F172A] dark:text-white">{money(person.month)}</td>
                 </tr>
               ))}
             </tbody>

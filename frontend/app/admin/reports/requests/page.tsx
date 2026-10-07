@@ -67,11 +67,11 @@ export default function EmployeeRequestsPage() {
             key={key}
             type="button"
             onClick={() => setFilter(key)}
-            className={`h-9 px-3 rounded-xl text-xs font-semibold capitalize ${
-              filter === key ? "bg-[#0F172A] text-white" : "bg-white text-gray-600 border border-gray-200 dark:bg-crm-surface dark:text-gray-300 dark:border-crm-border"
+            className={`h-9 px-3 rounded-full text-xs font-semibold capitalize ${
+              filter === key ? "bg-[#B8112D] text-white" : "bg-white text-gray-600 border border-gray-200 dark:bg-crm-surface dark:text-gray-300 dark:border-crm-border"
             }`}
           >
-            {key}{key === "pending" ? ` (${pending})` : ""}
+            {key}{key === "pending" ? ` · ${pending}` : ""}
           </button>
         ))}
       </div>
@@ -81,18 +81,23 @@ export default function EmployeeRequestsPage() {
           <Loader2 size={14} className="animate-spin" /> Loading requests…
         </p>
       ) : error ? (
-        <p className="text-sm text-red-600">{error}</p>
+        <p className="rounded-2xl border border-red-100 bg-white px-4 py-3 text-sm text-red-600">{error}</p>
       ) : visible.length === 0 ? (
-        <p className="text-sm text-gray-400">{filter === "all" ? "No requests yet." : `No ${filter} requests.`}</p>
+        <p className="rounded-2xl border border-dashed border-gray-200 bg-white px-4 py-8 text-center text-sm text-gray-400 dark:bg-crm-surface dark:border-crm-border">
+          {filter === "all" ? "No requests yet." : `No ${filter} requests.`}
+        </p>
       ) : (
-        <div className="space-y-3">
+        <div className="grid gap-3">
           {visible.map((row) => (
-            <div key={row.id} className="rounded-[1.5rem] border border-gray-100/90 dark:border-crm-border bg-white dark:bg-crm-surface p-4 flex flex-wrap items-start justify-between gap-3">
-              <div className="min-w-0">
-                <p className="text-sm font-semibold text-[#0F172A] dark:text-white">{row.personName}</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">
-                  {DEPT_LABEL[row.department] ?? row.department} · {row.day}
-                </p>
+            <div key={row.id} className="rounded-2xl border border-gray-100/90 dark:border-crm-border bg-white dark:bg-crm-surface px-4 py-3.5 flex flex-wrap items-center justify-between gap-3 shadow-[0_10px_40px_-28px_rgba(15,23,42,0.45)]">
+              <div className="min-w-0 flex items-center gap-3">
+                <span className={`h-10 w-1.5 rounded-full ${row.status === "approved" ? "bg-emerald-500" : row.status === "declined" ? "bg-red-500" : "bg-amber-400"}`} />
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-[#0F172A] dark:text-white">{row.personName}</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    {DEPT_LABEL[row.department] ?? row.department} · {row.day}
+                  </p>
+                </div>
               </div>
               <StaffRequestCell items={[row]} canApprove={canApprove} onChanged={() => void load()} />
             </div>
