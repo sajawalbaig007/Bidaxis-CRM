@@ -110,6 +110,9 @@ router.post("/admin/accounts", allowRoles("admin"), async (req, res) => {
     const label = String(req.body?.label ?? "").trim();
     const email = String(req.body?.email ?? "").trim().slice(0, 120);
     const password = String(req.body?.password ?? "").slice(0, 200);
+    const zoomAccountId = String(req.body?.zoomAccountId ?? "").trim().slice(0, 80);
+    const zoomClientId = String(req.body?.zoomClientId ?? "").trim().slice(0, 80);
+    const zoomClientSecret = String(req.body?.zoomClientSecret ?? "").trim().slice(0, 120);
     const numbers = parseNumberList(req.body?.numbers);
     if (!label || label.length > 80) {
       return res.status(400).json({ success: false, message: "Account name is required." });
@@ -123,6 +126,9 @@ router.post("/admin/accounts", allowRoles("admin"), async (req, res) => {
         label,
         email,
         password,
+        zoomAccountId,
+        zoomClientId,
+        zoomClientSecret,
         numbers,
         sortOrder: (last?.sortOrder ?? 0) + 1,
         isActive: req.body?.isActive !== false,
@@ -143,6 +149,9 @@ router.put("/admin/accounts/:id", allowRoles("admin"), async (req, res) => {
     const label = String(req.body?.label ?? existing.label).trim();
     const email = req.body?.email === undefined ? existing.email : String(req.body.email).trim().slice(0, 120);
     const password = req.body?.password === undefined ? existing.password : String(req.body.password).slice(0, 200);
+    const zoomAccountId = req.body?.zoomAccountId === undefined ? existing.zoomAccountId : String(req.body.zoomAccountId).trim().slice(0, 80);
+    const zoomClientId = req.body?.zoomClientId === undefined ? existing.zoomClientId : String(req.body.zoomClientId).trim().slice(0, 80);
+    const zoomClientSecret = req.body?.zoomClientSecret === undefined ? existing.zoomClientSecret : String(req.body.zoomClientSecret).trim().slice(0, 120);
     const numbers = req.body?.numbers === undefined ? existing.numbers : parseNumberList(req.body.numbers);
     if (!label || label.length > 80) {
       return res.status(400).json({ success: false, message: "Account name is required." });
@@ -156,6 +165,10 @@ router.put("/admin/accounts/:id", allowRoles("admin"), async (req, res) => {
         label,
         email,
         password,
+        zoomAccountId,
+        zoomClientId,
+        zoomClientSecret,
+        zoomUserId: email.toLowerCase() === existing.email.toLowerCase() ? existing.zoomUserId : "",
         numbers,
         isActive: req.body?.isActive === undefined ? existing.isActive : Boolean(req.body.isActive),
       },

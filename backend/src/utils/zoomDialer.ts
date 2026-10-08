@@ -19,6 +19,10 @@ type AccountRow = {
   isActive: boolean;
   email: string;
   password: string;
+  zoomAccountId: string;
+  zoomClientId: string;
+  zoomClientSecret: string;
+  zoomUserId: string;
   numbers: string[];
 };
 
@@ -80,6 +84,9 @@ export function adminAccount(account: AccountRow) {
     isActive: account.isActive,
     email: account.email,
     password: account.password,
+    zoomAccountId: account.zoomAccountId,
+    zoomClientId: account.zoomClientId,
+    zoomClientSecret: account.zoomClientSecret,
     numbers: account.numbers,
   };
 }
@@ -177,12 +184,96 @@ export async function placeZoomCall(input: {
     saved = true;
   }
 
+  await placeZoomPhoneCall(account, from, destination);
+
   return {
     saved,
-    message: `Calling from ${account.label}.`,
+    message: `Calling ${destination} from ${caller}.`,
     accountLabel: account.label,
     callerNumber: caller,
     callerE164: from,
     destination,
   };
+}
+
+const zoomTokens = new Map<string, { token: string; exp: number }>();
+
+async function zoomAccessToken(account: AccountRow): Promise<string> {
+  const cached = zoomTokens.get(account.id);
+  if (cached && cached.exp > Date.now() + 15_000) return cached.token;
+  if (!account.zoomAccountId?.trim() || !account.zoomClientId?.trim() || !account.zoomClientSecret?.trim()) {
+    throw new ZoomDialerError(
+      400,
+      `${account.label} has no Zoom API access yet. In Admin → Zoom dialer, add that Zoom company's Account ID, Client ID, and Client Secret.`,
+      "ZOOM_API_MISSING",
+    );
+  }
+  const basic = Buffer.from(`${account.zoomClientId}:${account.zoomClientSecret}`).toString("base64");
+  const res = await fetch("https://zoom.us/oauth/token", {
+    method: "POST",
+    headers: {
+      Authorization: `Basic ${basic}`,
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: new URLSearchParams({
+      grant_type: "account_credentials",
+      account_id: account.zoomAccountId.trim(),
+    }),
+  });
+  const data = await res.json().catch(() => ({})) as { access_token?: string; expires_in?: number; reason?: string; error?: string };
+  if (!res.ok || !data.access_token) {
+    throw new ZoomDialerError(502, data.reason || "Zoom rejected this account's API access. Check the Account ID, Client ID, and Client Secret.");
+  }
+  zoomTokens.set(account.id, {
+    token: data.access_token,
+    exp: Date.now() + (Number(data.expires_in) || 3600) * 1000,
+  });
+  return data.access_token;
+}
+
+async function zoomPhoneUserId(account: AccountRow, token: string): Promise<string> {
+  if (account.zoomUserId?.trim()) return account.zoomUserId.trim();
+  const email = account.email.trim();
+  if (!email) {
+    throw new ZoomDialerError(400, `${account.label} needs the Zoom email of the user who owns this number.`);
+  }
+  const res = await fetch(`https://api.zoom.us/v2/users/${encodeURIComponent(email)}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const data = await res.json().catch(() => ({})) as { id?: string; message?: string };
+  if (!res.ok || !data.id) {
+    throw new ZoomDialerError(502, data.message || `Zoom could not find ${email} on ${account.label}.`);
+  }
+  await prisma.zoomDialerAccount.update({
+    where: { id: account.id },
+    data: { zoomUserId: data.id },
+  }).catch(() => undefined);
+  return data.id;
+}
+
+/** Places the call on Zoom Phone as this account's user. The desktop login is not used. */
+async function placeZoomPhoneCall(account: AccountRow, callerId: string, destination: string) {
+  const token = await zoomAccessToken(account);
+  const userId = await zoomPhoneUserId(account, token);
+  const res = await fetch(`https://api.zoom.us/v2/phone/users/${encodeURIComponent(userId)}/call_commands`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      command: "make_call",
+      params: { callee: destination, caller_id: callerId },
+    }),
+  });
+  if (res.ok) return;
+  const data = await res.json().catch(() => ({})) as { message?: string };
+  zoomTokens.delete(account.id);
+  if (res.status === 403) {
+    throw new ZoomDialerError(
+      502,
+      "Zoom blocked call control. On that company's Server-to-Server app, add scopes phone:write:admin and user:read:admin, then activate the app.",
+    );
+  }
+  throw new ZoomDialerError(502, data.message || "Zoom could not start the call from this number.");
 }

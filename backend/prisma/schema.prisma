@@ -756,9 +756,15 @@ model ZoomDialerAccount {
   label     String
   sortOrder Int      @default(0)
   isActive  Boolean  @default(true)
-  /** Zoom sign-in. Admin only — never sent to CSR dialer responses. */
+  /** Zoom sign-in email. Used to find the Zoom Phone user. Never sent to CSR responses. */
   email     String   @default("")
   password  String   @default("")
+  /** Server-to-Server OAuth for this Zoom company. Calls use this, not the desktop login. */
+  zoomAccountId    String @default("")
+  zoomClientId     String @default("")
+  zoomClientSecret String @default("")
+  /** Cached Zoom user id for the email above. */
+  zoomUserId       String @default("")
   /** Caller IDs on this Zoom account, as entered by admin. */
   numbers   String[] @default([])
   createdAt DateTime @default(now())

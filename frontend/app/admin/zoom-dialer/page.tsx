@@ -12,6 +12,9 @@ type AccountForm = {
   label: string;
   email: string;
   password: string;
+  zoomAccountId: string;
+  zoomClientId: string;
+  zoomClientSecret: string;
   numbersText: string;
   isActive: boolean;
 };
@@ -20,6 +23,9 @@ const emptyForm = (): AccountForm => ({
   label: "",
   email: "",
   password: "",
+  zoomAccountId: "",
+  zoomClientId: "",
+  zoomClientSecret: "",
   numbersText: "",
   isActive: true,
 });
@@ -29,6 +35,9 @@ function fromApi(row: {
   label: string;
   email?: string;
   password?: string;
+  zoomAccountId?: string;
+  zoomClientId?: string;
+  zoomClientSecret?: string;
   numbers: string[];
   isActive: boolean;
 }): AccountForm {
@@ -37,6 +46,9 @@ function fromApi(row: {
     label: row.label,
     email: row.email ?? "",
     password: row.password ?? "",
+    zoomAccountId: row.zoomAccountId ?? "",
+    zoomClientId: row.zoomClientId ?? "",
+    zoomClientSecret: row.zoomClientSecret ?? "",
     numbersText: (row.numbers ?? []).join("\n"),
     isActive: row.isActive !== false,
   };
@@ -71,6 +83,9 @@ export default function AdminZoomDialerPage() {
       label: form.label.trim(),
       email: form.email.trim(),
       password: form.password,
+      zoomAccountId: form.zoomAccountId.trim(),
+      zoomClientId: form.zoomClientId.trim(),
+      zoomClientSecret: form.zoomClientSecret.trim(),
       numbers,
       isActive: form.isActive,
     };
@@ -112,7 +127,7 @@ export default function AdminZoomDialerPage() {
           <div>
             <h1 className="text-xl sm:text-2xl font-semibold text-gray-800">Zoom dialer</h1>
             <p className="text-sm text-gray-400 mt-1 max-w-xl">
-              Add each Zoom account, its sign-in, and the phone numbers on it. A CSR picks the account, then the number, and can save that pair as their default.
+              Each Zoom company needs its own API access. Calls then go from that company’s number, even if a different Zoom account is signed in on the computer.
             </p>
           </div>
           {!draft && (
@@ -127,8 +142,8 @@ export default function AdminZoomDialerPage() {
         </div>
 
         <div className="bg-white rounded-2xl border border-gray-100 p-4 mb-4 text-xs text-gray-500 leading-relaxed">
-          CSRs click an account, then a number, and Zoom Phone dials from that number.
-          Zoom desktop must be installed on the CSR computer and signed in to that account once. Saved email and password are for your records. Zoom only dials from the account already signed in on that computer.
+          A saved Zoom password cannot switch the desktop login, so +1 512-412-3916 still calls as whichever account is open on the computer.
+          For each company, open marketplace.zoom.us, create a Server-to-Server OAuth app, add scopes phone:write:admin and user:read:admin, activate it, and paste the Account ID, Client ID, and Client Secret here. The email must be the Zoom user who owns that phone number.
         </div>
 
         {draft && (
@@ -222,6 +237,36 @@ function AccountCard({
               {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
             </button>
           </span>
+        </label>
+      </div>
+      <div className="grid sm:grid-cols-2 gap-3">
+        <label className="block sm:col-span-2">
+          <span className="text-[11px] font-semibold text-gray-400">Zoom Account ID</span>
+          <input
+            value={form.zoomAccountId}
+            autoComplete="off"
+            onChange={(e) => set({ zoomAccountId: e.target.value })}
+            className="mt-1 w-full h-10 px-3 rounded-xl border border-gray-200 text-sm outline-none focus:border-[#B8112D]"
+          />
+        </label>
+        <label className="block">
+          <span className="text-[11px] font-semibold text-gray-400">Client ID</span>
+          <input
+            value={form.zoomClientId}
+            autoComplete="off"
+            onChange={(e) => set({ zoomClientId: e.target.value })}
+            className="mt-1 w-full h-10 px-3 rounded-xl border border-gray-200 text-sm outline-none focus:border-[#B8112D]"
+          />
+        </label>
+        <label className="block">
+          <span className="text-[11px] font-semibold text-gray-400">Client Secret</span>
+          <input
+            type="password"
+            value={form.zoomClientSecret}
+            autoComplete="off"
+            onChange={(e) => set({ zoomClientSecret: e.target.value })}
+            className="mt-1 w-full h-10 px-3 rounded-xl border border-gray-200 text-sm outline-none focus:border-[#B8112D]"
+          />
         </label>
       </div>
       <label className="block">
