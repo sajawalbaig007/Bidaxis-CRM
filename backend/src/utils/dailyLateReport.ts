@@ -19,7 +19,7 @@ type SalarySub = {
   label?: string;
   amount?: number;
   salary?: Record<string, unknown>;
-  salesPayroll?: SalesPayrollEmployee;
+  salesPayroll?: SalesPayrollEmployee & { latePersonKey?: string };
 };
 
 type PersonCut = { name: string; department: string; perDay: number; day: number; month: number };
@@ -101,9 +101,10 @@ export async function dailyLateReport(date: string) {
       const name = String(sub.label ?? sub.salesPayroll?.name ?? "").trim();
       if (!name) continue;
       const sal = sub.salary ?? {};
-      const punches = (
-        Array.isArray(sal.attendanceDays) ? sal.attendanceDays : sub.salesPayroll?.attendanceDays
-      ) as AttendanceDay[] | undefined;
+      const salesKey = typeof sub.salesPayroll?.latePersonKey === "string" ? sub.salesPayroll.latePersonKey : "";
+      const salaryDays = Array.isArray(sal.attendanceDays) ? sal.attendanceDays as AttendanceDay[] : undefined;
+      const salesDays = Array.isArray(sub.salesPayroll?.attendanceDays) ? sub.salesPayroll.attendanceDays : undefined;
+      const punches = (sub.salesPayroll ? (salesDays ?? salaryDays) : salaryDays) as AttendanceDay[] | undefined;
       const amounts = payAmounts(sub, record?.recordDate || recordDate);
       const department = policyDepartment(teamName, !!sub.salesPayroll);
       if (!department) {
@@ -112,7 +113,7 @@ export async function dailyLateReport(date: string) {
         continue;
       }
       const person = {
-        personKey: typeof sal.latePersonKey === "string" ? sal.latePersonKey : "",
+        personKey: (typeof sal.latePersonKey === "string" && sal.latePersonKey) || salesKey,
         personName: name,
       };
       const skip = leaveDaysFor(name, approvedLeaves, month, person.personKey);
