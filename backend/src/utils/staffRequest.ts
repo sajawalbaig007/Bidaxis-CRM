@@ -1,13 +1,10 @@
 import prisma from "../config/db";
-import { parseEstDateTimeLocal } from "./estTime";
-import { adminAdjustCsrWorkSession } from "./csrSessionTracking";
+import { ceoSetPortalShiftDay } from "./csrSessionTracking";
+import { grantApprovedPaidLeave } from "./paidLeave";
 import {
   AttendanceDept,
-  addCalendarDays,
-  attendanceShift,
   isValidDay,
   isValidTime,
-  pktShiftDay,
   saveAttendance,
 } from "./staffAttendance";
 
@@ -121,6 +118,7 @@ export function toPublicRequest(row: {
   checkOut: string | null;
   status: string;
   reviewedBy: string | null;
+  reviewNote?: string | null;
   createdAt: Date;
 }) {
   return {
@@ -137,71 +135,132 @@ export function toPublicRequest(row: {
     checkOut: row.checkOut,
     status: row.status,
     reviewedBy: row.reviewedBy,
+    reviewNote: row.reviewNote ?? "",
     createdAt: row.createdAt.toISOString(),
   };
 }
 
-function wallOnShift(day: string, time: string, overnight: boolean, shiftStart: string): string {
-  const calendar = overnight && time < shiftStart ? addCalendarDays(day, 1) : day;
-  return `${calendar}T${time}`;
+function pktMonthKey(date = new Date()): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Karachi",
+    year: "numeric",
+    month: "2-digit",
+  }).format(date);
 }
 
-/** Attendance correction approval writes the requested times onto that day. */
+function shiftMonth(ym: string, delta: number): string {
+  const [year, month] = ym.split("-").map(Number);
+  const next = new Date(Date.UTC(year, (month || 1) - 1 + delta, 1));
+  return `${next.getUTCFullYear()}-${String(next.getUTCMonth() + 1).padStart(2, "0")}`;
+}
+
+function monthLabel(ym: string): string {
+  const [year, month] = ym.split("-").map(Number);
+  return new Intl.DateTimeFormat("en-US", { month: "long", year: "numeric", timeZone: "UTC" }).format(
+    new Date(Date.UTC(year, (month || 1) - 1, 1)),
+  );
+}
+
+/** This month and the previous month, for the person who sent the request. */
+export async function listRequestHistory(personKey: string) {
+  const current = pktMonthKey();
+  const previous = shiftMonth(current, -1);
+  const from = `${previous}-01`;
+  const to = `${current}-31`;
+  const rows = await prisma.staffRequest.findMany({
+    where: {
+      personKey,
+      OR: [
+        { day: { gte: from, lte: to } },
+        { createdAt: { gte: new Date(`${from}T00:00:00+05:00`) } },
+      ],
+    },
+    orderBy: { createdAt: "desc" },
+  });
+  const monthOf = (row: (typeof rows)[number]) => {
+    const created = pktMonthKey(row.createdAt);
+    if (created === current || created === previous) return created;
+    return row.day.slice(0, 7);
+  };
+  const bucket = (month: string) => rows.filter((row) => monthOf(row) === month).map(toPublicRequest);
+  return {
+    current: { month: current, label: monthLabel(current), requests: bucket(current) },
+    previous: { month: previous, label: monthLabel(previous), requests: bucket(previous) },
+  };
+}
+
+export type ApprovalOverrides = {
+  day?: string;
+  checkIn?: string | null;
+  checkOut?: string | null;
+  stillIn?: boolean;
+  fromDay?: string;
+  toDay?: string;
+};
+
+/** Attendance correction writes the CEO's times. Leave and work-from-home become paid leave. */
 export async function applyApprovedRequest(row: {
   kind: string;
   department: string;
   personKey: string;
   personName: string;
   day: string;
+  summary: string;
   checkIn: string | null;
   checkOut: string | null;
-}) {
-  if (row.kind !== "attendance_correction") return { ok: true as const };
-  if (!row.checkIn || !isValidTime(row.checkIn)) {
-    return { ok: false as const, message: "Check-in time is missing." };
-  }
-  if (row.checkOut && !isValidTime(row.checkOut)) {
-    return { ok: false as const, message: "Check-out time is invalid." };
+}, overrides: ApprovalOverrides = {}) {
+  if (row.kind === "leave" || row.kind === "wfh") {
+    const fromDay = overrides.fromDay || row.day;
+    const toDay = overrides.toDay || endDayFromSummary(row.summary) || fromDay;
+    return grantApprovedPaidLeave({
+      personName: row.personName,
+      personKey: row.personKey,
+      fromDay,
+      toDay,
+    });
   }
 
-  if (row.department === "csr" || row.department === "estimator") {
-    const window = attendanceShift(row.department, row.personKey, new Date(`${row.day}T12:00:00+05:00`));
-    const from = new Date(`${addCalendarDays(row.day, -2)}T00:00:00.000Z`);
-    const to = new Date(`${addCalendarDays(row.day, 3)}T00:00:00.000Z`);
-    const sessions = await prisma.csrWorkSession.findMany({
-      where: { userId: row.personKey, loginAt: { gte: from, lt: to } },
-      select: { id: true, loginAt: true },
+  if (row.kind !== "attendance_correction") return { ok: true as const };
+  const day = overrides.day && isValidDay(overrides.day) ? overrides.day : row.day;
+  const checkIn = clock(overrides.checkIn || row.checkIn);
+  const stillIn = overrides.stillIn === true;
+  const checkOut = stillIn ? null : clock(overrides.checkOut === undefined ? row.checkOut : overrides.checkOut);
+  if (!checkIn || !isValidTime(checkIn)) {
+    return { ok: false as const, message: "Enter a check-in time." };
+  }
+  if (checkOut && !isValidTime(checkOut)) {
+    return { ok: false as const, message: "Enter a valid check-out time." };
+  }
+
+  if (row.department === "csr" || row.department === "estimator" || row.department === "bim") {
+    return ceoSetPortalShiftDay({
+      userId: row.personKey,
+      department: row.department,
+      day,
+      checkIn,
+      checkOut,
     });
-    const ids = sessions
-      .filter((session) => pktShiftDay(session.loginAt, row.department, row.personKey) === row.day)
-      .map((session) => session.id);
-    if (!ids.length) return { ok: false as const, message: "No check-in that day to update." };
-    const checkInAt = parseEstDateTimeLocal(wallOnShift(row.day, row.checkIn, window.overnight, window.start), "Asia/Karachi");
-    if (!checkInAt) return { ok: false as const, message: "Invalid check-in time." };
-    const checkOutAt = row.checkOut
-      ? parseEstDateTimeLocal(wallOnShift(row.day, row.checkOut, window.overnight, window.start), "Asia/Karachi")
-      : null;
-    if (row.checkOut && !checkOutAt) return { ok: false as const, message: "Invalid check-out time." };
-    const adjusted = await adminAdjustCsrWorkSession({
-      sessionId: ids[0]!,
-      memberIds: ids,
-      checkInAt,
-      checkOutAt,
-      clearCheckOut: !row.checkOut,
-      note: "request_approved",
-    });
-    if (!adjusted.ok) return { ok: false as const, message: adjusted.message };
-    return { ok: true as const };
   }
 
   const saved = await saveAttendance({
     personKey: row.personKey,
     personName: row.personName,
     department: row.department as AttendanceDept,
-    day: row.day,
-    checkIn: row.checkIn,
-    checkOut: row.checkOut,
+    day,
+    checkIn,
+    checkOut,
   });
   if (!saved.ok) return { ok: false as const, message: saved.message };
-  return { ok: true as const };
+  return { ok: true as const, day, checkIn, checkOut };
+}
+
+function clock(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const match = value.match(/^(\d{2}:\d{2})/);
+  return match?.[1] ?? null;
+}
+
+function endDayFromSummary(summary: string): string {
+  const match = summary.match(/(\d{4}-\d{2}-\d{2})\s*[–-]\s*(\d{4}-\d{2}-\d{2})/);
+  return match?.[2] && isValidDay(match[2]) ? match[2] : "";
 }

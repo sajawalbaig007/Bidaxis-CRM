@@ -723,6 +723,8 @@ model StaffRequest {
   checkOut   String?
   status     String   @default("pending")
   reviewedBy String?
+  /** CEO note written when the request is approved or rejected. */
+  reviewNote String   @default("")
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 

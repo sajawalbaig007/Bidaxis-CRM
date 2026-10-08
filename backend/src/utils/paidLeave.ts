@@ -102,6 +102,55 @@ export async function addPaidLeave(input: {
   };
 }
 
+/** Approved paid leave, split by month so those days are not deducted. */
+export async function grantApprovedPaidLeave(input: {
+  personName: string;
+  personKey?: string;
+  fromDay: string;
+  toDay: string;
+}): Promise<{ ok: true } | { ok: false; message: string }> {
+  const personName = input.personName.trim();
+  const fromDay = input.fromDay.trim();
+  const toDay = input.toDay.trim();
+  if (!personName) return { ok: false, message: "Missing the employee name." };
+  if (!DAY.test(fromDay) || !DAY.test(toDay) || toDay < fromDay) {
+    return { ok: false, message: "Pick a start and end date." };
+  }
+  const days: string[] = [];
+  const [year, month, day] = fromDay.split("-").map(Number);
+  const cursor = new Date(Date.UTC(year, month - 1, day));
+  while (days.length < 62) {
+    const ymd = cursor.toISOString().slice(0, 10);
+    if (ymd > toDay) break;
+    days.push(ymd);
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+  if (!days.length || days[days.length - 1] !== toDay) {
+    return { ok: false, message: "That leave is too long." };
+  }
+  const byMonth = new Map<string, string[]>();
+  for (const ymd of days) {
+    const key = ymd.slice(0, 7);
+    const list = byMonth.get(key) ?? [];
+    list.push(ymd);
+    byMonth.set(key, list);
+  }
+  for (const [leaveMonth, list] of byMonth) {
+    await prisma.paidLeave.create({
+      data: {
+        personName,
+        personKey: input.personKey?.trim() || "",
+        fromDay: list[0]!,
+        toDay: list[list.length - 1]!,
+        month: leaveMonth,
+        status: "approved",
+      },
+    });
+    await stampPaidLeaveDates(leaveMonth, personName);
+  }
+  return { ok: true };
+}
+
 export async function reviewPaidLeave(id: string, status: "approved" | "declined") {
   const existing = await prisma.paidLeave.findUnique({ where: { id } });
   if (!existing) return null;
