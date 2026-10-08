@@ -5,6 +5,7 @@ import { attendanceNameMatch } from "./salaryAttendanceSync";
 import { DEPT_ROSTER } from "./staffAttendance";
 import {
   elapsedMonthDays,
+  isPktWeekend,
   pktToday,
   perDayForPolicy,
   policyDeductionForDays,
@@ -12,6 +13,7 @@ import {
   type AttendanceDay,
   type PayAmounts,
 } from "./lateDeduction";
+import { calcSalesLateDeduction } from "./salesPayrollFormula";
 import type { SalesPayrollEmployee } from "./salesPayrollDefaults";
 import { computeSalesEmployeePayroll } from "./salesPayrollFormula";
 
@@ -37,6 +39,24 @@ function policyDepartment(teamName: string, sales: boolean): string {
   if (title.includes("office")) return "office_boy";
   if (title === "hr" || title.includes("human resource")) return "hr";
   return "";
+}
+
+/** Sales shift starts at 6:00 PM. 6:05 and 6:06 are still on time; the cut starts after 6:15. */
+function salesDeductionForDays(
+  perDay: number,
+  punches: AttendanceDay[] | undefined,
+  dayList: string[],
+  skip?: ReadonlySet<string>,
+): number {
+  const byDay = new Map((punches ?? []).filter((day) => day?.day).map((day) => [day.day, day]));
+  let amount = 0;
+  for (const day of dayList) {
+    if (isPktWeekend(day) || skip?.has(day)) continue;
+    const checkIn = String(byDay.get(day)?.checkIn ?? "").trim();
+    if (!checkIn) continue;
+    amount += calcSalesLateDeduction(perDay, checkIn).amount;
+  }
+  return amount;
 }
 
 function payAmounts(sub: SalarySub, recordDate: string): PayAmounts {
@@ -118,8 +138,13 @@ export async function dailyLateReport(date: string) {
       };
       const skip = leaveDaysFor(name, approvedLeaves, month, person.personKey);
       const perDay = perDayForPolicy(department, month, amounts, person) ?? 0;
-      const dayCut = policyDeductionForDays(department, month, amounts, punches ?? [], dayList, person, skip) ?? 0;
-      const monthCut = policyDeductionForDays(department, month, amounts, punches ?? [], monthDays, person, skip) ?? 0;
+      const sales = !!sub.salesPayroll;
+      const dayCut = sales
+        ? salesDeductionForDays(perDay, punches, dayList, skip)
+        : policyDeductionForDays(department, month, amounts, punches ?? [], dayList, person, skip) ?? 0;
+      const monthCut = sales
+        ? salesDeductionForDays(perDay, punches, monthDays, skip)
+        : policyDeductionForDays(department, month, amounts, punches ?? [], monthDays, person, skip) ?? 0;
       const prev = byName.get(name.toLowerCase());
       if (prev && prev.month >= monthCut && prev.day >= dayCut) continue;
       byName.set(name.toLowerCase(), { name, department: teamName || department, perDay, day: dayCut, month: monthCut });
