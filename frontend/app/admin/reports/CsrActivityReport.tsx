@@ -498,13 +498,14 @@ export default function CsrActivityReport({
   const isBim = staffRole === "bim";
   const today = isEstimator ? calendarYmd(CLOCKS.est.tz) : pktShiftYmd();
   const chiefDesk = staffRole === "estimator" && pathname.startsWith("/technical");
-  const canAdjustTimes = canEdit || chiefDesk;
+  const officeDesk = pathname.startsWith("/admin") || pathname.startsWith("/manager");
+  const canAdjustTimes = canEdit || chiefDesk || pathname.startsWith("/manager");
   const showOvertime = false;
   const canReviewOt = false;
   const showShiftOt = isEstimator && (pathname.startsWith("/technical") || pathname.startsWith("/admin") || pathname.startsWith("/manager"));
   const canReviewShiftOt = chiefDesk;
   const showRequests = pathname.startsWith("/admin") || pathname.startsWith("/manager") || chiefDesk;
-  const canApproveRequests = pathname.startsWith("/admin") || chiefDesk;
+  const canApproveRequests = officeDesk || chiefDesk;
   const sessionCols = 9 + (showRequests ? 1 : 0) + (showShiftOt ? 1 : 0) + (showOvertime ? 2 : 0) + (canAdjustTimes ? 1 : 0);
   const summaryCols = 8 + (showRequests ? 1 : 0) + (showShiftOt ? 1 : 0) + (showOvertime ? 2 : 0);
   const title = isBim ? "BIM Check In / Check Out" : isEstimator ? "Estimator Check In / Check Out" : "CSR Check In / Check Out";
@@ -1052,9 +1053,9 @@ export default function CsrActivityReport({
                       {showRequests ? (
                         <td className="px-3 py-3">
                           <StaffRequestCell
-                            items={requests.filter((item) => item.department === staffRole && item.personKey === row.csrId && item.day === row.day)}
+                            items={requests.filter((item) => item.personKey === row.csrId && item.day === row.day && (item.department === staffRole || chiefDesk))}
                             canApprove={canApproveRequests}
-                            onOpen={chiefDesk ? setDecision : undefined}
+                            onOpen={canApproveRequests ? setDecision : undefined}
                             onChanged={() => void loadReport()}
                           />
                         </td>
@@ -1165,15 +1166,15 @@ export default function CsrActivityReport({
                   ))}
                 </div>
               ) : null}
-              {showRequests && requests.some((item) => item.department === staffRole && !sessions.some((row) => row.csrId === item.personKey && row.day === item.day)) ? (
+              {showRequests && requests.some((item) => (item.department === staffRole || chiefDesk) && !sessions.some((row) => row.csrId === item.personKey && row.day === item.day)) ? (
                 <div className="px-3 pb-3 space-y-2">
-                  {requests.filter((item) => item.department === staffRole && !sessions.some((row) => row.csrId === item.personKey && row.day === item.day)).map((item) => (
+                  {requests.filter((item) => (item.department === staffRole || chiefDesk) && !sessions.some((row) => row.csrId === item.personKey && row.day === item.day)).map((item) => (
                     <div key={item.id} className="flex flex-wrap items-start gap-3 rounded-xl border border-gray-100 px-3 py-2">
                       <div className="min-w-[140px]">
                         <p className="text-sm font-semibold">{item.personName}</p>
                         <p className="text-[11px] text-gray-400">{item.day}</p>
                       </div>
-                      <StaffRequestCell items={[item]} canApprove={canApproveRequests} onOpen={chiefDesk ? setDecision : undefined} onChanged={() => void loadReport()} />
+                      <StaffRequestCell items={[item]} canApprove={canApproveRequests} onOpen={canApproveRequests ? setDecision : undefined} onChanged={() => void loadReport()} />
                     </div>
                   ))}
                 </div>
@@ -1267,9 +1268,9 @@ export default function CsrActivityReport({
                       {showRequests ? (
                         <td className="px-3 py-3">
                           <StaffRequestCell
-                            items={requests.filter((item) => item.department === staffRole && item.personKey === row.csrId && item.day === row.day)}
+                            items={requests.filter((item) => item.personKey === row.csrId && item.day === row.day && (item.department === staffRole || chiefDesk))}
                             canApprove={canApproveRequests}
-                            onOpen={chiefDesk ? setDecision : undefined}
+                            onOpen={canApproveRequests ? setDecision : undefined}
                             onChanged={() => void loadReport()}
                           />
                         </td>
