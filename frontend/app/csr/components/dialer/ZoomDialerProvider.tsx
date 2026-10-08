@@ -82,8 +82,8 @@ async function placeZoomCall(accountId: string, callerNumber: string, destinatio
   if (!destinationE164 || !callerE164) {
     throw new Error("That phone number cannot be dialed.");
   }
-  launchZoomCall(destinationE164, callerE164);
   await API.post("/dialer/call", { accountId, callerNumber, destination });
+  launchZoomCall(destinationE164, callerE164);
 }
 
 function sameNumber(a: string, b: string) {

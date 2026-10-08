@@ -288,6 +288,9 @@ async function placeZoomPhoneCall(account: AccountRow, callerId: string, destina
   if (res.ok) return;
   const data = await res.json().catch(() => ({})) as ZoomErrorBody;
   zoomTokens.delete(account.id);
+  if (/invalid caller id/i.test(data.message || "")) {
+    throw new ZoomDialerError(400, "Call not placed. You have a different number on Zoom.");
+  }
   if (res.status === 403) {
     throw new ZoomDialerError(
       502,
