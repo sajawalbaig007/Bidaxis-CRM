@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   FolderKanban, CheckCircle2, Clock3, AlertTriangle,
-  ArrowRight, BarChart3, Users, GitBranch, RefreshCw, FileText, Trophy,
+  ArrowRight, BarChart3, Users, GitBranch, RefreshCw, FileText, Trophy, ClipboardList,
 } from "lucide-react";
 import {
   Bar, BarChart, CartesianGrid, Cell, LabelList, Pie, PieChart, Tooltip, XAxis, YAxis,
@@ -16,6 +16,7 @@ import UploadActionBento, { type UploadBentoItem } from "@/app/admin/components/
 import { CSR_THEAD } from "@/app/csr/components/shared/csrTableStyles";
 import { PROJECT_TABLE_HEAD } from "@/app/components/projects/ProjectTableCells";
 import API from "@/lib/api";
+import { getAuthMe, peekAuthMe } from "@/lib/authMeCache";
 import {
   fetchPreviousMonthRatings,
   starsDisplay,
@@ -66,6 +67,8 @@ const CHART_TIP = {
 } as const;
 
 export default function TechnicalDashboardPage() {
+  const [role, setRole] = useState(() => peekAuthMe()?.role ?? "");
+  const showRequests = role === "technical_manager";
   const [projects, setProjects] = useState<ProjectRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [top5, setTop5] = useState<EstimatorMonthRating[]>([]);
@@ -99,6 +102,10 @@ export default function TechnicalDashboardPage() {
   };
 
   useEffect(() => { void load(); }, []);
+
+  useEffect(() => {
+    void getAuthMe().then((user) => setRole(user?.role ?? ""));
+  }, []);
 
   const stats = useMemo(() => {
     const active = projects.filter(p => !isDelivered(p));
@@ -377,6 +384,21 @@ export default function TechnicalDashboardPage() {
       accent: "#7C3AED",
       content: (
         <div className="p-4 sm:p-5 grid grid-cols-1 sm:grid-cols-2 gap-2.5 h-full">
+          {showRequests ? (
+            <Link
+              href="/technical/reports/requests"
+              className="group rounded-2xl p-3.5 border border-gray-100 dark:border-crm-border bg-[#FAFAFA] dark:bg-crm-muted hover:border-[#B8112D]/30 hover:shadow-md transition-all sm:col-span-2"
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="w-9 h-9 rounded-xl bg-[#EEF2FF] text-[#3730A3] flex items-center justify-center">
+                  <ClipboardList size={16} />
+                </div>
+                <ArrowRight size={14} className="text-gray-300 group-hover:text-[#B8112D] group-hover:translate-x-0.5 transition-all" />
+              </div>
+              <h3 className="mt-2 font-bold text-gray-800 dark:text-crm-text text-sm">Employee requests</h3>
+              <p className="text-[11px] text-gray-400 mt-0.5 line-clamp-2">Leave, attendance corrections, and other requests waiting for a decision.</p>
+            </Link>
+          ) : null}
           {DASHBOARD_MODULES.map((m) => (
             <Link
               key={m.href}
@@ -398,7 +420,7 @@ export default function TechnicalDashboardPage() {
         </div>
       ),
     },
-  ], [loading, statusPie, phaseBar, ratingsLoading, top5, prevMonthLabel, recent]);
+  ], [loading, statusPie, phaseBar, ratingsLoading, top5, prevMonthLabel, recent, showRequests]);
 
   return (
     <TechnicalPageShell>
@@ -413,15 +435,26 @@ export default function TechnicalDashboardPage() {
                 Project overview · active work · deadlines
               </p>
             </div>
-            <button
-              type="button"
-              onClick={() => void load()}
-              disabled={loading}
-              className="h-10 sm:h-11 px-4 sm:px-5 rounded-xl border border-crm-border bg-crm-surface text-sm font-semibold text-crm-text-secondary inline-flex items-center justify-center gap-2 hover:border-[#B8112D]/40 hover:text-[#B8112D] hover:bg-[#FFF6F7] dark:hover:bg-crm-brand-soft disabled:opacity-60 shadow-sm w-full sm:w-auto shrink-0"
-            >
-              <RefreshCw size={15} className={loading ? "animate-spin" : ""} />
-              {loading ? "Refreshing…" : "Refresh stats"}
-            </button>
+            <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+              {showRequests ? (
+                <Link
+                  href="/technical/reports/requests"
+                  className="h-10 sm:h-11 px-4 sm:px-5 rounded-xl bg-[#B8112D] text-white text-sm font-semibold inline-flex items-center justify-center gap-2 shadow-sm w-full sm:w-auto shrink-0"
+                >
+                  <ClipboardList size={15} />
+                  Requests
+                </Link>
+              ) : null}
+              <button
+                type="button"
+                onClick={() => void load()}
+                disabled={loading}
+                className="h-10 sm:h-11 px-4 sm:px-5 rounded-xl border border-crm-border bg-crm-surface text-sm font-semibold text-crm-text-secondary inline-flex items-center justify-center gap-2 hover:border-[#B8112D]/40 hover:text-[#B8112D] hover:bg-[#FFF6F7] dark:hover:bg-crm-brand-soft disabled:opacity-60 shadow-sm w-full sm:w-auto shrink-0"
+              >
+                <RefreshCw size={15} className={loading ? "animate-spin" : ""} />
+                {loading ? "Refreshing…" : "Refresh stats"}
+              </button>
+            </div>
           </header>
 
           <section aria-label="Quick stats">

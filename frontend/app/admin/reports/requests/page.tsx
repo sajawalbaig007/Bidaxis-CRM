@@ -175,9 +175,9 @@ export default function EmployeeRequestsPage() {
             <Link href="/technical/reports" className="inline-flex items-center gap-1 text-xs font-semibold text-[#B8112D]">
               <ArrowLeft size={14} /> Reports
             </Link>
-            <h1 className="mt-2 text-2xl sm:text-3xl font-bold text-[#0F172A] dark:text-crm-text tracking-tight">Estimator requests</h1>
+            <h1 className="mt-2 text-2xl sm:text-3xl font-bold text-[#0F172A] dark:text-crm-text tracking-tight">Employee requests</h1>
             <p className="text-sm text-gray-500 dark:text-crm-text-muted mt-1 max-w-2xl">
-              Attendance corrections, leave, and the other estimator requests. Approving leave saves those dates as paid leave.
+              Leave, attendance corrections, and other requests waiting for a decision.
             </p>
           </header>
           {list}
