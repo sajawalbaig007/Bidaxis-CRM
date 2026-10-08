@@ -25,6 +25,19 @@ export function attendanceNameMatch(a: string, b: string): boolean {
   return attendanceSame(a, b);
 }
 
+/** "Saad Nadeem" matches "Muhammad Saad Nadeem". A single word still has to line up from the start, so Ismail does not match Muhammad Ismail. */
+function punchNameMatch(label: string, personName: string): boolean {
+  if (attendanceNameMatch(label, personName)) return true;
+  const left = attendanceTokens(label);
+  const right = attendanceTokens(personName);
+  if (left.length < 2 || right.length < 2) return false;
+  const [short, long] = left.length <= right.length ? [left, right] : [right, left];
+  for (let index = 0; index <= long.length - short.length; index++) {
+    if (short.every((token, offset) => long[index + offset] === token)) return true;
+  }
+  return false;
+}
+
 function samePerson(label: string, people: PersonRef[]): PersonRef[] {
   const exact = people.filter((item) => attendanceTokens(item.personName).join(" ") === attendanceTokens(label).join(" "));
   if (exact.length) {
@@ -234,28 +247,36 @@ export async function applyAttendanceCheckIns(
   let changed = false;
   const nextTeams = teams.map((team) => {
     const subs = (team.subHeads ?? []).map((sub) => {
-      const label = String(sub.label ?? "");
+      const label = String(sub.label || sub.salesPayroll?.name || "").trim();
       const matches = samePerson(label, people);
       const person = matches.find((item) => ROSTER_KEYS.has(item.personKey)) ?? matches[0];
       const storedKey = String(sub.salary?.latePersonKey ?? sub.salesPayroll?.latePersonKey ?? "");
       const daysMap = new Map<string, AttendanceDay>();
+      const storedDays = (Array.isArray(sub.salesPayroll?.attendanceDays) ? sub.salesPayroll?.attendanceDays : sub.salary?.attendanceDays) as AttendanceDay[] | undefined;
+      for (const day of storedDays ?? []) {
+        if (!day?.day) continue;
+        daysMap.set(day.day, { day: day.day, checkIn: String(day.checkIn ?? ""), checkOut: String(day.checkOut ?? "") });
+      }
       if (person) {
         for (const match of matches) {
           for (const day of byPerson.get(match.personKey)?.values() ?? []) {
-            daysMap.set(day.day, mergeDay(daysMap.get(day.day), day));
+            const prev = daysMap.get(day.day);
+            daysMap.set(day.day, prev ? mergeDay(prev, day) : day);
           }
         }
       }
       const linkedKeys = [...new Set([person?.personKey, storedKey, ...matches.map((item) => item.personKey)].filter(Boolean))] as string[];
+      let correctionKey = "";
       for (const punch of corrections) {
-        const linked = punch.personKey ? linkedKeys.includes(punch.personKey) : false;
-        const named = !punch.personKey || !linkedKeys.length ? attendanceNameMatch(label, punch.personName) : false;
+        const linked = !!punch.personKey && linkedKeys.includes(punch.personKey);
+        const named = punchNameMatch(label, punch.personName);
         if (!linked && !named) continue;
         daysMap.set(punch.day, { day: punch.day, checkIn: punch.checkIn, checkOut: punch.checkOut });
+        if (!correctionKey && punch.personKey) correctionKey = punch.personKey;
       }
       if (!person && !daysMap.size) return sub;
       const days = [...daysMap.values()].sort((a, b) => a.day.localeCompare(b.day));
-      const personKey = person?.personKey || storedKey;
+      const personKey = person?.personKey || storedKey || correctionKey;
       const lateDepartment = person
         ? salaryLateDepartment(String(team.team ?? ""), person.department)
         : (typeof sub.salary?.lateDepartment === "string" ? sub.salary.lateDepartment : null);
