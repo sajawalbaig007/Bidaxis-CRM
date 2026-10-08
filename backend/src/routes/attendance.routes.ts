@@ -376,6 +376,24 @@ async function punchShift(input: {
 }) {
   const now = dayClock(input.department, input.personKey);
   if (input.action === "in") {
+    if (input.department === "chief_estimator") {
+      const open = await prisma.staffDayAttendance.findUnique({
+        where: { personKey_day: { personKey: input.personKey, day: now.day } },
+      });
+      if (open?.checkIn) {
+        if (!open.checkOut) return { ok: true as const, row: toPublic(open) };
+        return saveAttendance({
+          personKey: input.personKey,
+          personName: input.personName,
+          department: input.department,
+          day: now.day,
+          checkIn: open.checkIn,
+          checkOut: null,
+          userId: input.userId,
+          ...(input.comment !== undefined ? { comment: input.comment } : {}),
+        });
+      }
+    }
     return saveAttendance({
       personKey: input.personKey,
       personName: input.personName,
