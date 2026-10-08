@@ -80,8 +80,12 @@ export async function reviewOvertime(input: {
   }
   if (input.action === "edit") {
     const minutes = Number(input.minutes);
-    const comment = Number.isInteger(minutes) && minutes >= 1 && minutes <= 12 * 60
+    const keptNote = note.comment.split("\n").slice(1).join("\n").trim();
+    const duration = Number.isInteger(minutes) && minutes >= 1 && minutes <= 12 * 60
       ? formatOvertimeMinutes(minutes)
+      : "";
+    const comment = duration
+      ? (keptNote ? `${duration}\n${keptNote}` : duration)
       : (input.comment ?? "").trim().slice(0, 500);
     if (!comment) return { ok: false as const, message: "Enter the overtime time." };
     const updated = await prisma.overtimeRequest.update({
@@ -208,7 +212,7 @@ export async function submitShiftOvertime(input: { userId: string; role: string;
 }
 
 /** Chief Estimator enters their own overtime. The CEO approves it. */
-export async function submitChiefOvertime(input: { userId: string; name: string; day: string; minutes: number }) {
+export async function submitChiefOvertime(input: { userId: string; name: string; day: string; minutes: number; note?: string }) {
   const minutes = Math.round(input.minutes);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(input.day)) {
     return { ok: false as const, message: "Pick a date." };
@@ -216,7 +220,8 @@ export async function submitChiefOvertime(input: { userId: string; name: string;
   if (!Number.isInteger(minutes) || minutes < 1 || minutes > 12 * 60) {
     return { ok: false as const, message: "Enter overtime from 1 minute up to 12 hours." };
   }
-  const comment = formatOvertimeMinutes(minutes);
+  const noteText = String(input.note ?? "").trim().slice(0, 300);
+  const comment = noteText ? `${formatOvertimeMinutes(minutes)}\n${noteText}` : formatOvertimeMinutes(minutes);
   const where = { personKey_day_department: { personKey: input.userId, day: input.day, department: "chief_estimator" } };
   const existing = await prisma.overtimeRequest.findUnique({ where });
   const note = existing

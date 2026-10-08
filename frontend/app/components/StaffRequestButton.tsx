@@ -123,8 +123,35 @@ export default function StaffRequestButton({
     reset();
   };
 
+  const missing = (): string => {
+    if (!day) return "Choose a date.";
+    if (kind === "attendance_correction") {
+      if (!checkIn) return "Enter a check-in time.";
+      if (!checkOut) return "Enter a check-out time.";
+      if (!detail.trim()) return "Add a note.";
+    }
+    if (kind === "leave" || kind === "wfh") {
+      if (!endDay) return "Enter an end date.";
+      if (endDay < day) return "End date cannot be before the start date.";
+      if (!detail.trim()) return "Add a short reason.";
+    }
+    if (kind === "reimbursement") {
+      if (!amount.trim()) return "Enter an amount.";
+      if (!detail.trim()) return "Add the details.";
+    }
+    if (kind === "asset" || kind === "custom") {
+      if (!title.trim()) return kind === "asset" ? "Enter the item." : "Enter a title.";
+      if (!detail.trim()) return "Add the details.";
+    }
+    return "";
+  };
+
   const submit = async () => {
-    if (!kind) return;
+    const problem = missing();
+    if (!kind || problem) {
+      if (problem) toast.error(problem);
+      return;
+    }
     setBusy(true);
     try {
       await API.post(publicPunch ? "/attendance/requests/public" : "/attendance/requests", {
@@ -216,40 +243,41 @@ export default function StaffRequestButton({
                 </div>
               ) : (
                 <>
-                  <Field label="Date">
-                    <input type="date" value={day} onChange={(e) => setDay(e.target.value)} className={inputClass} />
+                  <Field label="Date *">
+                    <input type="date" required value={day} onChange={(e) => setDay(e.target.value)} className={inputClass} />
                   </Field>
                   {kind === "attendance_correction" ? (
                     <div className="grid grid-cols-2 gap-3">
-                      <Field label="Check in">
-                        <input type="time" value={checkIn} onChange={(e) => setCheckIn(e.target.value)} className={inputClass} />
+                      <Field label="Check in *">
+                        <input type="time" required value={checkIn} onChange={(e) => setCheckIn(e.target.value)} className={inputClass} />
                       </Field>
-                      <Field label="Check out">
-                        <input type="time" value={checkOut} onChange={(e) => setCheckOut(e.target.value)} className={inputClass} />
+                      <Field label="Check out *">
+                        <input type="time" required value={checkOut} onChange={(e) => setCheckOut(e.target.value)} className={inputClass} />
                       </Field>
                     </div>
                   ) : null}
                   {kind === "leave" || kind === "wfh" ? (
-                    <Field label="End date">
-                      <input type="date" value={endDay} onChange={(e) => setEndDay(e.target.value)} className={inputClass} />
+                    <Field label="End date *">
+                      <input type="date" required min={day} value={endDay} onChange={(e) => setEndDay(e.target.value)} className={inputClass} />
                     </Field>
                   ) : null}
                   {kind === "reimbursement" ? (
-                    <Field label="Amount">
-                      <input value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="1500" className={inputClass} />
+                    <Field label="Amount *">
+                      <input required value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="1500" className={inputClass} />
                     </Field>
                   ) : null}
                   {kind === "asset" || kind === "custom" ? (
-                    <Field label={kind === "asset" ? "Item" : "Title"}>
-                      <input value={title} onChange={(e) => setTitle(e.target.value)} className={inputClass} />
+                    <Field label={kind === "asset" ? "Item *" : "Title *"}>
+                      <input required value={title} onChange={(e) => setTitle(e.target.value)} className={inputClass} />
                     </Field>
                   ) : null}
-                  <Field label={kind === "attendance_correction" ? "Note" : "Details"}>
-                    <textarea value={detail} onChange={(e) => setDetail(e.target.value)} rows={3} className={`${inputClass} h-auto py-2`} />
+                  <Field label={kind === "attendance_correction" ? "Note *" : kind === "leave" || kind === "wfh" ? "Reason *" : "Details *"}>
+                    <textarea required value={detail} onChange={(e) => setDetail(e.target.value)} rows={3} className={`${inputClass} h-auto py-2`} />
                   </Field>
+                  <p className="text-[11px] text-gray-400">Every field is required before this request can be sent.</p>
                   <div className="flex gap-2">
                     <button type="button" onClick={() => setKind("")} className="flex-1 h-11 rounded-xl bg-gray-100 text-gray-600 font-semibold text-sm">Back</button>
-                    <button type="button" disabled={busy} onClick={() => void submit()} className="flex-1 h-11 rounded-xl bg-[#B8112D] text-white font-semibold text-sm disabled:opacity-50">
+                    <button type="button" disabled={busy || !!missing()} onClick={() => void submit()} className="flex-1 h-11 rounded-xl bg-[#B8112D] text-white font-semibold text-sm disabled:opacity-50">
                       {busy ? "Sending…" : "Send"}
                     </button>
                   </div>

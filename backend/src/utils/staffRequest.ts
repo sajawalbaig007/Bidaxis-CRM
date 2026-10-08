@@ -68,8 +68,9 @@ export function parseRequestDraft(body: Record<string, unknown>): { ok: true; dr
 
   if (kind === "attendance_correction") {
     if (!checkIn || !isValidTime(checkIn)) return { ok: false, message: "Enter a check-in time." };
-    if (checkOut && !isValidTime(checkOut)) return { ok: false, message: "Enter a valid check-out time." };
-    const out = checkOut ? clock12(checkOut) : "still in";
+    if (!checkOut || !isValidTime(checkOut)) return { ok: false, message: "Enter a check-out time." };
+    if (!detail) return { ok: false, message: "Add a note." };
+    const out = clock12(checkOut);
     return {
       ok: true,
       draft: {
@@ -84,21 +85,24 @@ export function parseRequestDraft(body: Record<string, unknown>): { ok: true; dr
   }
 
   if (kind === "leave" || kind === "wfh") {
+    if (!isValidDay(endDay) || endDay < day) return { ok: false, message: "Enter an end date." };
     if (!detail) return { ok: false, message: "Add a short reason." };
-    const end = isValidDay(endDay) && endDay !== day ? ` – ${endDay}` : "";
+    const end = endDay !== day ? ` – ${endDay}` : "";
     return { ok: true, draft: { kind, day, summary: `${day}${end}`, detail, checkIn: null, checkOut: null } };
   }
 
   if (kind === "reimbursement") {
     if (!amount) return { ok: false, message: "Enter an amount." };
+    if (!detail) return { ok: false, message: "Add the details." };
     return {
       ok: true,
       draft: { kind, day, summary: `${amount} · ${day}`, detail, checkIn: null, checkOut: null },
     };
   }
 
-  const summary = title || detail;
-  if (!summary) return { ok: false, message: "Describe the request." };
+  if (!title) return { ok: false, message: kind === "asset" ? "Enter the item." : "Enter a title." };
+  if (!detail) return { ok: false, message: "Add the details." };
+  const summary = title;
   return {
     ok: true,
     draft: { kind, day, summary: summary.slice(0, 120), detail: title && detail ? detail : detail, checkIn: null, checkOut: null },
