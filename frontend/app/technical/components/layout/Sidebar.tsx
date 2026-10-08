@@ -226,13 +226,13 @@ export default function TechnicalSidebar() {
           <div className="min-w-0 shrink">
             <CapsuleChipNav
               items={
-                user?.role === "technical_manager"
-                  ? [
+                user?.role === "bim_manager"
+                  ? navItems
+                  : [
                       ...navItems.slice(0, -1),
                       { title: "Requests", shortTitle: "Requests", href: `${BASE}/reports/requests`, icon: ClipboardList },
                       navItems[navItems.length - 1]!,
                     ]
-                  : navItems
               }
               baseHref={BASE}
               accent="#B8112D"
@@ -420,8 +420,17 @@ export default function TechnicalSidebar() {
           </div>
           </div>
         </div>
-        <div className="border-t border-crm-border px-3 sm:px-4 lg:px-5 py-2">
+        <div className="border-t border-crm-border px-3 sm:px-4 lg:px-5 py-2 flex flex-wrap items-center gap-2">
           <StaffDayCheckBar compact defaultVisible showOvertime chiefDashboard />
+          {user?.role === "bim_manager" ? null : (
+            <Link
+              href="/technical/reports/requests"
+              className="h-9 px-3 rounded-xl bg-[#3730A3] text-white text-xs font-semibold inline-flex items-center gap-1 shrink-0"
+            >
+              <ClipboardList size={14} />
+              Employee requests
+            </Link>
+          )}
         </div>
       </header>
 

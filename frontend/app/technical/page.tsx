@@ -68,7 +68,7 @@ const CHART_TIP = {
 
 export default function TechnicalDashboardPage() {
   const [role, setRole] = useState(() => peekAuthMe()?.role ?? "");
-  const showRequests = role === "technical_manager";
+  const showRequests = role !== "bim_manager";
   const [projects, setProjects] = useState<ProjectRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [top5, setTop5] = useState<EstimatorMonthRating[]>([]);
