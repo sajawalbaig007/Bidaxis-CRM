@@ -988,11 +988,19 @@ router.get("/requests", verifyToken, allowRoles("admin", "manager", "technical_m
     const from = isValidDay(String(req.query.from ?? "")) ? String(req.query.from) : "2000-01-01";
     const to = isValidDay(String(req.query.to ?? "")) ? String(req.query.to) : "2100-01-01";
     const asked = String(req.query.department ?? "");
-    const department = req.user?.role === "technical_manager" ? "estimator" : asked;
+    const chief = req.user?.role === "technical_manager";
+    const estimatorIds = chief
+      ? (await prisma.user.findMany({ where: { role: "estimator" }, select: { id: true } })).map((user) => user.id)
+      : [];
+    const department = chief ? "" : asked;
     const rows = await prisma.staffRequest.findMany({
       where: {
         day: { gte: from, lte: to },
-        ...(department ? { department } : {}),
+        ...(chief
+          ? { OR: [{ department: "estimator" }, { personKey: { in: estimatorIds } }] }
+          : department
+            ? { department }
+            : {}),
       },
       orderBy: { createdAt: "desc" },
     });
@@ -1003,7 +1011,7 @@ router.get("/requests", verifyToken, allowRoles("admin", "manager", "technical_m
   }
 });
 
-router.post("/requests/:id/review", verifyToken, allowRoles("admin", "technical_manager"), async (req: AuthRequest, res) => {
+router.post("/requests/:id/review", verifyToken, allowRoles("admin", "manager", "technical_manager"), async (req: AuthRequest, res) => {
   try {
     const id = String(req.params.id ?? "");
     const action = String(req.body?.action ?? "");
@@ -1016,9 +1024,12 @@ router.post("/requests/:id/review", verifyToken, allowRoles("admin", "technical_
       return res.status(400).json({ success: false, message: "This request is already reviewed." });
     }
     if (req.user?.role === "technical_manager" && existing.department !== "estimator") {
-      return res.status(403).json({ success: false, message: "You can review estimator requests only." });
+      const requester = await prisma.user.findUnique({ where: { id: existing.personKey }, select: { role: true } });
+      if (requester?.role !== "estimator") {
+        return res.status(403).json({ success: false, message: "You can review estimator requests only." });
+      }
     }
-    const reviewer = req.user?.role === "technical_manager" ? "Chief Estimator" : "CEO";
+    const reviewer = req.user?.role === "technical_manager" ? "Chief Estimator" : req.user?.role === "manager" ? "Admin" : "CEO";
     const timesEdited = req.body?.timesEdited === true;
     const rangeEdited = req.body?.rangeEdited === true;
     const stillIn = req.body?.stillIn === true;
@@ -1087,7 +1098,7 @@ router.post("/report/:id/reset", verifyToken, allowRoles("admin"), async (req, r
   }
 });
 
-router.put("/report/:id", verifyToken, allowRoles("admin"), async (req, res) => {
+router.put("/report/:id", verifyToken, allowRoles("admin", "manager"), async (req, res) => {
   try {
     const id = String(req.params.id ?? "");
     const day = String(req.body?.day ?? "");

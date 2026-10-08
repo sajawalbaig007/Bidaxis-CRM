@@ -6,6 +6,7 @@ import { Check, ChevronDown, Clock, Download, LogIn, LogOut, Pencil, RotateCcw, 
 import toast from "react-hot-toast";
 import API, { apiErrorMessage } from "@/lib/api";
 import { StaffRequestCell, type StaffRequestItem } from "@/app/components/StaffRequestButton";
+import RequestDecisionDialog from "@/app/admin/reports/requests/RequestDecisionDialog";
 import { OvertimeShiftCell, type ShiftOvertimeItem } from "@/app/components/OvertimeShiftButton";
 import { EST_TZ_ABBR, EST_TZ_LABEL } from "@/lib/estTime";
 
@@ -287,7 +288,8 @@ export default function StaffAttendanceReport({ scope = "all" }: { scope?: "all"
   const onReports = scope === "estimators" || scope === "chief"
     ? pathname.startsWith("/technical")
     : pathname.startsWith("/admin") || pathname.startsWith("/manager");
-  const canEdit = scope === "all" && pathname.startsWith("/admin");
+  const canEdit = scope === "all" && (pathname.startsWith("/admin") || pathname.startsWith("/manager"));
+  const canReset = scope === "all" && pathname.startsWith("/admin");
   const canReview = scope === "estimators" ? pathname.startsWith("/technical") : pathname.startsWith("/admin");
 
   useEffect(() => {
@@ -313,7 +315,8 @@ export default function StaffAttendanceReport({ scope = "all" }: { scope?: "all"
           loading={loading}
           loaded={loaded}
           canEdit={canEdit}
-          canApproveRequests={pathname.startsWith("/admin")}
+          canReset={canReset}
+          canApproveRequests={pathname.startsWith("/admin") || pathname.startsWith("/manager")}
           showOvertime={false}
           canReview={canReview}
           onRefresh={() => void load()}
@@ -368,6 +371,7 @@ function DeptCard({
   loading,
   loaded,
   canEdit,
+  canReset = false,
   canApproveRequests = false,
   showOvertime = false,
   canReview = false,
@@ -387,6 +391,7 @@ function DeptCard({
   loading: boolean;
   loaded: boolean;
   canEdit: boolean;
+  canReset?: boolean;
   canApproveRequests?: boolean;
   showOvertime?: boolean;
   canReview?: boolean;
@@ -409,6 +414,7 @@ function DeptCard({
   const [overtimeEdit, setOvertimeEdit] = useState<Row | null>(null);
   const [overtimeText, setOvertimeText] = useState("");
   const [reviewing, setReviewing] = useState(false);
+  const [decision, setDecision] = useState<StaffRequestItem | null>(null);
   const clock = CLOCKS[clockTz];
 
   const reviewOvertimeComment = async (id: string, action: "approve" | "decline" | "edit", comment?: string) => {
@@ -687,7 +693,7 @@ function DeptCard({
                       </td>
                     ) : null}
                     <td className="px-3 py-3">
-                      <StaffRequestCell items={rowRequests(row)} canApprove={canApproveRequests} onChanged={onRefresh} />
+                      <StaffRequestCell items={rowRequests(row)} canApprove={canApproveRequests} onOpen={canApproveRequests ? setDecision : undefined} onChanged={onRefresh} />
                     </td>
                     <td className="px-3 py-3 font-semibold">{absent ? "—" : durationLabel(row.day, row.checkIn, row.checkOut, row)}</td>
                     <td className="px-3 py-3">
@@ -737,7 +743,7 @@ function DeptCard({
                             <Pencil size={12} />
                             Edit
                           </button>
-                          {absent ? null : (
+                          {canReset && !absent ? (
                           <button
                             type="button"
                             disabled={resettingId === row.id}
@@ -747,7 +753,7 @@ function DeptCard({
                             <RotateCcw size={12} />
                             Reset
                           </button>
-                          )}
+                          ) : null}
                         </div>
                       </td>
                     ) : null}
@@ -780,7 +786,7 @@ function DeptCard({
                     <p className="text-sm font-semibold">{item.personName}</p>
                     <p className="text-[11px] text-gray-400">{item.day}</p>
                   </div>
-                  <StaffRequestCell items={[item]} canApprove={canApproveRequests} onChanged={onRefresh} />
+                  <StaffRequestCell items={[item]} canApprove={canApproveRequests} onOpen={canApproveRequests ? setDecision : undefined} onChanged={onRefresh} />
                 </div>
               ))}
             </div>
@@ -863,6 +869,14 @@ function DeptCard({
             </div>
           </div>
         </div>
+      ) : null}
+      {decision ? (
+        <RequestDecisionDialog
+          row={decision}
+          canApprove={canApproveRequests}
+          onClose={() => setDecision(null)}
+          onChanged={onRefresh}
+        />
       ) : null}
     </div>
   );

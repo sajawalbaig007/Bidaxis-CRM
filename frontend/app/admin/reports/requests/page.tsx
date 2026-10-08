@@ -33,7 +33,7 @@ export default function EmployeeRequestsPage() {
   const onTechnical = pathname.startsWith("/technical");
   const [role, setRole] = useState(() => peekAuthMe()?.role ?? "");
   const chief = onTechnical && role === "technical_manager";
-  const canApprove = pathname.startsWith("/admin") || chief;
+  const canApprove = pathname.startsWith("/admin") || pathname.startsWith("/manager") || chief;
   const [rows, setRows] = useState<RequestRow[]>([]);
   const [filter, setFilter] = useState<Filter>("pending");
   const [loading, setLoading] = useState(true);
@@ -52,7 +52,7 @@ export default function EmployeeRequestsPage() {
         },
       });
       const list = (res.data.requests ?? []) as RequestRow[];
-      setRows(onTechnical ? list.filter((row) => row.department === "estimator") : list);
+      setRows(list);
       setError("");
     } catch (err) {
       setError(apiErrorMessage(err, "Could not load requests."));

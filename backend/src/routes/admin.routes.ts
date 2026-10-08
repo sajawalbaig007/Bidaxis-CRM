@@ -4129,7 +4129,7 @@ router.post(
 router.put(
   "/csr-work-session/:id",
   verifyToken,
-  allowRoles("admin", "technical_manager"),
+  allowRoles("admin", "manager", "technical_manager"),
   async (req: AuthRequest, res) => {
     try {
       const sessionId = String(req.params.id ?? "");
