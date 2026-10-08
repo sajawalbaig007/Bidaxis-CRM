@@ -1,6 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import prisma from "../config/db";
 import { attendanceNameMatch } from "./salaryAttendanceSync";
+import { DEPT_ROSTER } from "./staffAttendance";
 
 export type PaidLeavePublic = {
   id: string;
@@ -32,11 +33,19 @@ function plainName(value: string) {
   return value.toLowerCase().replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
 }
 
-export function leaveDaysFor(name: string, rows: { personName: string; fromDay: string; toDay: string; status: string }[], month: string) {
+export function leaveDaysFor(
+  name: string,
+  rows: { personName: string; personKey?: string; fromDay: string; toDay: string; status: string }[],
+  month: string,
+  personKey = "",
+) {
   const days = new Set<string>();
+  const key = personKey.trim();
   for (const row of rows) {
     if (row.status !== "approved") continue;
-    if (plainName(row.personName) !== plainName(name) && !attendanceNameMatch(row.personName, name)) continue;
+    const keyHit = !!key && !!row.personKey && row.personKey === key;
+    const nameHit = plainName(row.personName) === plainName(name) || attendanceNameMatch(row.personName, name);
+    if (!keyHit && !nameHit) continue;
     for (const day of eachDay(row.fromDay, row.toDay)) {
       if (day.startsWith(month)) days.add(day);
     }
@@ -135,18 +144,20 @@ export async function grantApprovedPaidLeave(input: {
     list.push(ymd);
     byMonth.set(key, list);
   }
+  const personKey = input.personKey?.trim() || "";
   for (const [leaveMonth, list] of byMonth) {
+    const leaveName = await deductionLeaveName(personName, personKey, leaveMonth);
     await prisma.paidLeave.create({
       data: {
-        personName,
-        personKey: input.personKey?.trim() || "",
+        personName: leaveName,
+        personKey,
         fromDay: list[0]!,
         toDay: list[list.length - 1]!,
         month: leaveMonth,
         status: "approved",
       },
     });
-    await stampPaidLeaveDates(leaveMonth, personName);
+    await stampPaidLeaveDates(leaveMonth, leaveName, personKey);
   }
   return { ok: true };
 }
@@ -173,28 +184,84 @@ type SalarySub = {
   salesPayroll?: Record<string, unknown>;
 };
 
+/** Name used on the deduction page for this person, so approved leave lines up with that row. */
+async function deductionLeaveName(personName: string, personKey: string, month: string): Promise<string> {
+  const labels = await salaryLabels(month);
+  if (personKey) {
+    const byKey = labels.find((row) => row.personKey === personKey);
+    if (byKey) return byKey.label;
+  }
+  const exact = labels.find((row) => plainName(row.label) === plainName(personName));
+  if (exact) return exact.label;
+  const fuzzy = labels
+    .filter((row) => attendanceNameMatch(row.label, personName))
+    .sort((a, b) => b.label.length - a.label.length);
+  if (fuzzy[0]) return fuzzy[0].label;
+  for (const people of Object.values(DEPT_ROSTER)) {
+    const hit = people.find(
+      (person) =>
+        person.key === personKey
+        || plainName(person.name) === plainName(personName)
+        || attendanceNameMatch(person.name, personName),
+    );
+    if (hit) return hit.name;
+  }
+  return personName;
+}
+
+async function salaryLabels(month: string): Promise<{ label: string; personKey: string }[]> {
+  const records = await monthStatements(month);
+  const found: { label: string; personKey: string }[] = [];
+  for (const record of records) {
+    const data = (record.data ?? {}) as { teamSalaries?: { subHeads?: SalarySub[] }[] };
+    for (const team of data.teamSalaries ?? []) {
+      for (const sub of team.subHeads ?? []) {
+        const label = String(sub.label ?? "").trim();
+        if (!label) continue;
+        const key = String(sub.salary?.latePersonKey ?? sub.salesPayroll?.latePersonKey ?? "");
+        found.push({ label, personKey: key });
+      }
+    }
+  }
+  return found;
+}
+
+function lateKey(sub: SalarySub): string {
+  return String(sub.salary?.latePersonKey ?? sub.salesPayroll?.latePersonKey ?? "");
+}
+
 /** Write the approved dates onto that person's salary row so accounts skips them. */
-export async function stampPaidLeaveDates(month: string, personName: string) {
+export async function stampPaidLeaveDates(month: string, personName: string, personKey = "") {
   const leaves = await prisma.paidLeave.findMany({ where: { month, status: "approved" } });
-  const days = [...leaveDaysFor(personName, leaves, month)];
   const records = await monthStatements(month);
   for (const record of records) {
     const data = JSON.parse(JSON.stringify(record.data ?? {})) as Record<string, unknown>;
     const teams = (data.teamSalaries as { subHeads?: SalarySub[] }[] | undefined) ?? [];
+    const subs = teams.flatMap((team) => team.subHeads ?? []).filter((sub) => String(sub.label ?? "").trim());
+    const keyed = personKey ? subs.filter((sub) => lateKey(sub) === personKey) : [];
+    const exact = subs.filter((sub) => plainName(String(sub.label ?? "")) === plainName(personName));
+    let chosen = keyed.length ? keyed : exact;
+    if (!chosen.length) {
+      const fuzzy = subs
+        .filter((sub) => attendanceNameMatch(String(sub.label ?? ""), personName))
+        .sort((a, b) => String(b.label ?? "").length - String(a.label ?? "").length);
+      const best = fuzzy[0] ? String(fuzzy[0].label ?? "").length : 0;
+      chosen = best ? fuzzy.filter((sub) => String(sub.label ?? "").length === best) : [];
+    }
+    if (!chosen.length) continue;
     let changed = false;
-    for (const team of teams) {
-      for (const sub of team.subHeads ?? []) {
-        if (plainName(String(sub.label ?? "")) !== plainName(personName)) continue;
-        if (sub.salary) {
-          sub.salary.paidLeaveDates = days;
-          sub.salary.paidLeaveDays = days.length;
-          changed = true;
-        }
-        if (sub.salesPayroll) {
-          sub.salesPayroll.paidLeaveDates = days;
-          sub.salesPayroll.paidLeaveDays = days.length;
-          changed = true;
-        }
+    for (const sub of chosen) {
+      const label = String(sub.label ?? "");
+      const days = [...leaveDaysFor(label, leaves, month, lateKey(sub) || personKey)];
+      if (sub.salary) {
+        sub.salary.paidLeaveDates = days;
+        sub.salary.paidLeaveDays = days.length;
+        changed = true;
+      }
+      if (sub.salesPayroll) {
+        sub.salesPayroll.paidLeaveDates = days;
+        sub.salesPayroll.paidLeaveDays = days.length;
+        changed = true;
       }
     }
     if (!changed) continue;

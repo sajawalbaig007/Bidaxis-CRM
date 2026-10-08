@@ -59,7 +59,7 @@ export async function sendLateToAccounts(month: string, userId?: string) {
         const person = report.people.find((row) => plainName(row.name) === plainName(label));
         if (!person) continue;
         const amount = Math.round(person.month);
-        const dates = [...leaveDaysFor(label, leaves, month)];
+        const dates = [...leaveDaysFor(label, leaves, month, String(sub.salary?.latePersonKey ?? ""))];
         if (sub.salary) {
           sub.salary.lateDeductionOverride = amount;
           sub.salary.paidLeaveDates = dates;

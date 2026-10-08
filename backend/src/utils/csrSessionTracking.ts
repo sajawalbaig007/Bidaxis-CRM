@@ -724,28 +724,44 @@ export async function ceoSetPortalShiftDay(input: {
       checkOutAt = new Date(checkOutAt.getTime() + 24 * 60 * 60 * 1000);
     }
   }
-  const from = new Date(`${addCalendarDays(input.day, -2)}T00:00:00.000Z`);
-  const to = new Date(`${addCalendarDays(input.day, 3)}T00:00:00.000Z`);
+  const user = await prisma.user.findUnique({
+    where: { id: input.userId },
+    select: { id: true, role: true },
+  });
+  if (!user || (user.role !== "csr" && user.role !== "estimator" && user.role !== "bim")) {
+    return { ok: false as const, message: "Unknown employee." };
+  }
+  const from = new Date(`${addCalendarDays(input.day, -3)}T00:00:00.000Z`);
+  const to = new Date(`${addCalendarDays(input.day, 4)}T00:00:00.000Z`);
   const sessions = await prisma.csrWorkSession.findMany({
     where: { userId: input.userId, loginAt: { gte: from, lt: to } },
     select: { id: true, loginAt: true },
   });
-  const ids = sessions
-    .filter((session) => pktShiftDay(session.loginAt, input.department, input.userId) === input.day)
-    .map((session) => session.id);
-  if (ids.length) {
-    const adjusted = await adminAdjustCsrWorkSession({
-      sessionId: ids[0]!,
-      memberIds: ids,
-      checkInAt,
-      checkOutAt,
-      clearCheckOut: !checkOutAt,
-      note: "ceo_adjusted",
+  const onShift = sessions.filter(
+    (session) => pktShiftDay(session.loginAt, input.department, input.userId) === input.day,
+  );
+  const onCalendar = sessions.filter((session) => pktNow(session.loginAt).day === input.day);
+  const hits = (onShift.length ? onShift : onCalendar).sort((a, b) => a.loginAt.getTime() - b.loginAt.getTime());
+  const span = checkOutAt ? Math.max(0, checkOutAt.getTime() - checkInAt.getTime()) : 0;
+  if (hits.length) {
+    const [primary, ...rest] = hits;
+    await prisma.csrWorkSession.update({
+      where: { id: primary!.id },
+      data: {
+        loginAt: checkInAt,
+        logoutAt: checkOutAt,
+        dashboardMs: span,
+        awayMs: 0,
+        lastHeartbeatAt: checkOutAt ?? new Date(),
+        lastVisible: true,
+        closedReason: checkOutAt ? "ceo_adjusted" : null,
+      },
     });
-    if (!adjusted.ok) return adjusted;
+    if (rest.length) {
+      await prisma.csrWorkSession.deleteMany({ where: { id: { in: rest.map((session) => session.id) } } });
+    }
     return { ok: true as const };
   }
-  const span = checkOutAt ? Math.max(0, checkOutAt.getTime() - checkInAt.getTime()) : 0;
   await prisma.csrWorkSession.create({
     data: {
       userId: input.userId,
