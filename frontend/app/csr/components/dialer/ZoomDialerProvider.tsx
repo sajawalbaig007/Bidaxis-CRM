@@ -67,7 +67,22 @@ function toE164(raw: string): string | null {
   return null;
 }
 
+function launchZoomCall(destination: string, callerId: string) {
+  const link = document.createElement("a");
+  link.setAttribute("href", `zoomphonecall://${destination}?callerid=${callerId}`);
+  link.style.display = "none";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+}
+
 async function placeZoomCall(accountId: string, callerNumber: string, destination: string) {
+  const destinationE164 = toE164(destination);
+  const callerE164 = toE164(callerNumber);
+  if (!destinationE164 || !callerE164) {
+    throw new Error("That phone number cannot be dialed.");
+  }
+  launchZoomCall(destinationE164, callerE164);
   await API.post("/dialer/call", { accountId, callerNumber, destination });
 }
 
