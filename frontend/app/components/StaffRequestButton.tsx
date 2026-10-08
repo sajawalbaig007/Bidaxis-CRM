@@ -127,7 +127,6 @@ export default function StaffRequestButton({
     if (!day) return "Choose a date.";
     if (kind === "attendance_correction") {
       if (!checkIn) return "Enter a check-in time.";
-      if (!checkOut) return "Enter a check-out time.";
       if (!detail.trim()) return "Add a note.";
     }
     if (kind === "leave" || kind === "wfh") {
@@ -251,8 +250,8 @@ export default function StaffRequestButton({
                       <Field label="Check in *">
                         <input type="time" required value={checkIn} onChange={(e) => setCheckIn(e.target.value)} className={inputClass} />
                       </Field>
-                      <Field label="Check out *">
-                        <input type="time" required value={checkOut} onChange={(e) => setCheckOut(e.target.value)} className={inputClass} />
+                      <Field label="Check out">
+                        <input type="time" value={checkOut} onChange={(e) => setCheckOut(e.target.value)} className={inputClass} />
                       </Field>
                     </div>
                   ) : null}
@@ -274,7 +273,11 @@ export default function StaffRequestButton({
                   <Field label={kind === "attendance_correction" ? "Note *" : kind === "leave" || kind === "wfh" ? "Reason *" : "Details *"}>
                     <textarea required value={detail} onChange={(e) => setDetail(e.target.value)} rows={3} className={`${inputClass} h-auto py-2`} />
                   </Field>
-                  <p className="text-[11px] text-gray-400">Every field is required before this request can be sent.</p>
+                  <p className="text-[11px] text-gray-400">
+                    {kind === "attendance_correction"
+                      ? "Check-in and the note are required. Check-out can be left blank."
+                      : "Every field is required before this request can be sent."}
+                  </p>
                   <div className="flex gap-2">
                     <button type="button" onClick={() => setKind("")} className="flex-1 h-11 rounded-xl bg-gray-100 text-gray-600 font-semibold text-sm">Back</button>
                     <button type="button" disabled={busy || !!missing()} onClick={() => void submit()} className="flex-1 h-11 rounded-xl bg-[#B8112D] text-white font-semibold text-sm disabled:opacity-50">

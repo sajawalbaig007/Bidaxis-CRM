@@ -68,9 +68,9 @@ export function parseRequestDraft(body: Record<string, unknown>): { ok: true; dr
 
   if (kind === "attendance_correction") {
     if (!checkIn || !isValidTime(checkIn)) return { ok: false, message: "Enter a check-in time." };
-    if (!checkOut || !isValidTime(checkOut)) return { ok: false, message: "Enter a check-out time." };
+    if (checkOut && !isValidTime(checkOut)) return { ok: false, message: "Enter a valid check-out time." };
     if (!detail) return { ok: false, message: "Add a note." };
-    const out = clock12(checkOut);
+    const out = checkOut ? clock12(checkOut) : "still in";
     return {
       ok: true,
       draft: {
