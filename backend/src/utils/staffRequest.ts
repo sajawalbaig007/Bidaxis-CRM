@@ -236,10 +236,11 @@ export async function applyApprovedRequest(row: {
     return { ok: false as const, message: "Enter a valid check-out time." };
   }
 
-  if (row.department === "csr" || row.department === "estimator" || row.department === "bim") {
+  const portalDepartment = await portalShiftDepartment(row.personKey, row.department);
+  if (portalDepartment) {
     return ceoSetPortalShiftDay({
       userId: row.personKey,
-      department: row.department,
+      department: portalDepartment,
       day,
       checkIn,
       checkOut,
@@ -256,6 +257,14 @@ export async function applyApprovedRequest(row: {
   });
   if (!saved.ok) return { ok: false as const, message: saved.message };
   return { ok: true as const, day, checkIn, checkOut };
+}
+
+async function portalShiftDepartment(personKey: string, department: string): Promise<"csr" | "estimator" | "bim" | null> {
+  if (department === "csr" || department === "estimator" || department === "bim") return department;
+  if (!personKey) return null;
+  const user = await prisma.user.findUnique({ where: { id: personKey }, select: { role: true } });
+  if (user?.role === "csr" || user?.role === "estimator" || user?.role === "bim") return user.role;
+  return null;
 }
 
 function clock(value: string | null | undefined): string | null {

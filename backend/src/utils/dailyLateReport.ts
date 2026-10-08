@@ -115,7 +115,7 @@ export async function dailyLateReport(date: string) {
         personKey: typeof sal.latePersonKey === "string" ? sal.latePersonKey : "",
         personName: name,
       };
-      const skip = leaveDaysFor(name, approvedLeaves, month);
+      const skip = leaveDaysFor(name, approvedLeaves, month, person.personKey);
       const perDay = perDayForPolicy(department, month, amounts, person) ?? 0;
       const dayCut = policyDeductionForDays(department, month, amounts, punches ?? [], dayList, person, skip) ?? 0;
       const monthCut = policyDeductionForDays(department, month, amounts, punches ?? [], monthDays, person, skip) ?? 0;
@@ -153,7 +153,7 @@ export async function dailyLateReport(date: string) {
       const policyDept = onAdministration ? "admin" : person.department;
       const amounts = { basic: 0, commission: 0, overtime: 0, allowance: 0 };
       const personRef = { personKey: person.key, personName: person.name };
-      const skip = leaveDaysFor(person.name, approvedLeaves, month);
+      const skip = leaveDaysFor(person.name, approvedLeaves, month, person.key);
       const perDay = perDayForPolicy(policyDept, month, amounts, personRef) ?? 0;
       const dayCut = policyDeductionForDays(policyDept, month, amounts, punches, dayList, personRef, skip) ?? 0;
       const monthCut = policyDeductionForDays(policyDept, month, amounts, punches, monthDays, personRef, skip) ?? 0;
