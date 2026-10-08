@@ -753,7 +753,7 @@ function DeptCard({
                             <RotateCcw size={12} />
                             Reset
                           </button>
-                          )}
+                          ) : null}
                         </div>
                       </td>
                     ) : null}
