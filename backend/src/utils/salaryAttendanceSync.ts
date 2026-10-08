@@ -2,7 +2,7 @@ import type { Role } from "@prisma/client";
 import prisma from "../config/db";
 import { SEED_USER_EMAILS } from "../constants/seedUsers";
 import type { AttendanceDay } from "./lateDeduction";
-import { addCalendarDays, DEPT_ROSTER, pktNow, pktShiftDay } from "./staffAttendance";
+import { addCalendarDays, attendanceShift, DEPT_ROSTER, pktNow, pktShiftDay } from "./staffAttendance";
 
 function attendanceTokens(label: string): string[] {
   return label
@@ -114,15 +114,43 @@ function lateDepartmentFor(department: string): string | null {
   return null;
 }
 
-function mergeDay(prev: AttendanceDay | undefined, next: AttendanceDay): AttendanceDay {
+function minutesOf(value: string): number | null {
+  const match = /^(\d{2}):(\d{2})/.exec(value);
+  if (!match) return null;
+  return Number(match[1]) * 60 + Number(match[2]);
+}
+
+/** Evening shifts: 18:06 is the first punch and 06:05 the next morning, not an earlier check-in. */
+function earlierInShift(left: string, right: string, shiftStart: string): boolean {
+  const a = minutesOf(left);
+  const b = minutesOf(right);
+  const start = minutesOf(shiftStart) ?? 0;
+  if (a == null) return false;
+  if (b == null) return true;
+  const rank = (time: number) => (time >= start ? time : time + 24 * 60);
+  return rank(a) < rank(b);
+}
+
+function mergeDay(prev: AttendanceDay | undefined, next: AttendanceDay, shiftStart: string | null = null): AttendanceDay {
   if (!prev) return next;
-  const checkIns = [prev.checkIn, next.checkIn].map((value) => String(value ?? "").trim()).filter(Boolean).sort();
-  const checkOuts = [prev.checkOut, next.checkOut].map((value) => String(value ?? "").trim()).filter(Boolean).sort();
+  const checkIns = [prev.checkIn, next.checkIn].map((value) => String(value ?? "").trim()).filter(Boolean);
+  const checkOuts = [prev.checkOut, next.checkOut].map((value) => String(value ?? "").trim()).filter(Boolean);
+  const first = (values: string[], latest: boolean) => {
+    return values.reduce((chosen, value) => {
+      const before = shiftStart ? earlierInShift(value, chosen, shiftStart) : value < chosen;
+      return latest ? (before ? chosen : value) : (before ? value : chosen);
+    });
+  };
   return {
     day: next.day,
-    checkIn: checkIns[0] ?? "",
-    checkOut: checkOuts[checkOuts.length - 1] ?? "",
+    checkIn: checkIns.length ? first(checkIns, false) : "",
+    checkOut: checkOuts.length ? first(checkOuts, true) : "",
   };
+}
+
+function shiftStartFor(department: string, personKey = ""): string | null {
+  const window = attendanceShift(department, personKey);
+  return window.overnight ? window.start : null;
 }
 
 type ApprovedPunch = { personKey: string; personName: string; day: string; checkIn: string; checkOut: string };
@@ -169,10 +197,10 @@ export async function applyAttendanceCheckIns(
   }
 
   const byPerson = new Map<string, Map<string, AttendanceDay>>();
-  const addDay = (personKey: string, day: AttendanceDay) => {
+  const addDay = (personKey: string, day: AttendanceDay, department = "") => {
     if (!byPerson.has(personKey)) byPerson.set(personKey, new Map());
     const days = byPerson.get(personKey)!;
-    days.set(day.day, mergeDay(days.get(day.day), day));
+    days.set(day.day, mergeDay(days.get(day.day), day, department ? shiftStartFor(department, personKey) : null));
   };
 
   const staff = await prisma.staffDayAttendance.findMany({
@@ -186,7 +214,7 @@ export async function applyAttendanceCheckIns(
       day: row.day,
       checkIn: row.checkIn ?? "",
       checkOut: row.checkOut ?? "",
-    });
+    }, row.department);
   }
 
   const monthStart = new Date(`${month}-01T00:00:00+05:00`);
@@ -209,7 +237,7 @@ export async function applyAttendanceCheckIns(
       day,
       checkIn: pktNow(session.loginAt).time,
       checkOut: session.logoutAt ? pktNow(session.logoutAt).time : "",
-    });
+    }, department);
   }
 
   const approved = await prisma.staffRequest.findMany({
@@ -261,7 +289,7 @@ export async function applyAttendanceCheckIns(
         for (const match of matches) {
           for (const day of byPerson.get(match.personKey)?.values() ?? []) {
             const prev = daysMap.get(day.day);
-            daysMap.set(day.day, prev ? mergeDay(prev, day) : day);
+            daysMap.set(day.day, prev ? mergeDay(prev, day, shiftStartFor(match.department, match.personKey)) : day);
           }
         }
       }
