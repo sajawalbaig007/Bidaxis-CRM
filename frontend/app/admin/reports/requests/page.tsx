@@ -1,11 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import API, { apiErrorMessage } from "@/lib/api";
-import { StaffRequestCell, type StaffRequestItem } from "@/app/components/StaffRequestButton";
+import type { StaffRequestItem } from "@/app/components/StaffRequestButton";
 import ReportsSubpage from "../ReportsSubpage";
+import RequestDecisionDialog from "./RequestDecisionDialog";
 
 const DEPT_LABEL: Record<string, string> = {
   csr: "CSR",
@@ -31,6 +32,9 @@ export default function EmployeeRequestsPage() {
   const [filter, setFilter] = useState<Filter>("pending");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [active, setActive] = useState<RequestRow | null>(null);
+  const seen = useRef(new Set<string>());
+  const primed = useRef(false);
 
   const load = useCallback(async () => {
     try {
@@ -49,6 +53,24 @@ export default function EmployeeRequestsPage() {
     const timer = window.setInterval(() => void load(), 20000);
     return () => window.clearInterval(timer);
   }, [load]);
+
+  useEffect(() => {
+    if (!canApprove || active || loading) return;
+    const pending = rows.filter((row) => row.status === "pending");
+    const newestOf = (list: RequestRow[]) =>
+      [...list].sort((a, b) => String(b.createdAt ?? "").localeCompare(String(a.createdAt ?? "")))[0];
+    if (!primed.current) {
+      primed.current = true;
+      for (const row of pending) seen.current.add(row.id);
+      const newest = newestOf(pending);
+      if (newest) setActive(newest);
+      return;
+    }
+    const fresh = newestOf(pending.filter((row) => !seen.current.has(row.id)));
+    if (!fresh) return;
+    seen.current.add(fresh.id);
+    setActive(fresh);
+  }, [rows, canApprove, active, loading]);
 
   const visible = useMemo(
     () => rows.filter((row) => filter === "all" || row.status === filter),
@@ -89,21 +111,39 @@ export default function EmployeeRequestsPage() {
       ) : (
         <div className="grid gap-3">
           {visible.map((row) => (
-            <div key={row.id} className="rounded-2xl border border-gray-100/90 dark:border-crm-border bg-white dark:bg-crm-surface px-4 py-3.5 flex flex-wrap items-center justify-between gap-3 shadow-[0_10px_40px_-28px_rgba(15,23,42,0.45)]">
+            <button
+              key={row.id}
+              type="button"
+              onClick={() => {
+                seen.current.add(row.id);
+                setActive(row);
+              }}
+              className="rounded-2xl border border-gray-100/90 dark:border-crm-border bg-white dark:bg-crm-surface px-4 py-3.5 flex flex-wrap items-center justify-between gap-3 text-left shadow-[0_10px_40px_-28px_rgba(15,23,42,0.45)]"
+            >
               <div className="min-w-0 flex items-center gap-3">
                 <span className={`h-10 w-1.5 rounded-full ${row.status === "approved" ? "bg-emerald-500" : row.status === "declined" ? "bg-red-500" : "bg-amber-400"}`} />
                 <div className="min-w-0">
                   <p className="text-sm font-semibold text-[#0F172A] dark:text-white">{row.personName}</p>
                   <p className="text-xs text-gray-500 dark:text-gray-400">
-                    {DEPT_LABEL[row.department] ?? row.department} · {row.day}
+                    {row.kindLabel} · {DEPT_LABEL[row.department] ?? row.department} · {row.day}
                   </p>
                 </div>
               </div>
-              <StaffRequestCell items={[row]} canApprove={canApprove} onChanged={() => void load()} />
-            </div>
+              <span className="text-xs font-semibold text-gray-500">
+                {row.status === "declined" ? "Rejected" : row.status === "approved" ? "Approved" : "Review"}
+              </span>
+            </button>
           ))}
         </div>
       )}
+      {active ? (
+        <RequestDecisionDialog
+          row={active}
+          canApprove={canApprove}
+          onClose={() => setActive(null)}
+          onChanged={() => void load()}
+        />
+      ) : null}
     </ReportsSubpage>
   );
 }

@@ -28,7 +28,7 @@ import {
   toPublic,
 } from "../utils/staffAttendance";
 import { chiefSetEstimatorOvertime, listEstimatorShiftRows, overtimeGate, overtimePublic, reviewOvertime, saveOvertimeComment, submitChiefOvertime, submitShiftOvertime } from "../utils/overtimeRequest";
-import { applyApprovedRequest, parseRequestDraft, toPublicRequest } from "../utils/staffRequest";
+import { applyApprovedRequest, listRequestHistory, parseRequestDraft, toPublicRequest } from "../utils/staffRequest";
 import { SHIFT_DEPARTMENTS, clearShiftSchedule, listShiftSchedules, saveShiftSchedule } from "../utils/shiftSchedule";
 import { SEED_USER_EMAILS } from "../constants/seedUsers";
 import { ceoSetPortalShiftDay } from "../utils/csrSessionTracking";
@@ -953,6 +953,35 @@ router.post("/requests/public", async (req, res) => {
   }
 });
 
+router.get("/requests/mine", verifyToken, async (req: AuthRequest, res) => {
+  try {
+    const history = await listRequestHistory(req.user!.id);
+    return res.json({ success: true, ...history });
+  } catch (error) {
+    console.error("[attendance/requests/mine]", error);
+    return res.status(500).json({ success: false, message: "Could not load request history." });
+  }
+});
+
+router.get("/requests/history", async (req, res) => {
+  try {
+    const department = String(req.query.department ?? "");
+    const personKey = String(req.query.personKey ?? "");
+    if (!isRosterDept(department)) {
+      return res.status(400).json({ success: false, message: "Unknown department." });
+    }
+    const person = rosterPerson(department, personKey);
+    if (!person) return res.status(400).json({ success: false, message: "Unknown person." });
+    const blocked = await gateOffice(req, department);
+    if (blocked) return res.status(403).json({ success: false, code: "IP_NOT_ALLOWED", message: blocked });
+    const history = await listRequestHistory(person.key);
+    return res.json({ success: true, ...history });
+  } catch (error) {
+    console.error("[attendance/requests/history]", error);
+    return res.status(500).json({ success: false, message: "Could not load request history." });
+  }
+});
+
 router.get("/requests", verifyToken, allowRoles("admin", "manager"), async (req, res) => {
   try {
     const from = isValidDay(String(req.query.from ?? "")) ? String(req.query.from) : "2000-01-01";
@@ -980,13 +1009,46 @@ router.post("/requests/:id/review", verifyToken, allowRoles("admin"), async (req
     if (existing.status !== "pending") {
       return res.status(400).json({ success: false, message: "This request is already reviewed." });
     }
+    const timesEdited = req.body?.timesEdited === true;
+    const rangeEdited = req.body?.rangeEdited === true;
+    const stillIn = req.body?.stillIn === true;
+    const day = String(req.body?.day ?? "").trim();
+    const checkIn = String(req.body?.checkIn ?? "").trim();
+    const checkOut = String(req.body?.checkOut ?? "").trim();
+    const fromDay = String(req.body?.fromDay ?? "").trim();
+    const toDay = String(req.body?.toDay ?? "").trim();
+    const amount = String(req.body?.amount ?? "").trim().slice(0, 40);
     if (action === "approve") {
-      const applied = await applyApprovedRequest(existing);
+      const applied = await applyApprovedRequest(existing, {
+        ...(timesEdited
+          ? {
+              day,
+              checkIn: checkIn || null,
+              checkOut: stillIn ? null : (checkOut || null),
+              stillIn,
+            }
+          : {}),
+        ...(rangeEdited ? { fromDay, toDay } : {}),
+      });
       if (!applied.ok) return res.status(400).json({ success: false, message: applied.message });
     }
+    const reviewNote = String(req.body?.remarks ?? "").trim().slice(0, 500);
     const row = await prisma.staffRequest.update({
       where: { id },
-      data: { status: action === "approve" ? "approved" : "declined", reviewedBy: "CEO" },
+      data: {
+        status: action === "approve" ? "approved" : "declined",
+        reviewedBy: "CEO",
+        reviewNote,
+        ...(action === "approve" && timesEdited && existing.kind === "attendance_correction" && isValidDay(day)
+          ? { day, checkIn: checkIn || existing.checkIn, checkOut: stillIn ? null : (checkOut || null) }
+          : {}),
+        ...(action === "approve" && rangeEdited && fromDay && toDay
+          ? { summary: `${fromDay}${toDay !== fromDay ? ` – ${toDay}` : ""}`.slice(0, 120) }
+          : {}),
+        ...(action === "approve" && existing.kind === "reimbursement" && amount
+          ? { summary: `${amount} · ${existing.day}`.slice(0, 120) }
+          : {}),
+      },
     });
     return res.json({
       success: true,
