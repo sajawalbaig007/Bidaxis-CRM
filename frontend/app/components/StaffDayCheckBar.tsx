@@ -78,6 +78,9 @@ export default function StaffDayCheckBar({
   const overtime = showOvertime || department === "chief_estimator"
     ? <OvertimeShiftButton compact={compact} since={shiftStart} />
     : null;
+  const checkedOut = Boolean(row?.checkIn && row?.checkOut);
+  const canCheckInAgain = department === "chief_estimator" && checkedOut;
+  const inDisabled = busy || (Boolean(row?.checkIn) && !canCheckInAgain);
 
   if (compact) {
     return (
@@ -87,11 +90,11 @@ export default function StaffDayCheckBar({
         </span>
         <button
           type="button"
-          disabled={busy || Boolean(row?.checkIn)}
+          disabled={inDisabled}
           onClick={() => void punch("in")}
           className="h-9 px-2.5 rounded-xl bg-[#0F766E] text-white text-xs font-semibold inline-flex items-center gap-1 disabled:opacity-60 touch-manipulation"
         >
-          <LogIn size={14} /> {row?.checkIn ? "In" : "Check in"}
+          <LogIn size={14} /> {row?.checkIn && !canCheckInAgain ? "In" : "Check in"}
         </button>
         <button
           type="button"
@@ -123,11 +126,11 @@ export default function StaffDayCheckBar({
       <div className="flex gap-2">
         <button
           type="button"
-          disabled={busy || Boolean(row?.checkIn)}
+          disabled={inDisabled}
           onClick={() => void punch("in")}
           className="h-10 px-3 rounded-xl bg-[#0F766E] text-white text-sm font-semibold inline-flex items-center gap-1.5 disabled:opacity-60 touch-manipulation"
         >
-          <LogIn size={15} /> {row?.checkIn ? "Checked in" : "Check in"}
+          <LogIn size={15} /> {row?.checkIn && !canCheckInAgain ? "Checked in" : "Check in"}
         </button>
         <button
           type="button"

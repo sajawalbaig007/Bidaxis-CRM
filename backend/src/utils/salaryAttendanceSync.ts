@@ -112,6 +112,13 @@ function mergeDay(prev: AttendanceDay | undefined, next: AttendanceDay): Attenda
   };
 }
 
+type ApprovedPunch = { personKey: string; personName: string; day: string; checkIn: string; checkOut: string };
+
+function clock(value: string | null | undefined): string {
+  const match = String(value ?? "").match(/^(\d{2}:\d{2})/);
+  return match?.[1] ?? "";
+}
+
 function daysEqual(left: unknown, right: AttendanceDay[]): boolean {
   return JSON.stringify(left ?? null) === JSON.stringify(right);
 }
@@ -192,21 +199,66 @@ export async function applyAttendanceCheckIns(
     });
   }
 
+  const approved = await prisma.staffRequest.findMany({
+    where: {
+      kind: "attendance_correction",
+      status: "approved",
+      day: { gte: `${month}-01`, lte: `${month}-31` },
+    },
+    orderBy: { updatedAt: "asc" },
+    select: { personKey: true, personName: true, department: true, day: true, checkIn: true, checkOut: true },
+  });
+  const corrections: ApprovedPunch[] = [];
+  for (const request of approved) {
+    const checkIn = clock(request.checkIn);
+    if (!checkIn) continue;
+    corrections.push({
+      personKey: request.personKey,
+      personName: request.personName,
+      day: request.day,
+      checkIn,
+      checkOut: clock(request.checkOut),
+    });
+    if (!people.some((person) => person.personKey === request.personKey)) {
+      people.push({
+        personKey: request.personKey,
+        personName: request.personName,
+        department: request.department || "",
+      });
+    }
+    const days = byPerson.get(request.personKey) ?? new Map<string, AttendanceDay>();
+    days.set(request.day, { day: request.day, checkIn, checkOut: clock(request.checkOut) });
+    byPerson.set(request.personKey, days);
+  }
+
   let changed = false;
   const nextTeams = teams.map((team) => {
     const subs = (team.subHeads ?? []).map((sub) => {
       const label = String(sub.label ?? "");
       const matches = samePerson(label, people);
       const person = matches.find((item) => ROSTER_KEYS.has(item.personKey)) ?? matches[0];
-      if (!person) return sub;
+      const storedKey = String(sub.salary?.latePersonKey ?? sub.salesPayroll?.latePersonKey ?? "");
       const daysMap = new Map<string, AttendanceDay>();
-      for (const match of matches) {
-        for (const day of byPerson.get(match.personKey)?.values() ?? []) {
-          daysMap.set(day.day, mergeDay(daysMap.get(day.day), day));
+      if (person) {
+        for (const match of matches) {
+          for (const day of byPerson.get(match.personKey)?.values() ?? []) {
+            daysMap.set(day.day, mergeDay(daysMap.get(day.day), day));
+          }
         }
       }
+      const linkedKeys = [...new Set([person?.personKey, storedKey, ...matches.map((item) => item.personKey)].filter(Boolean))] as string[];
+      for (const punch of corrections) {
+        const linked = punch.personKey ? linkedKeys.includes(punch.personKey) : false;
+        const named = !punch.personKey || !linkedKeys.length ? attendanceNameMatch(label, punch.personName) : false;
+        if (!linked && !named) continue;
+        daysMap.set(punch.day, { day: punch.day, checkIn: punch.checkIn, checkOut: punch.checkOut });
+      }
+      if (!person && !daysMap.size) return sub;
       const days = [...daysMap.values()].sort((a, b) => a.day.localeCompare(b.day));
-      const lateDepartment = salaryLateDepartment(String(team.team ?? ""), person.department);
+      const personKey = person?.personKey || storedKey;
+      const lateDepartment = person
+        ? salaryLateDepartment(String(team.team ?? ""), person.department)
+        : (typeof sub.salary?.lateDepartment === "string" ? sub.salary.lateDepartment : null);
       const latest = [...days].reverse().find((day) => day.checkIn);
       let next = sub;
 
@@ -214,7 +266,7 @@ export async function applyAttendanceCheckIns(
         const prev = sub.salary;
         const same = daysEqual(prev.attendanceDays, days)
           && prev.payMonth === month
-          && prev.latePersonKey === person.personKey
+          && prev.latePersonKey === personKey
           && (!lateDepartment || prev.lateDepartment === lateDepartment)
           && (!latest || prev.checkIn === latest.checkIn);
         if (!same) {
@@ -225,7 +277,7 @@ export async function applyAttendanceCheckIns(
               ...prev,
               payMonth: month,
               attendanceDays: days,
-              latePersonKey: person.personKey,
+              latePersonKey: personKey,
               ...(lateDepartment ? { lateDepartment } : {}),
               ...(latest ? { checkIn: latest.checkIn } : {}),
             },
