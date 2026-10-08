@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   LayoutDashboard, FolderKanban, BarChart3, Users,
-  GitBranch, FileText, LogOut, ChevronDown, MessageSquare, Bell, CheckCheck, X,
+  GitBranch, FileText, ClipboardList, LogOut, ChevronDown, MessageSquare, Bell, CheckCheck, X,
 } from "lucide-react";
 import { logoutSession } from "@/lib/session";
 import { getAuthMe, peekAuthMe, type AuthUser } from "@/lib/authMeCache";
@@ -224,7 +224,20 @@ export default function TechnicalSidebar() {
           </div>
 
           <div className="min-w-0 shrink">
-            <CapsuleChipNav items={navItems} baseHref={BASE} accent="#B8112D" variant="inline" />
+            <CapsuleChipNav
+              items={
+                user?.role === "technical_manager"
+                  ? [
+                      ...navItems.slice(0, -1),
+                      { title: "Requests", shortTitle: "Requests", href: `${BASE}/reports/requests`, icon: ClipboardList },
+                      navItems[navItems.length - 1]!,
+                    ]
+                  : navItems
+              }
+              baseHref={BASE}
+              accent="#B8112D"
+              variant="inline"
+            />
           </div>
 
           <div className="flex-1 min-w-0 flex items-center justify-end gap-2 sm:gap-3">

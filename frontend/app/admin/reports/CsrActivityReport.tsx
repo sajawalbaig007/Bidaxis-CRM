@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import toast from "react-hot-toast";
 import API, { apiErrorMessage } from "@/lib/api";
 import { StaffRequestCell, type StaffRequestItem } from "@/app/components/StaffRequestButton";
+import RequestDecisionDialog from "@/app/admin/reports/requests/RequestDecisionDialog";
 import { OvertimeShiftCell, type ShiftOvertimeItem } from "@/app/components/OvertimeShiftButton";
 import { EST_TZ_ABBR, EST_TZ_LABEL } from "@/lib/estTime";
 import { Check, ChevronDown, Clock, Download, LogIn, LogOut, Monitor, Pencil, RotateCcw, Users, X } from "lucide-react";
@@ -441,8 +442,8 @@ export default function CsrActivityReport({
   const canReviewOt = false;
   const showShiftOt = isEstimator && (pathname.startsWith("/technical") || pathname.startsWith("/admin") || pathname.startsWith("/manager"));
   const canReviewShiftOt = chiefDesk;
-  const showRequests = pathname.startsWith("/admin") || pathname.startsWith("/manager");
-  const canApproveRequests = pathname.startsWith("/admin");
+  const showRequests = pathname.startsWith("/admin") || pathname.startsWith("/manager") || chiefDesk;
+  const canApproveRequests = pathname.startsWith("/admin") || chiefDesk;
   const sessionCols = 9 + (showRequests ? 1 : 0) + (showShiftOt ? 1 : 0) + (showOvertime ? 2 : 0) + (canAdjustTimes ? 1 : 0);
   const summaryCols = 8 + (showRequests ? 1 : 0) + (showShiftOt ? 1 : 0) + (showOvertime ? 2 : 0);
   const title = isBim ? "BIM Check In / Check Out" : isEstimator ? "Estimator Check In / Check Out" : "CSR Check In / Check Out";
@@ -465,6 +466,7 @@ export default function CsrActivityReport({
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [hasLoaded, setHasLoaded] = useState(false);
+  const [decision, setDecision] = useState<StaffRequestItem | null>(null);
 
   const [editing, setEditing] = useState<SessionRow | null>(null);
   const [editCheckIn, setEditCheckIn] = useState("");
@@ -978,6 +980,7 @@ export default function CsrActivityReport({
                           <StaffRequestCell
                             items={requests.filter((item) => item.department === staffRole && item.personKey === row.csrId && item.day === row.day)}
                             canApprove={canApproveRequests}
+                            onOpen={chiefDesk ? setDecision : undefined}
                             onChanged={() => void loadReport()}
                           />
                         </td>
@@ -1096,7 +1099,7 @@ export default function CsrActivityReport({
                         <p className="text-sm font-semibold">{item.personName}</p>
                         <p className="text-[11px] text-gray-400">{item.day}</p>
                       </div>
-                      <StaffRequestCell items={[item]} canApprove={canApproveRequests} onChanged={() => void loadReport()} />
+                      <StaffRequestCell items={[item]} canApprove={canApproveRequests} onOpen={chiefDesk ? setDecision : undefined} onChanged={() => void loadReport()} />
                     </div>
                   ))}
                 </div>
@@ -1192,6 +1195,7 @@ export default function CsrActivityReport({
                           <StaffRequestCell
                             items={requests.filter((item) => item.department === staffRole && item.personKey === row.csrId && item.day === row.day)}
                             canApprove={canApproveRequests}
+                            onOpen={chiefDesk ? setDecision : undefined}
                             onChanged={() => void loadReport()}
                           />
                         </td>
@@ -1344,6 +1348,14 @@ export default function CsrActivityReport({
             </div>
           </div>
         </div>
+      ) : null}
+      {decision ? (
+        <RequestDecisionDialog
+          row={decision}
+          canApprove={canApproveRequests}
+          onClose={() => setDecision(null)}
+          onChanged={() => void loadReport()}
+        />
       ) : null}
     </div>
   );
