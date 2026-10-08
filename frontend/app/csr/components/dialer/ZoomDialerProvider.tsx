@@ -67,14 +67,8 @@ function toE164(raw: string): string | null {
   return null;
 }
 
-function launchZoomCall(destination: string, callerId: string) {
-  const link = document.createElement("a");
-  // setAttribute keeps the + signs. Assigning .href encodes them, and Zoom then ignores the caller ID.
-  link.setAttribute("href", `zoomphonecall://${destination}?callerid=${callerId}`);
-  link.style.display = "none";
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
+async function placeZoomCall(accountId: string, callerNumber: string, destination: string) {
+  await API.post("/dialer/call", { accountId, callerNumber, destination });
 }
 
 function sameNumber(a: string, b: string) {
@@ -85,6 +79,77 @@ function sameNumber(a: string, b: string) {
   return da.length >= 10 && db.length >= 10 && da.slice(-10) === db.slice(-10);
 }
 
+function ManualDialPad({
+  preference,
+  onChangeDefault,
+}: {
+  preference: DialerPreference | null;
+  onChangeDefault: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [number, setNumber] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const call = async () => {
+    if (!preference) {
+      toast.error("Choose the Zoom number calls should go from.");
+      onChangeDefault();
+      return;
+    }
+    if (!toE164(number)) {
+      toast.error("Enter a phone number to call.");
+      return;
+    }
+    setBusy(true);
+    try {
+      await placeZoomCall(preference.accountId, preference.callerNumber, number.trim());
+      toast.success(`Calling ${number.trim()} from ${preference.callerNumber}`);
+      setNumber("");
+      setOpen(false);
+    } catch (err) {
+      toast.error(apiErrorMessage(err, "Zoom could not start the call."));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="fixed bottom-4 right-4 z-[9000] flex flex-col items-end gap-2">
+      {open && (
+        <div className="w-[280px] bg-white rounded-2xl shadow-2xl border border-gray-100 p-4">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-[#B8112D]">Manual dial</p>
+          <p className="text-xs text-gray-500 mt-1">
+            {preference ? `From ${preference.accountLabel} · ${preference.callerNumber}` : "No default number yet."}
+          </p>
+          <input
+            value={number}
+            onChange={(e) => setNumber(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") void call(); }}
+            placeholder="Number to call"
+            inputMode="tel"
+            className="mt-3 w-full h-10 px-3 rounded-xl border border-gray-200 text-sm outline-none focus:border-[#B8112D]"
+          />
+          <div className="flex items-center justify-between mt-3 gap-2">
+            <button type="button" onClick={onChangeDefault} className="text-xs font-semibold text-[#B8112D]">
+              Change number
+            </button>
+            <button type="button" disabled={busy} onClick={() => void call()} className="h-9 px-3 rounded-xl bg-[#B8112D] text-white text-xs font-semibold disabled:opacity-50">
+              {busy ? "Calling…" : "Call"}
+            </button>
+          </div>
+        </div>
+      )}
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="h-12 px-4 rounded-full bg-[#B8112D] text-white text-sm font-semibold shadow-lg inline-flex items-center gap-2"
+      >
+        <Phone size={16} /> Dial
+      </button>
+    </div>
+  );
+}
+
 function dialWithPreference(target: DialTarget, preference: DialerPreference) {
   const destination = toE164(target.destination);
   const callerId = toE164(preference.callerNumber);
@@ -92,8 +157,9 @@ function dialWithPreference(target: DialTarget, preference: DialerPreference) {
     toast.error("That phone number cannot be dialed.");
     return;
   }
-  launchZoomCall(destination, callerId);
-  toast.success(`Calling ${target.destination} from ${preference.callerNumber}`);
+  void placeZoomCall(preference.accountId, preference.callerNumber, target.destination)
+    .then(() => toast.success(`Calling ${target.destination} from ${preference.callerNumber}`))
+    .catch((err) => toast.error(apiErrorMessage(err, "Zoom could not start the call.")));
 }
 
 export function ZoomDialerProvider({ children }: { children: React.ReactNode }) {
@@ -160,6 +226,7 @@ export function ZoomDialerProvider({ children }: { children: React.ReactNode }) 
   return (
     <ZoomDialerContext.Provider value={api}>
       {children}
+      <ManualDialPad preference={preference} onChangeDefault={changeDefault} />
       {(target || pickingDefault) && (
         <ZoomDialerModal
           target={target}
@@ -243,8 +310,9 @@ function ZoomDialerModal({
         toast.error("That phone number cannot be dialed.");
         return;
       }
-      launchZoomCall(destination, callerId);
-      toast.success(`Calling ${target.destination} from ${number}`);
+      void placeZoomCall(accountIdForSave, number, target.destination)
+        .then(() => toast.success(`Calling ${target.destination} from ${number}`))
+        .catch((err) => toast.error(apiErrorMessage(err, "Zoom could not start the call.")));
     }
     onClose();
     if (!shouldSave) return;
@@ -362,7 +430,7 @@ function ZoomDialerModal({
               </div>
 
               <p className="text-xs text-gray-400 leading-relaxed">
-                Zoom dials with this caller ID. After you save a default, clicking a client number calls from it immediately.
+                The call goes out on this Zoom account, not whichever account is signed in on the computer.
               </p>
 
               {!pickingDefault && (
