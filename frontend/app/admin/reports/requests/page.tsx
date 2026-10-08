@@ -1,10 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Loader2 } from "lucide-react";
+import { ArrowLeft, Loader2 } from "lucide-react";
 import API, { apiErrorMessage } from "@/lib/api";
+import { getAuthMe, peekAuthMe } from "@/lib/authMeCache";
 import type { StaffRequestItem } from "@/app/components/StaffRequestButton";
+import TechnicalPageShell from "@/app/technical/components/TechnicalPageShell";
 import ReportsSubpage from "../ReportsSubpage";
 import RequestDecisionDialog from "./RequestDecisionDialog";
 
@@ -27,7 +30,10 @@ type Filter = (typeof FILTERS)[number];
 
 export default function EmployeeRequestsPage() {
   const pathname = usePathname();
-  const canApprove = pathname.startsWith("/admin");
+  const onTechnical = pathname.startsWith("/technical");
+  const [role, setRole] = useState(() => peekAuthMe()?.role ?? "");
+  const chief = onTechnical && role === "technical_manager";
+  const canApprove = pathname.startsWith("/admin") || chief;
   const [rows, setRows] = useState<RequestRow[]>([]);
   const [filter, setFilter] = useState<Filter>("pending");
   const [loading, setLoading] = useState(true);
@@ -38,21 +44,38 @@ export default function EmployeeRequestsPage() {
 
   const load = useCallback(async () => {
     try {
-      const res = await API.get("/attendance/requests", { params: { from: "2000-01-01", to: "2100-01-01" } });
-      setRows(res.data.requests ?? []);
+      const res = await API.get("/attendance/requests", {
+        params: {
+          from: "2000-01-01",
+          to: "2100-01-01",
+          ...(onTechnical ? { department: "estimator" } : {}),
+        },
+      });
+      const list = (res.data.requests ?? []) as RequestRow[];
+      setRows(onTechnical ? list.filter((row) => row.department === "estimator") : list);
       setError("");
     } catch (err) {
       setError(apiErrorMessage(err, "Could not load requests."));
     } finally {
       setLoading(false);
     }
+  }, [onTechnical]);
+
+  useEffect(() => {
+    void getAuthMe().then((user) => setRole(user?.role ?? ""));
   }, []);
 
   useEffect(() => {
+    if (onTechnical && !role) return;
+    if (onTechnical && role !== "technical_manager") {
+      setLoading(false);
+      setError("Estimator requests are reviewed by the Chief Estimator.");
+      return;
+    }
     void load();
     const timer = window.setInterval(() => void load(), 20000);
     return () => window.clearInterval(timer);
-  }, [load]);
+  }, [load, onTechnical, role]);
 
   useEffect(() => {
     if (!canApprove || active || loading) return;
@@ -78,11 +101,8 @@ export default function EmployeeRequestsPage() {
   );
   const pending = rows.filter((row) => row.status === "pending").length;
 
-  return (
-    <ReportsSubpage
-      title="Employee requests"
-      subtitle="Leave, attendance corrections, and other requests from every department show up here."
-    >
+  const list = (
+    <>
       <div className="flex flex-wrap items-center gap-2">
         {FILTERS.map((key) => (
           <button
@@ -144,6 +164,34 @@ export default function EmployeeRequestsPage() {
           onChanged={() => void load()}
         />
       ) : null}
+    </>
+  );
+
+  if (onTechnical) {
+    return (
+      <TechnicalPageShell>
+        <div className="w-full px-3 sm:px-5 lg:px-6 xl:px-8 py-4 sm:py-6 space-y-4">
+          <header className="rounded-[1.5rem] border border-gray-100/90 dark:border-crm-border bg-white dark:bg-crm-surface px-4 py-4 sm:px-5 sm:py-5">
+            <Link href="/technical/reports" className="inline-flex items-center gap-1 text-xs font-semibold text-[#B8112D]">
+              <ArrowLeft size={14} /> Reports
+            </Link>
+            <h1 className="mt-2 text-2xl sm:text-3xl font-bold text-[#0F172A] dark:text-crm-text tracking-tight">Estimator requests</h1>
+            <p className="text-sm text-gray-500 dark:text-crm-text-muted mt-1 max-w-2xl">
+              Attendance corrections, leave, and the other estimator requests. Approving leave saves those dates as paid leave.
+            </p>
+          </header>
+          {list}
+        </div>
+      </TechnicalPageShell>
+    );
+  }
+
+  return (
+    <ReportsSubpage
+      title="Employee requests"
+      subtitle="Leave, attendance corrections, and other requests from every department show up here."
+    >
+      {list}
     </ReportsSubpage>
   );
 }

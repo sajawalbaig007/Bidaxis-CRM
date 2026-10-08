@@ -982,12 +982,17 @@ router.get("/requests/history", async (req, res) => {
   }
 });
 
-router.get("/requests", verifyToken, allowRoles("admin", "manager"), async (req, res) => {
+router.get("/requests", verifyToken, allowRoles("admin", "manager", "technical_manager"), async (req: AuthRequest, res) => {
   try {
     const from = isValidDay(String(req.query.from ?? "")) ? String(req.query.from) : "2000-01-01";
     const to = isValidDay(String(req.query.to ?? "")) ? String(req.query.to) : "2100-01-01";
+    const asked = String(req.query.department ?? "");
+    const department = req.user?.role === "technical_manager" ? "estimator" : asked;
     const rows = await prisma.staffRequest.findMany({
-      where: { day: { gte: from, lte: to } },
+      where: {
+        day: { gte: from, lte: to },
+        ...(department ? { department } : {}),
+      },
       orderBy: { createdAt: "desc" },
     });
     return res.json({ success: true, requests: rows.map(toPublicRequest) });
@@ -997,7 +1002,7 @@ router.get("/requests", verifyToken, allowRoles("admin", "manager"), async (req,
   }
 });
 
-router.post("/requests/:id/review", verifyToken, allowRoles("admin"), async (req, res) => {
+router.post("/requests/:id/review", verifyToken, allowRoles("admin", "technical_manager"), async (req: AuthRequest, res) => {
   try {
     const id = String(req.params.id ?? "");
     const action = String(req.body?.action ?? "");
@@ -1009,6 +1014,10 @@ router.post("/requests/:id/review", verifyToken, allowRoles("admin"), async (req
     if (existing.status !== "pending") {
       return res.status(400).json({ success: false, message: "This request is already reviewed." });
     }
+    if (req.user?.role === "technical_manager" && existing.department !== "estimator") {
+      return res.status(403).json({ success: false, message: "You can review estimator requests only." });
+    }
+    const reviewer = req.user?.role === "technical_manager" ? "Chief Estimator" : "CEO";
     const timesEdited = req.body?.timesEdited === true;
     const rangeEdited = req.body?.rangeEdited === true;
     const stillIn = req.body?.stillIn === true;
@@ -1037,7 +1046,7 @@ router.post("/requests/:id/review", verifyToken, allowRoles("admin"), async (req
       where: { id },
       data: {
         status: action === "approve" ? "approved" : "declined",
-        reviewedBy: "CEO",
+        reviewedBy: reviewer,
         reviewNote,
         ...(action === "approve" && timesEdited && existing.kind === "attendance_correction" && isValidDay(day)
           ? { day, checkIn: checkIn || existing.checkIn, checkOut: stillIn ? null : (checkOut || null) }

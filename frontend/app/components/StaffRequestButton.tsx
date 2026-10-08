@@ -312,7 +312,7 @@ function HistoryRow({ item }: { item: StaffRequestItem }) {
       </div>
       <p className="text-xs text-gray-600 mt-0.5">{item.summary}</p>
       {item.detail ? <p className="text-[11px] text-gray-400 mt-0.5 whitespace-pre-wrap">{item.detail}</p> : null}
-      {item.reviewNote ? <p className="text-[11px] text-[#3730A3] mt-1 whitespace-pre-wrap">CEO: {item.reviewNote}</p> : null}
+      {item.reviewNote ? <p className="text-[11px] text-[#3730A3] mt-1 whitespace-pre-wrap">{item.reviewedBy || "Note"}: {item.reviewNote}</p> : null}
     </div>
   );
 }
@@ -321,10 +321,12 @@ export function StaffRequestCell({
   items,
   canApprove,
   onChanged,
+  onOpen,
 }: {
   items: StaffRequestItem[];
   canApprove: boolean;
   onChanged: () => void;
+  onOpen?: (item: StaffRequestItem) => void;
 }) {
   const [busyId, setBusyId] = useState("");
   const [remarks, setRemarks] = useState<Record<string, string>>({});
@@ -356,7 +358,10 @@ export function StaffRequestCell({
             {statusLabel(item.status)}{item.reviewedBy ? ` · ${item.reviewedBy}` : ""}
           </p>
           {item.reviewNote ? <p className="mt-1 text-[10px] text-[#3730A3] whitespace-pre-wrap">{item.reviewNote}</p> : null}
-          {canApprove && item.status === "pending" ? (
+          {canApprove && item.status === "pending" && onOpen ? (
+            <button type="button" onClick={() => onOpen(item)} className="mt-1.5 h-7 px-2 rounded-lg bg-[#B8112D] text-white text-[10px] font-bold">Review</button>
+          ) : null}
+          {canApprove && item.status === "pending" && !onOpen ? (
             <div className="mt-1.5 space-y-1.5">
               <textarea
                 value={remarks[item.id] ?? ""}
