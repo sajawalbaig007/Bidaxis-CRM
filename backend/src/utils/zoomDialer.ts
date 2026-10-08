@@ -251,6 +251,20 @@ async function zoomPhoneUserId(account: AccountRow, token: string): Promise<stri
   return data.id;
 }
 
+type ZoomErrorBody = {
+  message?: string;
+  errors?: { field?: string; message?: string }[];
+};
+
+function zoomErrorText(data: ZoomErrorBody, fallback: string) {
+  const detail = (data.errors ?? [])
+    .map((item) => [item.field, item.message].filter(Boolean).join(": "))
+    .filter(Boolean)
+    .join("; ");
+  if (detail) return `${data.message || "Zoom rejected the call"} ${detail}`;
+  return data.message || fallback;
+}
+
 /** Places the call on Zoom Phone as this account's user. The desktop login is not used. */
 async function placeZoomPhoneCall(account: AccountRow, callerId: string, destination: string) {
   const token = await zoomAccessToken(account);
@@ -263,17 +277,22 @@ async function placeZoomPhoneCall(account: AccountRow, callerId: string, destina
     },
     body: JSON.stringify({
       command: "make_call",
-      params: { callee: destination, caller_id: callerId },
+      params: {
+        phone_number: destination,
+        caller_id: callerId,
+        // Zoom rejects the command when this field is missing, even for an API-placed call.
+        binding_code: "000000",
+      },
     }),
   });
   if (res.ok) return;
-  const data = await res.json().catch(() => ({})) as { message?: string };
+  const data = await res.json().catch(() => ({})) as ZoomErrorBody;
   zoomTokens.delete(account.id);
   if (res.status === 403) {
     throw new ZoomDialerError(
       502,
-      "Zoom blocked call control. On that company's Server-to-Server app, add scopes phone:write:admin and user:read:admin, then activate the app.",
+      "Zoom blocked the call. On the Server-to-Server app add phone:write:user_call_command:admin and user:read:user:admin, then activate it again.",
     );
   }
-  throw new ZoomDialerError(502, data.message || "Zoom could not start the call from this number.");
+  throw new ZoomDialerError(502, zoomErrorText(data, "Zoom could not start the call from this number."));
 }

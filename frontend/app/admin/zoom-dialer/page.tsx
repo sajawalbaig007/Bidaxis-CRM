@@ -143,7 +143,7 @@ export default function AdminZoomDialerPage() {
 
         <div className="bg-white rounded-2xl border border-gray-100 p-4 mb-4 text-xs text-gray-500 leading-relaxed">
           A saved Zoom password cannot switch the desktop login, so +1 512-412-3916 still calls as whichever account is open on the computer.
-          For each company, open marketplace.zoom.us, create a Server-to-Server OAuth app, add scopes phone:write:admin and user:read:admin, activate it, and paste the Account ID, Client ID, and Client Secret here. The email must be the Zoom user who owns that phone number.
+          For each company, open marketplace.zoom.us, create a Server-to-Server OAuth app, add scopes phone:write:user_call_command:admin and user:read:user:admin, activate it, and paste the Account ID, Client ID, and Client Secret here. The email must be the Zoom user who owns that phone number.
         </div>
 
         {draft && (
