@@ -67,6 +67,7 @@ function ChiefOvertimeForm({ onSaved }: { onSaved: () => void }) {
   const [day, setDay] = useState(() => calendarYmd("Asia/Karachi"));
   const [hours, setHours] = useState("1");
   const [mins, setMins] = useState("0");
+  const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const save = async () => {
     const minutes = Number(hours) * 60 + Number(mins);
@@ -76,7 +77,7 @@ function ChiefOvertimeForm({ onSaved }: { onSaved: () => void }) {
     }
     setBusy(true);
     try {
-      await API.post("/attendance/overtime/manual", { day, minutes });
+      await API.post("/attendance/overtime/manual", { day, minutes, note });
       toast.success("Overtime sent to the CEO.");
       onSaved();
     } catch (err) {
@@ -98,6 +99,10 @@ function ChiefOvertimeForm({ onSaved }: { onSaved: () => void }) {
       <label className="text-[11px] font-semibold text-amber-900">
         Minutes
         <input type="number" min={0} max={59} value={mins} onChange={(e) => setMins(e.target.value)} className="mt-1 block w-16 h-10 rounded-xl border border-amber-200 bg-white px-2 text-sm" />
+      </label>
+      <label className="text-[11px] font-semibold text-amber-900 min-w-[180px] flex-1">
+        Note
+        <input value={note} onChange={(e) => setNote(e.target.value)} maxLength={300} placeholder="Why this overtime" className="mt-1 block w-full h-10 rounded-xl border border-amber-200 bg-white px-3 text-sm" />
       </label>
       <button type="button" disabled={busy} onClick={() => void save()} className="h-10 px-4 rounded-xl bg-[#B8112D] text-white text-sm font-semibold disabled:opacity-50">
         {busy ? "Sending…" : "Send to CEO"}

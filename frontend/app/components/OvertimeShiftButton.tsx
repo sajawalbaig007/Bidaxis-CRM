@@ -190,7 +190,7 @@ export function OvertimeShiftCell({
 
   return (
     <div className="min-w-[168px]">
-      <p className="text-xs font-semibold text-[#111827]">{item?.comment || "No overtime"}</p>
+      <p className="text-xs font-semibold text-[#111827] whitespace-pre-wrap">{item?.comment || "No overtime"}</p>
       {item ? (
         <p className={`text-[10px] font-bold uppercase tracking-wide ${
           item.status === "approved" ? "text-green-700" : item.status === "declined" ? "text-red-600" : "text-amber-600"

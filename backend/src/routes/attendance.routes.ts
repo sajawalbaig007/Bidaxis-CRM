@@ -827,6 +827,7 @@ router.post("/overtime/manual", verifyToken, allowRoles("technical_manager"), as
       name: user?.name || "Chief Estimator",
       day: String(req.body?.day ?? ""),
       minutes: Number(req.body?.minutes),
+      note: String(req.body?.note ?? ""),
     });
     if (!result.ok) return res.status(400).json({ success: false, message: result.message });
     return res.json({ success: true, message: "Overtime sent to the CEO.", ...overtimePublic(result.note) });

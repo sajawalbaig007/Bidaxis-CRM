@@ -215,51 +215,112 @@ function overtimeStatusLabel(status: string | null | undefined, comment: string 
   return "";
 }
 
-function downloadCsv(rows: SessionRow[], filename: string, personLabel: string, clock: ClockTz, includeOvertime = false) {
-  const tz = CLOCKS[clock];
-  const headers = [
-    personLabel,
-    "Code",
-    `Check In (${tz.abbr})`,
-    `Check Out (${tz.abbr})`,
-    "On Dashboard",
-    "Away",
-    "Total",
-    "Status",
-    "Other activity",
-    ...(includeOvertime ? ["Overtime", "Decision", "Edited by"] : []),
-    "Browser",
-    "IP",
-    "Closed Reason",
-  ];
-  const escape = (v: string) => `"${v.replace(/"/g, '""')}"`;
-  const lines = [
-    headers.join(","),
-    ...rows.map(r => [
-      escape(r.csrName),
-      escape(r.csrCode ?? ""),
-      escape(formatSessionStamp(r.loginAt, tz.tz)),
-      escape(r.logoutAt ? formatSessionStamp(r.logoutAt, tz.tz) : "Still checked in"),
-      escape(r.dashboardDuration),
-      escape(r.awayDuration),
-      escape(r.totalDuration),
-      escape(r.status === "active" ? "Checked In" : "Checked Out"),
-      escape(r.otherActivityDuration || "—"),
-      ...(includeOvertime ? [
-        escape(r.overtimeComment ?? ""),
-        escape(overtimeStatusLabel(r.overtimeStatus, r.overtimeComment)),
-        escape(r.overtimeEditedBy ? `Edited by ${r.overtimeEditedBy}` : ""),
-      ] : []),
-      escape(r.browser ?? ""),
-      escape(r.ip ?? ""),
-      escape(r.closedReasonLabel ?? r.closedReason ?? ""),
-    ].join(",")),
-  ];
+function requestExportText(items: StaffRequestItem[]): string {
+  if (!items.length) return "—";
+  return items.map((item) => {
+    const status = item.status === "approved" ? "Approved" : item.status === "declined" ? "Rejected" : "Pending";
+    return [item.kindLabel, item.summary, item.detail, status, item.reviewNote].filter(Boolean).join(" · ");
+  }).join(" | ");
+}
+
+function overtimeExportText(item: ShiftOvertimeItem | null): string {
+  if (!item?.comment) return "No overtime";
+  const status = item.status === "approved" ? "Approved" : item.status === "declined" ? "Declined" : "Pending";
+  const edited = item.editedBy ? `Edited by ${item.editedBy}` : "";
+  return [item.comment, status, edited].filter(Boolean).join(" · ");
+}
+
+function personExportText(name: string, code: string | null | undefined, combined: number): string {
+  const who = code ? `${name} (${code})` : name;
+  return combined > 1 ? `${who} · ${combined} check-ins combined` : who;
+}
+
+function downloadCsv(opts: {
+  filename: string;
+  personLabel: string;
+  clock: ClockTz;
+  view: "sessions" | "summary";
+  sessions: SessionRow[];
+  summary: SummaryRow[];
+  requests: StaffRequestItem[];
+  overtimeNotes: ShiftOvertimeItem[];
+  staffRole: string;
+  showShiftOt: boolean;
+  showRequests: boolean;
+  showOvertime: boolean;
+}) {
+  const tz = CLOCKS[opts.clock];
+  const escape = (v: string) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+  const dayRequests = (personKey: string, day?: string) =>
+    opts.requests.filter((item) => item.department === opts.staffRole && item.personKey === personKey && (!day || item.day === day));
+  const headers = opts.view === "summary"
+    ? [
+        opts.personLabel,
+        `First Check In (${tz.abbr})`,
+        `Last Check Out (${tz.abbr})`,
+        ...(opts.showShiftOt ? ["Overtime"] : []),
+        ...(opts.showRequests ? ["Request"] : []),
+        "Other activity",
+        ...(opts.showOvertime ? ["Overtime", "Decision"] : []),
+        "Sessions",
+        "On Dashboard",
+        "Away",
+        "Total",
+      ]
+    : [
+        opts.personLabel,
+        `Check In (${tz.abbr})`,
+        `Check Out (${tz.abbr})`,
+        ...(opts.showShiftOt ? ["Overtime"] : []),
+        ...(opts.showRequests ? ["Request"] : []),
+        "Other activity",
+        "On Dashboard",
+        "Away",
+        "Total",
+        "Status",
+        "Closed By",
+        ...(opts.showOvertime ? ["Overtime", "Decision"] : []),
+      ];
+  const body = opts.view === "summary"
+    ? opts.summary.map((row) => [
+        personExportText(row.csrName, row.csrCode, row.sessions ?? 1),
+        row.firstLoginAt ? formatSessionStamp(row.firstLoginAt, tz.tz) : "—",
+        row.stillOpen || !row.lastLogoutAt ? "Still checked in" : formatSessionStamp(row.lastLogoutAt, tz.tz),
+        ...(opts.showShiftOt ? [overtimeExportText(overtimeForRow(row, opts.overtimeNotes, opts.staffRole))] : []),
+        ...(opts.showRequests ? [requestExportText(dayRequests(row.csrId, row.day))] : []),
+        row.otherActivityDuration || "—",
+        ...(opts.showOvertime ? [
+          row.overtimeComment ?? "",
+          overtimeStatusLabel(row.overtimeStatus, row.overtimeComment),
+        ] : []),
+        String(row.sessions),
+        row.dashboardDuration,
+        row.awayDuration,
+        row.totalDuration,
+      ])
+    : opts.sessions.map((row) => [
+        personExportText(row.csrName, row.csrCode, row.sessionCount ?? 1),
+        formatSessionStamp(row.loginAt, tz.tz),
+        row.logoutAt ? formatSessionStamp(row.logoutAt, tz.tz) : "Still checked in",
+        ...(opts.showShiftOt ? [overtimeExportText(overtimeForRow(row, opts.overtimeNotes, opts.staffRole))] : []),
+        ...(opts.showRequests ? [requestExportText(dayRequests(row.csrId, row.day))] : []),
+        row.otherActivityDuration || "—",
+        row.dashboardDuration,
+        row.awayDuration,
+        row.totalDuration,
+        row.status === "active" ? "Checked In" : "Checked Out",
+        row.closedReasonLabel ?? (row.status === "active" ? "—" : (row.closedReason ?? "—")),
+        ...(opts.showOvertime ? [
+          row.overtimeComment ?? "",
+          overtimeStatusLabel(row.overtimeStatus, row.overtimeComment),
+        ] : []),
+      ]);
+  const lines = [headers.join(","), ...body.map((cells) => cells.map((cell) => escape(cell)).join(","))];
   const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = filename;
+  a.download = opts.filename;
   a.click();
   URL.revokeObjectURL(url);
 }
@@ -836,8 +897,21 @@ export default function CsrActivityReport({
 
             <button
               type="button"
-              onClick={() => downloadCsv(sessions, `${isEstimator ? "estimator" : "csr"}-activity-${fromDate}-${toDate}.csv`, personLabel, clockTz, showOvertime)}
-              disabled={!sessions.length}
+              onClick={() => downloadCsv({
+                filename: `${isEstimator ? "estimator" : "csr"}-activity-${fromDate}-${toDate}.csv`,
+                personLabel,
+                clock: clockTz,
+                view,
+                sessions,
+                summary,
+                requests,
+                overtimeNotes,
+                staffRole,
+                showShiftOt,
+                showRequests,
+                showOvertime,
+              })}
+              disabled={view === "summary" ? !summary.length : !sessions.length}
               className="h-10 px-4 rounded-xl border border-gray-200 bg-white text-sm font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-50 flex items-center gap-2"
             >
               <Download size={14} />
