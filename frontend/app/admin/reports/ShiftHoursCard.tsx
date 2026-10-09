@@ -45,7 +45,7 @@ function windowLabel(checkIn: string, checkOut: string) {
 
 export default function ShiftHoursCard() {
   const pathname = usePathname();
-  const ceo = pathname.startsWith("/admin");
+  const ceo = pathname.startsWith("/admin") || pathname.startsWith("/manager");
   const [month, setMonth] = useState(pktMonth);
   const [departments, setDepartments] = useState<Dept[]>([]);
   const [open, setOpen] = useState<string | null>(null);

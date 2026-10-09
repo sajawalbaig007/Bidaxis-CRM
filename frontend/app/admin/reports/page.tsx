@@ -258,16 +258,14 @@ export default function ReportsPage() {
           </header>
 
           <div className="grid gap-3 sm:grid-cols-2">
-            {reportsBase.startsWith("/admin") ? (
-              <Link href={`${reportsBase}/hours`} className={`${BENTO} relative p-4 sm:p-5 transition hover:border-[#B8112D]/40`}>
-                <div className="absolute left-0 top-4 bottom-4 w-[3px] rounded-full bg-[#B8112D]" />
-                <span className="ml-2 inline-flex h-10 w-10 items-center justify-center rounded-xl bg-[#FFF1F3] text-[#B8112D]">
-                  <Clock3 size={18} />
-                </span>
-                <p className="mt-3 pl-2 text-base font-bold text-[#0F172A] dark:text-white">Shift time and deductions</p>
-                <p className="mt-1 pl-2 text-xs leading-relaxed text-gray-500 dark:text-gray-400">Late cut for each employee, shift hours, and the deduction ranges.</p>
-              </Link>
-            ) : null}
+            <Link href={`${reportsBase}/hours`} className={`${BENTO} relative p-4 sm:p-5 transition hover:border-[#B8112D]/40`}>
+              <div className="absolute left-0 top-4 bottom-4 w-[3px] rounded-full bg-[#B8112D]" />
+              <span className="ml-2 inline-flex h-10 w-10 items-center justify-center rounded-xl bg-[#FFF1F3] text-[#B8112D]">
+                <Clock3 size={18} />
+              </span>
+              <p className="mt-3 pl-2 text-base font-bold text-[#0F172A] dark:text-white">Shift time and deductions</p>
+              <p className="mt-1 pl-2 text-xs leading-relaxed text-gray-500 dark:text-gray-400">Late cut for each employee, shift hours, and the deduction ranges.</p>
+            </Link>
             <Link href={`${reportsBase}/requests`} className={`${BENTO} relative p-4 sm:p-5 transition hover:border-[#B8112D]/40`}>
               <div className="absolute left-0 top-4 bottom-4 w-[3px] rounded-full bg-[#B8112D]" />
               <span className="ml-2 inline-flex h-10 w-10 items-center justify-center rounded-xl bg-[#FFF1F3] text-[#B8112D]">
