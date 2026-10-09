@@ -2,7 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
-import { Phone, X } from "lucide-react";
+import { Pencil, Phone, X } from "lucide-react";
 
 export type DialTarget = {
   destination: string;
@@ -51,6 +51,9 @@ function launchZoomApp(number: string) {
 export function ZoomDialerProvider({ children }: { children: React.ReactNode }) {
   const [place, setPlace] = useState<ZoomPlace>("app");
   const [webOpen, setWebOpen] = useState(false);
+  const [prompt, setPrompt] = useState<DialTarget | null>(null);
+  const [changingDefault, setChangingDefault] = useState(false);
+  const [saveDefault, setSaveDefault] = useState(false);
   const frameRef = useRef<HTMLIFrameElement>(null);
   const pendingRef = useRef<string | null>(null);
 
@@ -70,31 +73,102 @@ export function ZoomDialerProvider({ children }: { children: React.ReactNode }) 
   }, []);
 
   const open = useCallback((target: DialTarget) => {
-    const number = toE164(target.destination);
-    if (!number) {
+    if (!toE164(target.destination)) {
       toast.error("That phone number cannot be dialed.");
       return;
     }
-    if (readPlace() === "web") {
+    setSaveDefault(false);
+    setChangingDefault(false);
+    setPrompt(target);
+  }, []);
+
+  const placeCall = (next: ZoomPlace, number: string) => {
+    if (next === "web") {
       setWebOpen(true);
       pendingRef.current = number;
       sendWebCall(number);
       return;
     }
     launchZoomApp(number);
-  }, [sendWebCall]);
-
-  const choosePlace = (next: ZoomPlace) => {
-    setPlace(next);
-    window.localStorage.setItem(PLACE_KEY, next);
-    if (next === "web") setWebOpen(true);
-    toast.success(next === "web" ? "Zoom web saved as default." : "Zoom app saved as default.");
   };
+
+  const pickPlace = (next: ZoomPlace) => {
+    const remember = changingDefault || saveDefault;
+    if (remember) {
+      setPlace(next);
+      window.localStorage.setItem(PLACE_KEY, next);
+      toast.success(next === "web" ? "Zoom web saved as default." : "Zoom app saved as default.");
+    }
+    if (prompt) {
+      const number = toE164(prompt.destination);
+      if (number) placeCall(next, number);
+    }
+    setPrompt(null);
+    setChangingDefault(false);
+    setSaveDefault(false);
+  };
+
+  const chooserOpen = Boolean(prompt) || changingDefault;
 
   return (
     <ZoomDialerContext.Provider value={{ open }}>
       {children}
-      <ManualDialPad place={place} onPlace={choosePlace} onCall={(raw) => open({ destination: raw })} />
+      <ManualDialPad
+        onCall={(raw) => open({ destination: raw })}
+        onChangeDefault={() => { setPrompt(null); setSaveDefault(false); setChangingDefault(true); }}
+      />
+      {chooserOpen && (
+        <div className="fixed bottom-20 right-4 z-[9100] w-[280px] max-w-[calc(100vw-2rem)] bg-white rounded-2xl shadow-2xl border border-gray-100 p-4">
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-[#B8112D]">
+                {prompt ? "Call with" : "Change default"}
+              </p>
+              {prompt && (
+                <p className="text-sm font-semibold text-[#0F172A] truncate mt-0.5">{prompt.destination}</p>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={() => { setPrompt(null); setChangingDefault(false); }}
+              className="text-gray-400 shrink-0"
+              aria-label="Close"
+            >
+              <X size={14} />
+            </button>
+          </div>
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => pickPlace("app")}
+              className={`h-9 rounded-xl text-xs font-semibold border ${place === "app" ? "bg-[#B8112D] text-white border-[#B8112D]" : "bg-white text-gray-600 border-gray-200"}`}
+            >
+              Zoom app
+            </button>
+            <button
+              type="button"
+              onClick={() => pickPlace("web")}
+              className={`h-9 rounded-xl text-xs font-semibold border ${place === "web" ? "bg-[#B8112D] text-white border-[#B8112D]" : "bg-white text-gray-600 border-gray-200"}`}
+            >
+              Zoom web
+            </button>
+          </div>
+          {prompt && (
+            <label className="mt-3 flex items-center gap-2 text-xs text-gray-600 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={saveDefault}
+                onChange={(e) => setSaveDefault(e.target.checked)}
+                className="accent-[#B8112D]"
+              />
+              Save as default
+            </label>
+          )}
+          {!prompt && (
+            <p className="mt-2 text-[11px] text-gray-400">Current default: {place === "web" ? "Zoom web" : "Zoom app"}</p>
+          )}
+        </div>
+      )}
       {webOpen && (
         <div className="fixed bottom-20 right-4 z-[9000] w-[360px] max-w-[calc(100vw-2rem)] h-[560px] max-h-[70vh] bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden flex flex-col">
           <div className="flex items-center justify-between px-3 h-10 border-b border-gray-100 shrink-0">
@@ -121,16 +195,13 @@ export function ZoomDialerProvider({ children }: { children: React.ReactNode }) 
 }
 
 function ManualDialPad({
-  place,
-  onPlace,
   onCall,
+  onChangeDefault,
 }: {
-  place: ZoomPlace;
-  onPlace: (place: ZoomPlace) => void;
   onCall: (number: string) => void;
+  onChangeDefault: () => void;
 }) {
   const [open, setOpen] = useState(false);
-  const [changing, setChanging] = useState(false);
   const [number, setNumber] = useState("");
 
   const call = () => {
@@ -147,33 +218,7 @@ function ManualDialPad({
     <div className="fixed bottom-4 right-4 z-[9000] flex flex-col items-end gap-2">
       {open && (
         <div className="w-[280px] bg-white rounded-2xl shadow-2xl border border-gray-100 p-4">
-          <div className="flex items-center justify-between gap-2">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-[#B8112D]">Manual dial</p>
-            <button type="button" onClick={() => setChanging((v) => !v)} className="text-[11px] font-semibold text-[#B8112D]">
-              Change
-            </button>
-          </div>
-          <p className="text-xs text-gray-500 mt-1">
-            Default: {place === "web" ? "Zoom web" : "Zoom app"}
-          </p>
-          {changing && (
-            <div className="mt-2 grid grid-cols-2 gap-1 p-1 bg-gray-50 rounded-xl">
-              <button
-                type="button"
-                onClick={() => { onPlace("app"); setChanging(false); }}
-                className={`h-8 rounded-lg text-xs font-semibold ${place === "app" ? "bg-white text-[#B8112D] shadow-sm" : "text-gray-500"}`}
-              >
-                Zoom app
-              </button>
-              <button
-                type="button"
-                onClick={() => { onPlace("web"); setChanging(false); }}
-                className={`h-8 rounded-lg text-xs font-semibold ${place === "web" ? "bg-white text-[#B8112D] shadow-sm" : "text-gray-500"}`}
-              >
-                Zoom web
-              </button>
-            </div>
-          )}
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-[#B8112D]">Manual dial</p>
           <input
             value={number}
             onChange={(e) => setNumber(e.target.value)}
@@ -189,13 +234,24 @@ function ManualDialPad({
           </div>
         </div>
       )}
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className="h-12 px-4 rounded-full bg-[#B8112D] text-white text-sm font-semibold shadow-lg inline-flex items-center gap-2"
-      >
-        <Phone size={16} /> Dial
-      </button>
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={onChangeDefault}
+          title="Change Zoom app or web"
+          aria-label="Change Zoom app or web"
+          className="h-8 w-8 rounded-full bg-white border border-gray-200 text-[#B8112D] shadow inline-flex items-center justify-center"
+        >
+          <Pencil size={13} />
+        </button>
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          className="h-12 px-4 rounded-full bg-[#B8112D] text-white text-sm font-semibold shadow-lg inline-flex items-center gap-2"
+        >
+          <Phone size={16} /> Dial
+        </button>
+      </div>
     </div>
   );
 }
