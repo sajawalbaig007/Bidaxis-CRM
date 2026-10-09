@@ -34,9 +34,10 @@ function toE164(raw: string): string | null {
   return null;
 }
 
-function readPlace(): ZoomPlace {
-  if (typeof window === "undefined") return "app";
-  return window.localStorage.getItem(PLACE_KEY) === "web" ? "web" : "app";
+function readSavedPlace(): ZoomPlace | null {
+  if (typeof window === "undefined") return null;
+  const value = window.localStorage.getItem(PLACE_KEY);
+  return value === "web" || value === "app" ? value : null;
 }
 
 function launchZoomApp(number: string) {
@@ -50,14 +51,21 @@ function launchZoomApp(number: string) {
 
 export function ZoomDialerProvider({ children }: { children: React.ReactNode }) {
   const [place, setPlace] = useState<ZoomPlace>("app");
+  const [hasDefault, setHasDefault] = useState(false);
   const [webOpen, setWebOpen] = useState(false);
   const [prompt, setPrompt] = useState<DialTarget | null>(null);
   const [changingDefault, setChangingDefault] = useState(false);
   const [saveDefault, setSaveDefault] = useState(false);
+  const saveDefaultRef = useRef(false);
   const frameRef = useRef<HTMLIFrameElement>(null);
   const pendingRef = useRef<string | null>(null);
 
-  useEffect(() => { setPlace(readPlace()); }, []);
+  useEffect(() => {
+    const saved = readSavedPlace();
+    if (!saved) return;
+    setPlace(saved);
+    setHasDefault(true);
+  }, []);
 
   const sendWebCall = useCallback((number: string) => {
     const frame = frameRef.current?.contentWindow;
@@ -72,17 +80,7 @@ export function ZoomDialerProvider({ children }: { children: React.ReactNode }) 
     pendingRef.current = null;
   }, []);
 
-  const open = useCallback((target: DialTarget) => {
-    if (!toE164(target.destination)) {
-      toast.error("That phone number cannot be dialed.");
-      return;
-    }
-    setSaveDefault(false);
-    setChangingDefault(false);
-    setPrompt(target);
-  }, []);
-
-  const placeCall = (next: ZoomPlace, number: string) => {
+  const placeCall = useCallback((next: ZoomPlace, number: string) => {
     if (next === "web") {
       setWebOpen(true);
       pendingRef.current = number;
@@ -90,21 +88,50 @@ export function ZoomDialerProvider({ children }: { children: React.ReactNode }) 
       return;
     }
     launchZoomApp(number);
-  };
+  }, [sendWebCall]);
 
-  const pickPlace = (next: ZoomPlace) => {
-    const remember = changingDefault || saveDefault;
-    if (remember) {
-      setPlace(next);
-      window.localStorage.setItem(PLACE_KEY, next);
+  const rememberPlace = (next: ZoomPlace) => {
+    const already = readSavedPlace();
+    setPlace(next);
+    setHasDefault(true);
+    window.localStorage.setItem(PLACE_KEY, next);
+    if (already !== next) {
+      toast.success(next === "web" ? "Zoom web saved as default." : "Zoom app saved as default.");
+    } else if (!hasDefault) {
       toast.success(next === "web" ? "Zoom web saved as default." : "Zoom app saved as default.");
     }
+  };
+
+  const open = useCallback((target: DialTarget) => {
+    const number = toE164(target.destination);
+    if (!number) {
+      toast.error("That phone number cannot be dialed.");
+      return;
+    }
+    const saved = readSavedPlace();
+    if (saved) {
+      setPlace(saved);
+      setHasDefault(true);
+      setPrompt(null);
+      setChangingDefault(false);
+      placeCall(saved, number);
+      return;
+    }
+    saveDefaultRef.current = false;
+    setSaveDefault(false);
+    setChangingDefault(false);
+    setPrompt(target);
+  }, [placeCall]);
+
+  const pickPlace = (next: ZoomPlace) => {
+    if (changingDefault || saveDefaultRef.current) rememberPlace(next);
     if (prompt) {
       const number = toE164(prompt.destination);
       if (number) placeCall(next, number);
     }
     setPrompt(null);
     setChangingDefault(false);
+    saveDefaultRef.current = false;
     setSaveDefault(false);
   };
 
@@ -114,8 +141,10 @@ export function ZoomDialerProvider({ children }: { children: React.ReactNode }) 
     <ZoomDialerContext.Provider value={{ open }}>
       {children}
       <ManualDialPad
+        place={place}
+        hasDefault={hasDefault}
         onCall={(raw) => open({ destination: raw })}
-        onChangeDefault={() => { setPrompt(null); setSaveDefault(false); setChangingDefault(true); }}
+        onChangeDefault={() => { setPrompt(null); saveDefaultRef.current = false; setSaveDefault(false); setChangingDefault(true); }}
       />
       {chooserOpen && (
         <div className="fixed bottom-20 right-4 z-[9100] w-[280px] max-w-[calc(100vw-2rem)] bg-white rounded-2xl shadow-2xl border border-gray-100 p-4">
@@ -158,14 +187,21 @@ export function ZoomDialerProvider({ children }: { children: React.ReactNode }) 
               <input
                 type="checkbox"
                 checked={saveDefault}
-                onChange={(e) => setSaveDefault(e.target.checked)}
+                onChange={(e) => {
+                  const on = e.target.checked;
+                  saveDefaultRef.current = on;
+                  setSaveDefault(on);
+                  if (on) rememberPlace(place);
+                }}
                 className="accent-[#B8112D]"
               />
               Save as default
             </label>
           )}
           {!prompt && (
-            <p className="mt-2 text-[11px] text-gray-400">Current default: {place === "web" ? "Zoom web" : "Zoom app"}</p>
+            <p className="mt-2 text-[11px] text-gray-400">
+              Current default: {hasDefault ? (place === "web" ? "Zoom web" : "Zoom app") : "Not set"}
+            </p>
           )}
         </div>
       )}
@@ -195,9 +231,13 @@ export function ZoomDialerProvider({ children }: { children: React.ReactNode }) 
 }
 
 function ManualDialPad({
+  place,
+  hasDefault,
   onCall,
   onChangeDefault,
 }: {
+  place: ZoomPlace;
+  hasDefault: boolean;
   onCall: (number: string) => void;
   onChangeDefault: () => void;
 }) {
@@ -238,7 +278,7 @@ function ManualDialPad({
         <button
           type="button"
           onClick={onChangeDefault}
-          title="Change Zoom app or web"
+          title={hasDefault ? `Change default (${place === "web" ? "Zoom web" : "Zoom app"})` : "Change Zoom app or web"}
           aria-label="Change Zoom app or web"
           className="h-8 w-8 rounded-full bg-white border border-gray-200 text-[#B8112D] shadow inline-flex items-center justify-center"
         >
