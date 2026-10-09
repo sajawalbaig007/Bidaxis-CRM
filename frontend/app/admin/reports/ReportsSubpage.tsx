@@ -17,20 +17,27 @@ export default function ReportsSubpage({
   children: ReactNode;
 }) {
   const pathname = usePathname();
-  const back = pathname.startsWith("/manager") ? "/manager/reports" : "/admin/reports";
+  const manager = pathname.startsWith("/manager");
+  const back = manager ? "/manager/reports" : "/admin/reports";
 
   return (
     <div className="flex min-h-screen bg-[#EEF1F7] dark:bg-crm-bg-subtle">
       <StaffSidebar />
       <main className="flex-1 min-w-0 overflow-x-hidden mt-[var(--app-header-h,64px)]">
         <DashboardNavbar />
-        <div className="w-full px-3 sm:px-5 lg:px-6 xl:px-8 2xl:px-10 py-4 sm:py-6 space-y-4">
-          <header className="rounded-[1.5rem] border border-gray-100/90 dark:border-crm-border bg-white dark:bg-crm-surface px-4 py-4 sm:px-5 sm:py-5 shadow-[0_10px_40px_-24px_rgba(15,23,42,0.35)]">
-            <Link href={back} className="inline-flex items-center gap-1 text-xs font-semibold text-[#B8112D]">
+        <div className="w-full px-3 sm:px-5 lg:px-6 xl:px-8 2xl:px-10 py-4 sm:py-5 space-y-3.5 sm:space-y-4">
+          <header>
+            <Link
+              href={back}
+              className="inline-flex h-10 items-center gap-1.5 rounded-2xl border border-gray-200 bg-white px-3 text-xs font-semibold text-[#B8112D] shadow-sm dark:border-crm-border dark:bg-crm-surface"
+            >
               <ArrowLeft size={14} /> Reports
             </Link>
-            <h1 className="mt-2 text-2xl sm:text-3xl font-bold text-[#0F172A] dark:text-crm-text tracking-tight">{title}</h1>
-            <p className="text-sm text-gray-500 dark:text-crm-text-muted mt-1 max-w-2xl">{subtitle}</p>
+            <p className="mt-4 text-[11px] font-bold uppercase tracking-wider text-[#B8112D]/80">
+              {manager ? "Admin portal · Reports" : "Admin · Reports"}
+            </p>
+            <h1 className="mt-1 text-2xl sm:text-3xl font-bold tracking-tight text-[#0F172A] dark:text-crm-text">{title}</h1>
+            <p className="mt-1 max-w-2xl text-sm text-gray-500 dark:text-crm-text-muted">{subtitle}</p>
           </header>
           {children}
         </div>

@@ -26,7 +26,7 @@ export function attendanceNameMatch(a: string, b: string): boolean {
 }
 
 /** "Saad Nadeem" matches "Muhammad Saad Nadeem". A single word still has to line up from the start, so Ismail does not match Muhammad Ismail. */
-function punchNameMatch(label: string, personName: string): boolean {
+export function punchNameMatch(label: string, personName: string): boolean {
   if (attendanceNameMatch(label, personName)) return true;
   const left = attendanceTokens(label);
   const right = attendanceTokens(personName);

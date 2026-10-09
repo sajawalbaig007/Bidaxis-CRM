@@ -5,17 +5,17 @@ import ReportsSubpage from "../ReportsSubpage";
 
 const ShiftHoursCard = dynamic(() => import("../ShiftHoursCard"), {
   ssr: false,
-  loading: () => <div className="h-24 rounded-xl bg-gray-100 animate-pulse" />,
+  loading: () => <div className="h-24 rounded-[1.5rem] bg-white animate-pulse" />,
 });
 
 const LateDeductionCard = dynamic(() => import("../LateDeductionCard"), {
   ssr: false,
-  loading: () => <div className="h-24 rounded-xl bg-gray-100 animate-pulse" />,
+  loading: () => <div className="h-24 rounded-[1.5rem] bg-white animate-pulse" />,
 });
 
 const DailyLateCard = dynamic(() => import("../DailyLateCard"), {
   ssr: false,
-  loading: () => <div className="h-24 rounded-xl bg-gray-100 animate-pulse" />,
+  loading: () => <div className="h-24 rounded-[1.5rem] bg-white animate-pulse" />,
 });
 
 export default function ShiftHoursPage() {

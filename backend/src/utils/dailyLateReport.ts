@@ -1,8 +1,8 @@
 import prisma from "../config/db";
 import { applyStaffPayrollToIncomeData } from "./loadStaffPayroll";
 import { leaveDaysFor } from "./paidLeave";
-import { attendanceNameMatch } from "./salaryAttendanceSync";
-import { DEPT_ROSTER } from "./staffAttendance";
+import { attendanceNameMatch, punchNameMatch } from "./salaryAttendanceSync";
+import { addCalendarDays, DEPT_ROSTER } from "./staffAttendance";
 import {
   elapsedMonthDays,
   isPktWeekend,
@@ -24,7 +24,7 @@ type SalarySub = {
   salesPayroll?: SalesPayrollEmployee & { latePersonKey?: string };
 };
 
-type PersonCut = { name: string; department: string; perDay: number; day: number; month: number };
+type PersonCut = { name: string; department: string; perDay: number; day: number; month: number; range: number; personKey: string };
 
 function policyDepartment(teamName: string, sales: boolean): string {
   if (sales) return "csr";
@@ -94,12 +94,36 @@ function payAmounts(sub: SalarySub, recordDate: string): PayAmounts {
   return { basic, commission: 0, overtime, allowance };
 }
 
-export async function dailyLateReport(date: string) {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
-  const month = date.slice(0, 7);
-  const today = pktToday();
-  await refreshLatePolicies();
+function expandRange(from: string, to: string, today: string): string[] {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to)) return [];
+  let start = from;
+  let end = to;
+  if (start > end) [start, end] = [end, start];
+  if (end > today) end = today;
+  if (start > end) return [];
+  const days: string[] = [];
+  let cursor = start;
+  while (cursor <= end && days.length < 370) {
+    days.push(cursor);
+    cursor = addCalendarDays(cursor, 1);
+  }
+  return days;
+}
 
+function addRange(primary: PersonCut[], extra: PersonCut[]) {
+  for (const row of extra) {
+    if (!row.range) continue;
+    const exact = primary.find((person) => person.name.toLowerCase() === row.name.toLowerCase());
+    if (exact) {
+      exact.range += row.range;
+      continue;
+    }
+    const fuzzy = primary.filter((person) => attendanceNameMatch(person.name, row.name) || attendanceNameMatch(row.name, person.name));
+    if (fuzzy.length === 1) fuzzy[0].range += row.range;
+  }
+}
+
+async function peopleForMonth(month: string, dayList: string[], monthDays: string[], rangeDays: string[]) {
   const saved = await prisma.accountsRecord.findMany({
     where: { page: "income_statement" },
     orderBy: { recordDate: "desc" },
@@ -110,8 +134,6 @@ export async function dailyLateReport(date: string) {
   const recordDate = `${month}-01`;
   const data = await applyStaffPayrollToIncomeData(raw, recordDate);
   const teams = (data.teamSalaries as { team?: string; subHeads?: SalarySub[] }[] | undefined) ?? [];
-  const monthDays = elapsedMonthDays(month, today);
-  const dayList = date <= today ? [date] : [];
   const approvedLeaves = await prisma.paidLeave.findMany({ where: { month, status: "approved" } });
   const byName = new Map<string, PersonCut>();
 
@@ -129,7 +151,7 @@ export async function dailyLateReport(date: string) {
       const department = policyDepartment(teamName, !!sub.salesPayroll);
       if (!department) {
         const prevEmpty = byName.get(name.toLowerCase());
-        if (!prevEmpty) byName.set(name.toLowerCase(), { name, department: teamName || "—", perDay: 0, day: 0, month: 0 });
+        if (!prevEmpty) byName.set(name.toLowerCase(), { name, department: teamName || "—", perDay: 0, day: 0, month: 0, range: 0, personKey: "" });
         continue;
       }
       const person = {
@@ -139,15 +161,19 @@ export async function dailyLateReport(date: string) {
       const skip = leaveDaysFor(name, approvedLeaves, month, person.personKey);
       const perDay = perDayForPolicy(department, month, amounts, person) ?? 0;
       const sales = !!sub.salesPayroll;
-      const dayCut = sales
-        ? salesDeductionForDays(perDay, punches, dayList, skip)
-        : policyDeductionForDays(department, month, amounts, punches ?? [], dayList, person, skip) ?? 0;
-      const monthCut = sales
-        ? salesDeductionForDays(perDay, punches, monthDays, skip)
-        : policyDeductionForDays(department, month, amounts, punches ?? [], monthDays, person, skip) ?? 0;
+      const cutFor = (days: string[]) => sales
+        ? salesDeductionForDays(perDay, punches, days, skip)
+        : policyDeductionForDays(department, month, amounts, punches ?? [], days, person, skip) ?? 0;
+      const dayCut = cutFor(dayList);
+      const monthCut = cutFor(monthDays);
+      const rangeCut = cutFor(rangeDays);
       const prev = byName.get(name.toLowerCase());
-      if (prev && prev.month >= monthCut && prev.day >= dayCut) continue;
-      byName.set(name.toLowerCase(), { name, department: teamName || department, perDay, day: dayCut, month: monthCut });
+      if (prev && prev.month >= monthCut && prev.day >= dayCut) {
+        if (rangeCut > prev.range) prev.range = rangeCut;
+        if (!prev.personKey && person.personKey) prev.personKey = person.personKey;
+        continue;
+      }
+      byName.set(name.toLowerCase(), { name, department: teamName || department, perDay, day: dayCut, month: monthCut, range: rangeCut, personKey: person.personKey });
     }
   }
 
@@ -181,23 +207,70 @@ export async function dailyLateReport(date: string) {
       const personRef = { personKey: person.key, personName: person.name };
       const skip = leaveDaysFor(person.name, approvedLeaves, month, person.key);
       const perDay = perDayForPolicy(policyDept, month, amounts, personRef) ?? 0;
-      const dayCut = policyDeductionForDays(policyDept, month, amounts, punches, dayList, personRef, skip) ?? 0;
-      const monthCut = policyDeductionForDays(policyDept, month, amounts, punches, monthDays, personRef, skip) ?? 0;
+      const cutFor = (days: string[]) => policyDeductionForDays(policyDept, month, amounts, punches, days, personRef, skip) ?? 0;
       byName.set(person.name.toLowerCase(), {
         name: person.name,
         department: onAdministration ? "Administration" : (rosterTitle[person.department] ?? person.department),
         perDay,
-        day: dayCut,
-        month: monthCut,
+        day: cutFor(dayList),
+        month: cutFor(monthDays),
+        range: cutFor(rangeDays),
+        personKey: person.key,
       });
     }
   }
 
-  const people = [...byName.values()].sort((a, b) => a.department.localeCompare(b.department) || a.name.localeCompare(b.name));
+  return [...byName.values()].sort((a, b) => a.department.localeCompare(b.department) || a.name.localeCompare(b.name));
+}
+
+export async function dailyLateReport(date: string, rangeFrom = "", rangeTo = "") {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
+  const month = date.slice(0, 7);
+  const today = pktToday();
+  await refreshLatePolicies();
+  const monthDays = elapsedMonthDays(month, today);
+  const dayList = date <= today ? [date] : [];
+  const rangeDays = expandRange(rangeFrom, rangeTo, today);
+  const people = await peopleForMonth(month, dayList, monthDays, rangeDays.filter((day) => day.startsWith(`${month}-`)));
+  const otherMonths = [...new Set(rangeDays.map((day) => day.slice(0, 7)))].filter((item) => item !== month);
+  for (const other of otherMonths) {
+    const extra = await peopleForMonth(other, [], [], rangeDays.filter((day) => day.startsWith(`${other}-`)));
+    addRange(people, extra);
+  }
   return {
     date,
     month,
     through: monthDays[monthDays.length - 1] ?? `${month}-01`,
+    rangeFrom: rangeDays[0] ?? "",
+    rangeTo: rangeDays[rangeDays.length - 1] ?? "",
     people,
   };
+}
+
+/** Same current-day and month-so-far cut the CEO late deduction table shows for this person. */
+export async function lateDeductionSummary(personKey: string, personName = "") {
+  try {
+    const today = pktToday();
+    let name = personName.trim();
+    if (!name && personKey) {
+      const user = await prisma.user.findUnique({ where: { id: personKey }, select: { name: true } });
+      name = user?.name?.trim() ?? "";
+    }
+    const report = await dailyLateReport(today);
+    if (!report) return null;
+    const key = personKey.trim();
+    const byKey = key ? report.people.find((person) => person.personKey === key) : undefined;
+    const exact = name ? report.people.find((person) => person.name.toLowerCase() === name.toLowerCase()) : undefined;
+    const fuzzy = name ? report.people.filter((person) => punchNameMatch(person.name, name)) : [];
+    const hit = byKey ?? exact ?? (fuzzy.length === 1 ? fuzzy[0] : undefined);
+    return {
+      day: hit?.day ?? 0,
+      month: hit?.month ?? 0,
+      date: report.date,
+      through: report.through,
+    };
+  } catch (error) {
+    console.error("[late-deduction-summary]", error);
+    return null;
+  }
 }

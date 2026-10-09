@@ -52,6 +52,7 @@ import {
 } from "../utils/csrDashboardQueries";
 import { ensureMasterFormatTrades } from "../utils/masterFormatTrades";
 import { allocateNextProjectCode } from "../utils/nextProjectCode";
+import { lateDeductionSummary } from "../utils/dailyLateReport";
 const router = express.Router();
 
 async function logStatusChange(csrId: string, leadId: string, status: string) {
@@ -1367,7 +1368,8 @@ router.delete("/lead/:id/subcontacts/:subId", verifyToken, allowRoles("csr"), as
 router.get("/shift-history", verifyToken, allowRoles("csr"), async (req: any, res) => {
   try {
     const days = await listUserShiftHistory(req.user.id, "csr");
-    return res.json({ success: true, days });
+    const deduction = await lateDeductionSummary(req.user.id);
+    return res.json({ success: true, days, deduction });
   } catch (error) {
     console.log(error);
     return res.status(500).json({ success: false, message: "Failed to load check-in history." });

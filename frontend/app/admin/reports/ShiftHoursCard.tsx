@@ -131,7 +131,8 @@ export default function ShiftHoursCard() {
     <div className="rounded-[1.5rem] sm:rounded-[1.75rem] border border-gray-100/90 dark:border-crm-border bg-white dark:bg-crm-surface shadow-[0_10px_40px_-24px_rgba(15,23,42,0.35)] p-4 sm:p-5 min-w-0">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="min-w-0">
-          <h2 className="font-bold text-[#0F172A] dark:text-white text-base sm:text-lg tracking-tight">
+          <p className="text-[11px] font-bold uppercase tracking-wider text-[#B8112D]/80">Shift time</p>
+          <h2 className="mt-1 font-bold text-[#0F172A] dark:text-white text-base sm:text-lg tracking-tight">
             Shift hours
           </h2>
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 max-w-xl">
@@ -139,13 +140,13 @@ export default function ShiftHoursCard() {
             Winter and summer can differ. An employee row overrides the department. A month you leave blank keeps the previous month.
           </p>
         </div>
-        <label className="text-xs text-gray-500 dark:text-gray-400">
+        <label className="text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
           Month
           <input
             type="month"
             value={month}
             onChange={(e) => setMonth(e.target.value)}
-            className="mt-1 block rounded-lg border border-gray-200 dark:border-crm-border bg-white dark:bg-[#0B1220] px-2 py-1.5 text-sm text-[#0F172A] dark:text-white"
+            className="mt-1 block h-10 rounded-2xl border border-gray-200 bg-white px-3 text-sm font-medium normal-case tracking-normal text-[#0F172A] outline-none focus:border-[#B8112D] dark:border-crm-border dark:bg-[#0B1220] dark:text-white"
           />
         </label>
       </div>
@@ -160,7 +161,7 @@ export default function ShiftHoursCard() {
             const deptBusy = busy === `${dept.department}:`;
             const expanded = open === dept.department;
             return (
-              <div key={dept.department} className="rounded-xl border border-gray-100 dark:border-crm-border p-3">
+              <div key={dept.department} className="rounded-2xl border border-gray-100 bg-[#F8FAFC] p-4 dark:border-crm-border dark:bg-[#0B1220]">
                 <div className="flex flex-wrap items-center gap-2">
                   <div className="min-w-[9rem] flex-1">
                     <p className="text-sm font-semibold text-[#0F172A] dark:text-white">{dept.label}</p>
@@ -174,7 +175,7 @@ export default function ShiftHoursCard() {
                       type="time"
                       value={dept.checkIn}
                       onChange={(e) => patchDept(dept.department, "checkIn", e.target.value)}
-                      className="mt-1 block rounded-lg border border-gray-200 dark:border-crm-border bg-white dark:bg-[#0B1220] px-2 py-1 text-sm text-[#0F172A] dark:text-white"
+                      className="mt-1 block h-10 rounded-2xl border border-gray-200 bg-white px-3 text-sm text-[#0F172A] outline-none focus:border-[#B8112D] dark:border-crm-border dark:bg-[#0B1220] dark:text-white"
                     />
                   </label>
                   <label className="text-[11px] text-gray-500 dark:text-gray-400">
@@ -183,14 +184,14 @@ export default function ShiftHoursCard() {
                       type="time"
                       value={dept.checkOut}
                       onChange={(e) => patchDept(dept.department, "checkOut", e.target.value)}
-                      className="mt-1 block rounded-lg border border-gray-200 dark:border-crm-border bg-white dark:bg-[#0B1220] px-2 py-1 text-sm text-[#0F172A] dark:text-white"
+                      className="mt-1 block h-10 rounded-2xl border border-gray-200 bg-white px-3 text-sm text-[#0F172A] outline-none focus:border-[#B8112D] dark:border-crm-border dark:bg-[#0B1220] dark:text-white"
                     />
                   </label>
                   <button
                     type="button"
                     disabled={deptBusy}
                     onClick={() => void save(dept.department, "", "", dept.checkIn, dept.checkOut)}
-                    className="rounded-lg bg-[#0F172A] px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
+                    className="h-10 rounded-2xl bg-[#B8112D] px-4 text-xs font-semibold text-white shadow-sm disabled:opacity-50"
                   >
                     {deptBusy ? "Saving…" : "Save department"}
                   </button>
@@ -199,7 +200,7 @@ export default function ShiftHoursCard() {
                       type="button"
                       disabled={deptBusy}
                       onClick={() => void clear(dept.department, "")}
-                      className="rounded-lg border border-gray-200 dark:border-crm-border px-3 py-1.5 text-xs font-semibold text-gray-600 dark:text-gray-300 disabled:opacity-50"
+                      className="h-10 rounded-2xl border border-gray-200 bg-white px-4 text-xs font-semibold text-gray-600 disabled:opacity-50 dark:border-crm-border dark:bg-transparent dark:text-gray-300"
                     >
                       Clear
                     </button>
@@ -207,7 +208,7 @@ export default function ShiftHoursCard() {
                   <button
                     type="button"
                     onClick={() => setOpen(expanded ? null : dept.department)}
-                    className="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-semibold text-gray-600 dark:text-gray-300"
+                    className="inline-flex h-10 items-center gap-1 rounded-2xl px-3 text-xs font-semibold text-[#B8112D]"
                   >
                     Employees
                     <ChevronDown size={14} className={expanded ? "rotate-180" : ""} />
@@ -235,14 +236,14 @@ export default function ShiftHoursCard() {
                               aria-label={`${person.personName} check in`}
                               value={person.checkIn}
                               onChange={(e) => patchPerson(dept.department, person.personKey, "checkIn", e.target.value)}
-                              className="rounded-lg border border-gray-200 dark:border-crm-border bg-white dark:bg-[#0B1220] px-2 py-1 text-sm text-[#0F172A] dark:text-white"
+                              className="h-10 rounded-2xl border border-gray-200 bg-white px-3 text-sm text-[#0F172A] outline-none focus:border-[#B8112D] dark:border-crm-border dark:bg-[#0B1220] dark:text-white"
                             />
                             <input
                               type="time"
                               aria-label={`${person.personName} check out`}
                               value={person.checkOut}
                               onChange={(e) => patchPerson(dept.department, person.personKey, "checkOut", e.target.value)}
-                              className="rounded-lg border border-gray-200 dark:border-crm-border bg-white dark:bg-[#0B1220] px-2 py-1 text-sm text-[#0F172A] dark:text-white"
+                              className="h-10 rounded-2xl border border-gray-200 bg-white px-3 text-sm text-[#0F172A] outline-none focus:border-[#B8112D] dark:border-crm-border dark:bg-[#0B1220] dark:text-white"
                             />
                             <button
                               type="button"
@@ -250,7 +251,7 @@ export default function ShiftHoursCard() {
                               onClick={() =>
                                 void save(dept.department, person.personKey, person.personName, person.checkIn, person.checkOut)
                               }
-                              className="rounded-lg bg-[#0F172A] px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
+                              className="h-10 rounded-2xl bg-[#B8112D] px-4 text-xs font-semibold text-white shadow-sm disabled:opacity-50"
                             >
                               {personBusy ? "Saving…" : "Save"}
                             </button>
@@ -259,7 +260,7 @@ export default function ShiftHoursCard() {
                                 type="button"
                                 disabled={personBusy}
                                 onClick={() => void clear(dept.department, person.personKey)}
-                                className="rounded-lg border border-gray-200 dark:border-crm-border px-3 py-1.5 text-xs font-semibold text-gray-600 dark:text-gray-300 disabled:opacity-50"
+                                className="h-10 rounded-2xl border border-gray-200 bg-white px-4 text-xs font-semibold text-gray-600 disabled:opacity-50 dark:border-crm-border dark:bg-transparent dark:text-gray-300"
                               >
                                 Clear
                               </button>

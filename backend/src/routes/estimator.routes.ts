@@ -38,6 +38,7 @@ import { getClientIp, getUserAgent } from "../utils/requestMeta";
 import { formatEstDateTime } from "../utils/estTime";
 import { pktShiftDay } from "../utils/staffAttendance";
 import { saveOvertimeComment } from "../utils/overtimeRequest";
+import { lateDeductionSummary } from "../utils/dailyLateReport";
 
 const router = express.Router();
 
@@ -705,7 +706,8 @@ router.put("/notifications/:id/read", async (req: AuthRequest, res) => {
 router.get("/shift-history", async (req: AuthRequest, res) => {
   try {
     const days = await listUserShiftHistory(req.user!.id);
-    return res.json({ success: true, days });
+    const deduction = await lateDeductionSummary(req.user!.id);
+    return res.json({ success: true, days, deduction });
   } catch (error) {
     console.log(error);
     return res.status(500).json({ success: false, message: "Failed to load check-in history." });

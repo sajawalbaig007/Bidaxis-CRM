@@ -1,12 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import toast from "react-hot-toast";
 import API, { apiErrorMessage } from "@/lib/api";
 
-type PersonCut = { name: string; department: string; perDay?: number; day: number; month: number };
+type PersonCut = { name: string; department: string; perDay?: number; day: number; month: number; range?: number };
 
 const ATTENDANCE_ROWS: PersonCut[] = [
   { name: "Ahmer Shah", department: "Dev", perDay: 0, day: 0, month: 0 },
@@ -41,7 +41,90 @@ function withAttendanceRoster(people: PersonCut[]) {
   }
   return next.sort((a, b) => a.department.localeCompare(b.department) || a.name.localeCompare(b.name));
 }
-type Report = { date: string; month: string; through: string; people: PersonCut[] };
+type Report = { date: string; month: string; through: string; rangeFrom?: string; rangeTo?: string; people: PersonCut[] };
+
+function personId(person: PersonCut) {
+  return `${person.department}::${person.name}`;
+}
+
+function MultiSelect({
+  label,
+  options,
+  selected,
+  onChange,
+}: {
+  label: string;
+  options: { id: string; label: string; hint?: string }[];
+  selected: string[];
+  onChange: (ids: string[]) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const box = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const close = (event: MouseEvent) => {
+      if (!box.current?.contains(event.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, [open]);
+
+  const shown = options.filter((option) => option.label.toLowerCase().includes(query.trim().toLowerCase()));
+  const summary = selected.length === 0 ? label : `${label} · ${selected.length}`;
+
+  const toggle = (id: string) => {
+    onChange(selected.includes(id) ? selected.filter((item) => item !== id) : [...selected, id]);
+  };
+
+  return (
+    <div ref={box} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        className={`h-10 min-w-[10rem] rounded-2xl border px-3 text-left text-xs font-semibold ${
+          selected.length
+            ? "border-[#B8112D] bg-[#FFF1F3] text-[#B8112D]"
+            : "border-gray-200 bg-white text-[#0F172A] dark:border-crm-border dark:bg-transparent dark:text-white"
+        }`}
+      >
+        {summary}
+      </button>
+      {open ? (
+        <div className="absolute left-0 z-30 mt-1 w-72 rounded-2xl border border-gray-100 bg-white p-2 shadow-[0_12px_40px_rgba(15,23,42,0.12)] dark:border-crm-border dark:bg-crm-surface">
+          <input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder={`Search ${label.toLowerCase()}`}
+            className="h-10 w-full rounded-2xl border border-gray-200 bg-white px-3 text-sm text-[#0F172A] outline-none focus:border-[#B8112D] dark:border-crm-border dark:bg-[#0B1220] dark:text-white"
+          />
+          <div className="mt-2 flex items-center justify-between px-1">
+            <button type="button" onClick={() => onChange(options.map((option) => option.id))} className="text-[11px] font-semibold text-[#B8112D]">
+              Select all
+            </button>
+            <button type="button" onClick={() => onChange([])} className="text-[11px] font-semibold text-gray-500">
+              Clear
+            </button>
+          </div>
+          <div className="mt-1 max-h-56 overflow-auto">
+            {shown.length === 0 ? (
+              <p className="px-2 py-3 text-xs text-gray-400">No matches.</p>
+            ) : shown.map((option) => (
+              <label key={option.id} className="flex cursor-pointer items-center gap-2 rounded-xl px-2 py-1.5 hover:bg-[#F8FAFC] dark:hover:bg-white/5">
+                <input type="checkbox" checked={selected.includes(option.id)} onChange={() => toggle(option.id)} />
+                <span className="min-w-0">
+                  <span className="block truncate text-sm text-[#0F172A] dark:text-white">{option.label}</span>
+                  {option.hint ? <span className="block text-[11px] text-gray-400">{option.hint}</span> : null}
+                </span>
+              </label>
+            ))}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
 
 type LeaveRow = {
   id: string;
@@ -74,6 +157,10 @@ export default function DailyLateCard() {
   const ceo = pathname.startsWith("/admin");
   const today = pktToday();
   const [date, setDate] = useState(today);
+  const [rangeFrom, setRangeFrom] = useState(`${today.slice(0, 7)}-01`);
+  const [rangeTo, setRangeTo] = useState(today);
+  const [pickedPeople, setPickedPeople] = useState<string[]>([]);
+  const [pickedDepartments, setPickedDepartments] = useState<string[]>([]);
   const [report, setReport] = useState<Report | null>(null);
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
@@ -84,14 +171,16 @@ export default function DailyLateCard() {
   const [leaveTo, setLeaveTo] = useState("");
   const [leaveBusy, setLeaveBusy] = useState("");
 
-  const load = useCallback(async (day: string) => {
+  const load = useCallback(async (day: string, from: string, to: string) => {
     setLoading(true);
     try {
-      const res = await API.get("/attendance/late-daily", { params: { date: day } });
+      const res = await API.get("/attendance/late-daily", { params: { date: day, from, to } });
       setReport({
         date: res.data.date,
         month: res.data.month,
         through: res.data.through,
+        rangeFrom: res.data.rangeFrom,
+        rangeTo: res.data.rangeTo,
         people: res.data.people ?? [],
       });
     } catch (err) {
@@ -112,8 +201,8 @@ export default function DailyLateCard() {
 
   useEffect(() => {
     if (!ceo) return;
-    void load(date);
-  }, [ceo, date, load]);
+    void load(date, rangeFrom, rangeTo);
+  }, [ceo, date, rangeFrom, rangeTo, load]);
 
   useEffect(() => {
     if (!ceo || !leaveOpen || !report?.month) return;
@@ -156,7 +245,7 @@ export default function DailyLateCard() {
     try {
       await API.post(`/attendance/paid-leave/${id}/review`, { status });
       if (report?.month) await loadLeaves(report.month);
-      await load(date);
+      await load(date, rangeFrom, rangeTo);
     } catch (err) {
       toast.error(apiErrorMessage(err, "Could not update paid leave."));
     } finally {
@@ -168,14 +257,27 @@ export default function DailyLateCard() {
 
   const dayLabel = date === today ? "Current date" : date;
   const people = withAttendanceRoster(report?.people ?? []);
+  const employeeOptions = people.map((person) => ({ id: personId(person), label: person.name, hint: person.department }));
+  const departmentOptions = [...new Set(people.map((person) => person.department))].sort().map((department) => ({ id: department, label: department }));
+  const visible = useMemo(
+    () => people.filter((person) => {
+      const personOk = pickedPeople.length === 0 || pickedPeople.includes(personId(person));
+      const departmentOk = pickedDepartments.length === 0 || pickedDepartments.includes(person.department);
+      return personOk && departmentOk;
+    }),
+    [people, pickedPeople, pickedDepartments],
+  );
+  const rangeLabel = report?.rangeFrom && report?.rangeTo ? `${report.rangeFrom} – ${report.rangeTo}` : "Pick dates";
+  const filtersOn = pickedPeople.length > 0 || pickedDepartments.length > 0;
 
   return (
     <section className="rounded-[1.5rem] sm:rounded-[1.75rem] border border-gray-100/90 dark:border-crm-border bg-white dark:bg-crm-surface shadow-[0_10px_40px_-24px_rgba(15,23,42,0.35)] p-4 sm:p-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h2 className="font-bold text-[#0F172A] dark:text-white text-base sm:text-lg">Late time deduction</h2>
+          <p className="text-[11px] font-bold uppercase tracking-wider text-[#B8112D]/80">Deductions</p>
+          <h2 className="mt-1 font-bold text-[#0F172A] dark:text-white text-base sm:text-lg tracking-tight">Late time deduction</h2>
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-            Per day is the checked salary parts divided by 30. A late check-in multiplies that day by the number you set, so 0.2 on Rs 1,500 is Rs 300. Saturday, Sunday, and approved paid leave are not deducted. Send to accounts copies the month total into each person’s late deduction cell.
+            Per day is the checked salary parts divided by 30. A late check-in multiplies that day by the number you set, so 0.2 on Rs 1,500 is Rs 300. Saturday, Sunday, and approved paid leave are not deducted. The date range column totals only those days. Employee and department filters apply together. Send to accounts copies the month total into each person’s late deduction cell.
             {report ? ` Month total runs through ${report.through}.` : ""}
           </p>
         </div>
@@ -183,7 +285,7 @@ export default function DailyLateCard() {
           <button
             type="button"
             onClick={() => setLeaveOpen((open) => !open)}
-            className="rounded-lg border border-gray-200 dark:border-crm-border px-3 py-1.5 text-xs font-semibold text-[#0F172A] dark:text-white"
+            className="h-10 rounded-2xl border border-gray-200 bg-white px-4 text-xs font-semibold text-[#0F172A] dark:border-crm-border dark:bg-transparent dark:text-white"
           >
             Paid leave
           </button>
@@ -191,25 +293,77 @@ export default function DailyLateCard() {
             type="button"
             disabled={sending || !report}
             onClick={() => void sendToAccounts()}
-            className="rounded-lg bg-[#0F172A] px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
+            className="h-10 rounded-2xl bg-[#B8112D] px-4 text-xs font-semibold text-white shadow-sm disabled:opacity-50"
           >
             {sending ? "Sending…" : "Send to accounts"}
           </button>
-          <label className="text-xs text-gray-500 dark:text-gray-400">
+        </div>
+      </div>
+
+      <div className="mt-4 flex flex-wrap items-end gap-2">
+        <MultiSelect label="Employees" options={employeeOptions} selected={pickedPeople} onChange={setPickedPeople} />
+        <MultiSelect label="Department" options={departmentOptions} selected={pickedDepartments} onChange={setPickedDepartments} />
+        <label className="text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
           Specific date
           <input
             type="date"
             value={date}
             max={today}
             onChange={(e) => setDate(e.target.value)}
-            className="mt-1 block rounded-lg border border-gray-200 dark:border-crm-border bg-white dark:bg-[#0B1220] px-2 py-1.5 text-sm text-[#0F172A] dark:text-white"
+            className="mt-1 block h-10 rounded-2xl border border-gray-200 bg-white px-3 text-sm font-medium normal-case tracking-normal text-[#0F172A] outline-none focus:border-[#B8112D] dark:border-crm-border dark:bg-[#0B1220] dark:text-white"
           />
-          </label>
-        </div>
+        </label>
+        <label className="text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+          Range from
+          <input
+            type="date"
+            value={rangeFrom}
+            max={rangeTo || today}
+            onChange={(e) => setRangeFrom(e.target.value)}
+            className="mt-1 block h-10 rounded-2xl border border-gray-200 bg-white px-3 text-sm font-medium normal-case tracking-normal text-[#0F172A] outline-none focus:border-[#B8112D] dark:border-crm-border dark:bg-[#0B1220] dark:text-white"
+          />
+        </label>
+        <label className="text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+          Range to
+          <input
+            type="date"
+            value={rangeTo}
+            min={rangeFrom}
+            max={today}
+            onChange={(e) => setRangeTo(e.target.value)}
+            className="mt-1 block h-10 rounded-2xl border border-gray-200 bg-white px-3 text-sm font-medium normal-case tracking-normal text-[#0F172A] outline-none focus:border-[#B8112D] dark:border-crm-border dark:bg-[#0B1220] dark:text-white"
+          />
+        </label>
+        {filtersOn ? (
+          <button
+            type="button"
+            onClick={() => {
+              setPickedPeople([]);
+              setPickedDepartments([]);
+            }}
+            className="h-10 rounded-2xl border border-gray-200 bg-white px-4 text-xs font-semibold text-gray-600 dark:border-crm-border dark:bg-transparent dark:text-gray-300"
+          >
+            Clear filters
+          </button>
+        ) : null}
       </div>
+      {pickedPeople.length > 0 ? (
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {people.filter((person) => pickedPeople.includes(personId(person))).map((person) => (
+            <button
+              key={personId(person)}
+              type="button"
+              onClick={() => setPickedPeople((current) => current.filter((id) => id !== personId(person)))}
+              className="rounded-full bg-[#FFF1F3] px-2.5 py-1 text-[11px] font-semibold text-[#B8112D]"
+            >
+              {person.name} ×
+            </button>
+          ))}
+        </div>
+      ) : null}
 
       {leaveOpen ? (
-        <div className="mt-4 rounded-2xl border border-gray-100 dark:border-crm-border p-3">
+        <div className="mt-4 rounded-2xl border border-gray-100 bg-[#F8FAFC] p-4 dark:border-crm-border dark:bg-[#0B1220]">
           <p className="text-xs text-gray-500 dark:text-gray-400">
             Add each paid leave on its own. One month can hold several. Approve a range and those days are not deducted.
           </p>
@@ -219,7 +373,7 @@ export default function DailyLateCard() {
               <select
                 value={leaveName}
                 onChange={(e) => setLeaveName(e.target.value)}
-                className="mt-1 block rounded-lg border border-gray-200 dark:border-crm-border bg-white dark:bg-[#0B1220] px-2 py-1.5 text-sm text-[#0F172A] dark:text-white"
+                className="mt-1 block h-10 rounded-2xl border border-gray-200 bg-white px-3 text-sm text-[#0F172A] outline-none focus:border-[#B8112D] dark:border-crm-border dark:bg-transparent dark:text-white"
               >
                 <option value="">Select</option>
                 {people.map((person) => (
@@ -233,7 +387,7 @@ export default function DailyLateCard() {
                 type="date"
                 value={leaveFrom}
                 onChange={(e) => setLeaveFrom(e.target.value)}
-                className="mt-1 block rounded-lg border border-gray-200 dark:border-crm-border bg-white dark:bg-[#0B1220] px-2 py-1.5 text-sm text-[#0F172A] dark:text-white"
+                className="mt-1 block h-10 rounded-2xl border border-gray-200 bg-white px-3 text-sm text-[#0F172A] outline-none focus:border-[#B8112D] dark:border-crm-border dark:bg-transparent dark:text-white"
               />
             </label>
             <label className="text-[11px] text-gray-500 dark:text-gray-400">
@@ -242,14 +396,14 @@ export default function DailyLateCard() {
                 type="date"
                 value={leaveTo}
                 onChange={(e) => setLeaveTo(e.target.value)}
-                className="mt-1 block rounded-lg border border-gray-200 dark:border-crm-border bg-white dark:bg-[#0B1220] px-2 py-1.5 text-sm text-[#0F172A] dark:text-white"
+                className="mt-1 block h-10 rounded-2xl border border-gray-200 bg-white px-3 text-sm text-[#0F172A] outline-none focus:border-[#B8112D] dark:border-crm-border dark:bg-transparent dark:text-white"
               />
             </label>
             <button
               type="button"
               disabled={leaveBusy === "add"}
               onClick={() => void addLeave()}
-              className="rounded-lg bg-[#0F172A] px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
+              className="h-10 rounded-2xl bg-[#B8112D] px-4 text-xs font-semibold text-white shadow-sm disabled:opacity-50"
             >
               {leaveBusy === "add" ? "Saving…" : "Add leave"}
             </button>
@@ -258,7 +412,7 @@ export default function DailyLateCard() {
             {leaves.length === 0 ? (
               <p className="text-xs text-gray-400">No paid leave in this month yet.</p>
             ) : leaves.map((leave) => (
-              <div key={leave.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-gray-100 dark:border-crm-border px-2 py-2">
+              <div key={leave.id} className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-gray-100 bg-white px-3 py-2 dark:border-crm-border dark:bg-crm-surface">
                 <div>
                   <p className="text-xs font-semibold text-[#0F172A] dark:text-white">{leave.personName}</p>
                   <p className="text-[11px] text-gray-500 dark:text-gray-400">{leave.fromDay} to {leave.toDay} · {leave.status}</p>
@@ -268,7 +422,7 @@ export default function DailyLateCard() {
                     type="button"
                     disabled={leaveBusy === leave.id}
                     onClick={() => void reviewLeave(leave.id, "approved")}
-                    className="rounded-lg bg-emerald-700 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
+                    className="h-9 rounded-2xl bg-emerald-600 px-3 text-xs font-semibold text-white disabled:opacity-50"
                   >
                     {leaveBusy === leave.id ? "Saving…" : "Approve"}
                   </button>
@@ -286,20 +440,33 @@ export default function DailyLateCard() {
       ) : people.length === 0 ? (
         <p className="mt-4 text-sm text-gray-400">No employees for this month.</p>
       ) : (
-        <div className="mt-4 overflow-x-auto rounded-2xl border border-gray-100 dark:border-crm-border">
-          <table className="w-full min-w-[36rem] text-sm">
-            <thead>
-              <tr className="bg-[#F8FAFC] dark:bg-[#0B1220] text-left text-[11px] uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                <th className="px-3 py-3 font-semibold">Employee</th>
-                <th className="px-3 py-3 font-semibold text-right">Per day</th>
-                <th className="px-3 py-3 font-semibold text-right">{dayLabel}</th>
-                <th className="px-3 py-3 font-semibold text-right">So far this month</th>
+        <div className="mt-4 overflow-hidden rounded-2xl sm:rounded-[28px] border border-slate-200/80 shadow-[0_12px_40px_rgba(15,23,42,0.06)] dark:border-crm-border">
+          <div className="overflow-x-auto">
+          <table className="w-full min-w-[46rem] border-collapse text-sm">
+            <thead className="bg-[#B8112D]">
+              <tr>
+                <th className="px-4 py-3 text-left text-[10px] font-bold uppercase tracking-wider text-white/90">Employee</th>
+                <th className="px-4 py-3 text-right text-[10px] font-bold uppercase tracking-wider text-white/90">Per day</th>
+                <th className="px-4 py-3 text-right text-[10px] font-bold uppercase tracking-wider text-white/90">{dayLabel}</th>
+                <th className="px-4 py-3 text-right text-[10px] font-bold uppercase tracking-wider text-white/90">
+                  <span className="block">Date range</span>
+                  <span className="mt-0.5 block font-medium normal-case tracking-normal text-white/70">{rangeLabel}</span>
+                </th>
+                <th className="px-4 py-3 text-right text-[10px] font-bold uppercase tracking-wider text-white/90">So far this month</th>
               </tr>
             </thead>
             <tbody>
-              {people.map((person) => (
-                <tr key={`${person.department}:${person.name}`} className="border-t border-gray-100 dark:border-crm-border">
-                  <td className="px-3 py-3">
+              {visible.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="px-4 py-8 text-center text-sm text-gray-400">No employees match these filters.</td>
+                </tr>
+              ) : null}
+              {visible.map((person) => (
+                <tr
+                  key={`${person.department}:${person.name}`}
+                  className="border-b border-slate-100/90 last:border-0 even:bg-slate-50/50 hover:bg-[#F8FBFF] hover:shadow-[inset_3px_0_0_#B8112D] transition-colors dark:border-white/5 dark:even:bg-white/[0.02] dark:hover:bg-white/[0.04]"
+                >
+                  <td className="px-4 py-3">
                     <div className="flex items-center gap-3 min-w-0">
                       <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#FFF1F3] text-[11px] font-bold text-[#B8112D]">
                         {initials(person.name)}
@@ -310,13 +477,23 @@ export default function DailyLateCard() {
                       </div>
                     </div>
                   </td>
-                  <td className="px-3 py-3 text-right tabular-nums text-[#0F172A] dark:text-white">{money(person.perDay ?? 0)}</td>
-                  <td className="px-3 py-3 text-right tabular-nums font-semibold text-[#B8112D]">{money(person.day)}</td>
-                  <td className="px-3 py-3 text-right tabular-nums font-semibold text-[#0F172A] dark:text-white">{money(person.month)}</td>
+                  <td className="px-4 py-3 text-right tabular-nums text-[#0F172A] dark:text-white">{money(person.perDay ?? 0)}</td>
+                  <td className="px-4 py-3 text-right">
+                    <span className={`inline-flex min-w-[4.5rem] justify-end tabular-nums font-semibold ${person.day > 0 ? "text-[#B8112D]" : "text-slate-400"}`}>
+                      {money(person.day)}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    <span className={`inline-flex min-w-[4.5rem] justify-end tabular-nums font-semibold ${(person.range ?? 0) > 0 ? "text-[#B8112D]" : "text-slate-400"}`}>
+                      {money(person.range ?? 0)}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-right tabular-nums font-semibold text-[#0F172A] dark:text-white">{money(person.month)}</td>
                 </tr>
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
     </section>
