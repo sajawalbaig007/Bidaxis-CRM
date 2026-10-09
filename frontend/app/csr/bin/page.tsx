@@ -20,7 +20,7 @@ import { matchesStateLocationFilter, matchesPhoneAreaCodeFilter } from "@/lib/st
 import SubContactsCell from "@/app/components/clients/SubContactsCell";
 import CapsuleTabs, { type CapsuleTabItem } from "@/app/components/CapsuleTabs";
 import API from "@/lib/api";
-import { ChangeDialerNumber, useZoomDialer } from "../components/dialer/ZoomDialerProvider";
+import { useZoomDialer } from "../components/dialer/ZoomDialerProvider";
 import { formatEstDayMonth } from "@/lib/estTime";
 
 const PAGE_SIZE = 30;
@@ -243,7 +243,6 @@ export default function CSRBinPage() {
                         >
                           <Phone size={18}/><span className="underline-offset-[3px] group-hover:underline group-disabled:no-underline">{lead.phone}</span>
                         </button>
-                        {dialer && lead.phone && lead.phone !== "N/A" && <ChangeDialerNumber />}
                       </span>
                     </td>
                     <td className={`hidden lg:table-cell py-4 px-2`}>

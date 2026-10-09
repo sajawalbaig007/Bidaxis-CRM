@@ -11,7 +11,7 @@ import { NoteEntry, SubContact } from "../hooks/useLeadsData";
 import { parseInterestedServices } from "../utils/parseInterestedServices";
 import { collectLeadEmails } from "../utils/parseEmails";
 import EmailWithExtraCell from "./shared/EmailWithExtraCell";
-import { ChangeDialerNumber, useZoomDialer } from "./dialer/ZoomDialerProvider";
+import { useZoomDialer } from "./dialer/ZoomDialerProvider";
 
 export type DetailLead = {
   id: string;
@@ -528,7 +528,6 @@ export default function LeadDetailModal({ lead, onClose, onSaved, onNoteAdded, o
                           >
                             {value}
                           </button>
-                          <ChangeDialerNumber className="text-[11px]" />
                         </span>
                       ) : href ? (
                         <a
@@ -771,7 +770,6 @@ export default function LeadDetailModal({ lead, onClose, onSaved, onNoteAdded, o
                                     >
                                       <Phone size={16}/>{sub.phone}
                                     </button>
-                                    <ChangeDialerNumber />
                                   </span>
                                 ) : (
                                   <span className="flex items-center gap-1 text-[11px] text-gray-500">

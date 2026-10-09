@@ -12,7 +12,7 @@ import { StaffSidebar } from "@/app/hooks/useStaffSidebar";
 import DashboardNavbar from "../components/layout/Navbar";
 import API from "@/lib/api";
 import { getAuthMe, peekAuthMe } from "@/lib/authMeCache";
-import { ChangeDialerNumber, useZoomDialer } from "@/app/csr/components/dialer/ZoomDialerProvider";
+import { useZoomDialer } from "@/app/csr/components/dialer/ZoomDialerProvider";
 import { formatEstDayMonth } from "@/lib/estTime";
 import { binCategory, binReasonLabel } from "@/app/csr/hooks/useBinData";
 import { CSR_THEAD } from "@/app/csr/components/shared/csrTableStyles";
@@ -363,7 +363,6 @@ export default function AdminBinPage() {
                           >
                             <Phone size={10}/><span className="underline-offset-[3px] group-hover:underline group-disabled:no-underline">{lead.phone}</span>
                           </button>
-                          {lead.phone && lead.phone !== "N/A" && <ChangeDialerNumber />}
                         </span>
                       </td>
                       <td className="py-3.5 px-2">
