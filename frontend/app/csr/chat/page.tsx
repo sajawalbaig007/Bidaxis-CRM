@@ -13,6 +13,7 @@ import {
 import TopNavbar from "../components/navigation/TopNavbar";
 import ChatActionRail from "@/app/components/chat/ChatActionRail";
 import { MentionText, autoGrowTextarea } from "@/app/components/chat/MessageExtras";
+import { clipboardImageFile } from "@/app/components/chat/clipboardImage";
 import ChatListResizeHandle, { useChatListWidth } from "@/app/components/chat/ChatListResizeHandle";
 import { deduplicateConvs, mergeConversationLists, sortConversations, type ChatConversation } from "@/lib/chatConversations";
 import API from "@/lib/api";
@@ -572,13 +573,23 @@ export default function ChatPage() {
   };
 
   /* ─── File select ─── */
+  const stageFile = (file: File) => {
+    if (file.size > MAX_FILE_BYTES) { alert(`Max file size is 200 MB. This file is ${fmtSize(file.size)}.`); return; }
+    setPendingPreview((prev) => { if (prev) URL.revokeObjectURL(prev); return file.type.startsWith("image/") ? URL.createObjectURL(file) : null; });
+    setPendingFile(file);
+  };
   const onFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > MAX_FILE_BYTES) { alert(`Max file size is 200 MB. This file is ${fmtSize(file.size)}.`); e.target.value = ""; return; }
-    setPendingFile(file);
-    setPendingPreview(file.type.startsWith("image/") ? URL.createObjectURL(file) : null);
+    stageFile(file);
     e.target.value = "";
+  };
+  const onPasteImage = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const file = clipboardImageFile(e.clipboardData);
+    if (!file) return;
+    e.preventDefault();
+    e.stopPropagation();
+    stageFile(file);
   };
 
   const clearPending = () => {
@@ -1321,6 +1332,7 @@ export default function ChatPage() {
                       <textarea ref={inputRef} value={msgText}
                         onChange={onMsgTextChange}
                         onKeyDown={onKey}
+                        onPaste={onPasteImage}
                         placeholder={pendingFile ? "Add a message with this file…" : `Message ${activeConv.type === "group" ? `#${activeConv.name}` : activeConv.name}…`}
                         rows={3}
                         className="flex-1 bg-transparent text-sm outline-none resize-none leading-relaxed placeholder:text-gray-400 min-h-[56px] max-h-52 overflow-y-auto" />

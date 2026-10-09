@@ -15,6 +15,12 @@ type HistoryDay = {
   checkInLabel?: string | null;
 };
 
+type Deduction = { day: number; month: number };
+
+function money(amount: number) {
+  return `Rs ${Math.round(amount).toLocaleString("en-PK")}`;
+}
+
 export default function ShiftHistoryButton({
   url,
   params,
@@ -31,16 +37,21 @@ export default function ShiftHistoryButton({
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [days, setDays] = useState<HistoryDay[]>([]);
+  const [deduction, setDeduction] = useState<Deduction | null>(null);
 
   const openHistory = async () => {
     setOpen(true);
     setLoading(true);
+    setDeduction(null);
     try {
       const res = await API.get(url, { params, ...(office ? officeProxy : {}) });
       setDays((res.data.days ?? []) as HistoryDay[]);
+      const cut = res.data.deduction as Deduction | null | undefined;
+      setDeduction(cut && typeof cut.day === "number" && typeof cut.month === "number" ? cut : null);
     } catch (err) {
       toast.error(apiErrorMessage(err, "Could not load history."));
       setDays([]);
+      setDeduction(null);
     } finally {
       setLoading(false);
     }
@@ -82,7 +93,21 @@ export default function ShiftHistoryButton({
             <div className="max-h-[70vh] overflow-y-auto px-5 py-3">
               {loading ? (
                 <p className="py-8 text-center text-sm text-gray-500">Loading…</p>
-              ) : days.length === 0 ? (
+              ) : (
+                <>
+              {deduction ? (
+                <div className="mb-3 grid grid-cols-2 gap-2">
+                  <div className="rounded-2xl bg-[#FFF1F3] px-3 py-2.5">
+                    <p className="text-[10px] font-bold uppercase tracking-wide text-[#B8112D]">Current date</p>
+                    <p className="mt-0.5 text-sm font-bold tabular-nums text-[#0F172A] dark:text-crm-text">{money(deduction.day)}</p>
+                  </div>
+                  <div className="rounded-2xl bg-[#F8FAFC] px-3 py-2.5 dark:bg-white/5">
+                    <p className="text-[10px] font-bold uppercase tracking-wide text-gray-500">So far this month</p>
+                    <p className="mt-0.5 text-sm font-bold tabular-nums text-[#0F172A] dark:text-crm-text">{money(deduction.month)}</p>
+                  </div>
+                </div>
+              ) : null}
+              {days.length === 0 ? (
                 <p className="py-8 text-center text-sm text-gray-500">No check-in history yet.</p>
               ) : (
                 <ul className="divide-y divide-gray-100 dark:divide-crm-border">
@@ -114,6 +139,8 @@ export default function ShiftHistoryButton({
                     </li>
                   ))}
                 </ul>
+              )}
+                </>
               )}
             </div>
           </div>

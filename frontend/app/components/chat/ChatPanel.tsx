@@ -38,6 +38,7 @@ import {
   stopChatStatusHeartbeat,
 } from "@/lib/chatStatusHeartbeat";
 import { useTheme } from "@/app/components/ThemeProvider";
+import { clipboardImageFile } from "@/app/components/chat/clipboardImage";
 import { playChatSound } from "@/lib/chatSound";
 import { roleDisplayLabel } from "@/lib/roleDisplay";
 import { addToOfflineQueue, getOfflineQueue, removeFromOfflineQueue } from "@/lib/chatOfflineQueue";
@@ -941,10 +942,22 @@ export default function ChatPanel({
     return groupMembers.filter(m => m.id !== me?.id && m.name.toLowerCase().includes(mentionQuery));
   }, [mentionQuery, groupMembers, me?.id]);
 
+  const stageFile = (file: File) => {
+    if (file.size > MAX_FILE_BYTES) { alert(`Max 200 MB. File is ${fmtSize(file.size)}.`); return; }
+    setPendingPreview((prev) => { if (prev) URL.revokeObjectURL(prev); return file.type.startsWith("image/") ? URL.createObjectURL(file) : null; });
+    setPendingFile(file);
+  };
   const onFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]; if (!file) return;
-    if (file.size > MAX_FILE_BYTES) { alert(`Max 200 MB. File is ${fmtSize(file.size)}.`); e.target.value = ""; return; }
-    setPendingFile(file); setPendingPreview(file.type.startsWith("image/") ? URL.createObjectURL(file) : null); e.target.value = "";
+    stageFile(file);
+    e.target.value = "";
+  };
+  const onPasteImage = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const file = clipboardImageFile(e.clipboardData);
+    if (!file) return;
+    e.preventDefault();
+    e.stopPropagation();
+    stageFile(file);
   };
   const clearPending = () => { if (pendingPreview) URL.revokeObjectURL(pendingPreview); setPendingFile(null); setPendingPreview(null); };
 
@@ -1626,7 +1639,7 @@ export default function ChatPanel({
                   <div className="flex items-end gap-1.5">
                     <button onClick={() => fileInputRef.current?.click()} className="w-8 h-8 rounded-xl bg-[#F3F4F6] text-gray-500 hover:bg-[#FFF1F3] hover:text-[#B8112D] flex items-center justify-center shrink-0 transition-colors mb-0.5" title="Attach file"><Paperclip size={14} /></button>
                     <div className="flex-1 flex items-end bg-[#F3F4F6] dark:bg-zinc-800 rounded-2xl px-3 py-2 min-h-[72px]">
-                      <textarea ref={inputRef} value={msgText} onChange={onMsgTextChange} onKeyDown={onKey} placeholder={pendingFile ? "Add a message with this file…" : activeConv.type === "group" ? `Message #${activeConv.name}... (@ to mention)` : `Message ${activeConv.name}...`} rows={3} className="w-full flex-1 bg-transparent text-sm outline-none resize-none leading-relaxed placeholder:text-gray-400 dark:placeholder:text-gray-500 min-h-[56px] max-h-52 overflow-y-auto text-gray-900 dark:text-gray-100" />
+                      <textarea ref={inputRef} value={msgText} onChange={onMsgTextChange} onKeyDown={onKey} onPaste={onPasteImage} placeholder={pendingFile ? "Add a message with this file…" : activeConv.type === "group" ? `Message #${activeConv.name}... (@ to mention)` : `Message ${activeConv.name}...`} rows={3} className="w-full flex-1 bg-transparent text-sm outline-none resize-none leading-relaxed placeholder:text-gray-400 dark:placeholder:text-gray-500 min-h-[56px] max-h-52 overflow-y-auto text-gray-900 dark:text-gray-100" />
                     </div>
                     <button onClick={() => void startRec()} disabled={!!pendingFile || sendingMsg} className="w-8 h-8 rounded-xl bg-[#F3F4F6] text-gray-500 hover:bg-[#FFF1F3] hover:text-[#B8112D] flex items-center justify-center shrink-0 transition-colors mb-0.5 disabled:opacity-40" title="Voice message"><Mic size={14} /></button>
                     <button onClick={pendingFile ? () => void sendFile() : () => void sendText()} disabled={(!msgText.trim() && !pendingFile) || sendingMsg || uploading} className="w-8 h-8 rounded-xl bg-[#B8112D] text-white flex items-center justify-center hover:bg-[#a30f27] disabled:bg-gray-200 disabled:text-gray-400 transition-colors shrink-0 mb-0.5 shadow-sm shadow-red-200">

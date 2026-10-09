@@ -33,7 +33,7 @@ import { SHIFT_DEPARTMENTS, clearShiftSchedule, listShiftSchedules, saveShiftSch
 import { SEED_USER_EMAILS } from "../constants/seedUsers";
 import { ceoSetPortalShiftDay } from "../utils/csrSessionTracking";
 import { clearLatePolicy, listLatePolicies, saveLatePolicy } from "../utils/lateDeduction";
-import { dailyLateReport } from "../utils/dailyLateReport";
+import { dailyLateReport, lateDeductionSummary } from "../utils/dailyLateReport";
 import { addPaidLeave, listPaidLeaves, reviewPaidLeave } from "../utils/paidLeave";
 import { sendLateToAccounts } from "../utils/sendLateToAccounts";
 
@@ -42,7 +42,9 @@ const router = Router();
 router.get("/late-daily", verifyToken, allowRoles("admin"), async (req: AuthRequest, res) => {
   try {
     const date = String(req.query.date ?? pktNow().day);
-    const report = await dailyLateReport(date);
+    const from = String(req.query.from ?? "");
+    const to = String(req.query.to ?? "");
+    const report = await dailyLateReport(date, from, to);
     if (!report) return res.status(400).json({ success: false, message: "Pick a date." });
     return res.json({ success: true, ...report });
   } catch (error) {
@@ -462,7 +464,8 @@ router.get("/history", async (req, res) => {
       orderBy: { day: "desc" },
     });
     const window = attendanceShift(department, person.key);
-    return res.json({ success: true, days: toHistoryDays(rows, window.overnight, window.start) });
+    const deduction = await lateDeductionSummary(person.key, person.name);
+    return res.json({ success: true, days: toHistoryDays(rows, window.overnight, window.start), deduction });
   } catch (error) {
     console.error("[attendance/history]", error);
     return res.status(500).json({ success: false, message: "Could not load history." });
@@ -638,7 +641,8 @@ router.get("/mine/history", verifyToken, allowRoles("technical_manager", "admin"
       orderBy: { day: "desc" },
     });
     const evening = req.user?.role === "manager" || req.user?.role === "accounts";
-    return res.json({ success: true, days: toHistoryDays(rows, evening) });
+    const deduction = await lateDeductionSummary(req.user!.id);
+    return res.json({ success: true, days: toHistoryDays(rows, evening), deduction });
   } catch (error) {
     console.error("[attendance/mine/history]", error);
     return res.status(500).json({ success: false, message: "Could not load history." });
