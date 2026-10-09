@@ -224,7 +224,8 @@ function requestExportText(items: StaffRequestItem[]): string {
 }
 
 function overtimeExportText(item: ShiftOvertimeItem | null): string {
-  if (!item?.comment) return "No overtime";
+  if (!item) return "—";
+  if (!item.comment) return "No overtime";
   const status = item.status === "approved" ? "Approved" : item.status === "declined" ? "Declined" : "Pending";
   const edited = item.editedBy ? `Edited by ${item.editedBy}` : "";
   return [item.comment, status, edited].filter(Boolean).join(" · ");
@@ -235,6 +236,11 @@ function personExportText(name: string, code: string | null | undefined, combine
   return combined > 1 ? `${who} · ${combined} check-ins combined` : who;
 }
 
+function csvCell(value: string) {
+  const flat = String(value ?? "").replace(/\r?\n/g, " ").replace(/\s+/g, " ").trim();
+  return `"${flat.replace(/"/g, '""')}"`;
+}
+
 function downloadCsv(opts: {
   filename: string;
   personLabel: string;
@@ -242,26 +248,31 @@ function downloadCsv(opts: {
   view: "sessions" | "summary";
   sessions: SessionRow[];
   summary: SummaryRow[];
+  missingPeople: CsrOption[];
   requests: StaffRequestItem[];
   overtimeNotes: ShiftOvertimeItem[];
   staffRole: string;
   showShiftOt: boolean;
   showRequests: boolean;
   showOvertime: boolean;
+  looseRequests: boolean;
 }) {
   const tz = CLOCKS[opts.clock];
-  const escape = (v: string) => `"${String(v ?? "").replace(/"/g, '""')}"`;
   const dayRequests = (personKey: string, day?: string) =>
-    opts.requests.filter((item) => item.department === opts.staffRole && item.personKey === personKey && (!day || item.day === day));
+    opts.requests.filter((item) =>
+      item.personKey === personKey
+      && (!day || item.day === day)
+      && (opts.looseRequests || item.department === opts.staffRole),
+    );
   const headers = opts.view === "summary"
     ? [
         opts.personLabel,
         `First Check In (${tz.abbr})`,
         `Last Check Out (${tz.abbr})`,
         ...(opts.showShiftOt ? ["Overtime"] : []),
-        ...(opts.showRequests ? ["Request"] : []),
+        ...(opts.showRequests ? ["Requests"] : []),
         "Other activity",
-        ...(opts.showOvertime ? ["Overtime", "Decision"] : []),
+        ...(opts.showOvertime ? ["Overtime note", "Decision"] : []),
         "Sessions",
         "On Dashboard",
         "Away",
@@ -272,135 +283,71 @@ function downloadCsv(opts: {
         `Check In (${tz.abbr})`,
         `Check Out (${tz.abbr})`,
         ...(opts.showShiftOt ? ["Overtime"] : []),
-        ...(opts.showRequests ? ["Request"] : []),
+        ...(opts.showRequests ? ["Requests"] : []),
         "Other activity",
         "On Dashboard",
         "Away",
         "Total",
         "Status",
         "Closed By",
-        ...(opts.showOvertime ? ["Overtime", "Decision"] : []),
+        ...(opts.showOvertime ? ["Overtime note", "Decision"] : []),
       ];
-  const body = opts.view === "summary"
-    ? opts.summary.map((row) => [
-        personExportText(row.csrName, row.csrCode, row.sessions ?? 1),
-        row.firstLoginAt ? formatSessionStamp(row.firstLoginAt, tz.tz) : "—",
-        row.stillOpen || !row.lastLogoutAt ? "Still checked in" : formatSessionStamp(row.lastLogoutAt, tz.tz),
-        ...(opts.showShiftOt ? [overtimeExportText(overtimeForRow(row, opts.overtimeNotes, opts.staffRole))] : []),
-        ...(opts.showRequests ? [requestExportText(dayRequests(row.csrId, row.day))] : []),
-        row.otherActivityDuration || "—",
-        ...(opts.showOvertime ? [
-          row.overtimeComment ?? "",
-          overtimeStatusLabel(row.overtimeStatus, row.overtimeComment),
-        ] : []),
-        String(row.sessions),
-        row.dashboardDuration,
-        row.awayDuration,
-        row.totalDuration,
+  const sessionRows = opts.sessions.map((row) => [
+    personExportText(row.csrName, row.csrCode, row.sessionCount ?? 1),
+    formatSessionStamp(row.loginAt, tz.tz),
+    row.logoutAt ? formatSessionStamp(row.logoutAt, tz.tz) : "Still checked in",
+    ...(opts.showShiftOt ? [overtimeExportText(overtimeForRow(row, opts.overtimeNotes, opts.staffRole))] : []),
+    ...(opts.showRequests ? [requestExportText(dayRequests(row.csrId, row.day))] : []),
+    row.otherActivityDuration || "—",
+    row.dashboardDuration,
+    row.awayDuration,
+    row.totalDuration,
+    row.status === "active" ? "Checked In" : "Checked Out",
+    row.closedReasonLabel ?? (row.status === "active" ? "—" : (row.closedReason ?? "—")),
+    ...(opts.showOvertime ? [
+      row.overtimeComment ?? "",
+      overtimeStatusLabel(row.overtimeStatus, row.overtimeComment),
+    ] : []),
+  ]);
+  const missingRows = opts.view === "sessions"
+    ? opts.missingPeople.map((person) => [
+        personExportText(person.name, person.csrCode, 1),
+        "—",
+        "—",
+        ...(opts.showShiftOt ? ["—"] : []),
+        ...(opts.showRequests ? ["—"] : []),
+        "—",
+        "—",
+        "—",
+        "—",
+        "No check-in",
+        "—",
+        ...(opts.showOvertime ? ["", ""] : []),
       ])
-    : opts.sessions.map((row) => [
-        personExportText(row.csrName, row.csrCode, row.sessionCount ?? 1),
-        formatSessionStamp(row.loginAt, tz.tz),
-        row.logoutAt ? formatSessionStamp(row.logoutAt, tz.tz) : "Still checked in",
-        ...(opts.showShiftOt ? [overtimeExportText(overtimeForRow(row, opts.overtimeNotes, opts.staffRole))] : []),
-        ...(opts.showRequests ? [requestExportText(dayRequests(row.csrId, row.day))] : []),
-        row.otherActivityDuration || "—",
-        row.dashboardDuration,
-        row.awayDuration,
-        row.totalDuration,
-        row.status === "active" ? "Checked In" : "Checked Out",
-        row.closedReasonLabel ?? (row.status === "active" ? "—" : (row.closedReason ?? "—")),
-        ...(opts.showOvertime ? [
-          row.overtimeComment ?? "",
-          overtimeStatusLabel(row.overtimeStatus, row.overtimeComment),
-        ] : []),
-      ]);
-  const lines = [headers.join(","), ...body.map((cells) => cells.map((cell) => escape(cell)).join(","))];
-  const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8;" });
+    : [];
+  const summaryRows = opts.summary.map((row) => [
+    personExportText(row.csrName, row.csrCode, row.sessions ?? 1),
+    row.firstLoginAt ? formatSessionStamp(row.firstLoginAt, tz.tz) : "—",
+    row.stillOpen || !row.lastLogoutAt ? "Still checked in" : formatSessionStamp(row.lastLogoutAt, tz.tz),
+    ...(opts.showShiftOt ? [overtimeExportText(overtimeForRow(row, opts.overtimeNotes, opts.staffRole))] : []),
+    ...(opts.showRequests ? [requestExportText(dayRequests(row.csrId, row.day))] : []),
+    row.otherActivityDuration || "—",
+    ...(opts.showOvertime ? [
+      row.overtimeComment ?? "",
+      overtimeStatusLabel(row.overtimeStatus, row.overtimeComment),
+    ] : []),
+    String(row.sessions),
+    row.dashboardDuration,
+    row.awayDuration,
+    row.totalDuration,
+  ]);
+  const body = opts.view === "summary" ? summaryRows : [...sessionRows, ...missingRows];
+  const lines = [headers, ...body].map((cells) => cells.map((cell) => csvCell(cell)).join(","));
+  const blob = new Blob(["\uFEFF", lines.join("\r\n")], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
   a.download = opts.filename;
-  a.click();
-  URL.revokeObjectURL(url);
-}
-
-function escHtml(v: string) {
-  return v
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
-
-function downloadExcel(
-  sessions: SessionRow[],
-  summary: SummaryRow[],
-  filename: string,
-  personLabel: string,
-  title: string,
-  clock: ClockTz,
-  includeOvertime = false,
-) {
-  const tz = CLOCKS[clock];
-  const sessionHeader = [personLabel, "Code", `Check In (${tz.abbr})`, `Check Out (${tz.abbr})`, "On Dashboard", "Away", "Total", "Status", "Other activity", ...(includeOvertime ? ["Overtime", "Decision", "Edited by"] : []), "Browser", "IP", "Closed Reason"];
-  const sessionBody = sessions.map(r => [
-    r.csrName,
-    r.csrCode ?? "",
-    formatSessionStamp(r.loginAt, tz.tz),
-    r.logoutAt ? formatSessionStamp(r.logoutAt, tz.tz) : "Still checked in",
-    r.dashboardDuration,
-    r.awayDuration,
-    r.totalDuration,
-    r.status === "active" ? "Checked In" : "Checked Out",
-    r.otherActivityDuration || "—",
-    ...(includeOvertime ? [
-      r.overtimeComment ?? "",
-      overtimeStatusLabel(r.overtimeStatus, r.overtimeComment),
-      r.overtimeEditedBy ? `Edited by ${r.overtimeEditedBy}` : "",
-    ] : []),
-    r.browser ?? "",
-    r.ip ?? "",
-    r.closedReasonLabel ?? r.closedReason ?? "",
-  ].map(escHtml));
-  const summaryHeader = [personLabel, `First Check In (${tz.abbr})`, `Last Check Out (${tz.abbr})`, "Other activity", ...(includeOvertime ? ["Overtime", "Decision", "Edited by"] : []), "Sessions", "On Dashboard", "Away", "Total"];
-  const summaryBody = summary.map(r => [
-    r.csrName,
-    r.firstLoginAt ? formatSessionStamp(r.firstLoginAt, tz.tz) : "—",
-    r.stillOpen || !r.lastLogoutAt ? "Still checked in" : formatSessionStamp(r.lastLogoutAt, tz.tz),
-    r.otherActivityDuration || "—",
-    ...(includeOvertime ? [
-      r.overtimeComment ?? "",
-      overtimeStatusLabel(r.overtimeStatus, r.overtimeComment),
-      r.overtimeEditedBy ? `Edited by ${r.overtimeEditedBy}` : "",
-    ] : []),
-    String(r.sessions),
-    r.dashboardDuration,
-    r.awayDuration,
-    r.totalDuration,
-  ].map(escHtml));
-
-  const table = (headers: string[], rows: string[][]) =>
-    `<table border="1"><thead><tr>${headers.map(h => `<th>${escHtml(h)}</th>`).join("")}</tr></thead><tbody>${
-      rows.map(row => `<tr>${row.map(c => `<td>${c}</td>`).join("")}</tr>`).join("")
-    }</tbody></table>`;
-
-  const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel">
-<head><meta charset="UTF-8"></head>
-<body>
-<h2>${escHtml(title)}</h2>
-<p>All times in ${escHtml(tz.label)}</p>
-<h3>Per session</h3>
-${table(sessionHeader, sessionBody)}
-<h3>Per ${escHtml(personLabel)}</h3>
-${table(summaryHeader, summaryBody)}
-</body></html>`;
-
-  const blob = new Blob(["\uFEFF", html], { type: "application/vnd.ms-excel" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename.endsWith(".xls") ? filename : `${filename}.xls`;
   a.click();
   URL.revokeObjectURL(url);
 }
@@ -899,41 +846,26 @@ export default function CsrActivityReport({
             <button
               type="button"
               onClick={() => downloadCsv({
-                filename: `${isEstimator ? "estimator" : "csr"}-activity-${fromDate}-${toDate}.csv`,
+                filename: `${isEstimator ? "estimator" : isBim ? "bim" : "csr"}-activity-${fromDate}-${toDate}.csv`,
                 personLabel,
                 clock: clockTz,
                 view,
                 sessions,
                 summary,
+                missingPeople,
                 requests,
                 overtimeNotes,
                 staffRole,
                 showShiftOt,
                 showRequests,
                 showOvertime,
+                looseRequests: chiefDesk,
               })}
-              disabled={view === "summary" ? !summary.length : !sessions.length}
+              disabled={view === "summary" ? !summary.length : !sessions.length && !missingPeople.length}
               className="h-10 px-4 rounded-xl border border-gray-200 bg-white text-sm font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-50 flex items-center gap-2"
             >
               <Download size={14} />
-              Export CSV
-            </button>
-            <button
-              type="button"
-              onClick={() => downloadExcel(
-                sessions,
-                summary,
-                `${isEstimator ? "estimator" : "csr"}-activity-${fromDate}-${toDate}`,
-                personLabel,
-                title,
-                clockTz,
-                showOvertime,
-              )}
-              disabled={!sessions.length && !summary.length}
-              className="h-10 px-4 rounded-xl border border-gray-200 bg-white text-sm font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-50 flex items-center gap-2"
-            >
-              <Download size={14} />
-              Download Excel
+              Download CSV
             </button>
           </div>
 
@@ -994,7 +926,7 @@ export default function CsrActivityReport({
                     </th>
                   </tr>
                   <tr className="border-b border-gray-100 text-left bg-[#FAFAFB]">
-                    {[personLabel, `Check In (${clock.abbr})`, `Check Out (${clock.abbr})`, ...(showShiftOt ? ["Overtime"] : []), ...(showRequests ? ["Request"] : []), "Other activity", "On Dashboard", "Away", "Total", "Status", "Closed By", ...(showOvertime ? ["Overtime", "Decision"] : []), ...(canAdjustTimes ? [""] : [])].map(h => (
+                    {[personLabel, `Check In (${clock.abbr})`, `Check Out (${clock.abbr})`, ...(showShiftOt ? ["Overtime"] : []), ...(showRequests ? ["Requests"] : []), "Other activity", "On Dashboard", "Away", "Total", "Status", "Closed By", ...(showOvertime ? ["Overtime note", "Decision"] : []), ...(canAdjustTimes ? [""] : [])].map(h => (
                       <th key={h || "actions"} className="px-3 py-2.5 text-[10px] sm:text-xs font-semibold text-gray-400 uppercase tracking-wide whitespace-nowrap">
                         {h}
                       </th>
@@ -1206,7 +1138,7 @@ export default function CsrActivityReport({
                     </th>
                   </tr>
                   <tr className="border-b border-gray-100 text-left bg-[#FAFAFB]">
-                    {[personLabel, `First Check In (${clock.abbr})`, `Last Check Out (${clock.abbr})`, ...(showShiftOt ? ["Overtime"] : []), ...(showRequests ? ["Request"] : []), "Other activity", ...(showOvertime ? ["Overtime", "Decision"] : []), "Sessions", "On Dashboard", "Away", "Total"].map(h => (
+                    {[personLabel, `First Check In (${clock.abbr})`, `Last Check Out (${clock.abbr})`, ...(showShiftOt ? ["Overtime"] : []), ...(showRequests ? ["Requests"] : []), "Other activity", ...(showOvertime ? ["Overtime note", "Decision"] : []), "Sessions", "On Dashboard", "Away", "Total"].map(h => (
                       <th key={h} className="px-3 py-2.5 text-[10px] sm:text-xs font-semibold text-gray-400 uppercase tracking-wide whitespace-nowrap">
                         {h}
                       </th>
