@@ -857,14 +857,21 @@ export default function ChatPanel({
     finally { setSendingMsg(false); inputRef.current?.focus(); }
   };
 
+  const cancelEdit = () => { setEditingMsg(null); setEditText(""); };
   const saveEdit = async () => {
-    if (!editingMsg || !editText.trim()) return;
+    const msg = editingMsg;
+    const text = editText.trim();
+    if (!msg || !text || text === msg.text) { cancelEdit(); return; }
+    setMessages(p => p.map(m => m.id === msg.id ? { ...m, text, editedAt: new Date().toISOString() } : m));
+    cancelEdit();
     try {
-      const r = await API.patch(`/chat/messages/${editingMsg.id}`, { text: editText.trim() });
-      const updated = r.data.message as Message;
-      setMessages(p => p.map(m => m.id === editingMsg.id ? { ...m, ...updated } : m));
-      setEditingMsg(null); setEditText("");
-    } catch { /* ignore */ }
+      const r = await API.patch(`/chat/messages/${msg.id}`, { text });
+      const updated = r.data?.message as Message | undefined;
+      if (updated) setMessages(p => p.map(m => m.id === msg.id ? { ...m, ...updated } : m));
+    } catch (err) {
+      setMessages(p => p.map(m => m.id === msg.id ? { ...m, text: msg.text, editedAt: msg.editedAt } : m));
+      toast.error(apiErrorMessage(err, "Could not save this edit."));
+    }
   };
 
   const toggleReaction = async (msg: Message, emoji: string) => {
@@ -1608,12 +1615,21 @@ export default function ChatPanel({
               )}
 
               {editingMsg ? (
-                <div className="px-3 py-2.5 bg-white border-t border-gray-100 shrink-0">
-                  <p className="text-[10px] font-bold text-[#B8112D] mb-1">Edit message</p>
-                  <div className="flex items-end gap-1.5">
-                    <textarea value={editText} onChange={e => setEditText(e.target.value)} rows={2} className="flex-1 bg-[#F3F4F6] rounded-xl px-3 py-2 text-sm outline-none resize-none" />
-                    <button type="button" onClick={() => { setEditingMsg(null); setEditText(""); }} className="h-8 px-3 rounded-xl bg-gray-100 text-xs font-semibold">Cancel</button>
-                    <button type="button" onClick={() => void saveEdit()} className="h-8 px-3 rounded-xl bg-[#B8112D] text-white text-xs font-semibold">Save</button>
+                <div className="px-3 py-3 bg-white dark:bg-crm-surface border-t border-gray-100 dark:border-crm-border shrink-0">
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-[#B8112D]/80 mb-2">Edit message</p>
+                  <textarea
+                    value={editText}
+                    onChange={(e) => { setEditText(e.target.value); autoGrowTextarea(e.target); }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Escape") { e.preventDefault(); cancelEdit(); }
+                      if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void saveEdit(); }
+                    }}
+                    rows={4}
+                    className="w-full min-h-[7.5rem] max-h-52 rounded-2xl border border-gray-200 bg-[#F8FAFC] px-3 py-2.5 text-sm leading-relaxed text-[#0F172A] outline-none focus:border-[#B8112D] resize-y dark:border-crm-border dark:bg-[#0B1220] dark:text-white"
+                  />
+                  <div className="mt-2 flex justify-end gap-2">
+                    <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={cancelEdit} className="h-10 px-4 rounded-2xl border border-gray-200 bg-white text-xs font-semibold text-gray-600 dark:border-crm-border dark:bg-transparent dark:text-gray-300">Cancel</button>
+                    <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => void saveEdit()} className="h-10 px-4 rounded-2xl bg-[#B8112D] text-white text-xs font-semibold shadow-sm">Save</button>
                   </div>
                 </div>
               ) : isStealthView ? (
