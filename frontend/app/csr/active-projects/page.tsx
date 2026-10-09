@@ -37,7 +37,7 @@ import { NoteEntry } from "../hooks/useLeadsData";
 import { useClientPhoneLookup } from "../hooks/useClientPhoneLookup";
 import API from "@/lib/api";
 import { consumeLeadDial, requireLeadDial } from "../components/dialer/dialUnlock";
-import { ChangeDialerNumber, useZoomDialer } from "../components/dialer/ZoomDialerProvider";
+import { useZoomDialer } from "../components/dialer/ZoomDialerProvider";
 import { estNowYmd } from "@/lib/estTime";
 
 import { ProjectWorkbenchData, emptyWorkbench } from "@/lib/projectFields";
@@ -515,7 +515,6 @@ export default function CSRProjectsPage() {
                             >
                               {project.phone}
                             </button>
-                            <ChangeDialerNumber />
                           </span>
                         ) : null}
                       </div>

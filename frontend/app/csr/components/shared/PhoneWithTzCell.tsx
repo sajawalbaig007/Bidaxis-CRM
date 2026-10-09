@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import { Check, Copy, Phone } from "lucide-react";
 import { getTimezoneAbbrFromPhone, tzBadgeClass } from "../../constants/timezoneAbbr";
 import { useFixedPopover } from "../../hooks/useFixedPopover";
-import { ChangeDialerNumber, useZoomDialer, type DialTarget } from "../dialer/ZoomDialerProvider";
+import { useZoomDialer, type DialTarget } from "../dialer/ZoomDialerProvider";
 
 interface PhoneWithTzCellProps {
   phone: string;
@@ -138,11 +138,6 @@ export default function PhoneWithTzCell({
             </button>
           );
         })}
-        {canDial && (
-          <div className="px-3 pt-1 pb-1.5 border-t border-gray-50 mt-1">
-            <ChangeDialerNumber className="text-[11px]" />
-          </div>
-        )}
       </div>,
       document.body,
     );
@@ -170,7 +165,6 @@ export default function PhoneWithTzCell({
           {chip}
         </button>
         <CopyPhoneButton value={primary} />
-        <ChangeDialerNumber />
       </span>
     );
   }
@@ -192,7 +186,6 @@ export default function PhoneWithTzCell({
           {chip}
         </button>
         <CopyPhoneButton value={primary} />
-        {canDial && <ChangeDialerNumber />}
       </span>
       {typeof document !== "undefined" && popup}
     </>

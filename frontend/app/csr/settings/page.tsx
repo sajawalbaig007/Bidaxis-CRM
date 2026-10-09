@@ -4,7 +4,6 @@ import { useState, useEffect, useCallback } from "react";
 import toast, { Toaster } from "react-hot-toast";
 import { ShieldCheck, ToggleLeft, ToggleRight, Mail } from "lucide-react";
 import TopNavbar from "../components/navigation/TopNavbar";
-import { ZoomDialerDefaultCard } from "../components/dialer/ZoomDialerProvider";
 import API from "@/lib/api";
 
 type Profile = {
@@ -63,8 +62,6 @@ export default function CSRSettingsPage() {
             </button>
           </div>
         </div>
-
-        <ZoomDialerDefaultCard />
       </main>
     </div>
   );
