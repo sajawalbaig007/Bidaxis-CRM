@@ -858,7 +858,7 @@ export default function CsrActivityReport({
                 staffRole,
                 showShiftOt,
                 showRequests,
-                showOvertime,
+                showOvertime: false,
                 looseRequests: chiefDesk,
               })}
               disabled={view === "summary" ? !summary.length : !sessions.length && !missingPeople.length}
