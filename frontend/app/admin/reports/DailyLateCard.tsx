@@ -154,7 +154,7 @@ function initials(name: string) {
 
 export default function DailyLateCard() {
   const pathname = usePathname();
-  const ceo = pathname.startsWith("/admin");
+  const ceo = pathname.startsWith("/admin") || pathname.startsWith("/manager");
   const today = pktToday();
   const [date, setDate] = useState(today);
   const [rangeFrom, setRangeFrom] = useState(`${today.slice(0, 7)}-01`);

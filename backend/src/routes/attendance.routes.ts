@@ -39,7 +39,7 @@ import { sendLateToAccounts } from "../utils/sendLateToAccounts";
 
 const router = Router();
 
-router.get("/late-daily", verifyToken, allowRoles("admin"), async (req: AuthRequest, res) => {
+router.get("/late-daily", verifyToken, allowRoles("admin", "manager"), async (req: AuthRequest, res) => {
   try {
     const date = String(req.query.date ?? pktNow().day);
     const from = String(req.query.from ?? "");
@@ -53,7 +53,7 @@ router.get("/late-daily", verifyToken, allowRoles("admin"), async (req: AuthRequ
   }
 });
 
-router.post("/late-to-accounts", verifyToken, allowRoles("admin"), async (req: AuthRequest, res) => {
+router.post("/late-to-accounts", verifyToken, allowRoles("admin", "manager"), async (req: AuthRequest, res) => {
   try {
     const month = String(req.body?.month ?? "").trim();
     const result = await sendLateToAccounts(month, req.user?.id);
@@ -65,7 +65,7 @@ router.post("/late-to-accounts", verifyToken, allowRoles("admin"), async (req: A
   }
 });
 
-router.get("/paid-leave", verifyToken, allowRoles("admin"), async (req: AuthRequest, res) => {
+router.get("/paid-leave", verifyToken, allowRoles("admin", "manager"), async (req: AuthRequest, res) => {
   try {
     const month = String(req.query.month ?? "").trim();
     const leaves = await listPaidLeaves(month);
@@ -77,7 +77,7 @@ router.get("/paid-leave", verifyToken, allowRoles("admin"), async (req: AuthRequ
   }
 });
 
-router.post("/paid-leave", verifyToken, allowRoles("admin"), async (req: AuthRequest, res) => {
+router.post("/paid-leave", verifyToken, allowRoles("admin", "manager"), async (req: AuthRequest, res) => {
   try {
     const result = await addPaidLeave({
       personName: String(req.body?.personName ?? ""),
@@ -93,7 +93,7 @@ router.post("/paid-leave", verifyToken, allowRoles("admin"), async (req: AuthReq
   }
 });
 
-router.post("/paid-leave/:id/review", verifyToken, allowRoles("admin"), async (req: AuthRequest, res) => {
+router.post("/paid-leave/:id/review", verifyToken, allowRoles("admin", "manager"), async (req: AuthRequest, res) => {
   try {
     const status = String(req.body?.status ?? "");
     if (status !== "approved" && status !== "declined") {
@@ -108,7 +108,7 @@ router.post("/paid-leave/:id/review", verifyToken, allowRoles("admin"), async (r
   }
 });
 
-router.get("/shift-schedules", verifyToken, allowRoles("admin"), async (req: AuthRequest, res) => {
+router.get("/shift-schedules", verifyToken, allowRoles("admin", "manager"), async (req: AuthRequest, res) => {
   try {
     const month = String(req.query.month ?? "").trim();
     const data = await listShiftSchedules(month);
@@ -120,7 +120,7 @@ router.get("/shift-schedules", verifyToken, allowRoles("admin"), async (req: Aut
   }
 });
 
-router.put("/shift-schedules", verifyToken, allowRoles("admin"), async (req: AuthRequest, res) => {
+router.put("/shift-schedules", verifyToken, allowRoles("admin", "manager"), async (req: AuthRequest, res) => {
   try {
     const result = await saveShiftSchedule({
       month: String(req.body?.month ?? ""),
@@ -139,7 +139,7 @@ router.put("/shift-schedules", verifyToken, allowRoles("admin"), async (req: Aut
   }
 });
 
-router.get("/late-deductions", verifyToken, allowRoles("admin", "accounts"), async (req: AuthRequest, res) => {
+router.get("/late-deductions", verifyToken, allowRoles("admin", "manager", "accounts"), async (req: AuthRequest, res) => {
   try {
     const month = String(req.query.month ?? "").trim();
     const data = await listLatePolicies(month);
@@ -151,7 +151,7 @@ router.get("/late-deductions", verifyToken, allowRoles("admin", "accounts"), asy
   }
 });
 
-router.put("/late-deductions", verifyToken, allowRoles("admin"), async (req: AuthRequest, res) => {
+router.put("/late-deductions", verifyToken, allowRoles("admin", "manager"), async (req: AuthRequest, res) => {
   try {
     const result = await saveLatePolicy({
       month: String(req.body?.month ?? ""),
@@ -170,7 +170,7 @@ router.put("/late-deductions", verifyToken, allowRoles("admin"), async (req: Aut
   }
 });
 
-router.delete("/late-deductions", verifyToken, allowRoles("admin"), async (req: AuthRequest, res) => {
+router.delete("/late-deductions", verifyToken, allowRoles("admin", "manager"), async (req: AuthRequest, res) => {
   try {
     const result = await clearLatePolicy(
       String(req.query.month ?? ""),
@@ -249,7 +249,7 @@ router.post("/ceo-day", verifyToken, allowRoles("admin"), async (req: AuthReques
   }
 });
 
-router.delete("/shift-schedules", verifyToken, allowRoles("admin"), async (req: AuthRequest, res) => {
+router.delete("/shift-schedules", verifyToken, allowRoles("admin", "manager"), async (req: AuthRequest, res) => {
   try {
     const result = await clearShiftSchedule(
       String(req.query.month ?? ""),
