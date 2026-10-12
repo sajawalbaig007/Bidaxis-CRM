@@ -10,7 +10,7 @@ import {
 import { resolveUploadCategory, isUploadCategory, UPLOAD_CATEGORIES, inferUploadCategoryFromLead, type UploadCategory } from "../utils/uploadCategory";
 import { isWonClientUploadStatus, clearPendingDuplicatesForPhone, reconcileClientOldFlagsForCsr } from "../utils/leadClientPromotion";
 import { seedLeadNotesFromCommentsForFile } from "../utils/leadNotes";
-import { deleteLeadsCascade, invalidateAllLeadCaches } from "../utils/deleteLeadsCascade";
+import { deleteLeadsCascade, hardDeleteLeadsForUpload, invalidateAllLeadCaches } from "../utils/deleteLeadsCascade";
 import { ADMIN_UPLOAD_SOURCE_SELECT } from "../utils/uploadSourceSelect";
 import { findLeadsByPhonesBulk } from "../utils/leadPhoneLookup";
 import { parseSubContactsCell, parseTradeList, insertMissingTrades } from "../utils/masterFormatTrades";
@@ -1013,13 +1013,7 @@ export const deleteUploadFile = async (req: Request, res: Response) => {
       return res.status(404).json({ success: false, message: "Upload not found" });
     }
 
-    const leads = await prisma.lead.findMany({
-      where: { uploadedFileId: id },
-      select: { id: true, assignedTo: true },
-    });
-
-    const leadIds = leads.map(l => l.id);
-    const deleted = await deleteLeadsCascade(leadIds);
+    const { deleted, csrIds } = await hardDeleteLeadsForUpload(id);
 
     await prisma.lead.updateMany({
       where: { uploadedFileId: id },
@@ -1028,7 +1022,6 @@ export const deleteUploadFile = async (req: Request, res: Response) => {
 
     await prisma.uploadFile.delete({ where: { id } });
 
-    const csrIds = [...new Set(leads.map(l => l.assignedTo))];
     await invalidateAllLeadCaches(csrIds);
 
     return res.json({

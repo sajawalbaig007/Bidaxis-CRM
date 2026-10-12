@@ -624,15 +624,18 @@ export default function UploadPage() {
     if (!confirm(`Delete "${fileName}"?\n\n${linked} contact(s) will be permanently removed from the database and CSR dashboards.`)) return;
     setDeletingUploadId(id);
     try {
-      const res = await API.delete(`/uploads/${id}`);
+      const res = await API.delete(`/uploads/${id}`, { timeout: 300_000 });
       toast.success(res.data.message ?? "Upload deleted from DB & CSR dashboards");
       void fetchUploadHistory(historyCategory);
       void fetchLatestUpload();
       void fetchUploadSources();
     } catch (err) {
+      const ax = err as { response?: { data?: { message?: string } }; code?: string };
       const msg =
-        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
-        "Failed to delete upload";
+        ax.response?.data?.message ??
+        (ax.code === "ECONNABORTED"
+          ? "Delete is taking longer than expected. Refresh in a minute — a large file may still be clearing."
+          : "Failed to delete upload");
       toast.error(msg);
     } finally {
       setDeletingUploadId(null);
