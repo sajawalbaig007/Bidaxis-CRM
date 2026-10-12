@@ -6,16 +6,45 @@ import toast from "react-hot-toast";
 import API, { apiErrorMessage } from "@/lib/api";
 
 const NINE_MS = 9 * 60 * 60 * 1000;
+const MAX_MINUTES = 12 * 60;
+const FIFTY_HOURS_MS = 50 * 60 * 60 * 1000;
 const TIMER_KEY = "overtime_timer_start";
 
-function readTimerStart(): number | null {
+type TimerState = { accumulatedMs: number; segmentStart: number | null };
+
+function elapsedMs(state: TimerState, now = Date.now()): number {
+  return state.accumulatedMs + (state.segmentStart != null ? Math.max(0, now - state.segmentStart) : 0);
+}
+
+function readTimer(): TimerState | null {
   try {
     const raw = sessionStorage.getItem(TIMER_KEY);
-    const n = raw ? Number(raw) : 0;
-    return n > 0 ? n : null;
+    if (!raw) return null;
+    let state: TimerState | null = null;
+    if (raw.startsWith("{")) {
+      const parsed = JSON.parse(raw) as TimerState;
+      const accumulatedMs = Number(parsed.accumulatedMs) || 0;
+      const segmentStart = parsed.segmentStart != null && Number(parsed.segmentStart) > 0 ? Number(parsed.segmentStart) : null;
+      if (accumulatedMs > 0 || segmentStart != null) state = { accumulatedMs, segmentStart };
+    } else {
+      const n = Number(raw);
+      if (n > 0) state = { accumulatedMs: 0, segmentStart: n };
+    }
+    if (!state || elapsedMs(state) >= FIFTY_HOURS_MS) {
+      sessionStorage.removeItem(TIMER_KEY);
+      return null;
+    }
+    return state;
   } catch {
     return null;
   }
+}
+
+function writeTimer(state: TimerState | null) {
+  try {
+    if (!state) sessionStorage.removeItem(TIMER_KEY);
+    else sessionStorage.setItem(TIMER_KEY, JSON.stringify(state));
+  } catch { /* ignore */ }
 }
 
 function formatTimer(ms: number): string {
@@ -42,7 +71,7 @@ export type ShiftOvertimeItem = {
 export default function OvertimeShiftButton({ compact = false, since }: { compact?: boolean; since?: string }) {
   const [gate, setGate] = useState({ allowed: false, weekend: false, shiftMs: 0, open: false, at: Date.now() });
   const [now, setNow] = useState(Date.now());
-  const [startedAt, setStartedAt] = useState<number | null>(null);
+  const [timer, setTimer] = useState<TimerState | null>(null);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -61,10 +90,18 @@ export default function OvertimeShiftButton({ compact = false, since }: { compac
         })
         .catch(() => {});
     };
-    setStartedAt(readTimerStart());
+    setTimer(readTimer());
     load();
     const id = window.setInterval(load, 15_000);
-    const tick = window.setInterval(() => setNow(Date.now()), 1000);
+    const tick = window.setInterval(() => {
+      const at = Date.now();
+      setNow(at);
+      setTimer((current) => {
+        if (!current || elapsedMs(current, at) < FIFTY_HOURS_MS) return current;
+        writeTimer(null);
+        return null;
+      });
+    }, 1000);
     return () => {
       stop = true;
       window.clearInterval(id);
@@ -76,26 +113,51 @@ export default function OvertimeShiftButton({ compact = false, since }: { compac
   const fromCheckIn = Number.isFinite(sinceMs) && sinceMs > 0 ? Math.max(0, now - sinceMs) : 0;
   const liveMs = Math.max(gate.shiftMs + (gate.open ? Math.max(0, now - gate.at) : 0), fromCheckIn);
   const ready = gate.allowed || gate.weekend || liveMs >= NINE_MS;
-  const running = startedAt != null;
-  const elapsed = running ? Math.max(0, now - startedAt) : 0;
+  const running = timer?.segmentStart != null;
+  const paused = timer != null && !running;
+  const elapsed = timer ? elapsedMs(timer, now) : 0;
   const shiftLabel = formatTimer(liveMs);
-  const waiting = !ready && !running && liveMs > 0;
+  const waiting = !ready && !running && !paused && liveMs > 0;
+  const btn = compact ? "h-9 px-2.5 text-xs" : "h-10 px-3 text-sm";
+
+  const saveTimer = (next: TimerState | null) => {
+    setTimer(next);
+    writeTimer(next);
+  };
 
   const start = () => {
-    const at = Date.now();
-    setStartedAt(at);
-    try { sessionStorage.setItem(TIMER_KEY, String(at)); } catch { /* ignore */ }
+    saveTimer({ accumulatedMs: 0, segmentStart: Date.now() });
+  };
+
+  const pause = () => {
+    if (!timer?.segmentStart) return;
+    saveTimer({
+      accumulatedMs: timer.accumulatedMs + Math.max(0, Date.now() - timer.segmentStart),
+      segmentStart: null,
+    });
+  };
+
+  const resume = () => {
+    if (!timer || timer.segmentStart != null) return;
+    saveTimer({ accumulatedMs: timer.accumulatedMs, segmentStart: Date.now() });
   };
 
   const stop = async () => {
-    if (startedAt == null || busy) return;
-    const minutes = Math.max(1, Math.round((Date.now() - startedAt) / 60000));
+    if (!timer || busy) return;
+    const ms = elapsedMs(timer);
+    if (ms >= FIFTY_HOURS_MS) {
+      saveTimer(null);
+      toast.success("Overtime past 50 hours was cleared.");
+      return;
+    }
+    const rawMinutes = Math.max(1, Math.round(ms / 60000));
+    const capped = rawMinutes > MAX_MINUTES;
+    const minutes = capped ? MAX_MINUTES : rawMinutes;
     setBusy(true);
     try {
       await API.post("/attendance/overtime", { minutes });
-      toast.success("Overtime sent.");
-      setStartedAt(null);
-      try { sessionStorage.removeItem(TIMER_KEY); } catch { /* ignore */ }
+      saveTimer(null);
+      toast.success(capped ? "Overtime sent. It is capped at 12 hours." : "Overtime sent.");
     } catch (err) {
       toast.error(apiErrorMessage(err, "Could not send overtime."));
     } finally {
@@ -103,18 +165,39 @@ export default function OvertimeShiftButton({ compact = false, since }: { compac
     }
   };
 
+  if (running || paused) {
+    return (
+      <span className="inline-flex items-center gap-1">
+        <span className={`${btn} rounded-xl bg-[#B8112D] text-white font-semibold inline-flex items-center gap-1 tabular-nums`}>
+          <Clock size={compact ? 14 : 15} />
+          {formatTimer(elapsed)}
+        </span>
+        {running ? (
+          <button type="button" onClick={pause} disabled={busy} className={`${btn} rounded-xl bg-[#FEF3C7] text-[#92400E] font-semibold disabled:opacity-40 touch-manipulation`}>
+            Pause
+          </button>
+        ) : (
+          <button type="button" onClick={resume} disabled={busy} className={`${btn} rounded-xl bg-[#FEF3C7] text-[#92400E] font-semibold disabled:opacity-40 touch-manipulation`}>
+            Resume
+          </button>
+        )}
+        <button type="button" onClick={() => void stop()} disabled={busy} className={`${btn} rounded-xl bg-[#0F172A] text-white font-semibold disabled:opacity-40 touch-manipulation`}>
+          {busy ? "Saving…" : "Stop"}
+        </button>
+      </span>
+    );
+  }
+
   return (
     <button
       type="button"
-      disabled={busy || (!ready && !running)}
-      title={running ? "Stop overtime" : ready ? "Start overtime" : `Weekday overtime opens after a 9 hour shift. This shift is ${shiftLabel}.`}
-      onClick={() => { if (running) void stop(); else start(); }}
-      className={`${compact ? "h-9 text-xs" : "h-10 text-sm"} px-2.5 rounded-xl font-semibold inline-flex items-center gap-1 disabled:opacity-40 touch-manipulation tabular-nums ${
-        running ? "bg-[#B8112D] text-white" : "bg-[#FEF3C7] text-[#92400E]"
-      }`}
+      disabled={!ready}
+      title={ready ? "Start overtime" : `Weekday overtime opens after a 9 hour shift. This shift is ${shiftLabel}.`}
+      onClick={start}
+      className={`${btn} rounded-xl font-semibold inline-flex items-center gap-1 disabled:opacity-40 touch-manipulation bg-[#FEF3C7] text-[#92400E]`}
     >
       <Clock size={compact ? 14 : 15} />
-      {running ? `${formatTimer(elapsed)} · Stop` : ready ? "Start" : waiting ? formatTimer(NINE_MS - liveMs) : "Start"}
+      {waiting ? formatTimer(NINE_MS - liveMs) : "Start"}
     </button>
   );
 }

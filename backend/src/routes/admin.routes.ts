@@ -68,6 +68,9 @@ import {
   serializeTechnicalAssignments,
   mergeAssignmentProgress,
   applyTechnicalTabMove,
+  revisionFreshStartData,
+  shouldResetRevisionCycle,
+  settleOpenRevisions,
   appendTechnicalNote,
   updateTechnicalNote,
   deleteTechnicalNote,
@@ -1312,6 +1315,11 @@ router.get("/projects", verifyToken, allowRoles("admin", "manager", "technical_m
       req.query.excludeRevisions === "1" ||
       req.query.excludeRevisions === "true";
 
+    if (revisionsView) {
+      const reopened = await settleOpenRevisions();
+      if (reopened > 0) invalidatePattern("admin:projects:");
+    }
+
     // v5: restore previous Admin Project DB window (page size → ~46 All / ~22 Active)
     // No response cache — stale cache was bringing deleted projects back after toast.
     const where: Prisma.LeadWhereInput = {
@@ -2223,6 +2231,7 @@ router.put(
               status: "completed",
               projectPhase: "delivery_phase",
               needsRevision: false,
+              revisionWorkflowReset: false,
               hiddenOnTechnical: false,
             }
           : {
@@ -2265,6 +2274,11 @@ router.put(
           projectCode: true,
           clientCode: true,
           needsRevision: true,
+          revisionWorkflowReset: true,
+          projectPhase: true,
+          technicalAssignments: true,
+          projectWorkStatus: true,
+          status: true,
         },
       });
       if (!existing) {
@@ -2273,14 +2287,9 @@ router.put(
 
       const lead = await prisma.lead.update({
         where: { id: leadId },
-        data: {
-          needsRevision: true,
-          revisionRequestedAt: new Date(),
-          revisionNotes: revisionNotes || null,
-          hiddenOnTechnical: false,
-          projectWorkStatus: "in_progress",
-          status: "Close Client",
-        },
+        data: shouldResetRevisionCycle(existing)
+          ? revisionFreshStartData(revisionNotes || null)
+          : { revisionNotes: revisionNotes || null },
         include: {
           csr: { select: { id: true, name: true, email: true, csrCode: true } },
           uploadFile: { select: { companyName: true } },
@@ -2926,6 +2935,9 @@ router.put(
           technicalAssignments: true,
           assignedTo: true,
           needsRevision: true,
+          revisionWorkflowReset: true,
+          projectWorkStatus: true,
+          status: true,
         },
       });
       if (!existing) {
@@ -2935,11 +2947,9 @@ router.put(
       if (tab === "revisions") {
         const lead = await prisma.lead.update({
           where: { id: leadId },
-          data: {
-            needsRevision: true,
-            revisionRequestedAt: new Date(),
-            hiddenOnTechnical: false,
-          },
+          data: shouldResetRevisionCycle(existing)
+            ? revisionFreshStartData()
+            : { needsRevision: true, hiddenOnTechnical: false, revisionWorkflowReset: true },
           include: {
             csr: { select: { id: true, name: true, email: true, csrCode: true } },
             notes: { orderBy: { createdAt: "asc" }, take: 20 },
