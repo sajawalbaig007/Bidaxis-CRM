@@ -1912,6 +1912,7 @@ router.put(
 
       let sent = 0;
       const next = list.map((a) => {
+        if (a.history) return a;
         const match = estimatorId
           ? a.estimatorId === estimatorId
           : a.takeoffDone && !a.pricingSent;
@@ -1923,7 +1924,7 @@ router.put(
       });
 
       if (estimatorId) {
-        const target = list.find((a) => a.estimatorId === estimatorId);
+        const target = list.find((a) => !a.history && a.estimatorId === estimatorId);
         if (!target) {
           return res.status(404).json({ success: false, message: "Estimator assignment not found" });
         }
@@ -2044,7 +2045,7 @@ router.put(
         });
         return res.json({ success: true, lead });
       }
-      const list = parseTechnicalAssignments(existing.technicalAssignments);
+      const list = parseTechnicalAssignments(existing.technicalAssignments).filter((a) => !a.history);
       const inPricing =
         phase === "pricing_phase" ||
         phase.startsWith("pricing_") ||
@@ -2288,7 +2289,10 @@ router.put(
       const lead = await prisma.lead.update({
         where: { id: leadId },
         data: shouldResetRevisionCycle(existing)
-          ? revisionFreshStartData(revisionNotes || null)
+          ? revisionFreshStartData({
+              assignments: existing.technicalAssignments,
+              revisionNotes: revisionNotes || null,
+            })
           : { revisionNotes: revisionNotes || null },
         include: {
           csr: { select: { id: true, name: true, email: true, csrCode: true } },
@@ -2877,7 +2881,9 @@ router.put(
       const actor = (req as { user?: { id?: string; role?: string } }).user;
       if (actor?.role === "technical_manager") {
         const previousIds = new Set(
-          parseTechnicalAssignments(existing.technicalAssignments).map((a) => a.estimatorId),
+          parseTechnicalAssignments(existing.technicalAssignments)
+            .filter((a) => !a.history)
+            .map((a) => a.estimatorId),
         );
         const added = merged.filter((a) => a.estimatorId && !previousIds.has(a.estimatorId));
         if (added.length > 0) {
@@ -2948,7 +2954,7 @@ router.put(
         const lead = await prisma.lead.update({
           where: { id: leadId },
           data: shouldResetRevisionCycle(existing)
-            ? revisionFreshStartData()
+            ? revisionFreshStartData({ assignments: existing.technicalAssignments })
             : { needsRevision: true, hiddenOnTechnical: false, revisionWorkflowReset: true },
           include: {
             csr: { select: { id: true, name: true, email: true, csrCode: true } },
@@ -3024,7 +3030,7 @@ router.put(
       }
 
       const list = parseTechnicalAssignments(existing.technicalAssignments);
-      const idx = list.findIndex((a) => a.estimatorId === estimatorId);
+      const idx = list.findIndex((a) => !a.history && a.estimatorId === estimatorId);
       if (idx < 0) {
         return res.status(404).json({ success: false, message: "Estimator assignment not found" });
       }
@@ -3090,7 +3096,7 @@ router.put(
       }
 
       const list = parseTechnicalAssignments(existing.technicalAssignments);
-      const idx = list.findIndex((a) => a.estimatorId === estimatorId);
+      const idx = list.findIndex((a) => !a.history && a.estimatorId === estimatorId);
       if (idx < 0) {
         return res.status(404).json({ success: false, message: "Estimator assignment not found" });
       }

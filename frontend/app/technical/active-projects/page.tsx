@@ -1807,7 +1807,9 @@ export function TechnicalActiveProjectsPageInner({
             ))
           ) : paginated.length > 0 ? (
             paginated.map((p) => {
-              const assignments = parseTechnicalAssignments(p.technicalAssignments);
+              const parsedAssignments = parseTechnicalAssignments(p.technicalAssignments);
+              const previousNames = parsedAssignments.filter((a) => a.history).map((a) => a.estimatorName).filter(Boolean);
+              const assignments = parsedAssignments.filter((a) => !a.history);
               const anyReady = assignments.some(isAssignmentTakeoffReady);
               return (
                 <div
@@ -1825,6 +1827,9 @@ export function TechnicalActiveProjectsPageInner({
                         <PricingProjectDetailCell p={p} assignments={assignments} />
                       ) : (
                         <ProjectDetailCell p={projectAsRow(p)} />
+                      )}
+                      {previousNames.length > 0 && (
+                        <p className="mt-1 text-[10px] font-semibold text-[#6D28D9]">Previous: {previousNames.join(", ")}</p>
                       )}
                     </div>
                     <div className="flex flex-col items-start gap-2 shrink-0">
@@ -1992,7 +1997,9 @@ export function TechnicalActiveProjectsPageInner({
                   ))
                 ) : paginated.length > 0 ? (
                   paginated.map((p) => {
-                    const assignments = parseTechnicalAssignments(p.technicalAssignments);
+                    const parsedAssignments = parseTechnicalAssignments(p.technicalAssignments);
+                    const previousNames = parsedAssignments.filter((a) => a.history).map((a) => a.estimatorName).filter(Boolean);
+                    const assignments = parsedAssignments.filter((a) => !a.history);
                     const anyReady = assignments.some(isAssignmentTakeoffReady);
                     return (
                       <tr
@@ -2007,6 +2014,9 @@ export function TechnicalActiveProjectsPageInner({
                             <PricingProjectDetailCell p={p} assignments={assignments} />
                           ) : (
                             <ProjectDetailCell p={projectAsRow(p)} />
+                          )}
+                          {previousNames.length > 0 && (
+                            <p className="mt-1 text-[10px] font-semibold text-[#6D28D9]">Previous: {previousNames.join(", ")}</p>
                           )}
                         </td>
                         {isAssignedView ? (
@@ -2340,7 +2350,7 @@ export function TechnicalActiveProjectsPageInner({
         open={!!assignProject}
         project={assignProject}
         estimators={estimators}
-        existingAssignments={assignProject ? parseTechnicalAssignments(assignProject.technicalAssignments) : []}
+        existingAssignments={assignProject ? parseTechnicalAssignments(assignProject.technicalAssignments).filter((a) => !a.history) : []}
         suggestedEstimatorIds={previousProjectEstimatorIds(assignProject, projects)}
         saving={assignSaving}
         onClose={() => setAssignProject(null)}
