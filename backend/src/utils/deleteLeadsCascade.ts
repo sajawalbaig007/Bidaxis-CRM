@@ -133,70 +133,50 @@ export async function isRemovedFromProjectDb(leadId: string): Promise<boolean> {
   return true;
 }
 
-const HARD_DELETE_BATCH = 200;
+const CHILD_CHUNK = 5000;
+const CHILD_PARALLEL = 4;
+
+async function runPool(jobs: Array<() => Promise<unknown>>, limit: number): Promise<void> {
+  if (jobs.length === 0) return;
+  let next = 0;
+  const workers = Array.from({ length: Math.min(limit, jobs.length) }, async () => {
+    while (next < jobs.length) {
+      const job = jobs[next];
+      next += 1;
+      await job();
+    }
+  });
+  await Promise.all(workers);
+}
 
 /**
  * Permanently remove every lead tied to one upload file.
- * Batched so a 20k-row sheet finishes instead of timing out one delete at a time.
+ * One indexed lead delete, plus a few parallel child deletes — not one row at a time.
  */
 export async function hardDeleteLeadsForUpload(uploadFileId: string): Promise<{ deleted: number; csrIds: string[] }> {
-  const csrIds = new Set<string>();
-  let deleted = 0;
+  const leads = await prisma.lead.findMany({
+    where: { uploadedFileId: uploadFileId },
+    select: { id: true, assignedTo: true },
+  });
+  if (leads.length === 0) return { deleted: 0, csrIds: [] };
 
-  for (;;) {
-    const batch = await prisma.lead.findMany({
-      where: { uploadedFileId: uploadFileId },
-      select: { id: true, assignedTo: true },
-      take: HARD_DELETE_BATCH,
-    });
-    if (batch.length === 0) break;
+  const csrIds = [...new Set(leads.map((lead) => lead.assignedTo).filter(Boolean))];
+  const chunks: string[][] = [];
+  for (let i = 0; i < leads.length; i += CHILD_CHUNK) {
+    chunks.push(leads.slice(i, i + CHILD_CHUNK).map((lead) => lead.id));
+  }
 
-    const ids = batch.map((lead) => lead.id);
-    for (const lead of batch) {
-      if (lead.assignedTo) csrIds.add(lead.assignedTo);
-    }
-
-    await Promise.all([
+  await runPool(
+    chunks.map((ids) => () => Promise.all([
       prisma.leadNote.deleteMany({ where: { leadId: { in: ids } } }),
       prisma.subContact.deleteMany({ where: { leadId: { in: ids } } }),
       prisma.callLog.deleteMany({ where: { leadId: { in: ids } } }),
-    ]);
+    ])),
+    CHILD_PARALLEL,
+  );
 
-    let removed = 0;
-    try {
-      const res = await prisma.lead.deleteMany({ where: { id: { in: ids } } });
-      removed = res.count;
-    } catch (err) {
-      console.error("[hardDeleteLeadsForUpload] batch delete failed", err);
-    }
-
-    if (removed < ids.length) {
-      const left = await prisma.lead.findMany({
-        where: { id: { in: ids } },
-        select: { id: true },
-      });
-      const stuck: string[] = [];
-      for (const row of left) {
-        try {
-          await prisma.lead.delete({ where: { id: row.id } });
-          removed += 1;
-        } catch (oneErr) {
-          console.error("[hardDeleteLeadsForUpload] lead delete failed", row.id, oneErr);
-          stuck.push(row.id);
-        }
-      }
-      if (stuck.length > 0) {
-        await prisma.lead.updateMany({
-          where: { id: { in: stuck } },
-          data: { uploadedFileId: null },
-        });
-      }
-    }
-
-    deleted += removed;
-  }
-
-  return { deleted, csrIds: [...csrIds] };
+  const removed = await prisma.lead.deleteMany({ where: { uploadedFileId: uploadFileId } });
+  return { deleted: removed.count, csrIds };
 }
 
 /** Clear CSR + admin caches so dashboards reflect DB deletions immediately */

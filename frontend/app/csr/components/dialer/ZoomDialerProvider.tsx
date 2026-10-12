@@ -49,7 +49,7 @@ function launchZoomApp(number: string) {
   link.remove();
 }
 
-export function ZoomDialerProvider({ children }: { children: React.ReactNode }) {
+export function ZoomDialerProvider({ children, showManualDial = false }: { children: React.ReactNode; showManualDial?: boolean }) {
   const [place, setPlace] = useState<ZoomPlace>("app");
   const [hasDefault, setHasDefault] = useState(false);
   const [webOpen, setWebOpen] = useState(false);
@@ -140,12 +140,14 @@ export function ZoomDialerProvider({ children }: { children: React.ReactNode }) 
   return (
     <ZoomDialerContext.Provider value={{ open }}>
       {children}
-      <ManualDialPad
-        place={place}
-        hasDefault={hasDefault}
-        onCall={(raw) => open({ destination: raw })}
-        onChangeDefault={() => { setPrompt(null); saveDefaultRef.current = false; setSaveDefault(false); setChangingDefault(true); }}
-      />
+      {showManualDial && (
+        <ManualDialPad
+          place={place}
+          hasDefault={hasDefault}
+          onCall={(raw) => open({ destination: raw })}
+          onChangeDefault={() => { setPrompt(null); saveDefaultRef.current = false; setSaveDefault(false); setChangingDefault(true); }}
+        />
+      )}
       {chooserOpen && (
         <div className="fixed bottom-20 right-4 z-[9100] w-[280px] max-w-[calc(100vw-2rem)] bg-white rounded-2xl shadow-2xl border border-gray-100 p-4">
           <div className="flex items-start justify-between gap-2">

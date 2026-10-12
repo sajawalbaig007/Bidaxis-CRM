@@ -620,16 +620,25 @@ export default function UploadPage() {
   };
 
   const deleteHistoryUpload = async (id: string, fileName: string) => {
-    const linked = uploadHistory.find(u => u.id === id)?.linkedLeads ?? 0;
+    const row = uploadHistory.find(u => u.id === id);
+    const linked = row?.linkedLeads ?? 0;
     if (!confirm(`Delete "${fileName}"?\n\n${linked} contact(s) will be permanently removed from the database and CSR dashboards.`)) return;
     setDeletingUploadId(id);
+    setUploadHistory(prev => prev.filter(u => u.id !== id));
+    setHistoryCounts(prev => {
+      const next = { ...prev };
+      next.all = Math.max(0, (next.all ?? 1) - 1);
+      const cat = row?.uploadCategory;
+      if (cat) next[cat] = Math.max(0, (next[cat] ?? 1) - 1);
+      return next;
+    });
     try {
       const res = await API.delete(`/uploads/${id}`, { timeout: 300_000 });
       toast.success(res.data.message ?? "Upload deleted from DB & CSR dashboards");
-      void fetchUploadHistory(historyCategory);
       void fetchLatestUpload();
       void fetchUploadSources();
     } catch (err) {
+      void fetchUploadHistory(historyCategory);
       const ax = err as { response?: { data?: { message?: string } }; code?: string };
       const msg =
         ax.response?.data?.message ??

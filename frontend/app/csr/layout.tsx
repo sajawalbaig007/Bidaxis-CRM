@@ -12,7 +12,7 @@ import { ZoomDialerProvider } from "./components/dialer/ZoomDialerProvider";
 export default function CsrLayout({ children }: { children: React.ReactNode }) {
   return (
     <CrmMailProvider>
-      <ZoomDialerProvider>
+      <ZoomDialerProvider showManualDial>
         <DevToolsGuard allowSelection />
         <SessionNotifierInit />
         <StaffPresenceInit />
