@@ -157,12 +157,13 @@ export function staffCheckInInstant(department: string, day: string, checkIn: st
   return Number.isNaN(instant.getTime()) ? null : instant;
 }
 
-/** Fill check-out 9h 30m after check-in when the person never checked out. */
+/** Fill check-out 9h 30m after check-in when the person never checked out. Office boys stay open until they check out. */
 export async function closeForgottenStaffShifts() {
   const rows = await prisma.staffDayAttendance.findMany({
     where: {
       AND: [
         { checkIn: { not: null } },
+        { department: { not: "office_boy" } },
         { OR: [{ checkOut: null }, { checkOut: { isSet: false } }, { checkOut: "" }] },
       ],
     },
@@ -170,7 +171,7 @@ export async function closeForgottenStaffShifts() {
   });
   const now = Date.now();
   for (const row of rows) {
-    if (!row.checkIn || row.checkOut) continue;
+    if (!row.checkIn || row.checkOut || row.department === "office_boy") continue;
     const start = staffCheckInInstant(row.department, row.day, row.checkIn, row.personKey);
     if (!start) continue;
     const due = new Date(start.getTime() + AUTO_CHECKOUT_MS);
