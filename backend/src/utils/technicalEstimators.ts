@@ -30,6 +30,8 @@ export type TechnicalAssignment = {
    * Cleared when the same estimator’s assignment details are changed.
    */
   assignmentConfirmed: boolean;
+  /** Earlier cycle kept on a revision. Not the live assignment. */
+  history?: boolean;
   evaluationMarks?: number | null;
   evaluationRemarks?: string;
   evaluatedAt?: string | null;
@@ -41,18 +43,19 @@ export function syncPhaseFromAssignments(
   currentPhase: string | null | undefined,
 ): string {
   const phase = (currentPhase ?? "not_started").toLowerCase();
+  const live = list.filter((a) => !a.history);
   if (phase === "qa_phase" || phase === "delivery_phase") {
     return currentPhase ?? phase;
   }
-  if (list.length === 0) return "not_started";
+  if (live.length === 0) return "not_started";
 
-  const anyPricing = list.some((a) => a.pricingSent);
+  const anyPricing = live.some((a) => a.pricingSent);
   if (anyPricing) {
     if (phase.startsWith("pricing_")) return currentPhase ?? "pricing_phase";
     return "pricing_phase";
   }
 
-  const anyDone = list.some((a) => a.takeoffDone);
+  const anyDone = live.some((a) => a.takeoffDone);
   if (anyDone) return "takeoff_completed";
   return "not_started";
 }
@@ -141,6 +144,7 @@ export function parseTechnicalAssignments(raw: unknown): TechnicalAssignment[] {
       timerSeconds,
       timerStartedAt: startedRaw || null,
       assignmentConfirmed: o.assignmentConfirmed === true,
+      history: o.history === true,
       evaluationMarks: parseEvalMarks(o.evaluationMarks),
       evaluationRemarks: String(o.evaluationRemarks ?? "").trim(),
       evaluatedAt: o.evaluatedAt ? String(o.evaluatedAt).trim() || null : null,
@@ -319,8 +323,11 @@ export function mergeAssignmentProgress(
     JSON.stringify([...(a ?? [])].map((x) => x.trim()).filter(Boolean).sort()) ===
     JSON.stringify([...(b ?? [])].map((x) => x.trim()).filter(Boolean).sort());
 
-  return incoming.map((a) => {
-    const old = previous.find(
+  const history = previous.filter((p) => p.history);
+  const livePrevious = previous.filter((p) => !p.history);
+  return [
+    ...incoming.map((a) => {
+    const old = livePrevious.find(
       (p) =>
         p.estimatorId === a.estimatorId ||
         (!!p.estimatorName &&
@@ -335,6 +342,7 @@ export function mergeAssignmentProgress(
         timerSeconds: 0,
         timerStartedAt: null,
         assignmentConfirmed: true,
+        history: false,
       };
     }
     const detailsChanged =
@@ -355,8 +363,11 @@ export function mergeAssignmentProgress(
       evaluationMarks: old.evaluationMarks ?? a.evaluationMarks ?? null,
       evaluationRemarks: old.evaluationRemarks ?? a.evaluationRemarks ?? "",
       evaluatedAt: old.evaluatedAt ?? a.evaluatedAt ?? null,
+      history: false,
     };
-  });
+  }),
+    ...history,
+  ];
 }
 
 function parseEvalMarks(raw: unknown): number | null {
@@ -386,6 +397,10 @@ export function applyTechnicalTabMove(
   projectWorkStatus?: string;
   error?: string;
 } {
+  const history = previous.filter((a) => a.history);
+  const live = previous.filter((a) => !a.history);
+  const keep = (assignments: TechnicalAssignment[]) => [...assignments, ...history];
+
   if (tab === "completed") {
     return {
       assignments: previous,
@@ -395,55 +410,160 @@ export function applyTechnicalTabMove(
   }
 
   if (tab === "not_assigned") {
-    return { assignments: [], projectPhase: "not_started" };
+    return { assignments: history, projectPhase: "not_started" };
   }
 
-  if (previous.length === 0) {
+  if (live.length === 0) {
     return {
-      assignments: previous,
+      assignments: history,
       projectPhase: currentPhase ?? "not_started",
       error: "Assign at least one estimator before moving to this stage.",
     };
   }
 
   if (tab === "assigned") {
-    const assignments = previous.map((a) => ({
+    const assignments = live.map((a) => ({
       ...a,
       takeoffDone: false,
       pricingSent: false,
       timerStartedAt: a.takeoffDone ? null : a.timerStartedAt,
     }));
-    return { assignments, projectPhase: syncPhaseFromAssignments(assignments, "not_started") };
+    return { assignments: keep(assignments), projectPhase: syncPhaseFromAssignments(assignments, "not_started") };
   }
 
   if (tab === "takeoff_done") {
-    const assignments = previous.map((a) => ({
+    const assignments = live.map((a) => ({
       ...a,
       takeoffDone: true,
       pricingSent: false,
       timerStartedAt: null,
     }));
-    return { assignments, projectPhase: "takeoff_completed" };
+    return { assignments: keep(assignments), projectPhase: "takeoff_completed" };
   }
 
   if (tab === "pricing") {
-    const assignments = previous.map((a) => ({
+    const assignments = live.map((a) => ({
       ...a,
       takeoffDone: true,
       pricingSent: true,
       timerStartedAt: null,
     }));
-    return { assignments, projectPhase: "pricing_phase" };
+    return { assignments: keep(assignments), projectPhase: "pricing_phase" };
   }
 
   /* final_submission */
-  const assignments = previous.map((a) => ({
+  const assignments = live.map((a) => ({
     ...a,
     takeoffDone: true,
     pricingSent: true,
     timerStartedAt: null,
   }));
-  return { assignments, projectPhase: "qa_phase" };
+  return { assignments: keep(assignments), projectPhase: "qa_phase" };
+}
+
+const FINISHED_REVISION_PHASES = new Set([
+  "qa_phase",
+  "delivery_phase",
+  "pricing_phase",
+  "pricing_with_qa",
+  "pricing_without_qa",
+  "pricing_quick_qa",
+  "takeoff_completed",
+]);
+
+/** A revision that can already be assigned and tracked like a new project. */
+export function revisionAlreadyTrackable(row: {
+  projectPhase?: string | null;
+  technicalAssignments?: string | null;
+  projectWorkStatus?: string | null;
+  status?: string | null;
+}): boolean {
+  const work = String(row.projectWorkStatus ?? "").toLowerCase();
+  const status = String(row.status ?? "").toLowerCase();
+  if (work === "completed" || status === "completed") return false;
+  const phase = String(row.projectPhase ?? "not_started").toLowerCase();
+  if (FINISHED_REVISION_PHASES.has(phase)) return false;
+  const list = parseTechnicalAssignments(row.technicalAssignments).filter((a) => !a.history);
+  if (list.length === 0) return true;
+  return list.some((a) => !a.takeoffDone && !a.pricingSent);
+}
+
+/** Keep who already worked the project, and open a new assign cycle on the revision page. */
+export function archiveAssignmentsForRevision(raw: unknown): string | null {
+  const list = parseTechnicalAssignments(raw);
+  if (list.length === 0) return null;
+  const next = list.map((a) => {
+    if (a.history) return { ...a, timerStartedAt: null };
+    return { ...pauseAssignmentTimer(a), history: true, timerStartedAt: null };
+  });
+  return serializeTechnicalAssignments(next);
+}
+
+export function revisionFreshStartData(input?: { assignments?: unknown; revisionNotes?: string | null }) {
+  const data: {
+    needsRevision: boolean;
+    revisionRequestedAt: Date;
+    hiddenOnTechnical: boolean;
+    projectWorkStatus: string;
+    status: string;
+    projectPhase: string;
+    technicalAssignments: string | null;
+    revisionWorkflowReset: boolean;
+    revisionNotes?: string | null;
+  } = {
+    needsRevision: true,
+    revisionRequestedAt: new Date(),
+    hiddenOnTechnical: false,
+    projectWorkStatus: "in_progress",
+    status: "Close Client",
+    projectPhase: "not_started",
+    technicalAssignments: archiveAssignmentsForRevision(input?.assignments),
+    revisionWorkflowReset: true,
+  };
+  if (input && Object.prototype.hasOwnProperty.call(input, "revisionNotes")) {
+    data.revisionNotes = input.revisionNotes ?? null;
+  }
+  return data;
+}
+
+export function shouldResetRevisionCycle(existing: {
+  needsRevision?: boolean | null;
+  revisionWorkflowReset?: boolean | null;
+  projectPhase?: string | null;
+  technicalAssignments?: string | null;
+  projectWorkStatus?: string | null;
+  status?: string | null;
+}): boolean {
+  if (!existing.needsRevision) return true;
+  if (existing.revisionWorkflowReset) return false;
+  return !revisionAlreadyTrackable(existing);
+}
+
+/** One pass for revisions that entered the queue before the fresh-start reset. */
+export async function settleOpenRevisions(): Promise<number> {
+  const rows = (await prisma.lead.findMany({
+    where: { needsRevision: true },
+    select: {
+      id: true,
+      projectPhase: true,
+      technicalAssignments: true,
+      projectWorkStatus: true,
+      status: true,
+      needsRevision: true,
+      revisionWorkflowReset: true,
+    },
+  })).filter((row) => row.revisionWorkflowReset !== true);
+  let changed = 0;
+  for (const row of rows) {
+    await prisma.lead.update({
+      where: { id: row.id },
+      data: shouldResetRevisionCycle(row)
+        ? revisionFreshStartData({ assignments: row.technicalAssignments })
+        : { revisionWorkflowReset: true },
+    });
+    changed += 1;
+  }
+  return changed;
 }
 
 export type TechnicalNoteEntry = {

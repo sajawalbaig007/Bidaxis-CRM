@@ -62,7 +62,7 @@ function projectInclude() {
 
 function withMyAssignment(lead: { technicalAssignments: string | null }, me: { id: string; name: string }) {
   const all = parseTechnicalAssignments(lead.technicalAssignments);
-  const mineAsg = all.find((a) => assignmentBelongsToEstimator(a, me));
+  const mineAsg = all.find((a) => !a.history && assignmentBelongsToEstimator(a, me));
   return { ...lead, myAssignment: mineAsg, technicalAssignments: serializeTechnicalAssignments(all) };
 }
 
@@ -80,7 +80,7 @@ router.get("/lead/:id", async (req: AuthRequest, res) => {
     if (!lead) return res.status(404).json({ success: false, message: "Project not found" });
 
     const mine = parseTechnicalAssignments(lead.technicalAssignments).some((a) =>
-      assignmentBelongsToEstimator(a, me),
+      !a.history && assignmentBelongsToEstimator(a, me),
     );
     if (!mine || !leadVisibleOnDesk(lead, req.user?.role)) {
       return res.status(403).json({ success: false, message: "This project is not assigned to you" });
@@ -117,7 +117,7 @@ router.get("/projects", async (req: AuthRequest, res) => {
       .filter((lead) => (lead as { hiddenOnTechnical?: boolean }).hiddenOnTechnical !== true)
       .map((lead) => {
         const all = parseTechnicalAssignments(lead.technicalAssignments);
-        const mine = all.filter((a) => assignmentBelongsToEstimator(a, me));
+        const mine = all.filter((a) => !a.history && assignmentBelongsToEstimator(a, me));
         if (mine.length === 0) return null;
         return {
           ...lead,
@@ -175,7 +175,7 @@ router.get("/dashboard", async (req: AuthRequest, res) => {
       .filter((lead) => lead.hiddenOnTechnical !== true)
       .map((lead) => {
         const all = parseTechnicalAssignments(lead.technicalAssignments);
-        const a = all.find((x) => assignmentBelongsToEstimator(x, me));
+        const a = all.find((x) => !x.history && assignmentBelongsToEstimator(x, me));
         if (!a) return null;
         return { ...lead, myAssignment: a };
       })
@@ -261,7 +261,7 @@ router.put("/project/:id/timer", async (req: AuthRequest, res) => {
     if (!existing) return res.status(404).json({ success: false, message: "Project not found" });
 
     const list = parseTechnicalAssignments(existing.technicalAssignments);
-    const idx = list.findIndex((a) => assignmentBelongsToEstimator(a, me));
+    const idx = list.findIndex((a) => !a.history && assignmentBelongsToEstimator(a, me));
     if (idx < 0) {
       return res.status(403).json({ success: false, message: "This project is not assigned to you" });
     }
@@ -334,7 +334,7 @@ router.put("/project/:id/complete", async (req: AuthRequest, res) => {
     if (!existing) return res.status(404).json({ success: false, message: "Project not found" });
 
     const list = parseTechnicalAssignments(existing.technicalAssignments);
-    const idx = list.findIndex((a) => assignmentBelongsToEstimator(a, me));
+    const idx = list.findIndex((a) => !a.history && assignmentBelongsToEstimator(a, me));
     if (idx < 0) {
       return res.status(403).json({ success: false, message: "This project is not assigned to you" });
     }
@@ -428,7 +428,7 @@ router.put("/project/:id/takeoff", async (req: AuthRequest, res) => {
     if (!existing) return res.status(404).json({ success: false, message: "Project not found" });
 
     const list = parseTechnicalAssignments(existing.technicalAssignments);
-    const idx = list.findIndex((a) => assignmentBelongsToEstimator(a, me));
+    const idx = list.findIndex((a) => !a.history && assignmentBelongsToEstimator(a, me));
     if (idx < 0) {
       return res.status(403).json({ success: false, message: "This project is not assigned to you" });
     }
@@ -498,7 +498,7 @@ router.post("/lead/:id/notes", async (req: AuthRequest, res) => {
     if (!existing) return res.status(404).json({ success: false, message: "Project not found" });
 
     const allowed = parseTechnicalAssignments(existing.technicalAssignments).some((a) =>
-      assignmentBelongsToEstimator(a, me),
+      !a.history && assignmentBelongsToEstimator(a, me),
     );
     if (!allowed) {
       return res.status(403).json({ success: false, message: "This project is not assigned to you" });
@@ -557,7 +557,7 @@ router.put("/lead/:id/notes/:noteId", async (req: AuthRequest, res) => {
     if (!existing) return res.status(404).json({ success: false, message: "Project not found" });
 
     const allowed = parseTechnicalAssignments(existing.technicalAssignments).some((a) =>
-      assignmentBelongsToEstimator(a, me),
+      !a.history && assignmentBelongsToEstimator(a, me),
     );
     if (!allowed) {
       return res.status(403).json({ success: false, message: "This project is not assigned to you" });
@@ -600,7 +600,7 @@ router.delete("/lead/:id/notes/:noteId", async (req: AuthRequest, res) => {
     if (!existing) return res.status(404).json({ success: false, message: "Project not found" });
 
     const allowed = parseTechnicalAssignments(existing.technicalAssignments).some((a) =>
-      assignmentBelongsToEstimator(a, me),
+      !a.history && assignmentBelongsToEstimator(a, me),
     );
     if (!allowed) {
       return res.status(403).json({ success: false, message: "This project is not assigned to you" });
@@ -643,7 +643,7 @@ router.get("/notifications", async (req: AuthRequest, res) => {
       .filter((l) => leadVisibleOnDesk(l, req.user?.role))
       .filter((l) =>
         parseTechnicalAssignments(l.technicalAssignments).some((a) =>
-          assignmentBelongsToEstimator(a, me),
+          !a.history && assignmentBelongsToEstimator(a, me),
         ),
       )
       .map((l) => l.id);

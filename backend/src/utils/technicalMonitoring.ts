@@ -45,7 +45,7 @@ function pipelineBucket(p: {
   | "final_submission"
   | "other" {
   const phase = (p.projectPhase ?? "not_started").toLowerCase();
-  const assignments = parseTechnicalAssignments(p.technicalAssignments);
+  const assignments = parseTechnicalAssignments(p.technicalAssignments).filter((a) => !a.history);
   const hasAssign = assignments.length > 0;
   const anyWorking = assignments.some((a) => !a.takeoffDone && !a.pricingSent);
   const anyTakeoffReady = assignments.some((a) => a.takeoffDone && !a.pricingSent);

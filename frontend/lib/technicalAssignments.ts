@@ -33,6 +33,8 @@ export type TechnicalAssignment = {
   timerStartedAt: string | null;
   /** Green tick after assign; cleared when this estimator’s details change. */
   assignmentConfirmed: boolean;
+  /** Earlier cycle kept on a revision. Not the live assignment. */
+  history?: boolean;
   /** TM evaluation on Take Off Done — marks 0–10. */
   evaluationMarks?: number | null;
   evaluationRemarks?: string;
@@ -147,6 +149,7 @@ export function parseTechnicalAssignments(raw: unknown): TechnicalAssignment[] {
       timerSeconds: Math.max(0, Math.floor(Number(o.timerSeconds ?? 0) || 0)),
       timerStartedAt: o.timerStartedAt ? String(o.timerStartedAt).trim() || null : null,
       assignmentConfirmed: o.assignmentConfirmed === true,
+      history: o.history === true,
       evaluationMarks: parseEvalMarks(o.evaluationMarks),
       evaluationRemarks: String(o.evaluationRemarks ?? "").trim(),
       evaluatedAt: o.evaluatedAt ? String(o.evaluatedAt).trim() || null : null,
@@ -329,7 +332,7 @@ export function matchesTechnicalTab(
   },
 ): boolean {
   const phase = (p.projectPhase ?? "not_started").toLowerCase();
-  const assignments = parseTechnicalAssignments(p.technicalAssignments);
+  const assignments = parseTechnicalAssignments(p.technicalAssignments).filter((a) => !a.history);
   const hasAssign = assignments.length > 0;
   const inFinal = phase === "qa_phase" || phase === "delivery_phase";
   const legacyPricing = legacyWholeProjectPricing(phase, assignments);
@@ -383,7 +386,7 @@ export function getTechnicalWorkflowStatus(p: {
   if (phase === "pricing_without_qa") return { key: "pricing", label: "Pricing · Without QA" };
   if (phase === "pricing_quick_qa") return { key: "pricing", label: "Pricing · Quick QA" };
 
-  const assignments = parseTechnicalAssignments(p.technicalAssignments);
+  const assignments = parseTechnicalAssignments(p.technicalAssignments).filter((a) => !a.history);
 
   // Completed wins over Final Submission (Admin Mark as Completed)
   const workEarly = (p.projectWorkStatus ?? "").toLowerCase();

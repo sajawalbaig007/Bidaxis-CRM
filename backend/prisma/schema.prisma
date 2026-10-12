@@ -121,6 +121,8 @@ model Lead {
   needsRevision          Boolean   @default(false)
   revisionRequestedAt    DateTime?
   revisionNotes            String?
+  /** This revision cycle was reopened for assign + estimator tracking. */
+  revisionWorkflowReset  Boolean   @default(false)
   clientCode         String?
   state              String?
   isOldClient        Boolean   @default(false)

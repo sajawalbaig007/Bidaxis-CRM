@@ -68,6 +68,9 @@ import {
   serializeTechnicalAssignments,
   mergeAssignmentProgress,
   applyTechnicalTabMove,
+  revisionFreshStartData,
+  shouldResetRevisionCycle,
+  settleOpenRevisions,
   appendTechnicalNote,
   updateTechnicalNote,
   deleteTechnicalNote,
@@ -1312,6 +1315,11 @@ router.get("/projects", verifyToken, allowRoles("admin", "manager", "technical_m
       req.query.excludeRevisions === "1" ||
       req.query.excludeRevisions === "true";
 
+    if (revisionsView) {
+      const reopened = await settleOpenRevisions();
+      if (reopened > 0) invalidatePattern("admin:projects:");
+    }
+
     // v5: restore previous Admin Project DB window (page size → ~46 All / ~22 Active)
     // No response cache — stale cache was bringing deleted projects back after toast.
     const where: Prisma.LeadWhereInput = {
@@ -1904,6 +1912,7 @@ router.put(
 
       let sent = 0;
       const next = list.map((a) => {
+        if (a.history) return a;
         const match = estimatorId
           ? a.estimatorId === estimatorId
           : a.takeoffDone && !a.pricingSent;
@@ -1915,7 +1924,7 @@ router.put(
       });
 
       if (estimatorId) {
-        const target = list.find((a) => a.estimatorId === estimatorId);
+        const target = list.find((a) => !a.history && a.estimatorId === estimatorId);
         if (!target) {
           return res.status(404).json({ success: false, message: "Estimator assignment not found" });
         }
@@ -2036,7 +2045,7 @@ router.put(
         });
         return res.json({ success: true, lead });
       }
-      const list = parseTechnicalAssignments(existing.technicalAssignments);
+      const list = parseTechnicalAssignments(existing.technicalAssignments).filter((a) => !a.history);
       const inPricing =
         phase === "pricing_phase" ||
         phase.startsWith("pricing_") ||
@@ -2223,6 +2232,7 @@ router.put(
               status: "completed",
               projectPhase: "delivery_phase",
               needsRevision: false,
+              revisionWorkflowReset: false,
               hiddenOnTechnical: false,
             }
           : {
@@ -2265,6 +2275,11 @@ router.put(
           projectCode: true,
           clientCode: true,
           needsRevision: true,
+          revisionWorkflowReset: true,
+          projectPhase: true,
+          technicalAssignments: true,
+          projectWorkStatus: true,
+          status: true,
         },
       });
       if (!existing) {
@@ -2273,14 +2288,12 @@ router.put(
 
       const lead = await prisma.lead.update({
         where: { id: leadId },
-        data: {
-          needsRevision: true,
-          revisionRequestedAt: new Date(),
-          revisionNotes: revisionNotes || null,
-          hiddenOnTechnical: false,
-          projectWorkStatus: "in_progress",
-          status: "Close Client",
-        },
+        data: shouldResetRevisionCycle(existing)
+          ? revisionFreshStartData({
+              assignments: existing.technicalAssignments,
+              revisionNotes: revisionNotes || null,
+            })
+          : { revisionNotes: revisionNotes || null },
         include: {
           csr: { select: { id: true, name: true, email: true, csrCode: true } },
           uploadFile: { select: { companyName: true } },
@@ -2868,7 +2881,9 @@ router.put(
       const actor = (req as { user?: { id?: string; role?: string } }).user;
       if (actor?.role === "technical_manager") {
         const previousIds = new Set(
-          parseTechnicalAssignments(existing.technicalAssignments).map((a) => a.estimatorId),
+          parseTechnicalAssignments(existing.technicalAssignments)
+            .filter((a) => !a.history)
+            .map((a) => a.estimatorId),
         );
         const added = merged.filter((a) => a.estimatorId && !previousIds.has(a.estimatorId));
         if (added.length > 0) {
@@ -2926,6 +2941,9 @@ router.put(
           technicalAssignments: true,
           assignedTo: true,
           needsRevision: true,
+          revisionWorkflowReset: true,
+          projectWorkStatus: true,
+          status: true,
         },
       });
       if (!existing) {
@@ -2935,11 +2953,9 @@ router.put(
       if (tab === "revisions") {
         const lead = await prisma.lead.update({
           where: { id: leadId },
-          data: {
-            needsRevision: true,
-            revisionRequestedAt: new Date(),
-            hiddenOnTechnical: false,
-          },
+          data: shouldResetRevisionCycle(existing)
+            ? revisionFreshStartData({ assignments: existing.technicalAssignments })
+            : { needsRevision: true, hiddenOnTechnical: false, revisionWorkflowReset: true },
           include: {
             csr: { select: { id: true, name: true, email: true, csrCode: true } },
             notes: { orderBy: { createdAt: "asc" }, take: 20 },
@@ -3014,7 +3030,7 @@ router.put(
       }
 
       const list = parseTechnicalAssignments(existing.technicalAssignments);
-      const idx = list.findIndex((a) => a.estimatorId === estimatorId);
+      const idx = list.findIndex((a) => !a.history && a.estimatorId === estimatorId);
       if (idx < 0) {
         return res.status(404).json({ success: false, message: "Estimator assignment not found" });
       }
@@ -3080,7 +3096,7 @@ router.put(
       }
 
       const list = parseTechnicalAssignments(existing.technicalAssignments);
-      const idx = list.findIndex((a) => a.estimatorId === estimatorId);
+      const idx = list.findIndex((a) => !a.history && a.estimatorId === estimatorId);
       if (idx < 0) {
         return res.status(404).json({ success: false, message: "Estimator assignment not found" });
       }
