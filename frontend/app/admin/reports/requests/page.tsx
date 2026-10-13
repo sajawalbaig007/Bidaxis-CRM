@@ -43,6 +43,41 @@ function initials(name: string) {
   return parts.map((part) => part[0]?.toUpperCase() ?? "").join("") || "?";
 }
 
+function RequestMessage({ text }: { text: string }) {
+  const ref = useRef<HTMLParagraphElement>(null);
+  const [open, setOpen] = useState(false);
+  const [overflows, setOverflows] = useState(false);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || open) return;
+    setOverflows(el.scrollHeight > el.clientHeight + 1);
+  }, [text, open]);
+
+  return (
+    <div className="mt-1 min-w-0 max-w-full">
+      <p
+        ref={ref}
+        className={`text-xs leading-4 text-slate-500 break-words dark:text-slate-400 ${open ? "" : "line-clamp-2"}`}
+      >
+        {text}
+      </p>
+      {overflows || open ? (
+        <button
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+            setOpen((value) => !value);
+          }}
+          className="mt-0.5 text-[11px] font-semibold text-[#B8112D] hover:underline"
+        >
+          {open ? "View less" : "View more"}
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
 export default function EmployeeRequestsPage() {
   const pathname = usePathname();
   const onTechnical = pathname.startsWith("/technical");
@@ -206,8 +241,9 @@ export default function EmployeeRequestsPage() {
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap text-[#0F172A] dark:text-white">{row.kindLabel}</td>
                   <td className="px-4 py-3 whitespace-nowrap tabular-nums text-slate-500">{row.day}</td>
-                  <td className="px-4 py-3 max-w-[16rem]">
-                    <p className="truncate text-slate-600 dark:text-slate-300">{row.summary || row.detail || "—"}</p>
+                  <td className="px-4 py-3 w-[16rem] max-w-[16rem]">
+                    <p className="truncate text-slate-600 dark:text-slate-300">{row.summary || "—"}</p>
+                    {row.detail && row.detail !== row.summary ? <RequestMessage text={row.detail} /> : null}
                   </td>
                   <td className="px-4 py-3">
                     <span className={`inline-flex rounded-md px-1.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wide ${

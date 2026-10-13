@@ -101,6 +101,9 @@ export default function RequestDecisionDialog({
                   <input type="time" value={stillIn ? "" : checkOut} onChange={(event) => setCheckOut(event.target.value)} disabled={!pending || !canApprove || stillIn} className="mt-1 h-10 w-full rounded-2xl border border-gray-200 outline-none focus:border-[#B8112D] px-3 text-sm text-[#0F172A] disabled:opacity-50 dark:border-crm-border dark:bg-transparent dark:text-white" />
                 </label>
               </div>
+              {row.detail ? (
+                <p className="rounded-2xl bg-[#F8FAFC] px-3 py-2 text-sm text-gray-600 break-words dark:bg-white/5 dark:text-gray-300">{row.detail}</p>
+              ) : null}
               <label className="flex items-center gap-2 text-sm text-[#0F172A] dark:text-white">
                 <input
                   type="checkbox"
