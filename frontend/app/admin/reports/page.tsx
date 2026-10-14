@@ -9,6 +9,7 @@ import DashboardNavbar  from "../components/layout/Navbar";
 import { StaffSidebar } from "@/app/hooks/useStaffSidebar";
 import { fetchReports, type ReportsData } from "@/lib/reportsCache";
 import API, { apiErrorMessage } from "@/lib/api";
+import { useZoomDialer } from "@/app/csr/components/dialer/ZoomDialerProvider";
 
 import {
   PhoneCall, ShoppingCart, Clock3, FileBarChart2,
@@ -18,16 +19,6 @@ import {
 const ReportCharts = dynamic(() => import("./ReportCharts"), {
   ssr: false,
   loading: () => <div className="h-[280px] rounded-xl bg-gray-100 animate-pulse" />,
-});
-
-const CsrActivityReport = dynamic(() => import("./CsrActivityReport"), {
-  ssr: false,
-  loading: () => <div className="h-48 rounded-xl bg-gray-100 animate-pulse" />,
-});
-
-const StaffAttendanceReport = dynamic(() => import("./StaffAttendanceReport"), {
-  ssr: false,
-  loading: () => <div className="h-48 rounded-xl bg-gray-100 animate-pulse" />,
 });
 
 
@@ -48,6 +39,7 @@ const BENTO =
 export default function ReportsPage() {
   const pathname = usePathname();
   const reportsBase = pathname.startsWith("/manager") ? "/manager/reports" : "/admin/reports";
+  const dialer = useZoomDialer();
   const [reportData,    setReportData]    = useState<ReportResponse | null>(null);
   const [activePeriod,  setActivePeriod]  = useState<"today" | "week" | "month" | "all">("week");
   const [loadingReport, setLoadingReport] = useState(false);
@@ -55,7 +47,6 @@ export default function ReportsPage() {
   const [toDate,        setToDate]        = useState("");
   const [selectedCSRId, setSelectedCSRId] = useState<string>("all");
   const [dropdownOpen,  setDropdownOpen]  = useState(false);
-  const [csrPerfOpen,   setCsrPerfOpen]   = useState(true);
   const [statusFocus,   setStatusFocus]   = useState<string | null>(null);
   const [csrActualStats, setCsrActualStats] = useState<CsrActualStats | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -188,22 +179,6 @@ export default function ReportsPage() {
     fromDate && toDate        ? `${fromDate} → ${toDate}` : "All time";
 
   const dropdownLabel = selectedCSR ? selectedCSR.name : "All CSRs";
-  const displayCsrRows = selectedCSR
-    ? [{
-        ...selectedCSR,
-        totalLeads: stats.totalLeads,
-        completed: stats.completed,
-        important: stats.important,
-        interested: stats.interested,
-        notCompleted: stats.notCompleted,
-        notInterested: stats.notInterested,
-        projectWon: stats.projectWon,
-        inHouse: stats.inHouse,
-        noOwner: stats.noOwner,
-        notInService: stats.notInService,
-        scheduleCall: stats.scheduleCall,
-      }]
-    : csrList;
 
   return (
     <div className="flex min-h-screen bg-[#EEF1F7] dark:bg-crm-bg-subtle">
@@ -520,7 +495,14 @@ export default function ReportsPage() {
                             .filter(row => !selectedCSR || row.csrId === selectedCSR.id)
                             .map(row => (
                               <li key={row.id} className="flex items-center justify-between gap-3 text-sm">
-                                <span className="font-semibold text-[#0F172A] truncate">{row.number}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => dialer?.open({ destination: row.number })}
+                                  className="font-semibold text-[#B8112D] truncate text-left underline-offset-[3px] hover:underline"
+                                  title="Call this number"
+                                >
+                                  {row.number}
+                                </button>
                                 <span className="text-xs text-gray-500 shrink-0">{row.csrName} · {new Date(row.createdAt).toLocaleString()}</span>
                               </li>
                             ))}
@@ -531,99 +513,6 @@ export default function ReportsPage() {
                 </>
               ) : (
                 <p className="text-sm text-gray-400">{loadingReport ? "Loading…" : "No status mix for this period."}</p>
-              )}
-            </div>
-
-            <div className="md:col-span-12 min-w-0">
-              <CsrActivityReport />
-            </div>
-            <div className="md:col-span-12 min-w-0">
-              <CsrActivityReport staffRole="estimator" />
-            </div>
-            <div className="md:col-span-12 min-w-0">
-              <CsrActivityReport staffRole="bim" />
-            </div>
-            <div className="md:col-span-12 min-w-0">
-              <StaffAttendanceReport />
-            </div>
-
-            <div className={`md:col-span-12 ${BENTO} p-4 sm:p-5 min-w-0`}>
-              <button
-                type="button"
-                onClick={() => setCsrPerfOpen(v => !v)}
-                className="w-full flex items-center justify-between gap-3"
-              >
-                <div className="text-left min-w-0">
-                  <h2 className="font-bold text-[#0F172A] text-base sm:text-lg tracking-tight">
-                    {selectedCSR ? `${selectedCSR.name} — Detail` : "All CSRs Performance"}
-                  </h2>
-                  <p className="text-xs text-gray-500 mt-0.5">Status counts per CSR for the selected period</p>
-                </div>
-                <ChevronDown size={18} className={`text-gray-400 shrink-0 transition-transform ${csrPerfOpen ? "rotate-180" : ""}`} />
-              </button>
-
-              {csrPerfOpen && (
-                <div className="overflow-x-auto mt-4">
-                  <table className="w-full" style={{ minWidth: "1100px" }}>
-                    <thead>
-                      <tr className="border-b border-gray-100 text-left bg-[#FAFAFB]">
-                        {[
-                          "CSR", "Total", "Completed",
-                          "Not Interested", "Not Picked", "No Owner", "Not In Service", "In House",
-                          "Important", "Schedule Call", "Interested", "Not Useful", "Dialer Calls", "Close Client",
-                        ].map(h => (
-                          <th key={h} className="px-3 py-3 text-[10px] font-semibold text-gray-400 uppercase tracking-wide whitespace-nowrap">
-                            {h}
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {loadingReport ? (
-                        [1, 2, 3].map(i => (
-                          <tr key={i} className="border-b border-gray-50">
-                            {Array.from({ length: 14 }).map((_, j) => (
-                              <td key={j} className="px-3 py-4">
-                                <div className="h-4 w-10 bg-gray-100 rounded animate-pulse" />
-                              </td>
-                            ))}
-                          </tr>
-                        ))
-                      ) : displayCsrRows.map(csr => (
-                        <tr key={csr.id} className="border-b border-gray-50 hover:bg-[#FAFAFB]">
-                          <td className="px-3 py-4">
-                            <div className="flex items-center gap-2.5">
-                              <div className="w-8 h-8 rounded-full bg-gray-100 text-gray-600 flex items-center justify-center text-xs font-bold shrink-0">
-                                {csr.name.charAt(0).toUpperCase()}
-                              </div>
-                              <span className="font-semibold text-sm text-[#0F172A] whitespace-nowrap">{csr.name}</span>
-                            </div>
-                          </td>
-                          <td className="px-3 py-4"><span className="text-sm font-bold text-[#0F172A] tabular-nums">{csr.totalLeads}</span></td>
-                          <td className="px-3 py-4"><span className="text-sm font-semibold text-green-600 tabular-nums">{csr.completed}</span></td>
-                          <td className="px-3 py-4"><span className="text-sm font-semibold text-slate-600 tabular-nums">{csr.notInterested ?? 0}</span></td>
-                          <td className="px-3 py-4"><span className="text-sm font-semibold text-amber-600 tabular-nums">{csr.notCompleted ?? 0}</span></td>
-                          <td className="px-3 py-4"><span className="text-sm font-semibold text-yellow-700 tabular-nums">{csr.noOwner ?? 0}</span></td>
-                          <td className="px-3 py-4"><span className="text-sm font-semibold text-violet-600 tabular-nums">{csr.notInService ?? 0}</span></td>
-                          <td className="px-3 py-4"><span className="text-sm font-semibold text-purple-600 tabular-nums">{csr.inHouse ?? 0}</span></td>
-                          <td className="px-3 py-4"><span className="text-sm font-semibold text-red-600 tabular-nums">{csr.important}</span></td>
-                          <td className="px-3 py-4"><span className="text-sm font-semibold text-sky-600 tabular-nums">{csr.scheduleCall ?? 0}</span></td>
-                          <td className="px-3 py-4"><span className="text-sm font-semibold text-orange-600 tabular-nums">{csr.interested ?? 0}</span></td>
-                          <td className="px-3 py-4"><span className="text-sm font-semibold text-fuchsia-700 tabular-nums">{csr.notUseful ?? 0}</span></td>
-                          <td className="px-3 py-4"><span className="text-sm font-semibold text-[#B8112D] tabular-nums">{csr.dialerCalls ?? 0}</span></td>
-                          <td className="px-3 py-4"><span className="text-sm font-semibold text-emerald-600 tabular-nums">{csr.projectWon ?? 0}</span></td>
-                        </tr>
-                      ))}
-                      {!loadingReport && csrList.length === 0 && (
-                        <tr>
-                          <td colSpan={14} className="py-16 text-center text-gray-400 text-sm">
-                            No data for this period
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
               )}
             </div>
           </section>

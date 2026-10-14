@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import toast from "react-hot-toast";
 import { Pencil, Phone, X } from "lucide-react";
 import API from "@/lib/api";
+import { markLeadDialed } from "./dialUnlock";
 
 export type DialTarget = {
   destination: string;
@@ -114,6 +115,7 @@ export function ZoomDialerProvider({ children }: { children: React.ReactNode }) 
       toast.error("That phone number cannot be dialed.");
       return;
     }
+    markLeadDialed(target.leadId);
     const saved = readSavedPlace();
     if (saved) {
       setPlace(saved);

@@ -29,10 +29,11 @@ import {
   isAssignmentPricingSent,
   type TechnicalAssignment,
 } from "@/lib/technicalAssignments";
-import { User2, Briefcase, Building2, Phone, Mail, Calendar } from "lucide-react";
+import { User2, Briefcase, Building2, Mail, Calendar } from "lucide-react";
 import { useFixedPopover } from "@/app/csr/hooks/useFixedPopover";
 import { createPortal } from "react-dom";
 import EmailWithExtraCell from "@/app/csr/components/shared/EmailWithExtraCell";
+import PhoneWithTzCell from "@/app/csr/components/shared/PhoneWithTzCell";
 
 export type ProjectTableRow = {
   id: string;
@@ -115,9 +116,14 @@ export function ClientDetailCell({ p }: { p: ProjectTableRow }) {
           </DetailLine>
         )}
         {phone && (
-          <DetailLine icon={<Phone size={9} className="text-slate-400 shrink-0" />}>
-            {phone}
-          </DetailLine>
+          <div className="min-w-0" onClick={e => e.stopPropagation()}>
+            <PhoneWithTzCell
+              phone={phone}
+              variant="plain"
+              className="text-[10px] xl:text-[11px] text-gray-600"
+              dial={{ leadId: p.id, clientName: client || company || undefined }}
+            />
+          </div>
         )}
         {email && (
           <div className="text-[10px] xl:text-[11px] truncate flex items-center gap-1 min-w-0 text-slate-500">

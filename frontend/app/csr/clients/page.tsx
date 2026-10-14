@@ -31,6 +31,7 @@ import { sortClientRows, type ClientListSortBy, type SortDir } from "../utils/cl
 import { sortByOldestNote } from "../utils/sortByOldestNote";
 import { getCompanyTimezoneAbbr, tzBadgeClass } from "../constants/timezoneAbbr";
 import toast, { Toaster } from "react-hot-toast";
+import { consumeLeadDial, requireLeadDial } from "../components/dialer/dialUnlock";
 import ClientHistoryModal from "@/app/components/clients/ClientHistoryModal";
 import SubContactsCell from "@/app/components/clients/SubContactsCell";
 import PaymentStatusCircle from "../components/shared/PaymentStatusCircle";
@@ -239,6 +240,8 @@ export default function LeadsPage() {
 
   const saveEdit = async () => {
     if (!viewing) return;
+    const statusChanged = editStatus.trim().toLowerCase() !== (viewing.status ?? "").trim().toLowerCase();
+    if (statusChanged && !requireLeadDial(viewing.id)) return;
     setSaving(true);
     try {
       await API.put(`/csr/lead/${viewing.id}`, {
@@ -268,6 +271,7 @@ export default function LeadsPage() {
         projectBudget:     editQuotation.trim(),
         paidAmount:        editUpfront.trim(),
       };
+      if (statusChanged) consumeLeadDial(viewing.id);
       setLeads(prev => prev.map(l => l.id === viewing.id ? updated : l));
       setViewing(updated);
       setIsEditing(false);
