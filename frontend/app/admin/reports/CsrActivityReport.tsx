@@ -434,10 +434,13 @@ export default function CsrActivityReport({
   staffRole = "csr",
   allowEdit = true,
   defaultOpen = false,
+  embedded = false,
 }: {
   staffRole?: "csr" | "estimator" | "bim";
   allowEdit?: boolean;
   defaultOpen?: boolean;
+  /** Hide the expand card. The parent already picked this department. */
+  embedded?: boolean;
 }) {
   const pathname = usePathname();
   const canEdit = allowEdit && pathname.startsWith("/admin");
@@ -470,7 +473,8 @@ export default function CsrActivityReport({
   const [summary, setSummary] = useState<SummaryRow[]>([]);
   const [clockTz, setClockTz] = useState<ClockTz>("pkt");
   const [loading, setLoading] = useState(false);
-  const [open, setOpen] = useState(defaultOpen);
+  const [open, setOpen] = useState(defaultOpen || embedded);
+  const shown = embedded || open;
   const [view, setView] = useState<"sessions" | "summary">("sessions");
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -701,7 +705,8 @@ export default function CsrActivityReport({
   }, [canEdit, fromDate, toDate, sessions, csrs, csrId]);
 
   return (
-    <div className="rounded-[1.75rem] border border-gray-100/90 bg-white dark:bg-crm-surface shadow-[0_10px_40px_-24px_rgba(15,23,42,0.35)] p-4 sm:p-5 overflow-hidden">
+    <div className={embedded ? "overflow-hidden" : "rounded-[1.75rem] border border-gray-100/90 bg-white dark:bg-crm-surface shadow-[0_10px_40px_-24px_rgba(15,23,42,0.35)] p-4 sm:p-5 overflow-hidden"}>
+      {!embedded && (
       <button
         type="button"
         onClick={() => setOpen(v => !v)}
@@ -734,14 +739,15 @@ export default function CsrActivityReport({
           <ChevronDown size={16} className={`transition-transform duration-200 ${open ? "rotate-180" : ""}`} />
         </span>
       </button>
+      )}
 
       <div
         className={`grid transition-[grid-template-rows] duration-300 ease-out ${
-          open ? "grid-rows-[1fr] mt-3 sm:mt-4" : "grid-rows-[0fr]"
+          shown ? (embedded ? "grid-rows-[1fr]" : "grid-rows-[1fr] mt-3 sm:mt-4") : "grid-rows-[0fr]"
         }`}
       >
         <div className="overflow-hidden min-h-0">
-          {open && (
+          {shown && (
         <>
           <div className="flex flex-wrap items-center gap-2 mb-3">
             {([
