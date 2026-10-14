@@ -26,6 +26,7 @@ import CapsuleChipNav from "@/app/components/CapsuleChipNav";
 import { playChatSound, primeChatSound } from "@/lib/chatSound";
 import { roleDisplayLabel } from "@/lib/roleDisplay";
 import { ProfileAvatar, ProfileInfoRows } from "@/app/components/StaffProfileMenu";
+import { CeoManualDial } from "@/app/csr/components/dialer/ZoomDialerProvider";
 
 const BASE = "/admin";
 
@@ -259,6 +260,7 @@ export default function DashboardSidebar() {
           </div>
 
           <div className="shrink-0 flex items-center justify-end gap-1.5 sm:gap-2">
+          <CeoManualDial />
           <ThemeToggle />
 
           {/* Chat button */}
