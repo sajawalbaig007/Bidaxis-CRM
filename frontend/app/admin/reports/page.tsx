@@ -21,6 +21,11 @@ const ReportCharts = dynamic(() => import("./ReportCharts"), {
   loading: () => <div className="h-[280px] rounded-xl bg-gray-100 animate-pulse" />,
 });
 
+const AttendanceBoard = dynamic(() => import("./AttendanceBoard"), {
+  ssr: false,
+  loading: () => <div className="h-28 rounded-[1.5rem] bg-white animate-pulse" />,
+});
+
 
 type ReportResponse = ReportsData;
 type CsrActualStats = {
@@ -516,6 +521,8 @@ export default function ReportsPage() {
               )}
             </div>
           </section>
+
+          <AttendanceBoard />
         </div>
       </main>
     </div>

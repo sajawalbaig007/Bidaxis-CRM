@@ -255,7 +255,15 @@ function downloadExcel(title: string, filename: string, tzLabel: string, headers
   URL.revokeObjectURL(url);
 }
 
-export default function StaffAttendanceReport({ scope = "all" }: { scope?: "all" | "estimators" | "chief" }) {
+export default function StaffAttendanceReport({
+  scope = "all",
+  only,
+  embedded = false,
+}: {
+  scope?: "all" | "estimators" | "chief";
+  only?: string;
+  embedded?: boolean;
+}) {
   const pathname = usePathname();
   const [rows, setRows] = useState<Row[]>([]);
   const [requests, setRequests] = useState<StaffRequestItem[]>([]);
@@ -301,10 +309,12 @@ export default function StaffAttendanceReport({ scope = "all" }: { scope?: "all"
 
   return (
     <div className="space-y-4">
-      {scope === "estimators" || scope === "chief" ? null : DEPTS.map((dept) => (
+      {scope === "estimators" || scope === "chief" ? null : DEPTS.filter((dept) => !only || dept.key === only).map((dept) => (
         <DeptCard
           key={dept.key}
           title={dept.title}
+          embedded={embedded}
+          defaultOpen={embedded}
           department={dept.key}
           personLabel={dept.person}
           roster={people.filter((person) => person.department === dept.key)}
@@ -377,6 +387,7 @@ function DeptCard({
   canReview = false,
   defaultClock = "pkt",
   defaultOpen = false,
+  embedded = false,
   onRefresh,
 }: {
   title: string;
@@ -397,9 +408,11 @@ function DeptCard({
   canReview?: boolean;
   defaultClock?: ClockTz;
   defaultOpen?: boolean;
+  embedded?: boolean;
   onRefresh: () => void;
 }) {
-  const [open, setOpen] = useState(defaultOpen);
+  const [open, setOpen] = useState(defaultOpen || embedded);
+  const shown = embedded || open;
   const [clockTz, setClockTz] = useState<ClockTz>(defaultClock);
   const [fromDate, setFromDate] = useState(() => addDays(calendarYmd("Asia/Karachi"), -29));
   const [toDate, setToDate] = useState(() => calendarYmd("Asia/Karachi"));
@@ -586,7 +599,8 @@ function DeptCard({
   });
 
   return (
-    <div className="rounded-[1.75rem] border border-gray-100/90 bg-white shadow-[0_10px_40px_-24px_rgba(15,23,42,0.35)] p-4 sm:p-5 overflow-hidden">
+    <div className={embedded ? "overflow-hidden" : "rounded-[1.75rem] border border-gray-100/90 bg-white shadow-[0_10px_40px_-24px_rgba(15,23,42,0.35)] p-4 sm:p-5 overflow-hidden"}>
+      {!embedded && (
       <button type="button" onClick={() => setOpen((v) => !v)} className="w-full flex items-center justify-between gap-3">
         <div className="flex items-center gap-2.5 min-w-0">
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50 text-blue-600 shrink-0">
@@ -604,9 +618,10 @@ function DeptCard({
           <ChevronDown size={16} className={open ? "rotate-180" : ""} />
         </span>
       </button>
+      )}
 
-      {open && (
-        <div className="mt-4 space-y-3">
+      {shown && (
+        <div className={embedded ? "space-y-3" : "mt-4 space-y-3"}>
           <div className="flex flex-wrap gap-2">
             {([
               ["daily", "Daily"],
