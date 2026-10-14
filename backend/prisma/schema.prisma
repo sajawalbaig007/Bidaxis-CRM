@@ -787,3 +787,15 @@ model CsrDialerPreference {
   @@index([accountId])
   @@map("csr_dialer_preferences")
 }
+
+/** A number a CSR dialed from the manual dial pad. */
+model ManualDial {
+  id        String   @id @default(cuid()) @map("_id")
+  csrId     String
+  number    String
+  createdAt DateTime @default(now())
+
+  @@index([csrId, createdAt])
+  @@index([createdAt])
+  @@map("manual_dials")
+}

@@ -17,6 +17,38 @@ const router = express.Router();
 
 router.use(verifyToken);
 
+router.post("/manual", allowRoles("csr"), async (req: AuthRequest, res) => {
+  try {
+    const number = String(req.body?.number ?? "").trim();
+    if (!number) return res.status(400).json({ success: false, message: "Enter a phone number." });
+    const row = await prisma.manualDial.create({
+      data: { csrId: req.user!.id, number },
+    });
+    return res.json({ success: true, call: { id: row.id, number: row.number, createdAt: row.createdAt } });
+  } catch (error) {
+    return fail(res, error, "Could not save the dialer call.");
+  }
+});
+
+router.get("/manual", allowRoles("csr", "admin", "manager"), async (req: AuthRequest, res) => {
+  try {
+    const csrId = req.user!.role === "csr" ? req.user!.id : String(req.query.csrId ?? "");
+    const where = csrId ? { csrId } : {};
+    const [count, calls] = await Promise.all([
+      prisma.manualDial.count({ where }),
+      prisma.manualDial.findMany({
+        where,
+        orderBy: { createdAt: "desc" },
+        take: 200,
+        select: { id: true, csrId: true, number: true, createdAt: true },
+      }),
+    ]);
+    return res.json({ success: true, count, calls });
+  } catch (error) {
+    return fail(res, error, "Could not load dialer calls.");
+  }
+});
+
 function fail(res: express.Response, error: unknown, fallback: string) {
   if (error instanceof ZoomDialerError) {
     return res.status(error.status).json({

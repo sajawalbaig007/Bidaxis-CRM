@@ -61,6 +61,8 @@ const LeadStatusDonut = dynamic(() => import("./components/shared/LeadStatusDonu
 export default function CSRPage() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState("today");
+  const [dialerCalls, setDialerCalls] = useState<{ id: string; number: string; createdAt: string }[]>([]);
+  const [dialerCount, setDialerCount] = useState(0);
   const [page, setPage] = useState(1);
   const [monthFrom, setMonthFrom] = useState("");
   const [monthTo, setMonthTo]     = useState("");
@@ -77,7 +79,7 @@ export default function CSRPage() {
 
   const hasTableFilters = !!(stateFilter || timezoneFilter || phoneFilter || sourceFilter || tradeFilter || searchQuery.trim());
 
-  const tabKey = (activeTab === "today" ? "pending" : activeTab) as CsrTabKey;
+  const tabKey = (activeTab === "today" || activeTab === "dialer" ? "pending" : activeTab) as CsrTabKey;
   const { stats, loading: statsLoading, refetch: refetchStats } = useCsrStats(monthFrom || undefined, monthTo || undefined);
   const { leads, setLeads, total: tabTotal, totalPages: serverTotalPages, loading: tabLoading, refetch: refetchTab } =
     useCsrTabLeads(tabKey, page, monthFrom || undefined, monthTo || undefined, hasTableFilters);
@@ -85,6 +87,19 @@ export default function CSRPage() {
   const refetch = () => { void refetchStats(); void refetchTab(true); };
 
   const { updateLead, addNote, onNoteUpdated, onNoteDeleted } = useLeadActions(setLeads);
+
+  useEffect(() => {
+    const loadDials = () => {
+      void API.get("/dialer/manual").then(res => {
+        const calls = res.data.calls ?? [];
+        setDialerCalls(calls);
+        setDialerCount(typeof res.data.count === "number" ? res.data.count : calls.length);
+      }).catch(() => {});
+    };
+    loadDials();
+    window.addEventListener("crm-manual-dial", loadDials);
+    return () => window.removeEventListener("crm-manual-dial", loadDials);
+  }, []);
 
   const [viewingLead, setViewingLead] = useState<Lead | null>(null);
 
@@ -508,6 +523,7 @@ export default function CSRPage() {
                   { tab:"schedule",     label:"Schedule",     short:"Schedule", count: pillCount("schedule", statCounts.scheduledCount),    icon:<CalendarDays size={13}/>, active:"bg-sky-500 text-white shadow-md shadow-sky-500/30",     inactive:"bg-sky-100 text-sky-700 dark:bg-sky-500/25 dark:text-sky-300 ring-1 ring-sky-300/70 dark:ring-sky-400/35"   },
                   { tab:"interested",   label:"Interested",   short:"Interested",count: pillCount("interested", statCounts.interestedCount),  icon:<Users        size={13}/>, active:"bg-[#B8112D] text-white shadow-md shadow-red-500/30",   inactive:"bg-red-100 text-red-700 dark:bg-red-500/25 dark:text-red-300 ring-1 ring-red-300/70 dark:ring-red-400/35"   },
                   { tab:"projectwon",   label:"Close Client", short:"Closed",   count: pillCount("projectwon", statCounts.projectWonCount),   icon:<CircleCheckBig size={13}/>, active:"bg-emerald-600 text-white shadow-md shadow-emerald-500/30", inactive:"bg-emerald-100 text-emerald-800 dark:bg-emerald-500/25 dark:text-emerald-300 ring-1 ring-emerald-300/70 dark:ring-emerald-400/35"},
+                  { tab:"dialer",       label:"Dialer Calls", short:"Dialer",   count: dialerCount, icon:<Phone size={13}/>, active:"bg-[#B8112D] text-white shadow-md shadow-red-500/30", inactive:"bg-[#FFF1F3] text-[#B8112D] ring-1 ring-[#F5C5CE]" },
                 ],
               },
             ].map(group => (
@@ -548,7 +564,24 @@ export default function CSRPage() {
             ))}
           </div>
 
-          {/* ── TABLE ── */}
+          {activeTab === "dialer" ? (
+            <div className="rounded-xl sm:rounded-2xl border border-gray-100 dark:border-crm-border bg-white p-4">
+              <h2 className="text-sm font-bold text-[#0F172A]">Dialer Calls</h2>
+              <p className="text-xs text-gray-400 mt-0.5 mb-3">Numbers dialed from the manual pad.</p>
+              {dialerCalls.length === 0 ? (
+                <p className="py-10 text-center text-sm text-gray-400">No dialer calls yet.</p>
+              ) : (
+                <ul className="divide-y divide-gray-100">
+                  {dialerCalls.map(call => (
+                    <li key={call.id} className="flex items-center justify-between gap-3 py-2.5">
+                      <span className="font-semibold text-sm text-[#0F172A]">{call.number}</span>
+                      <span className="text-xs text-gray-400 shrink-0">{new Date(call.createdAt).toLocaleString()}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          ) : (
           <div className="overflow-x-hidden rounded-xl sm:rounded-2xl border border-gray-100 dark:border-crm-border">
             <table className={CSR_TABLE_CLASS}>
               <CsrColGroup widths={tableColWidths} />
@@ -723,8 +756,10 @@ export default function CSRPage() {
               </tbody>
             </table>
           </div>
+          )}
 
           {/* PAGINATION */}
+          {activeTab !== "dialer" && (
           <div className="flex items-center justify-between px-1 pt-4 mt-2 border-t border-gray-100">
             <p className="text-xs text-gray-400">
               {tabSorted.length === 0 ? "0" : `${(page - 1) * PAGE_SIZE + 1}–${Math.min(page * PAGE_SIZE, tabSorted.length)}`} of {displayTotal}
@@ -737,6 +772,7 @@ export default function CSRPage() {
                 className="w-9 h-9 rounded-xl bg-gray-100 text-gray-600 hover:bg-gray-200 disabled:opacity-40 flex items-center justify-center text-lg transition-all">›</button>
             </div>
           </div>
+          )}
         </div>
 
         {/* ══ IMPORTANT MODAL ══ */}

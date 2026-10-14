@@ -17,6 +17,16 @@ export type ReportsCsrRow = {
   noOwner?: number;
   notInService?: number;
   scheduleCall?: number;
+  notUseful?: number;
+  dialerCalls?: number;
+};
+
+export type DialerLogRow = {
+  id: string;
+  csrId: string;
+  csrName: string;
+  number: string;
+  createdAt: string;
 };
 
 export type ReportsData = {
@@ -33,6 +43,9 @@ export type ReportsData = {
   noOwner?: number;
   notInService?: number;
   scheduleCall?: number;
+  notUseful?: number;
+  dialerCalls?: number;
+  dialerLog?: DialerLogRow[];
   csrPerformance: ReportsCsrRow[];
   timeChart: { label: string; leads: number; completed: number }[];
 };
@@ -45,7 +58,7 @@ let inflightKey = "";
 const TTL_MS = 300_000;
 
 function cacheKey(period: string, fromDate?: string, toDate?: string) {
-  return `${period}|${fromDate ?? ""}|${toDate ?? ""}|v4`;
+  return `${period}|${fromDate ?? ""}|${toDate ?? ""}|v5`;
 }
 
 export function invalidateReportsCache() {

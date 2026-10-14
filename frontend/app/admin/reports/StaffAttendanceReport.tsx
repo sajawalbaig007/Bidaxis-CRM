@@ -18,14 +18,14 @@ const CLOCKS: Record<ClockTz, { tz: string; abbr: string; label: string; button:
 };
 
 const DEPTS = [
-  { key: "dev", title: "Dev Check In / Check Out", person: "Dev" },
-  { key: "office_boy", title: "Office Boy Check In / Check Out", person: "Office Boy" },
-  { key: "hr", title: "HR Check In / Check Out", person: "HR" },
-  { key: "bim_modeler", title: "BIM Modeler Check In / Check Out", person: "BIM Modeler" },
-  { key: "chief_estimator", title: "Chief Estimator Check In / Check Out", person: "Chief Estimator" },
-  { key: "bim_manager", title: "BIM Manager Check In / Check Out", person: "BIM Manager" },
-  { key: "admin", title: "Admin Check In / Check Out", person: "Admin" },
-  { key: "accounts", title: "Accounts Check In / Check Out", person: "Accounts" },
+  { key: "dev", title: "Development Team Attendance", person: "Developer" },
+  { key: "office_boy", title: "Office Support Attendance", person: "Office Support" },
+  { key: "hr", title: "Human Resources Attendance", person: "Human Resources" },
+  { key: "bim_modeler", title: "BIM Modeler Attendance", person: "BIM Modeler" },
+  { key: "chief_estimator", title: "Chief Estimator Attendance", person: "Chief Estimator" },
+  { key: "bim_manager", title: "BIM Manager Attendance", person: "BIM Manager" },
+  { key: "admin", title: "Administration Attendance", person: "Administrator" },
+  { key: "accounts", title: "Accounts Team Attendance", person: "Accounts" },
 ] as const;
 
 type Row = {
@@ -324,7 +324,7 @@ export default function StaffAttendanceReport({ scope = "all" }: { scope?: "all"
       ))}
       {scope === "chief" ? (
       <DeptCard
-        title="Chief Estimator Check In / Check Out"
+        title="Chief Estimator Attendance"
         personLabel="Chief Estimator"
         rows={rows.filter((r) => r.department === "chief_estimator")}
         requests={requests.filter((r) => r.department === "chief_estimator")}
@@ -342,7 +342,7 @@ export default function StaffAttendanceReport({ scope = "all" }: { scope?: "all"
       ) : null}
       {scope === "estimators" ? (
       <DeptCard
-        title="Estimator Check In / Check Out"
+        title="Estimator Attendance"
         personLabel="Estimator"
         rows={estimators}
         loading={loading}
@@ -401,7 +401,7 @@ function DeptCard({
 }) {
   const [open, setOpen] = useState(defaultOpen);
   const [clockTz, setClockTz] = useState<ClockTz>(defaultClock);
-  const [fromDate, setFromDate] = useState(() => calendarYmd("Asia/Karachi"));
+  const [fromDate, setFromDate] = useState(() => addDays(calendarYmd("Asia/Karachi"), -29));
   const [toDate, setToDate] = useState(() => calendarYmd("Asia/Karachi"));
   const [person, setPerson] = useState("all");
   const [editing, setEditing] = useState<Row | null>(null);
@@ -595,7 +595,7 @@ function DeptCard({
           <div className="text-left min-w-0">
             <h2 className="text-base sm:text-lg font-bold text-[#111827] truncate">{title}</h2>
             <p className="text-xs text-gray-400 truncate">
-              {open ? `All times in ${clock.label}` : loaded ? `${visible.filter((row) => !row.id.startsWith("missing:")).length} day${visible.filter((row) => !row.id.startsWith("missing:")).length === 1 ? "" : "s"} · click to expand` : "Click to expand"}
+              {open ? `Attendance · ${clock.label}` : loaded ? `${visible.filter((row) => !row.id.startsWith("missing:")).length} record${visible.filter((row) => !row.id.startsWith("missing:")).length === 1 ? "" : "s"} on file` : "Open to view attendance"}
             </p>
           </div>
         </div>

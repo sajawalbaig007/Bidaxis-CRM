@@ -17,6 +17,8 @@ const STATUS_PIE_COLORS: Record<string, string> = {
   "Schedule Call":      "#0EA5E9",
   "Interested":         "#F97316",
   "Close Client":       "#12B76A",
+  "Not Useful":         "#7C3AED",
+  "Dialer Calls":       "#B8112D",
 };
 
 type ChartPoint = { day: string; calls: number; completed: number };

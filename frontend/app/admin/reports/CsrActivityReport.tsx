@@ -455,7 +455,7 @@ export default function CsrActivityReport({
   const canApproveRequests = officeDesk || chiefDesk;
   const sessionCols = 9 + (showRequests ? 1 : 0) + (showShiftOt ? 1 : 0) + (showOvertime ? 2 : 0) + (canAdjustTimes ? 1 : 0);
   const summaryCols = 8 + (showRequests ? 1 : 0) + (showShiftOt ? 1 : 0) + (showOvertime ? 2 : 0);
-  const title = isBim ? "BIM Check In / Check Out" : isEstimator ? "Estimator Check In / Check Out" : "CSR Check In / Check Out";
+  const title = isBim ? "BIM Attendance" : isEstimator ? "Estimator Attendance" : "CSR Attendance";
   const personLabel = isBim ? "BIM" : isEstimator ? "Estimator" : "CSR";
   const peopleLabel = isBim ? "BIM" : isEstimator ? "Estimators" : "CSRs";
   const allLabel = isBim ? "All BIM" : isEstimator ? "All Estimators" : "All CSRs";
@@ -718,10 +718,10 @@ export default function CsrActivityReport({
             </h2>
             <p className="text-xs text-gray-400 truncate">
               {open
-                ? `Shift tracking · all times in ${timezoneLabel}`
+                ? `Attendance · all times in ${timezoneLabel}`
                 : hasLoaded
-                  ? `${totals.sessions} session${totals.sessions === 1 ? "" : "s"} · click to expand`
-                  : "Click to expand shift tracking report"}
+                  ? `${totals.sessions} attendance record${totals.sessions === 1 ? "" : "s"}`
+                  : "Open to view attendance"}
             </p>
           </div>
         </div>

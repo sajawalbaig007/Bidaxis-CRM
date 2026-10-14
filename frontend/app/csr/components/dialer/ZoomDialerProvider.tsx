@@ -1,8 +1,10 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
+import { usePathname } from "next/navigation";
 import toast from "react-hot-toast";
 import { Pencil, Phone, X } from "lucide-react";
+import API from "@/lib/api";
 
 export type DialTarget = {
   destination: string;
@@ -247,6 +249,7 @@ export function ZoomDialerProvider({ children }: { children: React.ReactNode }) 
 /** Header dial. Stays in the top bar so it does not cover the page. */
 export function CeoManualDial() {
   const dialer = useZoomDialer();
+  const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [number, setNumber] = useState("");
   const [changing, setChanging] = useState(false);
@@ -271,6 +274,11 @@ export function CeoManualDial() {
   const call = () => {
     const next = picked ?? dialer.zoomPlace;
     if (!dialer.callWith(number, next)) return;
+    if (pathname.startsWith("/csr")) {
+      void API.post("/dialer/manual", { number: number.trim() }).then(() => {
+        window.dispatchEvent(new Event("crm-manual-dial"));
+      }).catch(() => {});
+    }
     if (saveDefault) dialer.saveZoomPlace(next);
     setNumber("");
     setPicked(null);
