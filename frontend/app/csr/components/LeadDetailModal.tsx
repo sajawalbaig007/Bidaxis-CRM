@@ -12,6 +12,7 @@ import { parseInterestedServices } from "../utils/parseInterestedServices";
 import { collectLeadEmails } from "../utils/parseEmails";
 import EmailWithExtraCell from "./shared/EmailWithExtraCell";
 import { useZoomDialer } from "./dialer/ZoomDialerProvider";
+import { consumeLeadDial, requireLeadDial } from "./dialer/dialUnlock";
 
 export type DetailLead = {
   id: string;
@@ -280,6 +281,8 @@ export default function LeadDetailModal({ lead, onClose, onSaved, onNoteAdded, o
       const payload: Record<string, unknown> = {
         name, company, phone, email, website: websiteTrim, state, interestedService: scopeTrim,
       };
+      const statusChanged = isAdmin && status !== (lead.status ?? "pending");
+      if (statusChanged && !requireLeadDial(lead.id)) return;
       if (isAdmin) {
         payload.clientCode = codeTrim || null;
         payload.nextSchedule = nextSchedule.trim() || null;
@@ -289,6 +292,7 @@ export default function LeadDetailModal({ lead, onClose, onSaved, onNoteAdded, o
         payload.isOldClient = isOldClient;
       }
       await API.put(`${apiPrefix}/lead/${lead.id}`, payload);
+      if (statusChanged) consumeLeadDial(lead.id);
       const trimmedNote = noteText.trim();
       const prevNote = (lead.followUpNotes ?? "").trim();
       if (isAdmin && trimmedNote && trimmedNote !== prevNote) {
