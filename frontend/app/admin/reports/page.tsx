@@ -56,6 +56,7 @@ export default function ReportsPage() {
   const [selectedCSRId, setSelectedCSRId] = useState<string>("all");
   const [dropdownOpen,  setDropdownOpen]  = useState(false);
   const [csrPerfOpen,   setCsrPerfOpen]   = useState(true);
+  const [statusFocus,   setStatusFocus]   = useState<string | null>(null);
   const [csrActualStats, setCsrActualStats] = useState<CsrActualStats | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -132,6 +133,8 @@ export default function ReportsPage() {
         noOwner:        selectedCSR.noOwner ?? 0,
         notInService:   selectedCSR.notInService ?? 0,
         scheduleCall:   selectedCSR.scheduleCall ?? 0,
+        notUseful:      selectedCSR.notUseful ?? 0,
+        dialerCalls:    selectedCSR.dialerCalls ?? 0,
       }
     : {
         totalLeads:     reportData?.totalLeads     ?? 0,
@@ -145,6 +148,8 @@ export default function ReportsPage() {
         noOwner:        reportData?.noOwner        ?? 0,
         notInService:   reportData?.notInService   ?? 0,
         scheduleCall:   reportData?.scheduleCall   ?? 0,
+        notUseful:      reportData?.notUseful      ?? 0,
+        dialerCalls:    reportData?.dialerCalls    ?? 0,
       };
 
   /** Same options as CSR "Update Status" dropdown */
@@ -158,6 +163,8 @@ export default function ReportsPage() {
       { name: "Important",          value: stats.important },
       { name: "Schedule Call",      value: stats.scheduleCall },
       { name: "Interested",         value: stats.interested },
+      { name: "Not Useful",         value: stats.notUseful },
+      { name: "Dialer Calls",       value: stats.dialerCalls },
       { name: "Close Client",       value: stats.projectWon },
     ];
     return slices.filter(s => s.value > 0);
@@ -438,6 +445,8 @@ export default function ReportsPage() {
                     { label: "Important", val: stats.important, color: "text-red-700", bg: "bg-red-50" },
                     { label: "Schedule Call", val: stats.scheduleCall, color: "text-sky-700", bg: "bg-sky-50" },
                     { label: "Interested", val: stats.interested, color: "text-orange-700", bg: "bg-orange-50" },
+                    { label: "Not Useful", val: stats.notUseful, color: "text-violet-800", bg: "bg-violet-50" },
+                    { label: "Dialer Calls", val: stats.dialerCalls, color: "text-[#B8112D]", bg: "bg-[#FFF1F3]" },
                     { label: "Close Client", val: stats.projectWon, color: "text-emerald-700", bg: "bg-emerald-50" },
                   ].map(s => (
                     <div key={s.label} className={`flex items-center justify-between gap-3 rounded-2xl ${s.bg} px-3 py-2.5`}>
@@ -471,25 +480,54 @@ export default function ReportsPage() {
                       <div key={i} className={`${b.bg} h-full`} style={{ width: `${(b.val / stats.totalLeads) * 100}%` }}/>
                     ))}
                   </div>
-                  <div className="flex flex-wrap gap-x-4 gap-y-2 mt-3">
+                  <div className="flex flex-wrap gap-2 mt-3">
                     {[
-                      { label: "Completed (updates)", val: stats.completed,     dot: "bg-green-500" },
-                      { label: "Not Interested",     val: stats.notInterested,  dot: "bg-slate-500" },
-                      { label: "Not Picked",         val: stats.notCompleted,   dot: "bg-amber-500" },
-                      { label: "No Owner",           val: stats.noOwner,        dot: "bg-yellow-600" },
-                      { label: "Not In Service",     val: stats.notInService,   dot: "bg-violet-500" },
-                      { label: "In House",           val: stats.inHouse,        dot: "bg-purple-500" },
-                      { label: "Important",          val: stats.important,      dot: "bg-red-500" },
-                      { label: "Schedule Call",      val: stats.scheduleCall,   dot: "bg-sky-500" },
-                      { label: "Interested",         val: stats.interested,     dot: "bg-orange-500" },
-                      { label: "Close Client",       val: stats.projectWon,     dot: "bg-emerald-500" },
-                    ].map(b => (
-                      <span key={b.label} className="inline-flex items-center gap-1.5 text-xs text-gray-600">
-                        <span className={`w-2.5 h-2.5 rounded-full ${b.dot}`}/>
-                        {b.label} <strong className="text-[#0F172A] tabular-nums">{b.val}</strong>
-                      </span>
-                    ))}
+                      { key: "completed", label: "Completed", val: stats.completed, on: "bg-emerald-600 text-white", off: "bg-emerald-50 text-emerald-800" },
+                      { key: "notInterested", label: "Not Interested", val: stats.notInterested, on: "bg-slate-600 text-white", off: "bg-slate-100 text-slate-700" },
+                      { key: "notPicked", label: "Not Picked", val: stats.notCompleted, on: "bg-amber-500 text-white", off: "bg-amber-50 text-amber-800" },
+                      { key: "noOwner", label: "No Owner", val: stats.noOwner, on: "bg-yellow-500 text-white", off: "bg-yellow-50 text-yellow-800" },
+                      { key: "notInService", label: "Not In Service", val: stats.notInService, on: "bg-violet-600 text-white", off: "bg-violet-50 text-violet-800" },
+                      { key: "inHouse", label: "In House", val: stats.inHouse, on: "bg-purple-600 text-white", off: "bg-purple-50 text-purple-800" },
+                      { key: "important", label: "Important", val: stats.important, on: "bg-rose-600 text-white", off: "bg-rose-50 text-rose-800" },
+                      { key: "schedule", label: "Schedule Call", val: stats.scheduleCall, on: "bg-sky-500 text-white", off: "bg-sky-50 text-sky-800" },
+                      { key: "interested", label: "Interested", val: stats.interested, on: "bg-orange-500 text-white", off: "bg-orange-50 text-orange-800" },
+                      { key: "notUseful", label: "Not Useful", val: stats.notUseful, on: "bg-fuchsia-700 text-white", off: "bg-fuchsia-50 text-fuchsia-800" },
+                      { key: "dialer", label: "Dialer Calls", val: stats.dialerCalls, on: "bg-[#B8112D] text-white", off: "bg-[#FFF1F3] text-[#B8112D]" },
+                      { key: "close", label: "Close Client", val: stats.projectWon, on: "bg-emerald-700 text-white", off: "bg-emerald-50 text-emerald-800" },
+                    ].map(pill => {
+                      const active = statusFocus === pill.key;
+                      return (
+                        <button
+                          key={pill.key}
+                          type="button"
+                          onClick={() => setStatusFocus(active ? null : pill.key)}
+                          className={`inline-flex items-center gap-1.5 h-9 px-3 rounded-xl text-xs font-semibold ${active ? pill.on : pill.off}`}
+                        >
+                          {pill.label}
+                          <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-bold tabular-nums ${active ? "bg-white/25" : "bg-black/5"}`}>{pill.val}</span>
+                        </button>
+                      );
+                    })}
                   </div>
+                  {statusFocus === "dialer" && (
+                    <div className="mt-3 rounded-2xl border border-[#F5C5CE] bg-[#FFF8F9] p-3 max-h-64 overflow-y-auto">
+                      <p className="text-xs font-semibold text-[#B8112D] mb-2">Manual dialer numbers</p>
+                      {(reportData?.dialerLog ?? []).filter(row => !selectedCSR || row.csrId === selectedCSR.id).length === 0 ? (
+                        <p className="text-sm text-gray-400">No dialer calls in this period.</p>
+                      ) : (
+                        <ul className="space-y-1.5">
+                          {(reportData?.dialerLog ?? [])
+                            .filter(row => !selectedCSR || row.csrId === selectedCSR.id)
+                            .map(row => (
+                              <li key={row.id} className="flex items-center justify-between gap-3 text-sm">
+                                <span className="font-semibold text-[#0F172A] truncate">{row.number}</span>
+                                <span className="text-xs text-gray-500 shrink-0">{row.csrName} · {new Date(row.createdAt).toLocaleString()}</span>
+                              </li>
+                            ))}
+                        </ul>
+                      )}
+                    </div>
+                  )}
                 </>
               ) : (
                 <p className="text-sm text-gray-400">{loadingReport ? "Loading…" : "No status mix for this period."}</p>
@@ -532,7 +570,7 @@ export default function ReportsPage() {
                         {[
                           "CSR", "Total", "Completed",
                           "Not Interested", "Not Picked", "No Owner", "Not In Service", "In House",
-                          "Important", "Schedule Call", "Interested", "Close Client",
+                          "Important", "Schedule Call", "Interested", "Not Useful", "Dialer Calls", "Close Client",
                         ].map(h => (
                           <th key={h} className="px-3 py-3 text-[10px] font-semibold text-gray-400 uppercase tracking-wide whitespace-nowrap">
                             {h}
@@ -544,7 +582,7 @@ export default function ReportsPage() {
                       {loadingReport ? (
                         [1, 2, 3].map(i => (
                           <tr key={i} className="border-b border-gray-50">
-                            {Array.from({ length: 12 }).map((_, j) => (
+                            {Array.from({ length: 14 }).map((_, j) => (
                               <td key={j} className="px-3 py-4">
                                 <div className="h-4 w-10 bg-gray-100 rounded animate-pulse" />
                               </td>
@@ -571,12 +609,14 @@ export default function ReportsPage() {
                           <td className="px-3 py-4"><span className="text-sm font-semibold text-red-600 tabular-nums">{csr.important}</span></td>
                           <td className="px-3 py-4"><span className="text-sm font-semibold text-sky-600 tabular-nums">{csr.scheduleCall ?? 0}</span></td>
                           <td className="px-3 py-4"><span className="text-sm font-semibold text-orange-600 tabular-nums">{csr.interested ?? 0}</span></td>
+                          <td className="px-3 py-4"><span className="text-sm font-semibold text-fuchsia-700 tabular-nums">{csr.notUseful ?? 0}</span></td>
+                          <td className="px-3 py-4"><span className="text-sm font-semibold text-[#B8112D] tabular-nums">{csr.dialerCalls ?? 0}</span></td>
                           <td className="px-3 py-4"><span className="text-sm font-semibold text-emerald-600 tabular-nums">{csr.projectWon ?? 0}</span></td>
                         </tr>
                       ))}
                       {!loadingReport && csrList.length === 0 && (
                         <tr>
-                          <td colSpan={12} className="py-16 text-center text-gray-400 text-sm">
+                          <td colSpan={14} className="py-16 text-center text-gray-400 text-sm">
                             No data for this period
                           </td>
                         </tr>

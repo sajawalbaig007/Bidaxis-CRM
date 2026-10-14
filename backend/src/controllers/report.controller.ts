@@ -29,6 +29,8 @@ type CsrPerf = {
   noOwner: number;
   notInService: number;
   scheduleCall: number;
+  notUseful: number;
+  dialerCalls: number;
 };
 
 type Totals = Omit<CsrPerf, "id" | "csrId" | "name" | "csrCode">;
@@ -48,6 +50,9 @@ type ReportPayload = {
   noOwner: number;
   notInService: number;
   scheduleCall: number;
+  notUseful: number;
+  dialerCalls: number;
+  dialerLog: { id: string; csrId: string; csrName: string; number: string; createdAt: string }[];
   csrPerformance: CsrPerf[];
   timeChart: { label: string; leads: number; completed: number }[];
   reports: Awaited<ReturnType<typeof prisma.report.findMany>>;
@@ -156,6 +161,8 @@ function emptyCsrEntry(csrId: string, csrName: string, csrCode: string | null): 
     noOwner: 0,
     notInService: 0,
     scheduleCall: 0,
+    notUseful: 0,
+    dialerCalls: 0,
   };
 }
 
@@ -172,6 +179,7 @@ function bumpStatusCount(target: Totals, status: string | null | undefined) {
   if (s === "no owner available") target.noOwner++;
   if (s === "not in service") target.notInService++;
   if (s === "schedule call") target.scheduleCall++;
+  if (s === "not useful") target.notUseful++;
 }
 
 function buildTimeChart(
@@ -261,7 +269,7 @@ function buildTimeChart(
 }
 
 function cacheKey(period: string, fromDate?: string, toDate?: string) {
-  return `${period}|${fromDate ?? ""}|${toDate ?? ""}|v4-est-calllog`;
+  return `${period}|${fromDate ?? ""}|${toDate ?? ""}|v5-dialer`;
 }
 
 export const getReports = async (req: Request, res: Response) => {
@@ -281,7 +289,7 @@ export const getReports = async (req: Request, res: Response) => {
     const needsTimeChart = !fromDate && (period === "today" || period === "week" || period === "month");
     const createdAt = callLogCreatedAtFilter(period, fromDate, toDate);
 
-    const [leads, reports, statusUpdates, assignedByCsr, allAssignedCount] = await Promise.all([
+    const [leads, reports, statusUpdates, assignedByCsr, allAssignedCount, manualDials, dialGroups] = await Promise.all([
       needsTimeChart ? fetchReportLeads(whereClause) : Promise.resolve([]),
       prisma.report.findMany({ orderBy: { createdAt: "desc" }, take: 50 }),
       prisma.callLog.findMany({
@@ -295,6 +303,17 @@ export const getReports = async (req: Request, res: Response) => {
         _count: { _all: true },
       }),
       prisma.lead.count({ where: { assignedTo: { not: "" } } }),
+      prisma.manualDial.findMany({
+        where: createdAt ? { createdAt } : {},
+        orderBy: { createdAt: "desc" },
+        take: 200,
+        select: { id: true, csrId: true, number: true, createdAt: true },
+      }),
+      prisma.manualDial.groupBy({
+        by: ["csrId"],
+        where: createdAt ? { createdAt } : {},
+        _count: { _all: true },
+      }),
     ]);
 
     const totals = emptyCsrEntry("all", "all", null);
@@ -337,6 +356,17 @@ export const getReports = async (req: Request, res: Response) => {
       }
     }
     totals.totalLeads = allAssignedCount;
+
+    for (const group of dialGroups) {
+      const count = typeof group._count === "object" && group._count ? group._count._all : 0;
+      totals.dialerCalls += count;
+      let row = csrMap.get(group.csrId);
+      if (!row) {
+        row = emptyCsrEntry(group.csrId, "CSR", null);
+        csrMap.set(group.csrId, row);
+      }
+      row.dialerCalls += count;
+    }
 
     if (needsTimeChart) {
       for (const lead of leads) {
@@ -387,6 +417,15 @@ export const getReports = async (req: Request, res: Response) => {
       noOwner: totals.noOwner,
       notInService: totals.notInService,
       scheduleCall: totals.scheduleCall,
+      notUseful: totals.notUseful,
+      dialerCalls: totals.dialerCalls,
+      dialerLog: manualDials.map(dial => ({
+        id: dial.id,
+        csrId: dial.csrId,
+        csrName: csrMap.get(dial.csrId)?.name ?? "CSR",
+        number: dial.number,
+        createdAt: dial.createdAt.toISOString(),
+      })),
       csrPerformance,
       timeChart: needsTimeChart
         ? buildTimeChart(timeRows, period, statusUpdates)
