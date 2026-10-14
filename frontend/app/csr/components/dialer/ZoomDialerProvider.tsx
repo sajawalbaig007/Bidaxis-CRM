@@ -14,6 +14,10 @@ type ZoomPlace = "app" | "web";
 
 type ZoomDialerApi = {
   open: (target: DialTarget) => void;
+  callWith: (destination: string, place: ZoomPlace) => boolean;
+  zoomPlace: ZoomPlace;
+  hasZoomDefault: boolean;
+  saveZoomPlace: (place: ZoomPlace) => void;
 };
 
 const PLACE_KEY = "crm-zoom-place";
@@ -135,10 +139,26 @@ export function ZoomDialerProvider({ children, showManualDial = false }: { child
     setSaveDefault(false);
   };
 
+  const callWith = (destination: string, next: ZoomPlace) => {
+    const number = toE164(destination);
+    if (!number) {
+      toast.error("Enter a phone number to call.");
+      return false;
+    }
+    placeCall(next, number);
+    return true;
+  };
+
   const chooserOpen = Boolean(prompt) || changingDefault;
 
   return (
-    <ZoomDialerContext.Provider value={{ open }}>
+    <ZoomDialerContext.Provider value={{
+      open,
+      callWith,
+      zoomPlace: place,
+      hasZoomDefault: hasDefault,
+      saveZoomPlace: rememberPlace,
+    }}>
       {children}
       {showManualDial && (
         <ManualDialPad
@@ -294,6 +314,124 @@ function ManualDialPad({
           <Phone size={16} /> Dial
         </button>
       </div>
+    </div>
+  );
+}
+
+/** CEO header dial. Stays in the top bar so it does not cover Nexa or the page. */
+export function CeoManualDial() {
+  const dialer = useZoomDialer();
+  const [open, setOpen] = useState(false);
+  const [number, setNumber] = useState("");
+  const [changing, setChanging] = useState(false);
+  const [picked, setPicked] = useState<ZoomPlace | null>(null);
+  const [saveDefault, setSaveDefault] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (event: MouseEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [open]);
+
+  if (!dialer) return null;
+
+  const selected = picked ?? dialer.zoomPlace;
+  const showChoices = changing || !dialer.hasZoomDefault;
+
+  const call = () => {
+    const next = picked ?? dialer.zoomPlace;
+    if (!dialer.callWith(number, next)) return;
+    if (saveDefault) dialer.saveZoomPlace(next);
+    setNumber("");
+    setPicked(null);
+    setSaveDefault(false);
+    setChanging(false);
+    setOpen(false);
+  };
+
+  return (
+    <div ref={rootRef} className="relative shrink-0">
+      <button
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        className={`w-9 h-9 rounded-[13px] flex items-center justify-center transition-all shrink-0 ${
+          open
+            ? "bg-[#B8112D] text-white shadow-md"
+            : "bg-crm-nav-pill text-crm-text-muted hover:bg-crm-brand-soft hover:text-[#B8112D]"
+        }`}
+        title="Manual dial"
+        aria-label="Manual dial"
+        aria-expanded={open}
+      >
+        <Phone size={16} />
+      </button>
+      {open && (
+        <div className="absolute right-0 top-[calc(100%+10px)] z-50 w-[260px] max-w-[calc(100vw-1.5rem)] rounded-2xl border border-crm-border bg-white p-3 shadow-2xl dark:bg-crm-surface">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-[#B8112D]">Manual dial</p>
+          <input
+            value={number}
+            onChange={(event) => setNumber(event.target.value)}
+            onKeyDown={(event) => { if (event.key === "Enter") call(); }}
+            placeholder="Number to call"
+            inputMode="tel"
+            className="mt-2 w-full h-10 px-3 rounded-xl border border-gray-200 text-sm outline-none focus:border-[#B8112D] dark:border-crm-border dark:bg-transparent dark:text-white"
+          />
+          <div className="mt-2 flex items-center justify-between gap-2">
+            <p className="text-[11px] text-gray-500 truncate">
+              {dialer.hasZoomDefault ? `Default: ${selected === "web" ? "Zoom web" : "Zoom app"}` : "Choose app or web"}
+            </p>
+            {dialer.hasZoomDefault && (
+              <button
+                type="button"
+                onClick={() => setChanging((value) => !value)}
+                className="h-6 w-6 rounded-lg text-[#B8112D] inline-flex items-center justify-center hover:bg-[#FFF1F3]"
+                title="Change Zoom app or web"
+                aria-label="Change Zoom app or web"
+              >
+                <Pencil size={12} />
+              </button>
+            )}
+          </div>
+          {showChoices && (
+            <div className="mt-2 grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setPicked("app")}
+                className={`h-8 rounded-xl text-xs font-semibold border ${selected === "app" ? "bg-[#B8112D] text-white border-[#B8112D]" : "bg-white text-gray-600 border-gray-200"}`}
+              >
+                Zoom app
+              </button>
+              <button
+                type="button"
+                onClick={() => setPicked("web")}
+                className={`h-8 rounded-xl text-xs font-semibold border ${selected === "web" ? "bg-[#B8112D] text-white border-[#B8112D]" : "bg-white text-gray-600 border-gray-200"}`}
+              >
+                Zoom web
+              </button>
+            </div>
+          )}
+          {showChoices && (
+            <label className="mt-2 flex items-center gap-2 text-xs text-gray-600 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={saveDefault}
+                onChange={(event) => setSaveDefault(event.target.checked)}
+                className="accent-[#B8112D]"
+              />
+              Save as default
+            </label>
+          )}
+          <div className="flex justify-end mt-3">
+            <button type="button" onClick={call} className="h-9 px-3 rounded-xl bg-[#B8112D] text-white text-xs font-semibold">
+              Call
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
