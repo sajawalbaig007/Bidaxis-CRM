@@ -53,7 +53,7 @@ function launchZoomApp(number: string) {
   link.remove();
 }
 
-export function ZoomDialerProvider({ children, showManualDial = false }: { children: React.ReactNode; showManualDial?: boolean }) {
+export function ZoomDialerProvider({ children }: { children: React.ReactNode }) {
   const [place, setPlace] = useState<ZoomPlace>("app");
   const [hasDefault, setHasDefault] = useState(false);
   const [webOpen, setWebOpen] = useState(false);
@@ -160,16 +160,8 @@ export function ZoomDialerProvider({ children, showManualDial = false }: { child
       saveZoomPlace: rememberPlace,
     }}>
       {children}
-      {showManualDial && (
-        <ManualDialPad
-          place={place}
-          hasDefault={hasDefault}
-          onCall={(raw) => open({ destination: raw })}
-          onChangeDefault={() => { setPrompt(null); saveDefaultRef.current = false; setSaveDefault(false); setChangingDefault(true); }}
-        />
-      )}
       {chooserOpen && (
-        <div className="fixed bottom-20 right-4 z-[9100] w-[280px] max-w-[calc(100vw-2rem)] bg-white rounded-2xl shadow-2xl border border-gray-100 p-4">
+        <div className="fixed top-[4.75rem] right-3 sm:right-4 z-[40] w-[280px] max-w-[calc(100vw-1.5rem)] bg-white rounded-2xl shadow-2xl border border-gray-100 p-4">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
               <p className="text-[11px] font-semibold uppercase tracking-wide text-[#B8112D]">
@@ -252,73 +244,7 @@ export function ZoomDialerProvider({ children, showManualDial = false }: { child
   );
 }
 
-function ManualDialPad({
-  place,
-  hasDefault,
-  onCall,
-  onChangeDefault,
-}: {
-  place: ZoomPlace;
-  hasDefault: boolean;
-  onCall: (number: string) => void;
-  onChangeDefault: () => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const [number, setNumber] = useState("");
-
-  const call = () => {
-    if (!toE164(number)) {
-      toast.error("Enter a phone number to call.");
-      return;
-    }
-    onCall(number.trim());
-    setNumber("");
-    setOpen(false);
-  };
-
-  return (
-    <div className="fixed bottom-4 right-4 z-[9000] flex flex-col items-end gap-2">
-      {open && (
-        <div className="w-[280px] bg-white rounded-2xl shadow-2xl border border-gray-100 p-4">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-[#B8112D]">Manual dial</p>
-          <input
-            value={number}
-            onChange={(e) => setNumber(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter") call(); }}
-            placeholder="Number to call"
-            inputMode="tel"
-            className="mt-3 w-full h-10 px-3 rounded-xl border border-gray-200 text-sm outline-none focus:border-[#B8112D]"
-          />
-          <div className="flex justify-end mt-3">
-            <button type="button" onClick={call} className="h-9 px-3 rounded-xl bg-[#B8112D] text-white text-xs font-semibold">
-              Call
-            </button>
-          </div>
-        </div>
-      )}
-      <div className="flex items-center gap-2">
-        <button
-          type="button"
-          onClick={onChangeDefault}
-          title={hasDefault ? `Change default (${place === "web" ? "Zoom web" : "Zoom app"})` : "Change Zoom app or web"}
-          aria-label="Change Zoom app or web"
-          className="h-8 w-8 rounded-full bg-white border border-gray-200 text-[#B8112D] shadow inline-flex items-center justify-center"
-        >
-          <Pencil size={13} />
-        </button>
-        <button
-          type="button"
-          onClick={() => setOpen((v) => !v)}
-          className="h-12 px-4 rounded-full bg-[#B8112D] text-white text-sm font-semibold shadow-lg inline-flex items-center gap-2"
-        >
-          <Phone size={16} /> Dial
-        </button>
-      </div>
-    </div>
-  );
-}
-
-/** CEO header dial. Stays in the top bar so it does not cover Nexa or the page. */
+/** Header dial. Stays in the top bar so it does not cover the page. */
 export function CeoManualDial() {
   const dialer = useZoomDialer();
   const [open, setOpen] = useState(false);

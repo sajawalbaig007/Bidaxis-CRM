@@ -42,6 +42,7 @@ import CsrCheckInControl from "../CsrCheckInControl";
 import { useFixedHeaderHeight } from "@/lib/useFixedHeaderHeight";
 import CsrCheckInBanner from "../CsrCheckInBanner";
 import ThemeToggle from "@/app/components/ThemeToggle";
+import { CeoManualDial } from "../dialer/ZoomDialerProvider";
 import CapsuleChipNav from "@/app/components/CapsuleChipNav";
 
 const BASE = "/csr";
@@ -313,6 +314,7 @@ export default function TopNavbar() {
         </div>
 
         <div className="flex items-center justify-end gap-1.5 sm:gap-2 shrink-0">
+        <CeoManualDial />
         <ThemeToggle />
 
         <button
