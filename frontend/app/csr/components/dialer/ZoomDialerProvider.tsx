@@ -62,7 +62,7 @@ export function ZoomDialerProvider({ children }: { children: React.ReactNode }) 
   const [prompt, setPrompt] = useState<DialTarget | null>(null);
   const [changingDefault, setChangingDefault] = useState(false);
   const [saveDefault, setSaveDefault] = useState(false);
-  const [webOpen, setWebOpen] = useState(false);
+  const [callLive, setCallLive] = useState(false);
   const saveDefaultRef = useRef(false);
   const frameRef = useRef<HTMLIFrameElement>(null);
   const readyRef = useRef(false);
@@ -91,13 +91,23 @@ export function ZoomDialerProvider({ children }: { children: React.ReactNode }) 
   useEffect(() => {
     const onMessage = (event: MessageEvent) => {
       if (event.origin !== WEB_ORIGIN) return;
-      if (event.data?.type !== "zp-ready") return;
+      const type = event.data?.type;
+      if (type === "zp-call-ringing-event" || type === "zp-call-connected-event") {
+        setCallLive(true);
+        return;
+      }
+      if (type === "zp-call-ended-event") {
+        setCallLive(false);
+        pendingRef.current = null;
+        return;
+      }
+      if (type !== "zp-ready") return;
       readyRef.current = true;
       const frame = frameRef.current?.contentWindow;
       if (!frame) return;
       frame.postMessage({
         type: "zp-init-config",
-        data: { enableSavingLog: false, enableAutoLog: false, disableInactiveTabCallEvent: true },
+        data: { enableSavingLog: false, enableAutoLog: false, disableInactiveTabCallEvent: false },
       }, WEB_ORIGIN);
       const waiting = pendingRef.current;
       if (!waiting) return;
@@ -113,7 +123,8 @@ export function ZoomDialerProvider({ children }: { children: React.ReactNode }) 
 
   const placeCall = useCallback((next: ZoomPlace, number: string) => {
     if (next === "web") {
-      setWebOpen(true);
+      launchZoomApp(number);
+      setCallLive(true);
       postCall(number);
       return;
     }
@@ -245,25 +256,19 @@ export function ZoomDialerProvider({ children }: { children: React.ReactNode }) 
           )}
         </div>
       )}
-      {webOpen && (
+      {callLive && (
         <div className="fixed bottom-4 right-4 z-[9000] w-[360px] max-w-[calc(100vw-2rem)] h-[580px] max-h-[80vh] bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden flex flex-col">
           <div className="flex items-center justify-between px-3 h-10 border-b border-gray-100 shrink-0">
             <p className="text-xs font-semibold text-[#0F172A]">Zoom web</p>
             <button
               type="button"
-              onClick={() => {
-                setWebOpen(false);
-                readyRef.current = false;
-              }}
+              onClick={() => setCallLive(false)}
               className="text-gray-400"
               aria-label="Close Zoom web"
             >
               <X size={14} />
             </button>
           </div>
-          <p className="px-3 py-1.5 text-[11px] leading-snug text-gray-500 border-b border-gray-100">
-            If Zoom says No available device, open the Zoom app and stay signed in with this same account. This panel places the call through that app.
-          </p>
           <iframe
             ref={frameRef}
             title="Zoom Phone"
