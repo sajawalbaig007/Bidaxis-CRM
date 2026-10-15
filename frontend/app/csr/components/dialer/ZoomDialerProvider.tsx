@@ -261,6 +261,9 @@ export function ZoomDialerProvider({ children }: { children: React.ReactNode }) 
               <X size={14} />
             </button>
           </div>
+          <p className="px-3 py-1.5 text-[11px] leading-snug text-gray-500 border-b border-gray-100">
+            If Zoom says No available device, open the Zoom app and stay signed in with this same account. This panel places the call through that app.
+          </p>
           <iframe
             ref={frameRef}
             title="Zoom Phone"
