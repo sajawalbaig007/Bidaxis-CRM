@@ -387,7 +387,7 @@ export default function TopNavbar() {
                     <div className="flex items-center gap-2 min-w-0">
                       <Activity size={13} className="text-[#B8112D] shrink-0" />
                       <p className="text-[12px] font-bold text-crm-text truncate">
-                        Last {dailyStats.periodHours}h — {dailyStats.total} status change{dailyStats.total !== 1 ? "s" : ""}
+                        Last {dailyStats.periodHours}h — {dailyStats.total} call{dailyStats.total !== 1 ? "s" : ""}
                       </p>
                     </div>
                     <button
@@ -399,7 +399,7 @@ export default function TopNavbar() {
                     </button>
                   </div>
                   {dailyStats.total === 0 ? (
-                    <p className="text-[11px] text-crm-text-muted">No status updates in the last 24 hours.</p>
+                    <p className="text-[11px] text-crm-text-muted">No calls in the last 24 hours.</p>
                   ) : (
                     <div className="flex flex-wrap gap-1.5">
                       {Object.entries(dailyStats.byStatus).map(([status, count]) => (
