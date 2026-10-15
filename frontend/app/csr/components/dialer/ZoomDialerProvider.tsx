@@ -24,8 +24,6 @@ type ZoomDialerApi = {
 };
 
 const PLACE_KEY = "crm-zoom-place";
-const WEB_ORIGIN = "https://applications.zoom.us";
-const WEB_PHONE = `${WEB_ORIGIN}/integration/phone/embeddablephone/home`;
 
 const ZoomDialerContext = createContext<ZoomDialerApi | null>(null);
 
@@ -62,24 +60,7 @@ export function ZoomDialerProvider({ children }: { children: React.ReactNode }) 
   const [prompt, setPrompt] = useState<DialTarget | null>(null);
   const [changingDefault, setChangingDefault] = useState(false);
   const [saveDefault, setSaveDefault] = useState(false);
-  const [callLive, setCallLive] = useState(false);
   const saveDefaultRef = useRef(false);
-  const frameRef = useRef<HTMLIFrameElement>(null);
-  const readyRef = useRef(false);
-  const pendingRef = useRef<string | null>(null);
-
-  const postCall = useCallback((number: string) => {
-    const frame = frameRef.current?.contentWindow;
-    if (!frame || !readyRef.current) {
-      pendingRef.current = number;
-      return;
-    }
-    frame.postMessage({
-      type: "zp-make-call",
-      data: { number, autoDial: true },
-    }, WEB_ORIGIN);
-    pendingRef.current = null;
-  }, []);
 
   useEffect(() => {
     const saved = readSavedPlace();
@@ -88,47 +69,10 @@ export function ZoomDialerProvider({ children }: { children: React.ReactNode }) 
     setHasDefault(true);
   }, []);
 
-  useEffect(() => {
-    const onMessage = (event: MessageEvent) => {
-      if (event.origin !== WEB_ORIGIN) return;
-      const type = event.data?.type;
-      if (type === "zp-call-ringing-event" || type === "zp-call-connected-event") {
-        setCallLive(true);
-        return;
-      }
-      if (type === "zp-call-ended-event") {
-        setCallLive(false);
-        pendingRef.current = null;
-        return;
-      }
-      if (type !== "zp-ready") return;
-      readyRef.current = true;
-      const frame = frameRef.current?.contentWindow;
-      if (!frame) return;
-      frame.postMessage({
-        type: "zp-init-config",
-        data: { enableSavingLog: false, enableAutoLog: false, disableInactiveTabCallEvent: false },
-      }, WEB_ORIGIN);
-      const waiting = pendingRef.current;
-      if (!waiting) return;
-      frame.postMessage({
-        type: "zp-make-call",
-        data: { number: waiting, autoDial: true },
-      }, WEB_ORIGIN);
-      pendingRef.current = null;
-    };
-    window.addEventListener("message", onMessage);
-    return () => window.removeEventListener("message", onMessage);
-  }, []);
-
   const placeCall = useCallback((next: ZoomPlace, number: string) => {
-    if (next === "web") {
-      setCallLive(true);
-      postCall(number);
-      return;
-    }
+    if (next === "web") return;
     launchZoomApp(number);
-  }, [postCall]);
+  }, []);
 
   const rememberPlace = (next: ZoomPlace) => {
     const already = readSavedPlace();
@@ -253,28 +197,6 @@ export function ZoomDialerProvider({ children }: { children: React.ReactNode }) 
               Current default: {hasDefault ? (place === "web" ? "Zoom web" : "Zoom app") : "Not set"}
             </p>
           )}
-        </div>
-      )}
-      {callLive && (
-        <div className="fixed bottom-4 right-4 z-[9000] w-[360px] max-w-[calc(100vw-2rem)] h-[580px] max-h-[80vh] bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden flex flex-col">
-          <div className="flex items-center justify-between px-3 h-10 border-b border-gray-100 shrink-0">
-            <p className="text-xs font-semibold text-[#0F172A]">Zoom web</p>
-            <button
-              type="button"
-              onClick={() => setCallLive(false)}
-              className="text-gray-400"
-              aria-label="Close Zoom web"
-            >
-              <X size={14} />
-            </button>
-          </div>
-          <iframe
-            ref={frameRef}
-            title="Zoom Phone"
-            src={WEB_PHONE}
-            allow="clipboard-read; clipboard-write https://applications.zoom.us; microphone *; autoplay"
-            className="w-full flex-1 border-0"
-          />
         </div>
       )}
     </ZoomDialerContext.Provider>

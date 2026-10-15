@@ -6,6 +6,7 @@ import { Check, Copy, Phone } from "lucide-react";
 import { getTimezoneAbbrFromPhone, tzBadgeClass } from "../../constants/timezoneAbbr";
 import { useFixedPopover } from "../../hooks/useFixedPopover";
 import { useZoomDialer, type DialTarget } from "../dialer/ZoomDialerProvider";
+import { markLeadDialed } from "../dialer/dialUnlock";
 
 interface PhoneWithTzCellProps {
   phone: string;
@@ -20,7 +21,7 @@ interface PhoneWithTzCellProps {
   dial?: Pick<DialTarget, "leadId" | "clientName">;
 }
 
-function CopyPhoneButton({ value }: { value: string }) {
+function CopyPhoneButton({ value, leadId }: { value: string; leadId?: string }) {
   const [copied, setCopied] = useState(false);
   if (!value || value === "N/A") return null;
   return (
@@ -31,6 +32,7 @@ function CopyPhoneButton({ value }: { value: string }) {
       onClick={e => {
         e.stopPropagation();
         void navigator.clipboard.writeText(value).then(() => {
+          markLeadDialed(leadId);
           setCopied(true);
           window.setTimeout(() => setCopied(false), 1200);
         }).catch(() => {});
@@ -147,7 +149,7 @@ export default function PhoneWithTzCell({
       return (
         <span className="inline-flex items-center gap-1 min-w-0 max-w-full">
           <div className={shellClass}>{chip}</div>
-          <CopyPhoneButton value={primary} />
+          <CopyPhoneButton value={primary} leadId={dial?.leadId} />
         </span>
       );
     }
@@ -164,7 +166,7 @@ export default function PhoneWithTzCell({
         >
           {chip}
         </button>
-        <CopyPhoneButton value={primary} />
+        <CopyPhoneButton value={primary} leadId={dial?.leadId} />
       </span>
     );
   }
@@ -185,7 +187,7 @@ export default function PhoneWithTzCell({
         >
           {chip}
         </button>
-        <CopyPhoneButton value={primary} />
+        <CopyPhoneButton value={primary} leadId={dial?.leadId} />
       </span>
       {typeof document !== "undefined" && popup}
     </>
