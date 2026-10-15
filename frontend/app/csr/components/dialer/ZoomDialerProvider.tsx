@@ -123,7 +123,6 @@ export function ZoomDialerProvider({ children }: { children: React.ReactNode }) 
 
   const placeCall = useCallback((next: ZoomPlace, number: string) => {
     if (next === "web") {
-      launchZoomApp(number);
       setCallLive(true);
       postCall(number);
       return;
