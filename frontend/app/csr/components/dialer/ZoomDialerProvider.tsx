@@ -24,8 +24,8 @@ type ZoomDialerApi = {
 };
 
 const PLACE_KEY = "crm-zoom-place";
-const WEB_ORIGIN = "https://applications.zoom.us";
-const WEB_PHONE = `${WEB_ORIGIN}/integration/phone/embeddablephone/home`;
+const ZOOM_WEB = "https://app.zoom.us/wc/phone";
+const ZOOM_WEB_TAB = "crm-zoom-web";
 
 const ZoomDialerContext = createContext<ZoomDialerApi | null>(null);
 
@@ -56,16 +56,27 @@ function launchZoomApp(number: string) {
   link.remove();
 }
 
+function launchZoomWeb(number: string) {
+  const tab = window.open(ZOOM_WEB, ZOOM_WEB_TAB);
+  if (!tab) {
+    toast.error("Allow pop-ups so Zoom web can open.");
+    return;
+  }
+  tab.focus();
+  void navigator.clipboard.writeText(number).then(() => {
+    toast.success("Zoom web opened. The number is copied — paste it and call.");
+  }).catch(() => {
+    toast.success(`Zoom web opened. Dial ${number} there.`);
+  });
+}
+
 export function ZoomDialerProvider({ children }: { children: React.ReactNode }) {
   const [place, setPlace] = useState<ZoomPlace>("app");
   const [hasDefault, setHasDefault] = useState(false);
-  const [webOpen, setWebOpen] = useState(false);
   const [prompt, setPrompt] = useState<DialTarget | null>(null);
   const [changingDefault, setChangingDefault] = useState(false);
   const [saveDefault, setSaveDefault] = useState(false);
   const saveDefaultRef = useRef(false);
-  const frameRef = useRef<HTMLIFrameElement>(null);
-  const pendingRef = useRef<string | null>(null);
 
   useEffect(() => {
     const saved = readSavedPlace();
@@ -74,28 +85,10 @@ export function ZoomDialerProvider({ children }: { children: React.ReactNode }) 
     setHasDefault(true);
   }, []);
 
-  const sendWebCall = useCallback((number: string) => {
-    const frame = frameRef.current?.contentWindow;
-    if (!frame) {
-      pendingRef.current = number;
-      return;
-    }
-    frame.postMessage({
-      type: "zp-make-call",
-      data: { number, autoDial: true },
-    }, WEB_ORIGIN);
-    pendingRef.current = null;
-  }, []);
-
   const placeCall = useCallback((next: ZoomPlace, number: string) => {
-    if (next === "web") {
-      setWebOpen(true);
-      pendingRef.current = number;
-      sendWebCall(number);
-      return;
-    }
-    launchZoomApp(number);
-  }, [sendWebCall]);
+    if (next === "web") launchZoomWeb(number);
+    else launchZoomApp(number);
+  }, []);
 
   const rememberPlace = (next: ZoomPlace) => {
     const already = readSavedPlace();
@@ -103,8 +96,6 @@ export function ZoomDialerProvider({ children }: { children: React.ReactNode }) 
     setHasDefault(true);
     window.localStorage.setItem(PLACE_KEY, next);
     if (already !== next) {
-      toast.success(next === "web" ? "Zoom web saved as default." : "Zoom app saved as default.");
-    } else if (!hasDefault) {
       toast.success(next === "web" ? "Zoom web saved as default." : "Zoom app saved as default.");
     }
   };
@@ -149,6 +140,7 @@ export function ZoomDialerProvider({ children }: { children: React.ReactNode }) 
       toast.error("Enter a phone number to call.");
       return false;
     }
+    markLeadDialed(undefined);
     placeCall(next, number);
     return true;
   };
@@ -223,27 +215,6 @@ export function ZoomDialerProvider({ children }: { children: React.ReactNode }) 
           )}
         </div>
       )}
-      {webOpen && (
-        <div className="fixed bottom-20 right-4 z-[9000] w-[360px] max-w-[calc(100vw-2rem)] h-[560px] max-h-[70vh] bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden flex flex-col">
-          <div className="flex items-center justify-between px-3 h-10 border-b border-gray-100 shrink-0">
-            <p className="text-xs font-semibold text-[#0F172A]">Zoom web</p>
-            <button type="button" onClick={() => setWebOpen(false)} className="text-gray-400" aria-label="Close Zoom web">
-              <X size={14} />
-            </button>
-          </div>
-          <iframe
-            ref={frameRef}
-            title="Zoom Phone"
-            src={WEB_PHONE}
-            allow="clipboard-read; clipboard-write https://applications.zoom.us; microphone; autoplay"
-            className="w-full flex-1 border-0"
-            onLoad={() => {
-              const waiting = pendingRef.current;
-              if (waiting) sendWebCall(waiting);
-            }}
-          />
-        </div>
-      )}
     </ZoomDialerContext.Provider>
   );
 }
@@ -274,14 +245,16 @@ export function CeoManualDial() {
   const showChoices = changing || !dialer.hasZoomDefault;
 
   const call = () => {
-    const next = picked ?? dialer.zoomPlace;
+    const next = picked ?? (dialer.hasZoomDefault ? dialer.zoomPlace : selected);
     if (!dialer.callWith(number, next)) return;
     if (pathname.startsWith("/csr")) {
       void API.post("/dialer/manual", { number: number.trim() }).then(() => {
         window.dispatchEvent(new Event("crm-manual-dial"));
-      }).catch(() => {});
+      }).catch(() => {
+        toast.error("Call started, but the dialer count was not saved.");
+      });
     }
-    if (saveDefault) dialer.saveZoomPlace(next);
+    if (saveDefault || !dialer.hasZoomDefault) dialer.saveZoomPlace(next);
     setNumber("");
     setPicked(null);
     setSaveDefault(false);
@@ -354,7 +327,7 @@ export function CeoManualDial() {
             <label className="mt-2 flex items-center gap-2 text-xs text-gray-600 cursor-pointer">
               <input
                 type="checkbox"
-                checked={saveDefault}
+                checked={saveDefault || !dialer.hasZoomDefault}
                 onChange={(event) => setSaveDefault(event.target.checked)}
                 className="accent-[#B8112D]"
               />

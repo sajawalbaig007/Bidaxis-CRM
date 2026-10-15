@@ -76,7 +76,7 @@ export default function CsrActivityReportModal({ open, onClose }: Props) {
             </div>
             <div>
               <h2 className="text-[15px] font-bold text-[#0F172A] dark:text-gray-100">My Activity Report</h2>
-              <p className="text-[11px] text-gray-400 mt-0.5">Your status change counts</p>
+              <p className="text-[11px] text-gray-400 mt-0.5">Status changes and manual dials</p>
             </div>
           </div>
           <button
@@ -130,11 +130,11 @@ export default function CsrActivityReportModal({ open, onClose }: Props) {
               <p className="text-2xl font-bold text-[#0F172A] dark:text-gray-100 mt-1">
                 {report.total}
                 <span className="text-sm font-semibold text-gray-500 ml-1.5">
-                  status change{report.total !== 1 ? "s" : ""}
+                  call{report.total !== 1 ? "s" : ""}
                 </span>
               </p>
               {report.total === 0 ? (
-                <p className="text-[12px] text-gray-400 mt-3">No status updates in this period.</p>
+                <p className="text-[12px] text-gray-400 mt-3">No calls in this period.</p>
               ) : (
                 <>
                 <div className="flex flex-wrap gap-2 mt-4">

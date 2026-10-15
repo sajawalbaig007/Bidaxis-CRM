@@ -100,6 +100,8 @@ function getActivityRange(period: string, dateStr: string) {
   };
 }
 
+const DIALER_CALLS = "Dialer Calls";
+
 function aggregateGrouped(
   grouped: { status: string; _count: { _all: number } }[],
 ) {
@@ -110,6 +112,20 @@ function aggregateGrouped(
     total += g._count._all;
   }
   return { total, byStatus };
+}
+
+async function manualDialSlice(csrId: string, from: Date, to: Date) {
+  const where = { csrId, createdAt: { gte: from, lte: to } };
+  const [count, rows] = await Promise.all([
+    prisma.manualDial.count({ where }),
+    prisma.manualDial.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      take: 100,
+      select: { id: true, number: true, createdAt: true },
+    }),
+  ]);
+  return { count, rows };
 }
 
 /* ================= CSR ACTIVITY REPORT ================= */
@@ -132,7 +148,7 @@ router.get("/activity-report", verifyToken, allowRoles("csr"), async (req: any, 
 
     /* Exact counts via groupBy — do NOT cap with take (was wrongly limited to 200).
        Entries list is capped only for the UI scroll panel. */
-    const [grouped, logs] = await Promise.all([
+    const [grouped, logs, dials] = await Promise.all([
       prisma.callLog.groupBy({
         by:     ["status"],
         where,
@@ -147,16 +163,37 @@ router.get("/activity-report", verifyToken, allowRoles("csr"), async (req: any, 
         orderBy: { createdAt: "desc" },
         take: 100,
       }),
+      manualDialSlice(csrId, from, to),
     ]);
 
-    const { total, byStatus } = aggregateGrouped(grouped);
-    const entries = logs.map(log => ({
-      id:        log.id,
-      status:    log.status,
-      createdAt: log.createdAt,
-      leadName:  log.lead?.name ?? "Unknown",
-    }));
-    return res.json({ success: true, period, date, rangeLabel: label, total, byStatus, entries });
+    const { total: statusTotal, byStatus } = aggregateGrouped(grouped);
+    if (dials.count > 0) byStatus[DIALER_CALLS] = dials.count;
+    const entries = [
+      ...dials.rows.map(row => ({
+        id:        row.id,
+        status:    DIALER_CALLS,
+        createdAt: row.createdAt,
+        leadName:  row.number,
+      })),
+      ...logs.map(log => ({
+        id:        log.id,
+        status:    log.status,
+        createdAt: log.createdAt,
+        leadName:  log.lead?.name ?? "Unknown",
+      })),
+    ]
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .slice(0, 100);
+    return res.json({
+      success: true,
+      period,
+      date,
+      rangeLabel: label,
+      total: statusTotal + dials.count,
+      dialerCalls: dials.count,
+      byStatus,
+      entries,
+    });
   } catch (error) {
     console.log(error);
     return res.status(500).json({ success: false, message: "Failed to fetch activity report" });
@@ -171,7 +208,7 @@ router.get("/notifications", verifyToken, allowRoles("csr"), async (req: any, re
     const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
     const today = estDateYmd();
 
-    const [scheduledLeads, grouped] = await Promise.all([
+    const [scheduledLeads, grouped, dialerCalls] = await Promise.all([
       prisma.lead.findMany({
         where: {
           assignedTo: csrId,
@@ -189,6 +226,7 @@ router.get("/notifications", verifyToken, allowRoles("csr"), async (req: any, re
         where:  { csrId, createdAt: { gte: since } },
         _count: { _all: true },
       }),
+      prisma.manualDial.count({ where: { csrId, createdAt: { gte: since } } }),
     ]);
 
     const scheduledCalls = scheduledLeads
@@ -204,10 +242,11 @@ router.get("/notifications", verifyToken, allowRoles("csr"), async (req: any, re
       }));
 
     const { total, byStatus } = aggregateGrouped(grouped);
+    if (dialerCalls > 0) byStatus[DIALER_CALLS] = dialerCalls;
     return res.json({
       success: true,
       scheduledCalls,
-      dailyStats: { total, byStatus, periodHours: 24 },
+      dailyStats: { total: total + dialerCalls, dialerCalls, byStatus, periodHours: 24 },
     });
   } catch (error) {
     console.log(error);
