@@ -37,6 +37,21 @@ type CsrActualStats = {
   projectWon: number;
 };
 
+function statusPillKey(status: string) {
+  const value = status.toLowerCase().trim();
+  if (value === "interested") return "interested";
+  if (value === "not interested" || value === "completed") return "notInterested";
+  if (value === "not picked" || value === "not completed") return "notPicked";
+  if (value === "no owner available") return "noOwner";
+  if (value === "not in service") return "notInService";
+  if (value === "in house") return "inHouse";
+  if (value === "important") return "important";
+  if (value === "schedule call") return "schedule";
+  if (value === "not useful") return "notUseful";
+  if (value === "close client" || value === "closed") return "close";
+  return "completed";
+}
+
 const BENTO =
   "rounded-[1.5rem] sm:rounded-[1.75rem] border border-gray-100/90 dark:border-crm-border bg-white dark:bg-crm-surface shadow-[0_10px_40px_-24px_rgba(15,23,42,0.35)]";
 
@@ -489,6 +504,43 @@ export default function ReportsPage() {
                       );
                     })}
                   </div>
+                  {statusFocus && statusFocus !== "dialer" && (
+                    <div className="mt-3 rounded-2xl border border-gray-200 bg-[#F8FAFC] p-3 max-h-72 overflow-y-auto dark:border-crm-border dark:bg-white/5">
+                      <p className="text-xs font-semibold text-[#0F172A] mb-2 dark:text-white">
+                        {selectedCSR ? selectedCSR.name : "All CSRs"} · {chartPeriodLabel}
+                      </p>
+                      {(() => {
+                        const rows = (reportData?.statusLeads ?? []).filter((row) => {
+                          if (selectedCSR && row.csrId !== selectedCSR.id) return false;
+                          return statusPillKey(row.status) === statusFocus || (statusFocus === "completed");
+                        });
+                        if (rows.length === 0) return <p className="text-sm text-gray-400">No leads in this section for the selected filter.</p>;
+                        return (
+                          <ul className="space-y-1.5">
+                            {rows.map((row) => (
+                              <li key={row.id} className="flex items-center justify-between gap-3 text-sm">
+                                <div className="min-w-0">
+                                  <p className="font-semibold text-[#0F172A] truncate dark:text-white">{row.name || row.company || "Lead"}</p>
+                                  {row.phone ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => dialer?.open({ destination: row.phone || "", leadId: row.leadId })}
+                                      className="text-xs font-semibold text-[#B8112D] underline-offset-[3px] hover:underline"
+                                    >
+                                      {row.phone}
+                                    </button>
+                                  ) : null}
+                                </div>
+                                <span className="text-xs text-gray-500 shrink-0 text-right">
+                                  {row.csrName} · {new Date(row.createdAt).toLocaleString()}
+                                </span>
+                              </li>
+                            ))}
+                          </ul>
+                        );
+                      })()}
+                    </div>
+                  )}
                   {statusFocus === "dialer" && (
                     <div className="mt-3 rounded-2xl border border-[#F5C5CE] bg-[#FFF8F9] p-3 max-h-64 overflow-y-auto">
                       <p className="text-xs font-semibold text-[#B8112D] mb-2">Manual dialer numbers</p>

@@ -7,7 +7,7 @@ import toast, { Toaster } from "react-hot-toast";
 import {
   Search, FolderKanban, Calendar, Users, ClipboardList, CheckCircle2,
   Calculator, Send, Layers, UserPlus, Check, Eye, Trash2, RefreshCw, RotateCcw,
-  ArrowRightLeft, Plus,
+  ArrowRightLeft, Plus, Pencil,
 } from "lucide-react";
 import {
   Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, Tooltip, XAxis, YAxis,
@@ -688,7 +688,81 @@ function AssignedToCell({
   );
 }
 
-function AssignmentHoursCell({ assignments }: { assignments: TechnicalAssignment[] }) {
+function AssignmentTrackButton({
+  projectId,
+  estimatorId,
+  field,
+  value,
+  onSaved,
+}: {
+  projectId: string;
+  estimatorId: string;
+  field: "manHours" | "deadline";
+  value: string;
+  onSaved: (technicalAssignments: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState(value);
+  const [saving, setSaving] = useState(false);
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      const res = await API.patch(`/admin/project/${projectId}/assignment-track`, {
+        estimatorId,
+        [field]: draft,
+      });
+      onSaved(String(res.data?.technicalAssignments ?? ""));
+      toast.success(field === "deadline" ? "Deadline saved" : "Man hours saved");
+      setOpen(false);
+    } catch (err) {
+      toast.error(apiErrorMessage(err, "Could not save"));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        title={field === "deadline" ? "Edit deadline" : "Edit man hours"}
+        onClick={(event) => {
+          event.stopPropagation();
+          setDraft(value);
+          setOpen(true);
+        }}
+        className="inline-flex h-5 w-5 items-center justify-center rounded-md text-gray-400 hover:bg-gray-100 hover:text-[#B8112D]"
+      >
+        <Pencil size={11} />
+      </button>
+    );
+  }
+
+  return (
+    <span className="inline-flex items-center gap-1" onClick={(event) => event.stopPropagation()}>
+      <input
+        type={field === "deadline" ? "date" : "text"}
+        value={draft}
+        onChange={(event) => setDraft(event.target.value)}
+        className="h-7 w-28 rounded-md border border-gray-200 px-2 text-[11px] outline-none focus:border-[#B8112D]"
+      />
+      <button type="button" disabled={saving} onClick={() => void save()} className="text-[10px] font-bold text-[#B8112D]">
+        {saving ? "…" : "Save"}
+      </button>
+    </span>
+  );
+}
+
+function AssignmentHoursCell({
+  assignments,
+  projectId,
+  onSaved,
+}: {
+  assignments: TechnicalAssignment[];
+  projectId?: string;
+  onSaved?: (technicalAssignments: string) => void;
+}) {
   const panelW = 260;
   const { open, toggle, anchorRef, panelRef, style } = useFixedPopover(panelW, 280, "start");
   const first = assignments[0];
@@ -714,9 +788,20 @@ function AssignmentHoursCell({ assignments }: { assignments: TechnicalAssignment
             className="flex items-center justify-between gap-2 px-2.5 py-2 border-b border-gray-50 last:border-0"
           >
             <p className="text-[11px] font-bold text-[#0F172A] truncate">{a.estimatorName}</p>
-            <p className="text-[11px] font-semibold text-gray-700 tabular-nums shrink-0">
-              {a.manHours ? `${a.manHours}h` : "—"}
-            </p>
+            <span className="inline-flex items-center gap-1 shrink-0">
+              <p className="text-[11px] font-semibold text-gray-700 tabular-nums">
+                {a.manHours ? `${a.manHours}h` : "—"}
+              </p>
+              {projectId && onSaved ? (
+                <AssignmentTrackButton
+                  projectId={projectId}
+                  estimatorId={a.estimatorId}
+                  field="manHours"
+                  value={a.manHours || ""}
+                  onSaved={onSaved}
+                />
+              ) : null}
+            </span>
           </div>
         ))}
       </div>,
@@ -724,7 +809,7 @@ function AssignmentHoursCell({ assignments }: { assignments: TechnicalAssignment
     );
 
   return (
-    <>
+    <span className="inline-flex items-center gap-1">
       <button
         ref={anchorRef}
         type="button"
@@ -744,12 +829,29 @@ function AssignmentHoursCell({ assignments }: { assignments: TechnicalAssignment
           </span>
         )}
       </button>
+      {extra === 0 && projectId && onSaved ? (
+        <AssignmentTrackButton
+          projectId={projectId}
+          estimatorId={first.estimatorId}
+          field="manHours"
+          value={first.manHours || ""}
+          onSaved={onSaved}
+        />
+      ) : null}
       {popup}
-    </>
+    </span>
   );
 }
 
-function AssignmentDeadlineCell({ assignments }: { assignments: TechnicalAssignment[] }) {
+function AssignmentDeadlineCell({
+  assignments,
+  projectId,
+  onSaved,
+}: {
+  assignments: TechnicalAssignment[];
+  projectId?: string;
+  onSaved?: (technicalAssignments: string) => void;
+}) {
   const panelW = 280;
   const { open, toggle, anchorRef, panelRef, style } = useFixedPopover(panelW, 280, "start");
   const first = assignments[0];
@@ -775,7 +877,18 @@ function AssignmentDeadlineCell({ assignments }: { assignments: TechnicalAssignm
             className="flex items-center justify-between gap-2 px-2.5 py-2 border-b border-gray-50 last:border-0"
           >
             <p className="text-[11px] font-bold text-[#0F172A] truncate">{a.estimatorName}</p>
-            <p className="text-[11px] font-semibold text-gray-700 shrink-0">{formatDate(a.deadline)}</p>
+            <span className="inline-flex items-center gap-1 shrink-0">
+              <p className="text-[11px] font-semibold text-gray-700">{formatDate(a.deadline)}</p>
+              {projectId && onSaved ? (
+                <AssignmentTrackButton
+                  projectId={projectId}
+                  estimatorId={a.estimatorId}
+                  field="deadline"
+                  value={String(a.deadline || "").split("T")[0]}
+                  onSaved={onSaved}
+                />
+              ) : null}
+            </span>
           </div>
         ))}
       </div>,
@@ -783,7 +896,7 @@ function AssignmentDeadlineCell({ assignments }: { assignments: TechnicalAssignm
     );
 
   return (
-    <>
+    <span className="inline-flex items-center gap-1">
       <button
         ref={anchorRef}
         type="button"
@@ -804,8 +917,17 @@ function AssignmentDeadlineCell({ assignments }: { assignments: TechnicalAssignm
           </span>
         )}
       </button>
+      {extra === 0 && projectId && onSaved ? (
+        <AssignmentTrackButton
+          projectId={projectId}
+          estimatorId={first.estimatorId}
+          field="deadline"
+          value={String(first.deadline || "").split("T")[0]}
+          onSaved={onSaved}
+        />
+      ) : null}
       {popup}
-    </>
+    </span>
   );
 }
 
@@ -1853,12 +1975,24 @@ export function TechnicalActiveProjectsPageInner({
                     <div className="grid grid-cols-2 gap-3 text-xs">
                       <div>
                         <p className="text-[10px] font-semibold text-gray-400 uppercase mb-1">Man Hours</p>
-                        <AssignmentHoursCell assignments={assignments} />
+                        <AssignmentHoursCell
+                          assignments={assignments}
+                          projectId={p.id}
+                          onSaved={(technicalAssignments) =>
+                            setProjects((prev) => prev.map((row) => (row.id === p.id ? { ...row, technicalAssignments } : row)))
+                          }
+                        />
                       </div>
                       <div>
                         <p className="text-[10px] font-semibold text-gray-400 uppercase mb-1">Deadline</p>
                         <div className="space-y-1">
-                          <AssignmentDeadlineCell assignments={assignments} />
+                          <AssignmentDeadlineCell
+                            assignments={assignments}
+                            projectId={p.id}
+                            onSaved={(technicalAssignments) =>
+                              setProjects((prev) => prev.map((row) => (row.id === p.id ? { ...row, technicalAssignments } : row)))
+                            }
+                          />
                           <DeadlineTimingBadge timing={p.deadlineTiming} />
                         </div>
                       </div>
@@ -2022,11 +2156,23 @@ export function TechnicalActiveProjectsPageInner({
                         {isAssignedView ? (
                           <>
                             <td className="px-2 xl:px-3 py-3 xl:py-4 min-w-0">
-                              <AssignmentHoursCell assignments={assignments} />
+                              <AssignmentHoursCell
+                                assignments={assignments}
+                                projectId={p.id}
+                                onSaved={(technicalAssignments) =>
+                                  setProjects((prev) => prev.map((row) => (row.id === p.id ? { ...row, technicalAssignments } : row)))
+                                }
+                              />
                             </td>
                             <td className="px-2 xl:px-3 py-3 xl:py-4 min-w-0">
                               <div className="space-y-1">
-                                <AssignmentDeadlineCell assignments={assignments} />
+                                <AssignmentDeadlineCell
+                                  assignments={assignments}
+                                  projectId={p.id}
+                                  onSaved={(technicalAssignments) =>
+                                    setProjects((prev) => prev.map((row) => (row.id === p.id ? { ...row, technicalAssignments } : row)))
+                                  }
+                                />
                                 <DeadlineTimingBadge timing={p.deadlineTiming} />
                               </div>
                             </td>

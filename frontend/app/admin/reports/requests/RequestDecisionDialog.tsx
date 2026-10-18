@@ -29,6 +29,7 @@ export default function RequestDecisionDialog({
   onChanged: () => void;
 }) {
   const pending = row.status === "pending";
+  const editable = canApprove;
   const attendance = row.kind === "attendance_correction";
   const leaveLike = row.kind === "leave" || row.kind === "wfh";
   const [day, setDay] = useState(row.day);
@@ -38,11 +39,11 @@ export default function RequestDecisionDialog({
   const [fromDay, setFromDay] = useState(row.day);
   const [toDay, setToDay] = useState(endDayFromSummary(row.summary, row.day));
   const [amount, setAmount] = useState(amountFromSummary(row.summary));
-  const [remarks, setRemarks] = useState("");
-  const [busy, setBusy] = useState<"approve" | "decline" | "">("");
+  const [remarks, setRemarks] = useState(row.reviewNote ?? "");
+  const [busy, setBusy] = useState<"approve" | "decline" | "update" | "">("");
   const [error, setError] = useState("");
 
-  const submit = async (action: "approve" | "decline") => {
+  const submit = async (action: "approve" | "decline" | "update") => {
     setBusy(action);
     setError("");
     try {
@@ -89,16 +90,16 @@ export default function RequestDecisionDialog({
             <>
               <label className="block text-xs font-medium text-gray-500">
                 Date
-                <input type="date" value={day} onChange={(event) => setDay(event.target.value)} disabled={!pending || !canApprove} className="mt-1 h-10 w-full rounded-2xl border border-gray-200 outline-none focus:border-[#B8112D] px-3 text-sm text-[#0F172A] dark:border-crm-border dark:bg-transparent dark:text-white" />
+                <input type="date" value={day} onChange={(event) => setDay(event.target.value)} disabled={!editable} className="mt-1 h-10 w-full rounded-2xl border border-gray-200 outline-none focus:border-[#B8112D] px-3 text-sm text-[#0F172A] dark:border-crm-border dark:bg-transparent dark:text-white" />
               </label>
               <div className="grid grid-cols-2 gap-3">
                 <label className="block text-xs font-medium text-gray-500">
                   Check in
-                  <input type="time" value={checkIn} onChange={(event) => setCheckIn(event.target.value)} disabled={!pending || !canApprove} className="mt-1 h-10 w-full rounded-2xl border border-gray-200 outline-none focus:border-[#B8112D] px-3 text-sm text-[#0F172A] dark:border-crm-border dark:bg-transparent dark:text-white" />
+                  <input type="time" value={checkIn} onChange={(event) => setCheckIn(event.target.value)} disabled={!editable} className="mt-1 h-10 w-full rounded-2xl border border-gray-200 outline-none focus:border-[#B8112D] px-3 text-sm text-[#0F172A] dark:border-crm-border dark:bg-transparent dark:text-white" />
                 </label>
                 <label className="block text-xs font-medium text-gray-500">
                   Check out
-                  <input type="time" value={stillIn ? "" : checkOut} onChange={(event) => setCheckOut(event.target.value)} disabled={!pending || !canApprove || stillIn} className="mt-1 h-10 w-full rounded-2xl border border-gray-200 outline-none focus:border-[#B8112D] px-3 text-sm text-[#0F172A] disabled:opacity-50 dark:border-crm-border dark:bg-transparent dark:text-white" />
+                  <input type="time" value={stillIn ? "" : checkOut} onChange={(event) => setCheckOut(event.target.value)} disabled={!editable || stillIn} className="mt-1 h-10 w-full rounded-2xl border border-gray-200 outline-none focus:border-[#B8112D] px-3 text-sm text-[#0F172A] disabled:opacity-50 dark:border-crm-border dark:bg-transparent dark:text-white" />
                 </label>
               </div>
               {row.detail ? (
@@ -108,7 +109,7 @@ export default function RequestDecisionDialog({
                 <input
                   type="checkbox"
                   checked={stillIn}
-                  disabled={!pending || !canApprove}
+                  disabled={!editable}
                   onChange={(event) => setStillIn(event.target.checked)}
                 />
                 Still checked in
@@ -122,11 +123,11 @@ export default function RequestDecisionDialog({
               <div className="grid grid-cols-2 gap-3">
                 <label className="block text-xs font-medium text-gray-500">
                   From
-                  <input type="date" value={fromDay} onChange={(event) => setFromDay(event.target.value)} disabled={!pending || !canApprove} className="mt-1 h-10 w-full rounded-2xl border border-gray-200 outline-none focus:border-[#B8112D] px-3 text-sm text-[#0F172A] dark:border-crm-border dark:bg-transparent dark:text-white" />
+                  <input type="date" value={fromDay} onChange={(event) => setFromDay(event.target.value)} disabled={!editable} className="mt-1 h-10 w-full rounded-2xl border border-gray-200 outline-none focus:border-[#B8112D] px-3 text-sm text-[#0F172A] dark:border-crm-border dark:bg-transparent dark:text-white" />
                 </label>
                 <label className="block text-xs font-medium text-gray-500">
                   To
-                  <input type="date" value={toDay} onChange={(event) => setToDay(event.target.value)} disabled={!pending || !canApprove} className="mt-1 h-10 w-full rounded-2xl border border-gray-200 outline-none focus:border-[#B8112D] px-3 text-sm text-[#0F172A] dark:border-crm-border dark:bg-transparent dark:text-white" />
+                  <input type="date" value={toDay} onChange={(event) => setToDay(event.target.value)} disabled={!editable} className="mt-1 h-10 w-full rounded-2xl border border-gray-200 outline-none focus:border-[#B8112D] px-3 text-sm text-[#0F172A] dark:border-crm-border dark:bg-transparent dark:text-white" />
                 </label>
               </div>
               <p className="text-xs text-gray-500">These dates are saved as paid leave, so those days are not deducted.</p>
@@ -137,7 +138,7 @@ export default function RequestDecisionDialog({
             <>
               <label className="block text-xs font-medium text-gray-500">
                 Amount
-                <input value={amount} onChange={(event) => setAmount(event.target.value)} disabled={!pending || !canApprove} className="mt-1 h-10 w-full rounded-2xl border border-gray-200 outline-none focus:border-[#B8112D] px-3 text-sm text-[#0F172A] dark:border-crm-border dark:bg-transparent dark:text-white" />
+                <input value={amount} onChange={(event) => setAmount(event.target.value)} disabled={!editable} className="mt-1 h-10 w-full rounded-2xl border border-gray-200 outline-none focus:border-[#B8112D] px-3 text-sm text-[#0F172A] dark:border-crm-border dark:bg-transparent dark:text-white" />
               </label>
               {row.detail ? <p className="text-sm text-gray-600 dark:text-gray-300">{row.detail}</p> : null}
             </>
@@ -150,7 +151,7 @@ export default function RequestDecisionDialog({
             </div>
           ) : null}
 
-          {pending && canApprove ? (
+          {editable ? (
             <label className="block text-xs font-medium text-gray-500">
               Remarks
               <textarea value={remarks} onChange={(event) => setRemarks(event.target.value)} rows={2} className="mt-1 w-full rounded-2xl border border-gray-200 outline-none focus:border-[#B8112D] px-3 py-2 text-sm text-[#0F172A] dark:border-crm-border dark:bg-transparent dark:text-white" />
@@ -161,18 +162,31 @@ export default function RequestDecisionDialog({
               {row.reviewNote ? ` · ${row.reviewNote}` : ""}
             </p>
           )}
+          {!pending && editable ? (
+            <p className="text-sm text-gray-500">
+              {row.status === "declined" ? "Rejected" : "Approved"}. Saving updates this request.
+            </p>
+          ) : null}
 
           {error ? <p className="text-sm text-red-600">{error}</p> : null}
         </div>
 
-        {pending && canApprove ? (
+        {editable ? (
           <div className="flex justify-end gap-2 px-5 pb-5">
-            <button type="button" disabled={!!busy} onClick={() => void submit("decline")} className="inline-flex h-10 items-center rounded-2xl border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-600 disabled:opacity-50 dark:border-crm-border dark:bg-transparent dark:text-gray-300">
-              {busy === "decline" ? <Loader2 size={14} className="animate-spin" /> : "Reject"}
-            </button>
-            <button type="button" disabled={!!busy} onClick={() => void submit("approve")} className="inline-flex h-10 items-center rounded-2xl bg-[#B8112D] px-4 text-sm font-semibold text-white shadow-sm disabled:opacity-50">
-              {busy === "approve" ? <Loader2 size={14} className="animate-spin" /> : "Approve"}
-            </button>
+            {pending ? (
+              <>
+                <button type="button" disabled={!!busy} onClick={() => void submit("decline")} className="inline-flex h-10 items-center rounded-2xl border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-600 disabled:opacity-50 dark:border-crm-border dark:bg-transparent dark:text-gray-300">
+                  {busy === "decline" ? <Loader2 size={14} className="animate-spin" /> : "Reject"}
+                </button>
+                <button type="button" disabled={!!busy} onClick={() => void submit("approve")} className="inline-flex h-10 items-center rounded-2xl bg-[#B8112D] px-4 text-sm font-semibold text-white shadow-sm disabled:opacity-50">
+                  {busy === "approve" ? <Loader2 size={14} className="animate-spin" /> : "Approve"}
+                </button>
+              </>
+            ) : (
+              <button type="button" disabled={!!busy} onClick={() => void submit("update")} className="inline-flex h-10 items-center rounded-2xl bg-[#B8112D] px-4 text-sm font-semibold text-white shadow-sm disabled:opacity-50">
+                {busy === "update" ? <Loader2 size={14} className="animate-spin" /> : "Save"}
+              </button>
+            )}
           </div>
         ) : null}
       </div>
