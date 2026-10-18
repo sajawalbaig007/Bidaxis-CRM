@@ -63,6 +63,13 @@ type ReportPayload = {
     name: string | null;
     company: string | null;
     phone: string | null;
+    email: string | null;
+    state: string | null;
+    trade: string | null;
+    subTrades: string | null;
+    interestedService: string | null;
+    comments: string | null;
+    leadStatus: string | null;
   }[];
   csrPerformance: CsrPerf[];
   timeChart: { label: string; leads: number; completed: number }[];
@@ -280,7 +287,7 @@ function buildTimeChart(
 }
 
 function cacheKey(period: string, fromDate?: string, toDate?: string) {
-  return `${period}|${fromDate ?? ""}|${toDate ?? ""}|v6-status-leads`;
+  return `${period}|${fromDate ?? ""}|${toDate ?? ""}|v7-status-columns`;
 }
 
 export const getReports = async (req: Request, res: Response) => {
@@ -334,7 +341,21 @@ export const getReports = async (req: Request, res: Response) => {
           csrId: true,
           status: true,
           createdAt: true,
-          lead: { select: { id: true, name: true, company: true, phone: true } },
+          lead: {
+            select: {
+              id: true,
+              name: true,
+              company: true,
+              phone: true,
+              email: true,
+              state: true,
+              trade: true,
+              subTrades: true,
+              interestedService: true,
+              comments: true,
+              status: true,
+            },
+          },
         },
       }),
     ]);
@@ -459,6 +480,13 @@ export const getReports = async (req: Request, res: Response) => {
         name: row.lead.name,
         company: row.lead.company,
         phone: row.lead.phone,
+        email: row.lead.email,
+        state: row.lead.state,
+        trade: row.lead.trade,
+        subTrades: row.lead.subTrades,
+        interestedService: row.lead.interestedService,
+        comments: row.lead.comments,
+        leadStatus: row.lead.status,
       })),
       csrPerformance,
       timeChart: needsTimeChart

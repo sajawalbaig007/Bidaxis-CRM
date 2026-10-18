@@ -40,10 +40,18 @@ export default function RequestDecisionDialog({
   const [toDay, setToDay] = useState(endDayFromSummary(row.summary, row.day));
   const [amount, setAmount] = useState(amountFromSummary(row.summary));
   const [remarks, setRemarks] = useState(row.reviewNote ?? "");
-  const [busy, setBusy] = useState<"approve" | "decline" | "update" | "">("");
+  const [nextStatus, setNextStatus] = useState(row.status);
+  const [busy, setBusy] = useState<"approve" | "decline" | "update" | "reopen" | "">("");
   const [error, setError] = useState("");
 
-  const submit = async (action: "approve" | "decline" | "update") => {
+  const actionFor = (status: string): "approve" | "decline" | "reopen" | "update" => {
+    if (status === row.status) return status === "pending" ? "reopen" : "update";
+    if (status === "approved") return "approve";
+    if (status === "declined") return "decline";
+    return "reopen";
+  };
+
+  const submit = async (action: "approve" | "decline" | "update" | "reopen") => {
     setBusy(action);
     setError("");
     try {
@@ -153,6 +161,21 @@ export default function RequestDecisionDialog({
 
           {editable ? (
             <label className="block text-xs font-medium text-gray-500">
+              Status
+              <select
+                value={nextStatus}
+                onChange={(event) => setNextStatus(event.target.value)}
+                className="mt-1 h-10 w-full rounded-2xl border border-gray-200 bg-white px-3 text-sm font-semibold text-[#0F172A] outline-none focus:border-[#B8112D] dark:border-crm-border dark:bg-transparent dark:text-white"
+              >
+                <option value="pending">Pending</option>
+                <option value="approved">Approved</option>
+                <option value="declined">Rejected</option>
+              </select>
+            </label>
+          ) : null}
+
+          {editable ? (
+            <label className="block text-xs font-medium text-gray-500">
               Remarks
               <textarea value={remarks} onChange={(event) => setRemarks(event.target.value)} rows={2} className="mt-1 w-full rounded-2xl border border-gray-200 outline-none focus:border-[#B8112D] px-3 py-2 text-sm text-[#0F172A] dark:border-crm-border dark:bg-transparent dark:text-white" />
             </label>
@@ -162,18 +185,12 @@ export default function RequestDecisionDialog({
               {row.reviewNote ? ` · ${row.reviewNote}` : ""}
             </p>
           )}
-          {!pending && editable ? (
-            <p className="text-sm text-gray-500">
-              {row.status === "declined" ? "Rejected" : "Approved"}. Saving updates this request.
-            </p>
-          ) : null}
-
           {error ? <p className="text-sm text-red-600">{error}</p> : null}
         </div>
 
         {editable ? (
           <div className="flex justify-end gap-2 px-5 pb-5">
-            {pending ? (
+            {pending && nextStatus === "pending" ? (
               <>
                 <button type="button" disabled={!!busy} onClick={() => void submit("decline")} className="inline-flex h-10 items-center rounded-2xl border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-600 disabled:opacity-50 dark:border-crm-border dark:bg-transparent dark:text-gray-300">
                   {busy === "decline" ? <Loader2 size={14} className="animate-spin" /> : "Reject"}
@@ -183,8 +200,8 @@ export default function RequestDecisionDialog({
                 </button>
               </>
             ) : (
-              <button type="button" disabled={!!busy} onClick={() => void submit("update")} className="inline-flex h-10 items-center rounded-2xl bg-[#B8112D] px-4 text-sm font-semibold text-white shadow-sm disabled:opacity-50">
-                {busy === "update" ? <Loader2 size={14} className="animate-spin" /> : "Save"}
+              <button type="button" disabled={!!busy} onClick={() => void submit(actionFor(nextStatus))} className="inline-flex h-10 items-center rounded-2xl bg-[#B8112D] px-4 text-sm font-semibold text-white shadow-sm disabled:opacity-50">
+                {busy ? <Loader2 size={14} className="animate-spin" /> : "Save"}
               </button>
             )}
           </div>

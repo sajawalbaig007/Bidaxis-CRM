@@ -1037,17 +1037,11 @@ router.post("/requests/:id/review", verifyToken, allowRoles("admin", "manager", 
   try {
     const id = String(req.params.id ?? "");
     const action = String(req.body?.action ?? "");
-    if (action !== "approve" && action !== "decline" && action !== "update") {
+    if (action !== "approve" && action !== "decline" && action !== "update" && action !== "reopen") {
       return res.status(400).json({ success: false, message: "Choose approve or decline." });
     }
     const existing = await prisma.staffRequest.findUnique({ where: { id } });
     if (!existing) return res.status(404).json({ success: false, message: "Request not found." });
-    if (action === "update" && existing.status === "pending") {
-      return res.status(400).json({ success: false, message: "Approve or reject this request first." });
-    }
-    if (existing.status !== "pending" && action !== "update") {
-      return res.status(400).json({ success: false, message: "This request is already reviewed." });
-    }
     if (req.user?.role === "technical_manager" && existing.department !== "estimator") {
       const requester = await prisma.user.findUnique({ where: { id: existing.personKey }, select: { role: true } });
       if (requester?.role !== "estimator") {
@@ -1064,7 +1058,14 @@ router.post("/requests/:id/review", verifyToken, allowRoles("admin", "manager", 
     const fromDay = String(req.body?.fromDay ?? "").trim();
     const toDay = String(req.body?.toDay ?? "").trim();
     const amount = String(req.body?.amount ?? "").trim().slice(0, 40);
-    const keepApproved = action === "approve" || (action === "update" && existing.status === "approved");
+    const nextStatus = action === "approve" || (action === "update" && existing.status === "approved")
+      ? "approved"
+      : action === "decline" || (action === "update" && existing.status === "declined")
+        ? "declined"
+        : action === "reopen"
+          ? "pending"
+          : existing.status;
+    const keepApproved = nextStatus === "approved";
     if (keepApproved) {
       const applied = await applyApprovedRequest(existing, {
         ...(timesEdited
@@ -1080,33 +1081,26 @@ router.post("/requests/:id/review", verifyToken, allowRoles("admin", "manager", 
       if (!applied.ok) return res.status(400).json({ success: false, message: applied.message });
     }
     const reviewNote = String(req.body?.remarks ?? "").trim().slice(0, 500);
-    const nextStatus = action === "update" ? existing.status : action === "approve" ? "approved" : "declined";
     const row = await prisma.staffRequest.update({
       where: { id },
       data: {
         status: nextStatus,
-        reviewedBy: action === "update" ? existing.reviewedBy : reviewer,
-        reviewNote: action === "update" ? (reviewNote || existing.reviewNote) : reviewNote,
-        ...(keepApproved && timesEdited && existing.kind === "attendance_correction" && isValidDay(day)
+        reviewedBy: action === "reopen" ? null : (action === "update" ? existing.reviewedBy : reviewer),
+        reviewNote: reviewNote || existing.reviewNote,
+        ...(timesEdited && existing.kind === "attendance_correction" && isValidDay(day)
           ? { day, checkIn: checkIn || existing.checkIn, checkOut: stillIn ? null : (checkOut || null) }
           : {}),
-        ...(!keepApproved && action === "update" && timesEdited && existing.kind === "attendance_correction" && isValidDay(day)
-          ? { day, checkIn: checkIn || existing.checkIn, checkOut: stillIn ? null : (checkOut || null) }
-          : {}),
-        ...(keepApproved && rangeEdited && fromDay && toDay
+        ...(rangeEdited && fromDay && toDay
           ? { summary: `${fromDay}${toDay !== fromDay ? ` – ${toDay}` : ""}`.slice(0, 120) }
           : {}),
-        ...(!keepApproved && action === "update" && rangeEdited && fromDay && toDay
-          ? { summary: `${fromDay}${toDay !== fromDay ? ` – ${toDay}` : ""}`.slice(0, 120) }
-          : {}),
-        ...((keepApproved || action === "update") && existing.kind === "reimbursement" && amount
+        ...(existing.kind === "reimbursement" && amount
           ? { summary: `${amount} · ${existing.day}`.slice(0, 120) }
           : {}),
       },
     });
     return res.json({
       success: true,
-      message: action === "update" ? "Saved." : action === "approve" ? "Approved." : "Declined.",
+      message: nextStatus === "approved" ? "Approved." : nextStatus === "declined" ? "Declined." : "Saved.",
       request: toPublicRequest(row),
     });
   } catch (error) {
