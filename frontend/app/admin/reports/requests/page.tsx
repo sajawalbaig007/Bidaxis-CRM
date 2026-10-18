@@ -89,6 +89,7 @@ export default function EmployeeRequestsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [active, setActive] = useState<RequestRow | null>(null);
+  const [savingId, setSavingId] = useState("");
   const seen = useRef(new Set<string>());
   const primed = useRef(false);
 
@@ -110,6 +111,21 @@ export default function EmployeeRequestsPage() {
       setLoading(false);
     }
   }, [onTechnical]);
+
+  const changeStatus = async (row: RequestRow, status: string) => {
+    if (!canApprove || status === row.status) return;
+    const action = status === "approved" ? "approve" : status === "declined" ? "decline" : "reopen";
+    setSavingId(row.id);
+    setError("");
+    try {
+      await API.post(`/attendance/requests/${row.id}/review`, { action });
+      await load();
+    } catch (err) {
+      setError(apiErrorMessage(err, "Could not update this status."));
+    } finally {
+      setSavingId("");
+    }
+  };
 
   useEffect(() => {
     void getAuthMe().then((user) => setRole(user?.role ?? ""));
@@ -245,16 +261,35 @@ export default function EmployeeRequestsPage() {
                     <p className="truncate text-slate-600 dark:text-slate-300">{row.summary || "—"}</p>
                     {row.detail && row.detail !== row.summary ? <RequestMessage text={row.detail} /> : null}
                   </td>
-                  <td className="px-4 py-3">
-                    <span className={`inline-flex rounded-md px-1.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wide ${
-                      row.status === "approved"
-                        ? "border border-emerald-200 bg-emerald-50 text-emerald-700"
-                        : row.status === "declined"
-                          ? "border border-[#FECACA] bg-[#FFF1F3] text-[#B8112D]"
-                          : "border border-amber-200 bg-amber-50 text-amber-800"
-                    }`}>
-                      {row.status === "declined" ? "Rejected" : row.status === "approved" ? "Approved" : "Pending"}
-                    </span>
+                  <td className="px-4 py-3" onClick={(event) => event.stopPropagation()}>
+                    {canApprove ? (
+                      <select
+                        value={row.status}
+                        disabled={savingId === row.id}
+                        onChange={(event) => void changeStatus(row, event.target.value)}
+                        className={`h-8 rounded-lg border px-2 text-[11px] font-bold uppercase tracking-wide outline-none ${
+                          row.status === "approved"
+                            ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                            : row.status === "declined"
+                              ? "border-[#FECACA] bg-[#FFF1F3] text-[#B8112D]"
+                              : "border-amber-200 bg-amber-50 text-amber-800"
+                        }`}
+                      >
+                        <option value="pending">Pending</option>
+                        <option value="approved">Approved</option>
+                        <option value="declined">Rejected</option>
+                      </select>
+                    ) : (
+                      <span className={`inline-flex rounded-md px-1.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wide ${
+                        row.status === "approved"
+                          ? "border border-emerald-200 bg-emerald-50 text-emerald-700"
+                          : row.status === "declined"
+                            ? "border border-[#FECACA] bg-[#FFF1F3] text-[#B8112D]"
+                            : "border border-amber-200 bg-amber-50 text-amber-800"
+                      }`}>
+                        {row.status === "declined" ? "Rejected" : row.status === "approved" ? "Approved" : "Pending"}
+                      </span>
+                    )}
                   </td>
                 </tr>
               ))}

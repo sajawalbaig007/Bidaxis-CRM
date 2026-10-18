@@ -39,6 +39,13 @@ export type StatusLeadRow = {
   name: string | null;
   company: string | null;
   phone: string | null;
+  email?: string | null;
+  state?: string | null;
+  trade?: string | null;
+  subTrades?: string | null;
+  interestedService?: string | null;
+  comments?: string | null;
+  leadStatus?: string | null;
 };
 
 export type ReportsData = {
@@ -71,7 +78,7 @@ let inflightKey = "";
 const TTL_MS = 300_000;
 
 function cacheKey(period: string, fromDate?: string, toDate?: string) {
-  return `${period}|${fromDate ?? ""}|${toDate ?? ""}|v6`;
+  return `${period}|${fromDate ?? ""}|${toDate ?? ""}|v7`;
 }
 
 export function invalidateReportsCache() {

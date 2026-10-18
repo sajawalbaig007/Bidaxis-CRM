@@ -7,9 +7,16 @@ import { usePathname } from "next/navigation";
 import toast from "react-hot-toast";
 import DashboardNavbar  from "../components/layout/Navbar";
 import { StaffSidebar } from "@/app/hooks/useStaffSidebar";
-import { fetchReports, type ReportsData } from "@/lib/reportsCache";
+import { fetchReports, type ReportsData, type StatusLeadRow } from "@/lib/reportsCache";
 import API, { apiErrorMessage } from "@/lib/api";
 import { useZoomDialer } from "@/app/csr/components/dialer/ZoomDialerProvider";
+import ClientNameCell from "@/app/csr/components/shared/ClientNameCell";
+import TradesCell from "@/app/csr/components/shared/TradesCell";
+import PhoneWithTzCell from "@/app/csr/components/shared/PhoneWithTzCell";
+import InterestedServicesCell from "@/app/csr/components/shared/InterestedServicesCell";
+import StatusWithTimestamp from "@/app/csr/components/shared/StatusWithTimestamp";
+import { CSR_TABLE_CLASS, CSR_TD, CSR_TD_POPOVER, CSR_TD_TOP, CSR_TH, CSR_THEAD } from "@/app/csr/components/shared/csrTableStyles";
+import { mapBackendLead } from "@/app/csr/types/lead";
 
 import {
   PhoneCall, ShoppingCart, Clock3, FileBarChart2,
@@ -37,6 +44,23 @@ type CsrActualStats = {
   projectWon: number;
 };
 
+function leadFromStatusRow(row: StatusLeadRow) {
+  return mapBackendLead({
+    id: row.leadId,
+    name: row.name ?? undefined,
+    company: row.company ?? undefined,
+    phone: row.phone ?? undefined,
+    email: row.email ?? undefined,
+    state: row.state ?? undefined,
+    status: row.status,
+    comments: row.comments ?? undefined,
+    interestedService: row.interestedService ?? undefined,
+    trade: row.trade,
+    subTrades: row.subTrades,
+    updatedAt: row.createdAt,
+  });
+}
+
 function statusPillKey(status: string) {
   const value = status.toLowerCase().trim();
   if (value === "interested") return "interested";
@@ -50,6 +74,62 @@ function statusPillKey(status: string) {
   if (value === "not useful") return "notUseful";
   if (value === "close client" || value === "closed") return "close";
   return "completed";
+}
+
+function StatusLeadTable({ rows }: { rows: StatusLeadRow[] }) {
+  if (rows.length === 0) {
+    return <p className="mt-3 text-sm text-gray-400">No leads in this section for the selected filter.</p>;
+  }
+  return (
+    <div className="mt-3 overflow-x-auto rounded-xl border border-gray-100 dark:border-crm-border max-h-[32rem]">
+      <table className={CSR_TABLE_CLASS}>
+        <thead className={CSR_THEAD}>
+          <tr>
+            <th className={CSR_TH}>Client Name</th>
+            <th className={CSR_TH}>Trades</th>
+            <th className={CSR_TH}>Phone</th>
+            <th className={CSR_TH}>Interested In</th>
+            <th className={CSR_TH}>Status</th>
+            <th className={CSR_TH}>Notes</th>
+            <th className={CSR_TH}>CSR</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row, index) => {
+            const lead = leadFromStatusRow(row);
+            return (
+              <tr key={row.id} className="border-t border-gray-100 dark:border-crm-border bg-white dark:bg-crm-surface">
+                <td className={CSR_TD_POPOVER}>
+                  <ClientNameCell lead={lead} index={index + 1} showIndex />
+                </td>
+                <td className={CSR_TD_POPOVER}>
+                  <TradesCell trade={lead.trade} subTrades={lead.subTrades} />
+                </td>
+                <td className={CSR_TD_POPOVER}>
+                  <PhoneWithTzCell
+                    phone={lead.phone}
+                    dial={{ leadId: row.leadId, clientName: lead.client }}
+                  />
+                </td>
+                <td className={CSR_TD}>
+                  <InterestedServicesCell interestedService={lead.interestedService} />
+                </td>
+                <td className={CSR_TD}>
+                  <StatusWithTimestamp status={row.status} statusUpdatedAt={row.createdAt} showTimestamp />
+                </td>
+                <td className={CSR_TD_TOP}>
+                  <p className="text-[12px] text-[#0F172A] dark:text-crm-text line-clamp-3 whitespace-pre-wrap">{row.comments?.trim() || "—"}</p>
+                </td>
+                <td className={CSR_TD}>
+                  <p className="text-[12px] font-semibold text-[#0F172A] dark:text-crm-text truncate">{row.csrName}</p>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
 }
 
 const BENTO =
@@ -505,41 +585,12 @@ export default function ReportsPage() {
                     })}
                   </div>
                   {statusFocus && statusFocus !== "dialer" && (
-                    <div className="mt-3 rounded-2xl border border-gray-200 bg-[#F8FAFC] p-3 max-h-72 overflow-y-auto dark:border-crm-border dark:bg-white/5">
-                      <p className="text-xs font-semibold text-[#0F172A] mb-2 dark:text-white">
-                        {selectedCSR ? selectedCSR.name : "All CSRs"} · {chartPeriodLabel}
-                      </p>
-                      {(() => {
-                        const rows = (reportData?.statusLeads ?? []).filter((row) => {
-                          if (selectedCSR && row.csrId !== selectedCSR.id) return false;
-                          return statusPillKey(row.status) === statusFocus || (statusFocus === "completed");
-                        });
-                        if (rows.length === 0) return <p className="text-sm text-gray-400">No leads in this section for the selected filter.</p>;
-                        return (
-                          <ul className="space-y-1.5">
-                            {rows.map((row) => (
-                              <li key={row.id} className="flex items-center justify-between gap-3 text-sm">
-                                <div className="min-w-0">
-                                  <p className="font-semibold text-[#0F172A] truncate dark:text-white">{row.name || row.company || "Lead"}</p>
-                                  {row.phone ? (
-                                    <button
-                                      type="button"
-                                      onClick={() => dialer?.open({ destination: row.phone || "", leadId: row.leadId })}
-                                      className="text-xs font-semibold text-[#B8112D] underline-offset-[3px] hover:underline"
-                                    >
-                                      {row.phone}
-                                    </button>
-                                  ) : null}
-                                </div>
-                                <span className="text-xs text-gray-500 shrink-0 text-right">
-                                  {row.csrName} · {new Date(row.createdAt).toLocaleString()}
-                                </span>
-                              </li>
-                            ))}
-                          </ul>
-                        );
-                      })()}
-                    </div>
+                    <StatusLeadTable
+                      rows={(reportData?.statusLeads ?? []).filter((row) => {
+                        if (selectedCSR && row.csrId !== selectedCSR.id) return false;
+                        return statusPillKey(row.status) === statusFocus || statusFocus === "completed";
+                      })}
+                    />
                   )}
                   {statusFocus === "dialer" && (
                     <div className="mt-3 rounded-2xl border border-[#F5C5CE] bg-[#FFF8F9] p-3 max-h-64 overflow-y-auto">
