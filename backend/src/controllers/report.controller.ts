@@ -53,6 +53,17 @@ type ReportPayload = {
   notUseful: number;
   dialerCalls: number;
   dialerLog: { id: string; csrId: string; csrName: string; number: string; createdAt: string }[];
+  statusLeads: {
+    id: string;
+    csrId: string;
+    csrName: string;
+    status: string;
+    createdAt: string;
+    leadId: string;
+    name: string | null;
+    company: string | null;
+    phone: string | null;
+  }[];
   csrPerformance: CsrPerf[];
   timeChart: { label: string; leads: number; completed: number }[];
   reports: Awaited<ReturnType<typeof prisma.report.findMany>>;
@@ -269,7 +280,7 @@ function buildTimeChart(
 }
 
 function cacheKey(period: string, fromDate?: string, toDate?: string) {
-  return `${period}|${fromDate ?? ""}|${toDate ?? ""}|v5-dialer`;
+  return `${period}|${fromDate ?? ""}|${toDate ?? ""}|v6-status-leads`;
 }
 
 export const getReports = async (req: Request, res: Response) => {
@@ -289,7 +300,7 @@ export const getReports = async (req: Request, res: Response) => {
     const needsTimeChart = !fromDate && (period === "today" || period === "week" || period === "month");
     const createdAt = callLogCreatedAtFilter(period, fromDate, toDate);
 
-    const [leads, reports, statusUpdates, assignedByCsr, allAssignedCount, manualDials, dialGroups] = await Promise.all([
+    const [leads, reports, statusUpdates, assignedByCsr, allAssignedCount, manualDials, dialGroups, statusRows] = await Promise.all([
       needsTimeChart ? fetchReportLeads(whereClause) : Promise.resolve([]),
       prisma.report.findMany({ orderBy: { createdAt: "desc" }, take: 50 }),
       prisma.callLog.findMany({
@@ -313,6 +324,18 @@ export const getReports = async (req: Request, res: Response) => {
         by: ["csrId"],
         where: createdAt ? { createdAt } : {},
         _count: { _all: true },
+      }),
+      prisma.callLog.findMany({
+        where: createdAt ? { createdAt } : {},
+        orderBy: { createdAt: "desc" },
+        take: 800,
+        select: {
+          id: true,
+          csrId: true,
+          status: true,
+          createdAt: true,
+          lead: { select: { id: true, name: true, company: true, phone: true } },
+        },
       }),
     ]);
 
@@ -425,6 +448,17 @@ export const getReports = async (req: Request, res: Response) => {
         csrName: csrMap.get(dial.csrId)?.name ?? "CSR",
         number: dial.number,
         createdAt: dial.createdAt.toISOString(),
+      })),
+      statusLeads: statusRows.map((row) => ({
+        id: row.id,
+        csrId: row.csrId,
+        csrName: csrMap.get(row.csrId)?.name ?? "CSR",
+        status: row.status,
+        createdAt: row.createdAt.toISOString(),
+        leadId: row.lead.id,
+        name: row.lead.name,
+        company: row.lead.company,
+        phone: row.lead.phone,
       })),
       csrPerformance,
       timeChart: needsTimeChart

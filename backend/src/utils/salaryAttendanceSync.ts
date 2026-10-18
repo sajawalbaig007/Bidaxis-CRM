@@ -206,15 +206,18 @@ export async function applyAttendanceCheckIns(
   const staff = await prisma.staffDayAttendance.findMany({
     where: { day: { gte: `${month}-01`, lte: `${month}-31` } },
   });
+  const staffPunches: ApprovedPunch[] = [];
   for (const row of staff) {
     if (!people.some((person) => person.personKey === row.personKey)) {
       people.push({ personKey: row.personKey, personName: row.personName, department: row.department });
     }
-    addDay(row.personKey, {
+    staffPunches.push({
+      personKey: row.personKey,
+      personName: row.personName,
       day: row.day,
-      checkIn: row.checkIn ?? "",
-      checkOut: row.checkOut ?? "",
-    }, row.department);
+      checkIn: clock(row.checkIn),
+      checkOut: clock(row.checkOut),
+    });
   }
 
   const monthStart = new Date(`${month}-01T00:00:00+05:00`);
@@ -272,6 +275,14 @@ export async function applyAttendanceCheckIns(
     byPerson.set(request.personKey, days);
   }
 
+  // An edited staff time is the official punch. It replaces the raw login and any older correction.
+  for (const punch of staffPunches) {
+    const days = byPerson.get(punch.personKey) ?? new Map<string, AttendanceDay>();
+    if (!punch.checkIn) days.delete(punch.day);
+    else days.set(punch.day, { day: punch.day, checkIn: punch.checkIn, checkOut: punch.checkOut });
+    byPerson.set(punch.personKey, days);
+  }
+
   let changed = false;
   const nextTeams = teams.map((team) => {
     const subs = (team.subHeads ?? []).map((sub) => {
@@ -301,6 +312,13 @@ export async function applyAttendanceCheckIns(
         if (!linked && !named) continue;
         daysMap.set(punch.day, { day: punch.day, checkIn: punch.checkIn, checkOut: punch.checkOut });
         if (!correctionKey && punch.personKey) correctionKey = punch.personKey;
+      }
+      for (const punch of staffPunches) {
+        const linked = !!punch.personKey && linkedKeys.includes(punch.personKey);
+        const named = punchNameMatch(label, punch.personName);
+        if (!linked && !named) continue;
+        if (!punch.checkIn) daysMap.delete(punch.day);
+        else daysMap.set(punch.day, { day: punch.day, checkIn: punch.checkIn, checkOut: punch.checkOut });
       }
       if (!person && !daysMap.size) return sub;
       const days = [...daysMap.values()].sort((a, b) => a.day.localeCompare(b.day));

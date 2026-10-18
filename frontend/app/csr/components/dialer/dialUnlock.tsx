@@ -89,12 +89,8 @@ export function isLeadDialUnlocked(leadId: string) {
 
 export function requireLeadDial(leadId: string): boolean {
   const left = statusWaitLeft(leadId);
-  if (left < 0) {
-    toast.error("Copy or click the number first. Status unlocks 8 seconds after that.");
-    return false;
-  }
-  if (left > 0) {
-    toast.error(`Wait ${Math.ceil(left / 1000)} seconds after the call before changing status.`);
+  if (left !== 0) {
+    toast.error("Call the number before updating status.");
     return false;
   }
   return true;
@@ -114,8 +110,7 @@ export function useLeadDialUnlocked(leadId: string) {
 }
 
 function placeholderLabel(leftMs: number) {
-  if (leftMs < 0) return "Copy or call";
-  if (leftMs > 0) return `Wait ${Math.ceil(leftMs / 1000)}s`;
+  if (leftMs !== 0) return "Call the number";
   return "Update Status";
 }
 

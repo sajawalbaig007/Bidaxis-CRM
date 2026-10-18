@@ -2811,6 +2811,54 @@ router.delete(
   },
 );
 
+router.patch(
+  "/project/:id/assignment-track",
+  verifyToken,
+  allowRoles("admin", "manager", "technical_manager"),
+  async (req, res) => {
+    try {
+      const leadId = String(req.params.id);
+      const estimatorId = String(req.body?.estimatorId ?? "").trim();
+      if (!estimatorId) {
+        return res.status(400).json({ success: false, message: "Choose an estimator." });
+      }
+      const existing = await prisma.lead.findUnique({
+        where: { id: leadId },
+        select: { id: true, technicalAssignments: true },
+      });
+      if (!existing) return res.status(404).json({ success: false, message: "Project not found" });
+      const list = parseTechnicalAssignments(existing.technicalAssignments);
+      if (!list.some((row) => row.estimatorId === estimatorId && !row.history)) {
+        return res.status(404).json({ success: false, message: "Assignment not found." });
+      }
+      const nextDeadline = req.body?.deadline !== undefined
+        ? String(req.body.deadline ?? "").trim().split("T")[0]
+        : undefined;
+      if (nextDeadline !== undefined && !nextDeadline) {
+        return res.status(400).json({ success: false, message: "Deadline is required." });
+      }
+      const next = list.map((row) => {
+        if (row.estimatorId !== estimatorId || row.history) return row;
+        return {
+          ...row,
+          ...(req.body?.manHours !== undefined ? { manHours: String(req.body.manHours ?? "").trim() } : {}),
+          ...(nextDeadline !== undefined ? { deadline: nextDeadline } : {}),
+        };
+      });
+      const technicalAssignments = serializeTechnicalAssignments(next);
+      await prisma.lead.update({
+        where: { id: leadId },
+        data: { technicalAssignments },
+      });
+      invalidatePattern("admin:projects:");
+      return res.json({ success: true, technicalAssignments });
+    } catch (err) {
+      console.error("assignment-track error:", err);
+      return res.status(500).json({ success: false, message: "Could not save project tracking." });
+    }
+  },
+);
+
 /* ================= ASSIGN ESTIMATORS (TECHNICAL) ================= */
 router.put(
   "/project/:id/assign-estimators",
