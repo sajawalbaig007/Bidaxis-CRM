@@ -243,11 +243,11 @@ router.post("/start", async (req: AuthRequest, res) => {
   let recipients: { name: string; email: string }[] = Array.isArray(req.body?.recipients) ? req.body.recipients : [];
   if (ids.length) {
     const rows = await prisma.mailListRow.findMany({ where: { id: { in: ids } } });
-    const byId = new Map(rows.map((row) => [row.id, row]));
-    recipients = ids
-      .map((id: string) => byId.get(id))
-      .filter((row): row is NonNullable<typeof row> => !!row)
-      .map((row) => ({ name: row.name, email: row.email }));
+    const byId = new Map(rows.map((item) => [item.id, item]));
+    recipients = ids.flatMap((id) => {
+      const item = byId.get(id);
+      return item ? [{ name: item.name, email: item.email }] : [];
+    });
   }
   const result = await startCampaign({
     subject: String(req.body?.subject ?? ""),
