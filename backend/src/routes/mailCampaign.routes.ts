@@ -152,19 +152,24 @@ router.delete("/files/:id", async (req, res) => {
 });
 
 router.post("/rows", async (req, res) => {
-  const email = String(req.body?.email ?? "").trim().toLowerCase();
-  const name = String(req.body?.name ?? "").trim() || email.split("@")[0];
-  if (!isValidEmail(email)) {
-    return res.status(400).json({ success: false, message: "Enter a valid client email." });
+  try {
+    const email = String(req.body?.email ?? "").trim().toLowerCase();
+    const name = String(req.body?.name ?? "").trim() || email.split("@")[0];
+    if (!isValidEmail(email)) {
+      return res.status(400).json({ success: false, message: "Enter a valid client email." });
+    }
+    const duplicate = await prisma.mailListRow.findFirst({ where: { email } });
+    if (duplicate) {
+      return res.status(400).json({ success: false, message: "This contact is already in the list." });
+    }
+    await prisma.mailListRow.create({
+      data: { email, name, company: "", manual: true, fileId: "" },
+    });
+    return res.json({ success: true, ...(await mailLibrary()) });
+  } catch (err) {
+    console.error("[mail-campaign] add row failed", err);
+    return res.status(500).json({ success: false, message: "Could not save that email on the server." });
   }
-  const duplicate = await prisma.mailListRow.findFirst({ where: { email } });
-  if (duplicate) {
-    return res.status(400).json({ success: false, message: "This contact is already in the list." });
-  }
-  await prisma.mailListRow.create({
-    data: { email, name, company: "", manual: true, fileId: "" },
-  });
-  return res.json({ success: true, ...(await mailLibrary()) });
 });
 
 router.delete("/rows/:id", async (req, res) => {
