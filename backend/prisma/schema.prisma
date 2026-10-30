@@ -771,3 +771,30 @@ model LinkedMailbox {
 
   @@map("linked_mailboxes")
 }
+
+/** One uploaded client sheet on the CEO Mail page. */
+model MailListFile {
+  id        String   @id @default(cuid()) @map("_id")
+  fileName  String
+  count     Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@map("mail_list_files")
+}
+
+/** Clients loaded from a sheet, or typed in by hand. Deleting the file removes its rows. */
+model MailListRow {
+  id         String   @id @default(cuid()) @map("_id")
+  fileId     String   @default("")
+  name       String   @default("")
+  email      String
+  company    String   @default("")
+  phones     String   @default("")
+  contactKey String   @default("")
+  manual     Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  @@index([fileId])
+  @@index([email])
+  @@map("mail_list_rows")
+}

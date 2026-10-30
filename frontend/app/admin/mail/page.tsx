@@ -2,13 +2,14 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import toast, { Toaster } from "react-hot-toast";
-import { Mail, Play, Square, Upload } from "lucide-react";
+import { Mail, Play, Plus, Square, Trash2, Upload } from "lucide-react";
 import DashboardSidebar from "../components/layout/Sidebar";
 import DashboardNavbar from "../components/layout/Navbar";
 import API, { apiErrorMessage } from "@/lib/api";
 
 type Sender = { id: string; email: string; name: string; defaultFooter?: string; linked?: boolean };
-type Recipient = { name: string; email: string; selected: boolean };
+type MailFile = { id: string; fileName: string; createdAt: string; count: number };
+type Recipient = { id: string; fileId: string; name: string; email: string; company: string; manual: boolean; selected: boolean };
 type LogRow = { email: string; name: string; from: string; ok: boolean; error?: string; at: string };
 type Status = {
   running: boolean;
@@ -23,32 +24,6 @@ type Status = {
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/i;
 
-function parseList(text: string): Recipient[] {
-  const rows: Recipient[] = [];
-  const seen = new Set<string>();
-  for (const raw of text.split(/\r?\n/)) {
-    const line = raw.trim();
-    if (!line) continue;
-    if (/^name\b/i.test(line) && /email/i.test(line)) continue;
-    let name = "";
-    let email = "";
-    const angle = line.match(/^(.*?)\s*<([^>]+)>$/);
-    if (angle && EMAIL_RE.test(angle[2].trim())) {
-      name = angle[1].replace(/^["']|["']$/g, "").trim();
-      email = angle[2].trim();
-    } else {
-      const parts = line.split(/[,;\t]/).map((p) => p.trim().replace(/^["']|["']$/g, ""));
-      email = parts.find((p) => EMAIL_RE.test(p)) ?? "";
-      name = parts.find((p) => p && p !== email && !EMAIL_RE.test(p)) ?? "";
-    }
-    email = email.toLowerCase();
-    if (!EMAIL_RE.test(email) || seen.has(email)) continue;
-    seen.add(email);
-    rows.push({ email, name: name || email.split("@")[0], selected: true });
-  }
-  return rows;
-}
-
 export default function AdminMailPage() {
   const [senders, setSenders] = useState<Sender[]>([]);
   const [picked, setPicked] = useState<Record<string, boolean>>({});
@@ -60,7 +35,10 @@ export default function AdminMailPage() {
   const [body, setBody] = useState(
     "Hi {{name}},\n\nDoes your team need extra support with quantity takeoffs or cost estimates for upcoming construction bids?\nBidAxis LLC is here to help you manage your estimating workload efficiently.\nWe provide detailed quantity takeoffs and cost estimates for residential, commercial, industrial, and other construction projects.\nOur team can assist with single projects or multiple bids with tight deadlines.\nIf you'd like to review our estimating work, we'd be happy to share sample takeoffs and estimates.\nDo you have an upcoming project we could help you with?\nBest regards,",
   );
+  const [files, setFiles] = useState<MailFile[]>([]);
   const [recipients, setRecipients] = useState<Recipient[]>([]);
+  const [manualName, setManualName] = useState("");
+  const [manualEmail, setManualEmail] = useState("");
   const [minDelay, setMinDelay] = useState(45);
   const [maxDelay, setMaxDelay] = useState(90);
   const [status, setStatus] = useState<Status | null>(null);
@@ -81,10 +59,29 @@ export default function AdminMailPage() {
     });
   }
 
+  function applyLibrary(data: { files?: MailFile[]; recipients?: Omit<Recipient, "selected">[] }) {
+    setFiles(data.files ?? []);
+    setRecipients((current) => {
+      const selected = new Map(current.map((row) => [row.id, row.selected]));
+      return (data.recipients ?? []).map((row) => ({
+        id: row.id,
+        fileId: row.fileId ?? "",
+        name: row.name || row.email.split("@")[0],
+        email: row.email,
+        company: row.company ?? "",
+        manual: !!row.manual,
+        selected: selected.get(row.id) ?? true,
+      }));
+    });
+  }
+
   useEffect(() => {
     API.get("/mail-campaign/senders")
       .then((res) => applySenders((res.data?.senders ?? []) as Sender[]))
       .catch((err) => toast.error(apiErrorMessage(err, "Could not load company emails.")));
+    API.get("/mail-campaign/files")
+      .then((res) => applyLibrary(res.data))
+      .catch((err) => toast.error(apiErrorMessage(err, "Could not load uploaded files.")));
   }, []);
 
   useEffect(() => {
@@ -120,14 +117,60 @@ export default function AdminMailPage() {
   }
 
   async function onFile(file: File) {
-    const text = await file.text();
-    const rows = parseList(text);
-    if (!rows.length) {
-      toast.error("No name and email rows found. Use Name, Email on each line.");
+    const body = new FormData();
+    body.append("file", file);
+    try {
+      const res = await API.post("/mail-campaign/files", body, { timeout: 60_000 });
+      applyLibrary(res.data);
+      const saved = Number(res.data?.saved ?? 0);
+      const noEmail = Number(res.data?.skippedNoEmail ?? 0);
+      const dupes = Number(res.data?.skippedDuplicate ?? 0);
+      const leftOut = Number(res.data?.leftOut ?? 0);
+      const bits = [`${saved} clients added from ${file.name}`];
+      if (noEmail) bits.push(`${noEmail} skipped (no email)`);
+      if (dupes) bits.push(`${dupes} skipped (duplicate contact)`);
+      if (leftOut) bits.push(`${leftOut} left out after 400`);
+      toast.success(`${bits.join(". ")}.`);
+    } catch (err) {
+      toast.error(apiErrorMessage(err, "Could not upload that file."));
+    }
+  }
+
+  async function deleteFile(id: string, fileName: string) {
+    if (!window.confirm(`Delete ${fileName}? Its clients will be removed from the list.`)) return;
+    try {
+      const res = await API.delete(`/mail-campaign/files/${encodeURIComponent(id)}`);
+      applyLibrary(res.data);
+      toast.success("File deleted and its clients removed.");
+    } catch (err) {
+      toast.error(apiErrorMessage(err, "Could not delete that file."));
+    }
+  }
+
+  async function addManual() {
+    const email = manualEmail.trim().toLowerCase();
+    const name = manualName.trim();
+    if (!EMAIL_RE.test(email)) {
+      toast.error("Enter a valid client email.");
       return;
     }
-    setRecipients(rows);
-    toast.success(`${rows.length} clients loaded.`);
+    try {
+      const res = await API.post("/mail-campaign/rows", { name, email });
+      applyLibrary(res.data);
+      setManualName("");
+      setManualEmail("");
+    } catch (err) {
+      toast.error(apiErrorMessage(err, "Could not add that email."));
+    }
+  }
+
+  async function removeManual(id: string) {
+    try {
+      const res = await API.delete(`/mail-campaign/rows/${encodeURIComponent(id)}`);
+      applyLibrary(res.data);
+    } catch (err) {
+      toast.error(apiErrorMessage(err, "Could not remove that email."));
+    }
   }
 
   async function start() {
@@ -345,17 +388,26 @@ export default function AdminMailPage() {
           </section>
         </div>
 
-        <section className="mt-4 bg-white rounded-3xl border border-gray-100 shadow-sm p-5">
+        <section
+          className="mt-4 bg-white rounded-3xl border border-gray-100 shadow-sm p-5"
+          onDragOver={(e) => e.preventDefault()}
+          onDrop={(e) => {
+            e.preventDefault();
+            const file = e.dataTransfer.files?.[0];
+            if (file && !running) void onFile(file);
+          }}
+        >
           <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
             <div>
               <h2 className="font-semibold text-gray-800">Clients</h2>
-              <p className="text-xs text-gray-400 mt-1">CSV or text: Name, email — one client per line.</p>
+              <p className="text-xs text-gray-400 mt-1">
+                Browse any Excel, CSV, or Google Sheet file on this PC. In Google Sheets use File, Download, Excel or CSV first. A Drive shortcut will not open. Rows with no email are skipped, and duplicate contacts are skipped. Delete a file to remove only that file&apos;s clients.
+              </p>
             </div>
             <div className="flex gap-2">
               <input
                 ref={fileRef}
                 type="file"
-                accept=".csv,.txt,text/csv,text/plain"
                 hidden
                 onChange={(e) => {
                   const file = e.target.files?.[0];
@@ -400,6 +452,69 @@ export default function AdminMailPage() {
             </p>
           )}
 
+          <div className="mb-4 rounded-2xl border border-gray-100">
+            <div className="flex items-center justify-between px-3 py-2 text-xs font-medium text-gray-500">
+              <span>File history</span>
+              <span>{files.length ? `${files.length} file${files.length === 1 ? "" : "s"}` : "No files yet"}</span>
+            </div>
+            {!!files.length && (
+              <ul className="border-t border-gray-100">
+                {files.map((file) => (
+                  <li key={file.id} className="flex items-center justify-between gap-3 px-3 py-2 text-sm border-t border-gray-50 first:border-t-0">
+                    <div className="min-w-0">
+                      <p className="truncate font-medium text-gray-800">{file.fileName}</p>
+                      <p className="text-xs text-gray-400">
+                        {file.count} clients · {new Date(file.createdAt).toLocaleString()}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      disabled={running}
+                      onClick={() => void deleteFile(file.id, file.fileName)}
+                      className="inline-flex items-center gap-1 rounded-full border border-gray-200 px-3 py-1.5 text-xs text-gray-600 disabled:opacity-40"
+                    >
+                      <Trash2 size={12} /> Delete
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          <div className="mb-3 flex flex-wrap items-end gap-2">
+            <label className="text-xs text-gray-500">
+              Client name
+              <input
+                value={manualName}
+                onChange={(e) => setManualName(e.target.value)}
+                disabled={running}
+                placeholder="Client name"
+                className="mt-1 block w-48 rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-800"
+              />
+            </label>
+            <label className="text-xs text-gray-500">
+              Client email
+              <input
+                value={manualEmail}
+                onChange={(e) => setManualEmail(e.target.value)}
+                disabled={running}
+                placeholder="name@company.com"
+                className="mt-1 block w-64 rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-800"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") addManual();
+                }}
+              />
+            </label>
+            <button
+              type="button"
+              disabled={running}
+              onClick={addManual}
+              className="inline-flex items-center gap-2 rounded-full border border-gray-200 px-4 py-2 text-sm"
+            >
+              <Plus size={14} /> Add email
+            </button>
+          </div>
+
           <div className="max-h-80 overflow-auto rounded-2xl border border-gray-100">
             <table className="w-full text-sm">
               <thead className="bg-gray-50 text-left text-xs text-gray-500">
@@ -413,12 +528,14 @@ export default function AdminMailPage() {
                     />
                   </th>
                   <th className="p-2">Name</th>
+                  <th className="p-2">Company</th>
                   <th className="p-2">Email</th>
+                  <th className="p-2">File</th>
                 </tr>
               </thead>
               <tbody>
                 {recipients.map((r) => (
-                  <tr key={r.email} className="border-t border-gray-50">
+                  <tr key={r.id} className="border-t border-gray-50">
                     <td className="p-2">
                       <input
                         type="checkbox"
@@ -426,19 +543,34 @@ export default function AdminMailPage() {
                         checked={r.selected}
                         onChange={(e) =>
                           setRecipients((rows) =>
-                            rows.map((row) => (row.email === r.email ? { ...row, selected: e.target.checked } : row)),
+                            rows.map((row) => (row.id === r.id ? { ...row, selected: e.target.checked } : row)),
                           )
                         }
                       />
                     </td>
                     <td className="p-2">{r.name}</td>
+                    <td className="p-2 text-gray-500">{r.company}</td>
                     <td className="p-2 text-gray-500">{r.email}</td>
+                    <td className="p-2 text-gray-500">
+                      {r.manual ? (
+                        <button
+                          type="button"
+                          disabled={running}
+                          onClick={() => void removeManual(r.id)}
+                          className="text-xs underline disabled:opacity-40"
+                        >
+                          Added by hand · Remove
+                        </button>
+                      ) : (
+                        files.find((file) => file.id === r.fileId)?.fileName ?? "Uploaded file"
+                      )}
+                    </td>
                   </tr>
                 ))}
                 {!recipients.length && (
                   <tr>
-                    <td colSpan={3} className="p-6 text-center text-gray-400">
-                      Upload a list to choose who receives the template.
+                    <td colSpan={5} className="p-6 text-center text-gray-400">
+                      Upload a file from this PC, or add an email by hand.
                     </td>
                   </tr>
                 )}
