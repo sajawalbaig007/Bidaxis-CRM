@@ -9,6 +9,30 @@ export function formatOvertimeMinutes(minutes: number): string {
   return `${h}h ${String(m).padStart(2, "0")}m`;
 }
 
+const CLOCK_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+/** Minutes between two HH:mm clocks. Checkout before check-in counts as the next day. */
+export function overtimeMinutesFromClocks(checkIn: string, checkOut: string): number | null {
+  if (!CLOCK_RE.test(checkIn) || !CLOCK_RE.test(checkOut)) return null;
+  const [ih, im] = checkIn.split(":").map(Number);
+  const [oh, om] = checkOut.split(":").map(Number);
+  const start = ih * 60 + im;
+  const end = oh * 60 + om;
+  const minutes = end > start ? end - start : end + 24 * 60 - start;
+  if (minutes < 1 || minutes > 12 * 60) return null;
+  return minutes;
+}
+
+function appliedWindow(input: { checkIn?: string; checkOut?: string }): { ok: true; minutes: number; checkIn: string; checkOut: string } | { ok: false; message: string } {
+  const checkIn = String(input.checkIn ?? "").trim();
+  const checkOut = String(input.checkOut ?? "").trim();
+  const minutes = overtimeMinutesFromClocks(checkIn, checkOut);
+  if (minutes == null) {
+    return { ok: false, message: "Enter overtime check-in and check-out. Overtime can be from 1 minute up to 12 hours." };
+  }
+  return { ok: true, minutes, checkIn, checkOut };
+}
+
 export function isWeekend(date: Date, timeZone: string): boolean {
   const day = new Intl.DateTimeFormat("en-US", { timeZone, weekday: "short" }).format(date);
   return day === "Sat" || day === "Sun";
@@ -67,6 +91,8 @@ export async function reviewOvertime(input: {
   action: "approve" | "decline" | "edit";
   comment?: string;
   minutes?: number;
+  checkIn?: string;
+  checkOut?: string;
 }) {
   const note = await prisma.overtimeRequest.findUnique({ where: { id: input.id } });
   if (!note) return { ok: false as const, message: "Overtime comment not found." };
@@ -79,7 +105,8 @@ export async function reviewOvertime(input: {
     return { ok: false as const, message: "Chief Estimator reviews estimator overtime." };
   }
   if (input.action === "edit") {
-    const minutes = Number(input.minutes);
+    const window = appliedWindow({ checkIn: input.checkIn, checkOut: input.checkOut });
+    const minutes = window.ok ? window.minutes : Number(input.minutes);
     const keptNote = note.comment.split("\n").slice(1).join("\n").trim();
     const duration = Number.isInteger(minutes) && minutes >= 1 && minutes <= 12 * 60
       ? formatOvertimeMinutes(minutes)
@@ -87,10 +114,14 @@ export async function reviewOvertime(input: {
     const comment = duration
       ? (keptNote ? `${duration}\n${keptNote}` : duration)
       : (input.comment ?? "").trim().slice(0, 500);
-    if (!comment) return { ok: false as const, message: "Enter the overtime time." };
+    if (!comment) return { ok: false as const, message: "Enter the overtime check-in and check-out." };
     const updated = await prisma.overtimeRequest.update({
       where: { id: note.id },
-      data: { comment, editedBy: reviewer },
+      data: {
+        comment,
+        editedBy: reviewer,
+        ...(window.ok ? { checkIn: window.checkIn, checkOut: window.checkOut } : {}),
+      },
     });
     return { ok: true as const, note: updated };
   }
@@ -176,27 +207,32 @@ export async function overtimeGate(userId: string, role: string) {
   };
 }
 
-export async function submitShiftOvertime(input: { userId: string; role: string; name: string; minutes: number }) {
+export async function submitShiftOvertime(input: { userId: string; role: string; name: string; checkIn: string; checkOut: string }) {
   if (input.role !== "estimator" && input.role !== "technical_manager") {
     return { ok: false as const, message: "Overtime is only for estimators and the Chief Estimator." };
   }
-  const minutes = Math.round(input.minutes);
-  if (!Number.isInteger(minutes) || minutes < 1 || minutes > 12 * 60) {
-    return { ok: false as const, message: "Enter overtime from 1 minute up to 12 hours." };
-  }
+  const window = appliedWindow(input);
+  if (!window.ok) return window;
   const gate = await overtimeGate(input.userId, input.role);
   if (!gate.allowed) {
     return { ok: false as const, message: "Overtime opens on Saturday and Sunday, or after a 9 hour weekday shift." };
   }
   const department = input.role === "estimator" ? "estimator" : "chief_estimator";
   const day = pktShiftDay(new Date(), input.role === "estimator" ? "estimator" : "chief_estimator", input.userId);
-  const comment = formatOvertimeMinutes(minutes);
+  const comment = formatOvertimeMinutes(window.minutes);
   const where = { personKey_day_department: { personKey: input.userId, day, department } };
   const existing = await prisma.overtimeRequest.findUnique({ where });
   const note = existing
     ? await prisma.overtimeRequest.update({
         where: { id: existing.id },
-        data: { comment, personName: input.name, status: "pending", editedBy: null },
+        data: {
+          comment,
+          checkIn: window.checkIn,
+          checkOut: window.checkOut,
+          personName: input.name,
+          status: "pending",
+          editedBy: null,
+        },
       })
     : await prisma.overtimeRequest.create({
         data: {
@@ -205,6 +241,8 @@ export async function submitShiftOvertime(input: { userId: string; role: string;
           department,
           day,
           comment,
+          checkIn: window.checkIn,
+          checkOut: window.checkOut,
           status: "pending",
         },
       });
@@ -212,22 +250,27 @@ export async function submitShiftOvertime(input: { userId: string; role: string;
 }
 
 /** Chief Estimator enters their own overtime. The CEO approves it. */
-export async function submitChiefOvertime(input: { userId: string; name: string; day: string; minutes: number; note?: string }) {
-  const minutes = Math.round(input.minutes);
+export async function submitChiefOvertime(input: { userId: string; name: string; day: string; checkIn: string; checkOut: string; note?: string }) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(input.day)) {
     return { ok: false as const, message: "Pick a date." };
   }
-  if (!Number.isInteger(minutes) || minutes < 1 || minutes > 12 * 60) {
-    return { ok: false as const, message: "Enter overtime from 1 minute up to 12 hours." };
-  }
+  const window = appliedWindow(input);
+  if (!window.ok) return window;
   const noteText = String(input.note ?? "").trim().slice(0, 300);
-  const comment = noteText ? `${formatOvertimeMinutes(minutes)}\n${noteText}` : formatOvertimeMinutes(minutes);
+  const comment = noteText ? `${formatOvertimeMinutes(window.minutes)}\n${noteText}` : formatOvertimeMinutes(window.minutes);
   const where = { personKey_day_department: { personKey: input.userId, day: input.day, department: "chief_estimator" } };
   const existing = await prisma.overtimeRequest.findUnique({ where });
   const note = existing
     ? await prisma.overtimeRequest.update({
         where: { id: existing.id },
-        data: { comment, personName: input.name, status: "pending", editedBy: null },
+        data: {
+          comment,
+          checkIn: window.checkIn,
+          checkOut: window.checkOut,
+          personName: input.name,
+          status: "pending",
+          editedBy: null,
+        },
       })
     : await prisma.overtimeRequest.create({
         data: {
@@ -236,6 +279,8 @@ export async function submitChiefOvertime(input: { userId: string; name: string;
           department: "chief_estimator",
           day: input.day,
           comment,
+          checkIn: window.checkIn,
+          checkOut: window.checkOut,
           status: "pending",
         },
       });
@@ -247,15 +292,14 @@ export async function chiefSetEstimatorOvertime(input: {
   personKey: string;
   personName: string;
   day: string;
-  minutes: number;
+  checkIn: string;
+  checkOut: string;
 }) {
-  const minutes = Math.round(input.minutes);
   if (!input.personKey || !/^\d{4}-\d{2}-\d{2}$/.test(input.day)) {
     return { ok: false as const, message: "Pick the estimator and date." };
   }
-  if (!Number.isInteger(minutes) || minutes < 1 || minutes > 12 * 60) {
-    return { ok: false as const, message: "Enter overtime from 1 minute up to 12 hours." };
-  }
+  const window = appliedWindow(input);
+  if (!window.ok) return window;
   const user = await prisma.user.findUnique({
     where: { id: input.personKey },
     select: { role: true, name: true },
@@ -263,13 +307,19 @@ export async function chiefSetEstimatorOvertime(input: {
   if (user?.role !== "estimator") {
     return { ok: false as const, message: "You can only edit estimator overtime." };
   }
-  const comment = formatOvertimeMinutes(minutes);
+  const comment = formatOvertimeMinutes(window.minutes);
   const where = { personKey_day_department: { personKey: input.personKey, day: input.day, department: "estimator" } };
   const existing = await prisma.overtimeRequest.findUnique({ where });
   const note = existing
     ? await prisma.overtimeRequest.update({
         where: { id: existing.id },
-        data: { comment, personName: user.name || input.personName, editedBy: "Chief Estimator" },
+        data: {
+          comment,
+          checkIn: window.checkIn,
+          checkOut: window.checkOut,
+          personName: user.name || input.personName,
+          editedBy: "Chief Estimator",
+        },
       })
     : await prisma.overtimeRequest.create({
         data: {
@@ -278,6 +328,8 @@ export async function chiefSetEstimatorOvertime(input: {
           department: "estimator",
           day: input.day,
           comment,
+          checkIn: window.checkIn,
+          checkOut: window.checkOut,
           status: "pending",
           editedBy: "Chief Estimator",
         },
@@ -290,10 +342,14 @@ export function overtimePublic(note: {
   comment: string;
   status: string;
   editedBy: string | null;
+  checkIn?: string | null;
+  checkOut?: string | null;
 } | null | undefined) {
   return {
     overtimeId: note?.id ?? null,
     overtimeComment: note?.comment ?? null,
+    overtimeCheckIn: note?.checkIn ?? null,
+    overtimeCheckOut: note?.checkOut ?? null,
     overtimeStatus: note?.status ?? null,
     overtimeEditedBy: note?.editedBy ?? null,
   };
