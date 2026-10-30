@@ -31,11 +31,9 @@ import {
   registerActiveSession,
   clearActiveSession,
   hasActiveSession,
-  recordLoginAttempt,
-  getLoginAttemptAlert,
   clearLoginAttemptAlert,
 } from "../utils/sessions";
-import { notifyLoginAttempt } from "../chat/chatSocket";
+import { forceLogoutUser } from "../chat/chatSocket";
 import { csrLoginBlocked } from "../utils/csrShiftWindow";
 
 const JWT_SECRET = getJwtSecret();
@@ -64,49 +62,16 @@ function userPayload(u: AuthUser) {
   return { id: u.id, name: u.name, email: u.email, role: u.role };
 }
 
-async function tokenUserId(req: Request): Promise<string | null> {
-  const token =
-    req.cookies?.token ??
-    req.headers.authorization?.replace("Bearer ", "");
-  if (!token) return null;
-  try {
-    const decoded = jwt.verify(token, JWT_SECRET) as { id?: string };
-    return decoded.id ?? null;
-  } catch {
-    // Expired / rotated token still identifies this browser's last user
-    try {
-      const decoded = jwt.decode(token) as { id?: string } | null;
-      return decoded?.id ?? null;
-    } catch {
-      return null;
-    }
-  }
-}
-
 /**
- * Single-device lock: block a second device.
- * Same browser re-login (cookie / Bearer still present for this user) must not
- * false-lock after SESSION_INVALID cleared the client but left activeSessionId in DB.
+ * A correct login takes the seat. The previous browser is signed out
+ * because its session id no longer matches.
  */
-async function blockIfAlreadyLoggedIn(userId: string, req: Request, res: Response): Promise<boolean> {
+async function blockIfAlreadyLoggedIn(userId: string, _req: Request, _res: Response): Promise<boolean> {
   const active = await hasActiveSession(userId);
   if (!active) return false;
-
-  const cookieUserId = await tokenUserId(req);
-  if (cookieUserId && cookieUserId === userId) {
-    await clearActiveSession(userId);
-    return false;
-  }
-
-  const attemptId = await recordLoginAttempt(userId);
-  notifyLoginAttempt(userId, attemptId);
-
-  res.status(403).json({
-    success: false,
-    code: "ALREADY_LOGGED_IN",
-    message: "Already logged in on another device.",
-  });
-  return true;
+  forceLogoutUser(userId, "This account signed in on another device. You have been logged out.");
+  await clearActiveSession(userId);
+  return false;
 }
 
 async function issueSessionToken(
