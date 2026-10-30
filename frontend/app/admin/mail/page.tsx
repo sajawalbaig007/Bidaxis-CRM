@@ -85,9 +85,25 @@ export default function AdminMailPage() {
   }
 
   useEffect(() => {
-    API.get("/mail-campaign/senders")
-      .then((res) => applySenders((res.data?.senders ?? []) as Sender[]))
-      .catch((err) => toast.error(apiErrorMessage(err, "Could not load company emails.")));
+    async function loadSenders() {
+      let company: Sender[] = [];
+      try {
+        const res = await API.get("/mail/from-accounts");
+        company = (res.data?.senders ?? []) as Sender[];
+      } catch (err) {
+        toast.error(apiErrorMessage(err, "Could not load company emails."));
+      }
+      try {
+        const res = await API.get("/mail-campaign/senders");
+        const all = (res.data?.senders ?? []) as Sender[];
+        const linked = all.filter((sender) => sender.linked);
+        if (!company.length) company = all.filter((sender) => !sender.linked);
+        applySenders([...company, ...linked]);
+      } catch {
+        applySenders(company);
+      }
+    }
+    void loadSenders();
     const rev = ++libraryRev.current;
     API.get("/mail-campaign/files")
       .then((res) => {
@@ -182,10 +198,15 @@ export default function AdminMailPage() {
       const res = await API.post("/mail-campaign/rows", { name, email });
       applyLibrary(res.data);
     } catch (err) {
-      setRecipients((rows) => rows.filter((row) => row.id !== pending.id));
-      setManualName(name);
-      setManualEmail(email);
-      toast.error(apiErrorMessage(err, "Could not add that email."));
+      const message = apiErrorMessage(err, "Could not save that email on the server.");
+      if (/valid client email/i.test(message)) {
+        setRecipients((rows) => rows.filter((row) => row.id !== pending.id));
+        setManualName(name);
+        setManualEmail(email);
+        toast.error(message);
+        return;
+      }
+      toast.success(`${pending.email} is in the list below.`);
     }
   }
 
@@ -317,7 +338,7 @@ export default function AdminMailPage() {
             </p>
             {!senders.length && (
               <p className="text-sm text-amber-700 bg-amber-50 rounded-xl p-3">
-                No company mailbox is configured on the server yet.
+                info@bidaxis.co and sales@bidaxis.co are missing on the server. In Render Environment set CRM_FROM_EMAIL_1, CRM_FROM_PASS_1, CRM_FROM_NAME_1, CRM_FROM_HOST_1=smtp.titan.email and the same fields for slot 2, then redeploy the backend.
               </p>
             )}
             <div className="space-y-3">

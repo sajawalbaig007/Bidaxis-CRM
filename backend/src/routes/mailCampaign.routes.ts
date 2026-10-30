@@ -2,7 +2,7 @@ import express from "express";
 import multer from "multer";
 import { verifyToken, type AuthRequest } from "../middleware/auth.middleware";
 import { allowRoles } from "../middleware/role.middleware";
-import { isValidEmail, listAllPublicSenders } from "../utils/clientMail";
+import { isValidEmail, listAllPublicSenders, publicSenders } from "../utils/clientMail";
 import { campaignStatus, startCampaign, stopCampaign } from "../utils/mailCampaign";
 import { mailSheetRejectReason, parseClientMailSheet } from "../utils/mailListParse";
 import prisma from "../config/db";
@@ -47,8 +47,13 @@ const router = express.Router();
 router.use(verifyToken, allowRoles("admin"));
 
 router.get("/senders", async (_req, res) => {
-  const senders = await listAllPublicSenders();
-  return res.json({ success: true, senders });
+  try {
+    const senders = await listAllPublicSenders();
+    return res.json({ success: true, senders });
+  } catch (err) {
+    console.error("[mail-campaign] senders failed", err);
+    return res.json({ success: true, senders: publicSenders() });
+  }
 });
 
 router.post("/gmail", async (req: AuthRequest, res) => {

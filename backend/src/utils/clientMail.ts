@@ -121,21 +121,29 @@ export function publicSenders(): MailSenderPublic[] {
 }
 
 export async function listLinkedGmail(): Promise<MailSenderPublic[]> {
-  const rows = await prisma.linkedMailbox.findMany({ orderBy: { createdAt: "asc" } });
-  return rows.map((row) => ({
-    id: `g:${row.id}`,
-    email: row.email,
-    name: row.name || row.email,
-    signatureBrand: null,
-    signatureLabel: "Gmail",
-    defaultFooter: "",
-    linked: true,
-  }));
+  try {
+    const rows = await prisma.linkedMailbox.findMany();
+    rows.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+    return rows.map((row) => ({
+      id: `g:${row.id}`,
+      email: row.email,
+      name: row.name || row.email,
+      signatureBrand: null,
+      signatureLabel: "Gmail",
+      defaultFooter: "",
+      linked: true,
+    }));
+  } catch (err) {
+    console.error("[mail] linked gmail list failed", err);
+    return [];
+  }
 }
 
 export async function listAllPublicSenders(): Promise<MailSenderPublic[]> {
+  const company = publicSenders();
   const linked = await listLinkedGmail();
-  return [...publicSenders(), ...linked];
+  const seen = new Set(company.map((sender) => sender.email.toLowerCase()));
+  return [...company, ...linked.filter((sender) => !seen.has(sender.email.toLowerCase()))];
 }
 
 export async function resolveMailbox(id: string): Promise<MailSender | null> {
