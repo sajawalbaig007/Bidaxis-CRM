@@ -15,6 +15,7 @@ import { closeForgottenWorkSessions } from "./utils/csrSessionTracking";
 import { closeForgottenStaffShifts } from "./utils/staffAttendance";
 import { refreshShiftSchedules } from "./utils/shiftSchedule";
 import { refreshLatePolicies } from "./utils/lateDeduction";
+import { syncCompanyMailboxesFromEnv } from "./utils/clientMail";
 
 const PORT = process.env.PORT || 5000;
 
@@ -319,4 +320,5 @@ server.timeout = 0;
 
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
+  void syncCompanyMailboxesFromEnv().catch((err) => console.error("[mail] env mailbox sync failed", err));
 });

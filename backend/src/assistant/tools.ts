@@ -12,7 +12,7 @@ import {
 } from "../utils/projectCurrencyCollections";
 import { currencyFormulaTotalFromDashboard } from "../utils/currencyFormula";
 import { defaultAccountsData } from "../utils/accountsDefaults";
-import { publicSenders, draftClientMail } from "../utils/clientMail";
+import { listAllPublicSenders, draftClientMail } from "../utils/clientMail";
 import { estDateYmd, estDayBoundsUtc, formatDurationMs, formatEstDateTime } from "../utils/estTime";
 import { parseMoney, parseProjectPayments, paidTotalFromEntries } from "../utils/projectPayments";
 import { clientCodeFamilyKey } from "../utils/adminClientQueries";
@@ -871,7 +871,7 @@ export async function prepareClientEmail(
     (found.data.recentNotes as { text: string }[] | undefined) ?? [],
     (found.data.recentCalls as { status: string; notes: string | null }[] | undefined) ?? [],
   );
-  const senders = publicSenders();
+  const senders = await listAllPublicSenders();
   const draft = await draftClientMail({
     fromName: "",
     fromEmail: "",

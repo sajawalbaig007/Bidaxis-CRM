@@ -4,9 +4,9 @@ import { verifyToken, type AuthRequest } from "../middleware/auth.middleware";
 import { allowRoles } from "../middleware/role.middleware";
 import {
   draftClientMail,
-  findSender,
   isValidEmail,
-  publicSenders,
+  listAllPublicSenders,
+  resolveMailbox,
   sendClientMail,
 } from "../utils/clientMail";
 import { rewriteClientEmail } from "../assistant/emailRewrite";
@@ -25,8 +25,14 @@ const sendLimiter = rateLimit({
 
 router.use(verifyToken, allowRoles(...MAIL_ROLES));
 
-router.get("/from-accounts", (_req, res) => {
-  return res.json({ success: true, senders: publicSenders() });
+router.get("/from-accounts", async (_req, res) => {
+  res.set("Cache-Control", "no-store, no-cache, must-revalidate");
+  try {
+    return res.json({ success: true, senders: await listAllPublicSenders() });
+  } catch (err) {
+    console.error("[mail] from-accounts failed", err);
+    return res.status(500).json({ success: false, message: "Could not load company emails.", senders: [] });
+  }
 });
 
 router.post("/draft", async (req: AuthRequest, res) => {
@@ -43,7 +49,7 @@ router.post("/draft", async (req: AuthRequest, res) => {
     if (!isValidEmail(to)) {
       return res.status(400).json({ success: false, message: "Client email is invalid." });
     }
-    const sender = findSender(fromId);
+    const sender = await resolveMailbox(fromId);
     if (!sender) {
       return res.status(400).json({ success: false, message: "Select a company email first." });
     }
@@ -95,11 +101,11 @@ router.post("/send", sendLimiter, async (req: AuthRequest, res) => {
     if (body.length > 20_000 || subject.length > 200) {
       return res.status(400).json({ success: false, message: "Message is too long." });
     }
-    const sender = findSender(fromId);
+    const sender = await resolveMailbox(fromId);
     if (!sender) {
       return res.status(400).json({
         success: false,
-        message: "That company email is not configured yet. Add CRM_FROM_EMAIL / CRM_FROM_PASS in the server env (Hostinger mailbox password, or Gmail app password).",
+        message: "That company email is not configured yet. Save info@bidaxis.co / sales@bidaxis.co on the Mail page, or set CRM_FROM_EMAIL / CRM_FROM_PASS on the server.",
       });
     }
     await sendClientMail({ sender, to, subject, body });
@@ -109,7 +115,7 @@ router.post("/send", sendLimiter, async (req: AuthRequest, res) => {
     console.error("[mail/send]", err);
     return res.status(500).json({
       success: false,
-      message: "Send failed. Hostinger login was rejected — confirm the selected From email matches that mailbox app password, then try again.",
+      message: "Send failed. Mailbox login was rejected — confirm the From email and password (Titan mailbox password, or Gmail app password), then try again.",
     });
   }
 });

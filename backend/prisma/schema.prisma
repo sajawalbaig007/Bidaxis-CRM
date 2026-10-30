@@ -767,6 +767,9 @@ model LinkedMailbox {
   email     String   @unique
   name      String   @default("")
   pass      String
+  host      String   @default("")
+  port      Int      @default(0)
+  secure    Boolean  @default(true)
   createdAt DateTime @default(now())
 
   @@map("linked_mailboxes")

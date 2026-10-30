@@ -2,7 +2,13 @@ import express from "express";
 import multer from "multer";
 import { verifyToken, type AuthRequest } from "../middleware/auth.middleware";
 import { allowRoles } from "../middleware/role.middleware";
-import { isValidEmail, listAllPublicSenders, publicSenders } from "../utils/clientMail";
+import {
+  isGmailMailbox,
+  isValidEmail,
+  listAllPublicSenders,
+  mailboxSmtpDefaults,
+  publicSenders,
+} from "../utils/clientMail";
 import { campaignStatus, startCampaign, stopCampaign } from "../utils/mailCampaign";
 import { mailSheetRejectReason, parseClientMailSheet } from "../utils/mailListParse";
 import prisma from "../config/db";
@@ -15,6 +21,12 @@ const uploadMailList = multer({
 function safeFileName(raw: string): string {
   const base = raw.split(/[/\\]/).pop()?.replace(/\s+/g, " ").trim() || "client-sheet";
   return base.slice(0, 180);
+}
+
+function noStore(res: express.Response) {
+  res.set("Cache-Control", "no-store, no-cache, must-revalidate");
+  res.set("Pragma", "no-cache");
+  res.set("Expires", "0");
 }
 
 async function mailLibrary() {
@@ -47,6 +59,7 @@ const router = express.Router();
 router.use(verifyToken, allowRoles("admin"));
 
 router.get("/senders", async (_req, res) => {
+  noStore(res);
   try {
     const senders = await listAllPublicSenders();
     return res.json({ success: true, senders });
@@ -56,41 +69,70 @@ router.get("/senders", async (_req, res) => {
   }
 });
 
-router.post("/gmail", async (req: AuthRequest, res) => {
+async function saveLinkedMailbox(req: AuthRequest, res: express.Response) {
   const email = String(req.body?.email ?? "").trim().toLowerCase();
-  const pass = String(req.body?.appPassword ?? "").replace(/\s/g, "");
+  const pass = String(req.body?.appPassword ?? req.body?.password ?? "").replace(/\s/g, "");
   const name = String(req.body?.name ?? "").trim() || email;
-  const gmail = email.endsWith("@gmail.com") || email.endsWith("@googlemail.com");
-  if (!isValidEmail(email) || !gmail) {
-    return res.status(400).json({ success: false, message: "Enter a Gmail address." });
+  if (!isValidEmail(email)) {
+    return res.status(400).json({ success: false, message: "Enter a valid email address." });
   }
   if (pass.length < 8) {
-    return res.status(400).json({ success: false, message: "Paste the Gmail app password." });
+    return res.status(400).json({
+      success: false,
+      message: isGmailMailbox(email)
+        ? "Paste the Gmail app password."
+        : "Paste the mailbox password (Titan / company email password).",
+    });
   }
   const existing = await prisma.linkedMailbox.findUnique({ where: { email } });
-  if (!existing) {
-    const count = await prisma.linkedMailbox.count();
-    if (count >= 3) {
+  if (!existing && isGmailMailbox(email)) {
+    const linked = await prisma.linkedMailbox.findMany({ select: { email: true } });
+    const gmailCount = linked.filter((row) => isGmailMailbox(row.email)).length;
+    if (gmailCount >= 3) {
       return res.status(400).json({ success: false, message: "You can link up to 3 Gmail accounts." });
     }
   }
+  const smtp = mailboxSmtpDefaults(email);
   await prisma.linkedMailbox.upsert({
     where: { email },
-    create: { email, name, pass },
-    update: { name, pass },
+    create: { email, name, pass, host: smtp.host, port: smtp.port, secure: smtp.secure },
+    update: { name, pass, host: smtp.host, port: smtp.port, secure: smtp.secure },
   });
-  console.info(`[mail-campaign] gmail linked by=${req.user?.id} email=${email}`);
+  console.info(`[mail-campaign] mailbox saved by=${req.user?.id} email=${email}`);
+  noStore(res);
   return res.json({ success: true, senders: await listAllPublicSenders() });
+}
+
+router.post("/gmail", async (req: AuthRequest, res) => {
+  return saveLinkedMailbox(req, res);
+});
+
+router.post("/mailbox", async (req: AuthRequest, res) => {
+  return saveLinkedMailbox(req, res);
 });
 
 router.delete("/gmail/:id", async (req: AuthRequest, res) => {
   const id = String(req.params.id ?? "").replace(/^g:/, "");
+  const row = await prisma.linkedMailbox.findUnique({ where: { id } });
+  if (row && /^(info|sales)@bidaxis\.co$/i.test(row.email)) {
+    return res.status(400).json({
+      success: false,
+      message: "info@ and sales@ stay in the database. Save a new password instead of removing them.",
+    });
+  }
   await prisma.linkedMailbox.deleteMany({ where: { id } });
+  noStore(res);
   return res.json({ success: true, senders: await listAllPublicSenders() });
 });
 
 router.get("/files", async (_req, res) => {
-  return res.json({ success: true, ...(await mailLibrary()) });
+  noStore(res);
+  try {
+    return res.json({ success: true, ...(await mailLibrary()) });
+  } catch (err) {
+    console.error("[mail-campaign] files load failed", err);
+    return res.status(500).json({ success: false, message: "Could not load clients from the database." });
+  }
 });
 
 router.post("/files", uploadMailList.single("file"), async (req: AuthRequest, res) => {
@@ -172,6 +214,7 @@ router.post("/rows", async (req, res) => {
     await prisma.mailListRow.create({
       data: { email, name, company: "", manual: true, fileId: "" },
     });
+    noStore(res);
     return res.json({ success: true, ...(await mailLibrary()) });
   } catch (err) {
     console.error("[mail-campaign] add row failed", err);
@@ -194,10 +237,22 @@ router.post("/stop", (_req, res) => {
 });
 
 router.post("/start", async (req: AuthRequest, res) => {
+  const ids = Array.isArray(req.body?.recipientIds)
+    ? req.body.recipientIds.map((id: unknown) => String(id ?? "").trim()).filter(Boolean)
+    : [];
+  let recipients: { name: string; email: string }[] = Array.isArray(req.body?.recipients) ? req.body.recipients : [];
+  if (ids.length) {
+    const rows = await prisma.mailListRow.findMany({ where: { id: { in: ids } } });
+    const byId = new Map(rows.map((row) => [row.id, row]));
+    recipients = ids
+      .map((id: string) => byId.get(id))
+      .filter((row): row is NonNullable<typeof row> => !!row)
+      .map((row) => ({ name: row.name, email: row.email }));
+  }
   const result = await startCampaign({
     subject: String(req.body?.subject ?? ""),
     body: String(req.body?.body ?? ""),
-    recipients: Array.isArray(req.body?.recipients) ? req.body.recipients : [],
+    recipients,
     senders: Array.isArray(req.body?.senders) ? req.body.senders : [],
     minDelaySec: Number(req.body?.minDelaySec),
     maxDelaySec: Number(req.body?.maxDelaySec),

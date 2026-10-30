@@ -44,16 +44,22 @@ export default function AdminMailPage() {
   const [status, setStatus] = useState<Status | null>(null);
   const [starting, setStarting] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
-  const libraryRev = useRef(0);
+  const live = { headers: { "Cache-Control": "no-cache", Pragma: "no-cache" } };
 
   function applySenders(list: Sender[]) {
-    setSenders(list);
+    const seen = new Set<string>();
+    const unique = list.filter((sender) => {
+      const key = sender.email.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+    setSenders(unique);
     setPicked((prev) => {
       const next: Record<string, boolean> = {};
-      const preferred = list.filter((s) => /^(info|sales)@bidaxis\.co$/i.test(s.email));
-      for (const s of list) {
+      const preferred = unique.filter((s) => /^(info|sales)@bidaxis\.co$/i.test(s.email));
+      for (const s of unique) {
         if (s.id in prev) next[s.id] = prev[s.id];
-        else if (s.linked) next[s.id] = true;
         else next[s.id] = preferred.length ? preferred.some((p) => p.id === s.id) : true;
       }
       return next;
@@ -61,55 +67,50 @@ export default function AdminMailPage() {
   }
 
   function applyLibrary(data: { files?: MailFile[]; recipients?: Omit<Recipient, "selected">[] }) {
-    const rev = ++libraryRev.current;
+    const incoming = (data.recipients ?? []).filter((row) => row.email && !String(row.id).startsWith("local-"));
     setFiles(data.files ?? []);
     setRecipients((current) => {
-      if (rev !== libraryRev.current) return current;
       const selected = new Map(current.map((row) => [row.email, row.selected]));
-      const incoming = (data.recipients ?? []).filter((row) => row.email);
-      const seen = new Set(incoming.map((row) => row.email));
-      const kept = current.filter((row) => row.id.startsWith("local-") && !seen.has(row.email));
-      return [
-        ...incoming.map((row) => ({
-          id: row.id,
-          fileId: row.fileId ?? "",
-          name: row.name || row.email.split("@")[0],
-          email: row.email,
-          company: row.company ?? "",
-          manual: !!row.manual,
-          selected: selected.get(row.email) ?? true,
-        })),
-        ...kept,
-      ];
+      return incoming.map((row) => ({
+        id: row.id,
+        fileId: row.fileId ?? "",
+        name: row.name || row.email.split("@")[0],
+        email: row.email,
+        company: row.company ?? "",
+        manual: !!row.manual,
+        selected: selected.get(row.email) ?? true,
+      }));
     });
   }
 
-  useEffect(() => {
-    async function loadSenders() {
-      let company: Sender[] = [];
+  async function loadSenders() {
+    try {
+      const res = await API.get("/mail-campaign/senders", { ...live, params: { _: Date.now() } });
+      applySenders((res.data?.senders ?? []) as Sender[]);
+    } catch {
       try {
-        const res = await API.get("/mail/from-accounts");
-        company = (res.data?.senders ?? []) as Sender[];
+        const res = await API.get("/mail/from-accounts", { ...live, params: { _: Date.now() } });
+        applySenders((res.data?.senders ?? []) as Sender[]);
       } catch (err) {
         toast.error(apiErrorMessage(err, "Could not load company emails."));
       }
-      try {
-        const res = await API.get("/mail-campaign/senders");
-        const all = (res.data?.senders ?? []) as Sender[];
-        const linked = all.filter((sender) => sender.linked);
-        if (!company.length) company = all.filter((sender) => !sender.linked);
-        applySenders([...company, ...linked]);
-      } catch {
-        applySenders(company);
-      }
     }
+  }
+
+  async function loadLibrary() {
+    const res = await API.get("/mail-campaign/files", { ...live, params: { _: Date.now() } });
+    applyLibrary(res.data);
+  }
+
+  useEffect(() => {
     void loadSenders();
-    const rev = ++libraryRev.current;
-    API.get("/mail-campaign/files")
-      .then((res) => {
-        if (rev === libraryRev.current) applyLibrary(res.data);
-      })
-      .catch((err) => toast.error(apiErrorMessage(err, "Could not load uploaded files.")));
+    void loadLibrary().catch((err) => toast.error(apiErrorMessage(err, "Could not load clients from the database.")));
+    const onFocus = () => {
+      void loadSenders();
+      void loadLibrary().catch(() => undefined);
+    };
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
   }, []);
 
   useEffect(() => {
@@ -182,31 +183,14 @@ export default function AdminMailPage() {
       toast.error("Enter a valid client email.");
       return;
     }
-    const pending = {
-      id: `local-${email}`,
-      fileId: "",
-      name: name || email.split("@")[0],
-      email,
-      company: "",
-      manual: true,
-      selected: true,
-    };
-    setRecipients((rows) => (rows.some((row) => row.email === email) ? rows : [...rows, pending]));
-    setManualName("");
-    setManualEmail("");
     try {
       const res = await API.post("/mail-campaign/rows", { name, email });
       applyLibrary(res.data);
+      setManualName("");
+      setManualEmail("");
+      toast.success(`${email} saved to the database.`);
     } catch (err) {
-      const message = apiErrorMessage(err, "Could not save that email on the server.");
-      if (/valid client email/i.test(message)) {
-        setRecipients((rows) => rows.filter((row) => row.id !== pending.id));
-        setManualName(name);
-        setManualEmail(email);
-        toast.error(message);
-        return;
-      }
-      toast.success(`${pending.email} is in the list below.`);
+      toast.error(apiErrorMessage(err, "Could not save that email on the server."));
     }
   }
 
@@ -236,7 +220,7 @@ export default function AdminMailPage() {
         body,
         minDelaySec: minDelay,
         maxDelaySec: maxDelay,
-        recipients: selected.map((r) => ({ name: r.name, email: r.email })),
+        recipientIds: selected.map((r) => r.id),
         senders: chosen.map((s) => ({ id: s.id })),
       });
       setStatus(res.data as Status);
@@ -251,7 +235,7 @@ export default function AdminMailPage() {
   async function linkGmail() {
     setLinking(true);
     try {
-      const res = await API.post("/mail-campaign/gmail", {
+      const res = await API.post("/mail-campaign/mailbox", {
         email: gmailAddress,
         appPassword: gmailPass,
         name: gmailName,
@@ -260,9 +244,9 @@ export default function AdminMailPage() {
       setGmailAddress("");
       setGmailPass("");
       setGmailName("");
-      toast.success("Gmail linked.");
+      toast.success("Mailbox saved to the database.");
     } catch (err) {
-      toast.error(apiErrorMessage(err, "Could not link Gmail."));
+      toast.error(apiErrorMessage(err, "Could not save that mailbox."));
     } finally {
       setLinking(false);
     }
@@ -336,9 +320,9 @@ export default function AdminMailPage() {
             <p className="text-xs text-gray-400 mt-1 mb-3">
               info and sales take turns. Their signatures stay fixed.
             </p>
-            {!senders.length && (
+            {!senders.some((s) => /^(info|sales)@bidaxis\.co$/i.test(s.email)) && (
               <p className="text-sm text-amber-700 bg-amber-50 rounded-xl p-3">
-                info@bidaxis.co and sales@bidaxis.co are missing on the server. In Render Environment set CRM_FROM_EMAIL_1, CRM_FROM_PASS_1, CRM_FROM_NAME_1, CRM_FROM_HOST_1=smtp.titan.email and the same fields for slot 2, then redeploy the backend.
+                Save info@bidaxis.co and sales@bidaxis.co below with the Titan mailbox password. They are stored in the database and used live — no cache.
               </p>
             )}
             <div className="space-y-3">
@@ -372,8 +356,10 @@ export default function AdminMailPage() {
               ))}
             </div>
             <div className="mt-4 rounded-2xl border border-dashed border-gray-200 p-3">
-              <p className="text-sm font-medium text-gray-800">Link a Gmail</p>
-              <p className="text-xs text-gray-400 mt-1 mb-2">Use a Google app password, not the normal login password.</p>
+              <p className="text-sm font-medium text-gray-800">Save a mailbox</p>
+              <p className="text-xs text-gray-400 mt-1 mb-2">
+                Company Titan: info@bidaxis.co or sales@bidaxis.co with the mailbox password. Gmail: use an app password, not the login password.
+              </p>
               <input
                 value={gmailName}
                 onChange={(e) => setGmailName(e.target.value)}
@@ -385,7 +371,7 @@ export default function AdminMailPage() {
                 value={gmailAddress}
                 onChange={(e) => setGmailAddress(e.target.value)}
                 disabled={running}
-                placeholder="name@gmail.com"
+                placeholder="info@bidaxis.co"
                 className="mb-2 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm"
               />
               <input
@@ -393,7 +379,7 @@ export default function AdminMailPage() {
                 onChange={(e) => setGmailPass(e.target.value)}
                 disabled={running}
                 type="password"
-                placeholder="App password"
+                placeholder="Mailbox or Gmail app password"
                 className="mb-2 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm"
               />
               <button
@@ -402,7 +388,7 @@ export default function AdminMailPage() {
                 onClick={() => void linkGmail()}
                 className="rounded-full bg-[#1B6FE8] text-white px-4 py-2 text-sm disabled:opacity-50"
               >
-                Link Gmail
+                Save mailbox
               </button>
             </div>
             <div className="mt-4 grid grid-cols-2 gap-3">
@@ -447,7 +433,7 @@ export default function AdminMailPage() {
             <div>
               <h2 className="font-semibold text-gray-800">Clients</h2>
               <p className="text-xs text-gray-400 mt-1">
-                Browse any Excel, CSV, or Google Sheet file on this PC. In Google Sheets use File, Download, Excel or CSV first. A Drive shortcut will not open. Rows with no email are skipped, and duplicate contacts are skipped. Delete a file to remove only that file&apos;s clients.
+                Clients are stored in the database and loaded live. Browse any Excel, CSV, or Google Sheet file on this PC. Rows with no email are skipped, and duplicate contacts are skipped. Delete a file to remove only that file&apos;s clients.
               </p>
             </div>
             <div className="flex gap-2">

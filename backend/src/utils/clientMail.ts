@@ -49,22 +49,50 @@ function readOptionalPort(raw: string): number | undefined {
   return Number.isInteger(n) && n > 0 ? n : undefined;
 }
 
+function cleanSecret(raw: string): string {
+  return raw.trim().replace(/^["']+|["']+$/g, "");
+}
+
+function inferSmtpHost(email: string): string | undefined {
+  if (isGmailAddress(email)) return undefined;
+  const domain = emailDomain(email);
+  if (domain === "bidaxis.co" || domain === "titan.email") return "smtp.titan.email";
+  const envHost = (process.env.CRM_SMTP_HOST ?? "").trim();
+  return envHost || "smtp.hostinger.com";
+}
+
+export function mailboxSmtpDefaults(email: string): { host: string; port: number; secure: boolean } | { host: ""; port: number; secure: boolean } {
+  const host = inferSmtpHost(email) ?? "";
+  const port = host === "smtp.titan.email" ? 465 : host ? 465 : 0;
+  return { host, port, secure: port === 465 };
+}
+
+export function isGmailMailbox(email: string): boolean {
+  return isGmailAddress(email);
+}
+
+function isCompanyMailbox(email: string): boolean {
+  return /^(info|sales)@bidaxis\.co$/i.test(email.trim());
+}
+
 function readSlot(n: 1 | 2 | 3 | 4): MailSender | null {
   const email = (process.env[`CRM_FROM_EMAIL_${n}`] ?? "").trim();
-  const rawPass = (process.env[`CRM_FROM_PASS_${n}`] ?? "").trim();
-  const pass = rawPass.replace(/\s/g, "");
+  const pass = cleanSecret(process.env[`CRM_FROM_PASS_${n}`] ?? "").replace(/\s/g, "");
   const name = (process.env[`CRM_FROM_NAME_${n}`] ?? "").trim() || email;
   if (!email || !pass || !isValidEmail(email)) return null;
-  const host = (process.env[`CRM_FROM_HOST_${n}`] ?? "").trim() || undefined;
-  const port = readOptionalPort(process.env[`CRM_FROM_PORT_${n}`] ?? "");
+  const host = (process.env[`CRM_FROM_HOST_${n}`] ?? "").trim() || inferSmtpHost(email);
+  const port = readOptionalPort(process.env[`CRM_FROM_PORT_${n}`] ?? "") ?? (host === "smtp.titan.email" ? 465 : undefined);
   const secureRaw = (process.env[`CRM_FROM_SECURE_${n}`] ?? "").trim().toLowerCase();
-  const secure = secureRaw === "true" ? true : secureRaw === "false" ? false : undefined;
+  const secure = secureRaw === "true" ? true : secureRaw === "false" ? false : port === 465 ? true : undefined;
   return { id: String(n), email, name, pass, host, port, secure };
 }
 
-function passwordVariants(pass: string): string[] {
+function passwordVariants(pass: string, email: string): string[] {
   const spaced = pass.trim();
   const compact = spaced.replace(/\s/g, "");
+  if (!isGmailAddress(email)) {
+    return [...new Set([compact, spaced].filter(Boolean))];
+  }
   const swapped =
     compact.startsWith("I") ? `l${compact.slice(1)}`
     : compact.startsWith("l") ? `I${compact.slice(1)}`
@@ -80,21 +108,29 @@ function passwordVariants(pass: string): string[] {
 
 
 function smtpHosts(sender: MailSender): string[] {
-  const envHost = (process.env.CRM_SMTP_HOST ?? "").trim();
-  return [...new Set([sender.host, envHost, "smtp.hostinger.com"].filter((h): h is string => !!h))];
+  if (sender.host) return [sender.host];
+  const inferred = inferSmtpHost(sender.email);
+  return inferred ? [inferred] : [];
 }
 
 function smtpPorts(sender: MailSender): Array<{ port: number; secure: boolean; requireTLS?: boolean }> {
   const envPort = readOptionalPort(process.env.CRM_SMTP_PORT ?? "");
   const envSecureRaw = (process.env.CRM_SMTP_SECURE ?? "").trim().toLowerCase();
   const envSecure = envSecureRaw === "true" ? true : envSecureRaw === "false" ? false : undefined;
-  const primaryPort = sender.port ?? envPort ?? 465;
+  const titan = (sender.host ?? inferSmtpHost(sender.email)) === "smtp.titan.email";
+  const primaryPort = sender.port ?? envPort ?? (titan ? 587 : 465);
   const primarySecure = sender.secure ?? envSecure ?? primaryPort === 465;
-  const list = [
-    { port: primaryPort, secure: primarySecure, requireTLS: !primarySecure ? true : undefined },
-    { port: 465, secure: true },
-    { port: 587, secure: false, requireTLS: true },
-  ];
+  const list = titan
+    ? [
+        { port: 587, secure: false, requireTLS: true },
+        { port: 465, secure: true },
+        { port: primaryPort, secure: primarySecure, requireTLS: !primarySecure ? true : undefined },
+      ]
+    : [
+        { port: primaryPort, secure: primarySecure, requireTLS: !primarySecure ? true : undefined },
+        { port: 465, secure: true },
+        { port: 587, secure: false, requireTLS: true },
+      ];
   const seen = new Set<string>();
   return list.filter(p => {
     const key = `${p.port}:${p.secure}`;
@@ -108,56 +144,101 @@ export function listConfiguredSenders(): MailSender[] {
   return [1, 2, 3, 4].map(n => readSlot(n as 1 | 2 | 3 | 4)).filter((s): s is MailSender => !!s);
 }
 
-export function publicSenders(): MailSenderPublic[] {
-  return listConfiguredSenders().map(({ id, email, name }) => ({
-    id,
-    email,
-    name,
-    signatureBrand: resolveMailBrand(email, name),
-    signatureLabel: signatureLabel(email, name),
-    defaultFooter: bidaxisFooterFor(email),
-    linked: false,
-  }));
+function toPublicSender(sender: MailSender): MailSenderPublic {
+  const company = isCompanyMailbox(sender.email);
+  return {
+    id: sender.id,
+    email: sender.email,
+    name: sender.name,
+    signatureBrand: resolveMailBrand(sender.email, sender.name),
+    signatureLabel: signatureLabel(sender.email, sender.name) || (isGmailAddress(sender.email) ? "Gmail" : null),
+    defaultFooter: bidaxisFooterFor(sender.email),
+    linked: sender.id.startsWith("g:") && !company,
+  };
 }
 
-export async function listLinkedGmail(): Promise<MailSenderPublic[]> {
+function rowToSender(row: { id: string; email: string; name: string; pass: string; host?: string | null; port?: number | null; secure?: boolean | null }): MailSender {
+  const email = row.email.trim();
+  const host = (row.host ?? "").trim() || inferSmtpHost(email);
+  const port = row.port && row.port > 0 ? row.port : host === "smtp.titan.email" ? 465 : undefined;
+  return {
+    id: `g:${row.id}`,
+    email,
+    name: row.name || email,
+    pass: row.pass,
+    host: isGmailAddress(email) ? undefined : host,
+    port: isGmailAddress(email) ? undefined : port,
+    secure: isGmailAddress(email) ? undefined : row.secure ?? (port === 465),
+  };
+}
+
+export function publicSenders(): MailSenderPublic[] {
+  return listConfiguredSenders().map(toPublicSender);
+}
+
+export async function listResolvedSenders(): Promise<MailSender[]> {
+  const env = listConfiguredSenders();
+  const seen = new Set(env.map((sender) => sender.email.toLowerCase()));
   try {
     const rows = await prisma.linkedMailbox.findMany();
     rows.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
-    return rows.map((row) => ({
-      id: `g:${row.id}`,
-      email: row.email,
-      name: row.name || row.email,
-      signatureBrand: null,
-      signatureLabel: "Gmail",
-      defaultFooter: "",
-      linked: true,
-    }));
+    const fromDb = rows
+      .filter((row) => row.pass && !seen.has(row.email.toLowerCase()))
+      .map(rowToSender);
+    return [...env, ...fromDb];
   } catch (err) {
-    console.error("[mail] linked gmail list failed", err);
-    return [];
+    console.error("[mail] linked mailbox list failed", err);
+    return env;
   }
 }
 
 export async function listAllPublicSenders(): Promise<MailSenderPublic[]> {
-  const company = publicSenders();
-  const linked = await listLinkedGmail();
-  const seen = new Set(company.map((sender) => sender.email.toLowerCase()));
-  return [...company, ...linked.filter((sender) => !seen.has(sender.email.toLowerCase()))];
+  const senders = await listResolvedSenders();
+  return senders.map(toPublicSender);
+}
+
+export async function syncCompanyMailboxesFromEnv(): Promise<void> {
+  const slots = listConfiguredSenders();
+  for (const sender of slots) {
+    const email = sender.email.toLowerCase();
+    const host = sender.host || inferSmtpHost(email) || "";
+    const port = sender.port ?? (host === "smtp.titan.email" ? 465 : 0);
+    await prisma.linkedMailbox.upsert({
+      where: { email },
+      create: {
+        email,
+        name: sender.name,
+        pass: sender.pass,
+        host,
+        port,
+        secure: sender.secure ?? port === 465,
+      },
+      update: {
+        name: sender.name,
+        pass: sender.pass,
+        host,
+        port,
+        secure: sender.secure ?? port === 465,
+      },
+    });
+  }
+  if (slots.length) {
+    console.info(`[mail] synced ${slots.length} company mailbox(es) from env into the database`);
+  }
 }
 
 export async function resolveMailbox(id: string): Promise<MailSender | null> {
-  const envSender = findSender(id);
-  if (envSender) return envSender;
-  if (!id.startsWith("g:")) return null;
-  const row = await prisma.linkedMailbox.findUnique({ where: { id: id.slice(2) } });
-  if (!row?.pass) return null;
-  return {
-    id,
-    email: row.email,
-    name: row.name || row.email,
-    pass: row.pass,
-  };
+  const key = id.trim();
+  if (!key) return null;
+  const all = await listResolvedSenders();
+  const match = all.find((sender) => sender.id === key)
+    || all.find((sender) => sender.email.toLowerCase() === key.toLowerCase());
+  if (match) return match;
+  if (key.startsWith("g:")) {
+    const row = await prisma.linkedMailbox.findUnique({ where: { id: key.slice(2) } });
+    if (row?.pass) return rowToSender(row);
+  }
+  return null;
 }
 
 export function findSender(id: string): MailSender | null {
@@ -228,7 +309,7 @@ export async function sendClientMail(opts: {
   }
 
   let lastErr: unknown;
-  const passwords = passwordVariants(opts.sender.pass);
+  const passwords = passwordVariants(opts.sender.pass, opts.sender.email);
   const hosts = smtpHosts(opts.sender);
   const ports = smtpPorts(opts.sender);
 

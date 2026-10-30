@@ -348,7 +348,7 @@ export default function CrmMailProvider({ children }: { children: React.ReactNod
                 </p>
                 {senders.length === 0 ? (
                   <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
-                    Your 3 From emails are not loaded. Refresh, then try again.
+                    Company From emails are not loaded. Open Mail, save info@bidaxis.co and sales@bidaxis.co, then refresh.
                   </p>
                 ) : (
                   <div className="grid grid-cols-1 gap-1.5">
