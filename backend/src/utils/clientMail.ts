@@ -178,17 +178,18 @@ export function publicSenders(): MailSenderPublic[] {
 
 export async function listResolvedSenders(): Promise<MailSender[]> {
   const env = listConfiguredSenders();
-  const seen = new Set(env.map((sender) => sender.email.toLowerCase()));
+  const byEmail = new Map(env.map((sender) => [sender.email.toLowerCase(), sender]));
   try {
-    const rows = await prisma.linkedMailbox.findMany({ orderBy: { createdAt: "asc" } });
-    const fromDb = rows
-      .filter((row) => row.pass && !seen.has(row.email.toLowerCase()))
-      .map(rowToSender);
-    return [...env, ...fromDb];
+    const rows = await prisma.linkedMailbox.findMany();
+    for (const row of rows) {
+      const email = (row.email ?? "").trim().toLowerCase();
+      if (!email || !row.pass || byEmail.has(email)) continue;
+      byEmail.set(email, rowToSender(row));
+    }
   } catch (err) {
     console.error("[mail] linked mailbox list failed", err);
-    return env;
   }
+  return [...byEmail.values()];
 }
 
 export async function listAllPublicSenders(): Promise<MailSenderPublic[]> {

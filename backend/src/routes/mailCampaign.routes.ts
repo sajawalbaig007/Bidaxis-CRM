@@ -67,7 +67,21 @@ router.get("/senders", async (_req, res) => {
     return res.json({ success: true, senders });
   } catch (err) {
     console.error("[mail-campaign] senders failed", err);
-    return res.json({ success: true, senders: publicSenders() });
+    try {
+      const rows = await prisma.linkedMailbox.findMany();
+      return res.json({
+        success: true,
+        senders: rows.filter((row) => row.email && row.pass).map((row) => ({
+          id: `g:${row.id}`,
+          email: row.email,
+          name: row.name || row.email,
+          defaultFooter: "",
+          linked: !/^(info|sales)@bidaxis\.co$/i.test(row.email),
+        })),
+      });
+    } catch {
+      return res.json({ success: true, senders: publicSenders() });
+    }
   }
 });
 

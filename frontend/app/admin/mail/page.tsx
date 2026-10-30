@@ -48,21 +48,35 @@ export default function AdminMailPage() {
   const sendersTick = useRef(0);
   const libraryTick = useRef(0);
 
-  function applySenders(list: Sender[]) {
+  function readSenderList(data: unknown): Sender[] {
+    if (!data || typeof data !== "object") return [];
+    const o = data as { senders?: unknown; data?: { senders?: unknown } };
+    const raw = Array.isArray(o.senders) ? o.senders : Array.isArray(o.data?.senders) ? o.data.senders : [];
     const seen = new Set<string>();
-    const unique = list.filter((sender) => {
-      const key = (sender.email ?? "").toLowerCase();
-      if (!key || seen.has(key)) return false;
-      seen.add(key);
-      return true;
+    return raw.flatMap((item) => {
+      if (!item || typeof item !== "object") return [];
+      const row = item as Sender;
+      const email = String(row.email ?? "").trim().toLowerCase();
+      const id = String(row.id ?? email).trim();
+      if (!email || !id || seen.has(email)) return [];
+      seen.add(email);
+      return [{
+        id,
+        email: String(row.email).trim(),
+        name: String(row.name || email.split("@")[0]),
+        defaultFooter: row.defaultFooter,
+        linked: !!row.linked,
+      }];
     });
-    setSenders(unique);
+  }
+
+  function applySenders(list: Sender[]) {
+    if (!list.length) return;
+    setSenders(list);
     setPicked((prev) => {
       const next: Record<string, boolean> = {};
-      const preferred = unique.filter((s) => /^(info|sales)@bidaxis\.co$/i.test(s.email));
-      for (const s of unique) {
-        if (s.id in prev) next[s.id] = prev[s.id];
-        else next[s.id] = preferred.length ? preferred.some((p) => p.id === s.id) : true;
+      for (const s of list) {
+        next[s.id] = s.id in prev ? prev[s.id] : true;
       }
       return next;
     });
@@ -92,20 +106,25 @@ export default function AdminMailPage() {
 
   async function loadSenders() {
     const tick = ++sendersTick.current;
+    let list: Sender[] = [];
     try {
       const res = await API.get("/mail-campaign/senders", { ...live, params: { _: Date.now() } });
-      if (tick !== sendersTick.current) return;
-      applySenders((res.data?.senders ?? []) as Sender[]);
+      list = readSenderList(res.data);
     } catch {
+      /* try company from-accounts next */
+    }
+    if (!list.length) {
       try {
         const res = await API.get("/mail/from-accounts", { ...live, params: { _: Date.now() } });
-        if (tick !== sendersTick.current) return;
-        applySenders((res.data?.senders ?? []) as Sender[]);
+        list = readSenderList(res.data);
       } catch (err) {
         if (tick !== sendersTick.current) return;
         toast.error(apiErrorMessage(err, "Could not load company emails."));
+        return;
       }
     }
+    if (tick !== sendersTick.current) return;
+    applySenders(list);
   }
 
   async function loadLibrary() {
@@ -222,7 +241,8 @@ export default function AdminMailPage() {
 
   async function start() {
     const chosen = senders.filter((s) => picked[s.id]);
-    if (!chosen.length) {
+    const ready = chosen.length ? chosen : senders;
+    if (!ready.length) {
       toast.error("Select at least one company email.");
       return;
     }
@@ -238,7 +258,7 @@ export default function AdminMailPage() {
         minDelaySec: minDelay,
         maxDelaySec: maxDelay,
         recipientIds: selected.map((r) => r.id),
-        senders: chosen.map((s) => ({ id: s.id })),
+        senders: ready.map((s) => ({ id: s.id })),
       });
       setStatus(res.data as Status);
       toast.success("Sending started. Emails go out one by one.");
@@ -258,7 +278,8 @@ export default function AdminMailPage() {
         name: gmailName,
       });
       sendersTick.current += 1;
-      applySenders((res.data?.senders ?? []) as Sender[]);
+      applySenders(readSenderList(res.data));
+      void loadSenders();
       setGmailAddress("");
       setGmailPass("");
       setGmailName("");
@@ -274,7 +295,7 @@ export default function AdminMailPage() {
     try {
       const res = await API.delete(`/mail-campaign/gmail/${encodeURIComponent(id)}`);
       sendersTick.current += 1;
-      applySenders((res.data?.senders ?? []) as Sender[]);
+      applySenders(readSenderList(res.data));
     } catch (err) {
       toast.error(apiErrorMessage(err, "Could not remove Gmail."));
     }
