@@ -225,10 +225,11 @@ function requestExportText(items: StaffRequestItem[]): string {
 
 function overtimeExportText(item: ShiftOvertimeItem | null): string {
   if (!item) return "—";
-  if (!item.comment) return "No overtime";
+  if (!item.comment && !item.checkIn && !item.checkOut) return "No overtime";
+  const clocks = item.checkIn || item.checkOut ? `In ${item.checkIn || "—"} · Out ${item.checkOut || "—"}` : "";
   const status = item.status === "approved" ? "Approved" : item.status === "declined" ? "Declined" : "Pending";
   const edited = item.editedBy ? `Edited by ${item.editedBy}` : "";
-  return [item.comment, status, edited].filter(Boolean).join(" · ");
+  return [clocks, item.comment, status, edited].filter(Boolean).join(" · ");
 }
 
 function personExportText(name: string, code: string | null | undefined, combined: number): string {
@@ -375,6 +376,8 @@ function overtimeForRow(
     department: staffRole,
     day: row.day ?? "",
     comment: row.overtimeComment ?? "",
+    checkIn: null,
+    checkOut: null,
     status: row.overtimeStatus ?? "pending",
     editedBy: row.overtimeEditedBy ?? null,
   };

@@ -704,6 +704,9 @@ model OvertimeRequest {
   department String
   day        String
   comment    String
+  /** Overtime window the employee applied. Empty until they submit both times. */
+  checkIn    String?
+  checkOut   String?
   status     String   @default("pending")
   editedBy   String?
   createdAt  DateTime @default(now())

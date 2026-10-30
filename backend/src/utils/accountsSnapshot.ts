@@ -7,7 +7,6 @@ import {
 const CARRY_FORWARD_PAGES = new Set<AccountsPageKey>([
   "income_statement",
   "dashboard",
-  "balance_sheet",
   "cash_flow",
   "total_assets",
   "sales_payroll",
@@ -84,6 +83,10 @@ export async function resolveAccountsSnapshot(page: AccountsPageKey, recordDate:
   const exact = await prisma.accountsRecord.findUnique({
     where: { page_recordDate: { page: prismaPage, recordDate } },
   });
+  // Balance sheet is the saved row for this date. A previous day must not replace it.
+  if (page === "balance_sheet") {
+    return { record: exact, copiedFrom: null as string | null };
+  }
   if (exact && hasMeaningfulAccountsData(exact.data)) {
     return { record: exact, copiedFrom: null as string | null };
   }

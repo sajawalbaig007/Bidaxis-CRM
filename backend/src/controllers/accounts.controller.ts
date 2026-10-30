@@ -93,6 +93,19 @@ async function getOrCreateRecord(page: AccountsPageKey, recordDate: string, user
   });
 }
 
+function balanceSheetHasLines(data: unknown): boolean {
+  if (!data || typeof data !== "object") return false;
+  const row = data as { assetSections?: unknown; equityLiabilitySections?: unknown };
+  const sections = [
+    ...(Array.isArray(row.assetSections) ? row.assetSections : []),
+    ...(Array.isArray(row.equityLiabilitySections) ? row.equityLiabilitySections : []),
+  ];
+  return sections.some((section) => {
+    const items = (section as { items?: unknown[] } | null)?.items;
+    return Array.isArray(items) && items.length > 0;
+  });
+}
+
 function preparePageData(page: AccountsPageKey, data: Record<string, unknown>): Record<string, unknown> {
   if (page === "income_statement") return prepareIncomeStatement(data);
   if (page === "technical_payroll") {
@@ -123,12 +136,21 @@ export async function listAccountsDates(req: AuthRequest, res: Response) {
       if (to) where.recordDate.lte = to;
     }
 
+    if (pageParam === "balance_sheet") {
+      res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+      res.setHeader("Pragma", "no-cache");
+    }
+
     const records = await prisma.accountsRecord.findMany({
       where,
       select: { recordDate: true, updatedAt: true, data: true },
       orderBy: { recordDate: "desc" },
     });
-    const visible = records.filter(r => hasMeaningfulAccountsData(r.data));
+    const visible = records.filter(r =>
+      pageParam === "balance_sheet"
+        ? hasMeaningfulAccountsData(r.data) || balanceSheetHasLines(r.data)
+        : hasMeaningfulAccountsData(r.data),
+    );
 
     return res.json({
       success: true,
@@ -160,17 +182,27 @@ export async function getAccountsRecord(req: AuthRequest, res: Response) {
     const record = resolved.record;
     let raw = (record?.data as Record<string, unknown> | undefined) ?? defaultAccountsData(pageParam);
     if (pageParam === "balance_sheet") {
-      const assets = await resolveAccountsSnapshot("total_assets", recordDate);
-      const restored = restoreBalanceSheetAssets(
-        raw,
-        (assets.record?.data as Record<string, unknown> | undefined) ?? null,
-      );
-      raw = restored.data;
-      if (restored.changed && record && !resolved.copiedFrom) {
-        await prisma.accountsRecord.update({
-          where: { id: record.id },
-          data: { data: raw as Prisma.InputJsonValue },
-        });
+      res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+      res.setHeader("Pragma", "no-cache");
+      const sections = Array.isArray(raw.assetSections) ? raw.assetSections : [];
+      const hasSavedAssets = sections.some((section) => {
+        const items = (section as { items?: unknown[] } | null)?.items;
+        return Array.isArray(items) && items.length > 0;
+      });
+      // A saved sheet is returned as stored. Restore only fills a sheet that has no asset lines yet.
+      if (!hasSavedAssets) {
+        const assets = await resolveAccountsSnapshot("total_assets", recordDate);
+        const restored = restoreBalanceSheetAssets(
+          raw,
+          (assets.record?.data as Record<string, unknown> | undefined) ?? null,
+        );
+        raw = restored.data;
+        if (restored.changed && record) {
+          await prisma.accountsRecord.update({
+            where: { id: record.id },
+            data: { data: raw as Prisma.InputJsonValue },
+          });
+        }
       }
     }
     if (pageParam === "income_statement") {
@@ -244,6 +276,11 @@ export async function saveAccountsRecord(req: AuthRequest, res: Response) {
     if (pageParam === "dashboard") {
       const collections = await aggregateCollectionsForDate(recordDate);
       payload = applyCollectionsToDashboardData(payload, collections);
+    }
+
+    if (pageParam === "balance_sheet") {
+      res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+      res.setHeader("Pragma", "no-cache");
     }
 
     const prismaPage = toPrismaAccountsPage(pageParam);

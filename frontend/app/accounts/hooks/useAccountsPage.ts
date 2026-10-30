@@ -174,7 +174,8 @@ export function useAccountsPage<T extends Record<string, unknown>>({
     }
     const qs = params.toString();
     API.get(`/accounts/${page}${qs ? `?${qs}` : ""}`, {
-      headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
+      headers: { "Cache-Control": "no-store", Pragma: "no-cache" },
+      params: page === "balance_sheet" ? { _: Date.now() } : undefined,
     })
       .then(res => {
         if (cancelled) return;
@@ -182,7 +183,9 @@ export function useAccountsPage<T extends Record<string, unknown>>({
         setSavedDates(dates);
         // Month / Date Range: open a real saved day in range.
         // All Time keeps "today" as anchor — dashboard cards sum through today.
-        if (mode !== "daily" && mode !== "all_time" && dates.length > 0) {
+        if (page === "balance_sheet" && dates.length > 0) {
+          setRecordDate(prev => (dates.includes(prev) ? prev : (latestDate(dates) ?? prev)));
+        } else if (mode !== "daily" && mode !== "all_time" && dates.length > 0) {
           setRecordDate(prev => (dates.includes(prev) ? prev : (latestDate(dates) ?? prev)));
         }
       })
@@ -202,7 +205,8 @@ export function useAccountsPage<T extends Record<string, unknown>>({
     dirtyRef.current = false;
 
     API.get(`/accounts/${page}/${recordDate}`, {
-      headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
+      headers: { "Cache-Control": "no-store", Pragma: "no-cache" },
+      params: page === "balance_sheet" ? { _: Date.now() } : undefined,
     })
       .then(res => {
         if (cancelled) return;

@@ -831,7 +831,8 @@ router.post("/overtime", verifyToken, allowRoles("estimator", "technical_manager
       userId: req.user!.id,
       role: req.user!.role === "admin" ? "technical_manager" : req.user!.role,
       name: user?.name || "Staff",
-      minutes: Number(req.body?.minutes),
+      checkIn: String(req.body?.checkIn ?? ""),
+      checkOut: String(req.body?.checkOut ?? ""),
     });
     if (!result.ok) return res.status(400).json({ success: false, message: result.message });
     return res.json({ success: true, message: "Overtime sent.", ...overtimePublic(result.note) });
@@ -848,7 +849,8 @@ router.post("/overtime/manual", verifyToken, allowRoles("technical_manager"), as
       userId: req.user!.id,
       name: user?.name || "Chief Estimator",
       day: String(req.body?.day ?? ""),
-      minutes: Number(req.body?.minutes),
+      checkIn: String(req.body?.checkIn ?? ""),
+      checkOut: String(req.body?.checkOut ?? ""),
       note: String(req.body?.note ?? ""),
     });
     if (!result.ok) return res.status(400).json({ success: false, message: result.message });
@@ -865,7 +867,8 @@ router.post("/overtime/estimator", verifyToken, allowRoles("technical_manager"),
       personKey: String(req.body?.personKey ?? ""),
       personName: String(req.body?.personName ?? ""),
       day: String(req.body?.day ?? ""),
-      minutes: Number(req.body?.minutes),
+      checkIn: String(req.body?.checkIn ?? ""),
+      checkOut: String(req.body?.checkOut ?? ""),
     });
     if (!result.ok) return res.status(400).json({ success: false, message: result.message });
     return res.json({ success: true, message: "Estimator overtime updated.", ...overtimePublic(result.note) });
@@ -892,6 +895,8 @@ router.get("/overtime", verifyToken, allowRoles("admin", "manager", "technical_m
         department: row.department,
         day: row.day,
         comment: row.comment,
+        checkIn: row.checkIn,
+        checkOut: row.checkOut,
         status: row.status,
         editedBy: row.editedBy,
       })),
@@ -914,6 +919,8 @@ router.put("/overtime/:id", verifyToken, allowRoles("admin", "technical_manager"
       action,
       comment: req.body?.comment,
       minutes: req.body?.minutes == null ? undefined : Number(req.body.minutes),
+      checkIn: req.body?.checkIn == null ? undefined : String(req.body.checkIn),
+      checkOut: req.body?.checkOut == null ? undefined : String(req.body.checkOut),
     });
     if (!result.ok) return res.status(400).json({ success: false, message: result.message });
     return res.json({ success: true, ...overtimePublic(result.note) });

@@ -66,19 +66,18 @@ function addDays(ymd: string, days: number): string {
 
 function ChiefOvertimeForm({ onSaved }: { onSaved: () => void }) {
   const [day, setDay] = useState(() => calendarYmd("Asia/Karachi"));
-  const [hours, setHours] = useState("1");
-  const [mins, setMins] = useState("0");
+  const [checkIn, setCheckIn] = useState("");
+  const [checkOut, setCheckOut] = useState("");
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const save = async () => {
-    const minutes = Number(hours) * 60 + Number(mins);
-    if (!day || !Number.isFinite(minutes) || minutes < 1) {
-      toast.error("Pick a date and enter the overtime.");
+    if (!day || !/^\d{2}:\d{2}$/.test(checkIn) || !/^\d{2}:\d{2}$/.test(checkOut)) {
+      toast.error("Pick a date and enter overtime check-in and check-out.");
       return;
     }
     setBusy(true);
     try {
-      await API.post("/attendance/overtime/manual", { day, minutes, note });
+      await API.post("/attendance/overtime/manual", { day, checkIn, checkOut, note });
       toast.success("Overtime sent to the CEO.");
       onSaved();
     } catch (err) {
@@ -94,12 +93,12 @@ function ChiefOvertimeForm({ onSaved }: { onSaved: () => void }) {
         <input type="date" value={day} max={calendarYmd("Asia/Karachi")} onChange={(e) => setDay(e.target.value)} className="h-10 rounded-xl border border-amber-200 bg-white px-3 text-sm" />
       </div>
       <label className="text-[11px] font-semibold text-amber-900">
-        Hours
-        <input type="number" min={0} max={12} value={hours} onChange={(e) => setHours(e.target.value)} className="mt-1 block w-16 h-10 rounded-xl border border-amber-200 bg-white px-2 text-sm" />
+        Check in
+        <input type="time" value={checkIn} onChange={(e) => setCheckIn(e.target.value)} className="mt-1 block h-10 rounded-xl border border-amber-200 bg-white px-2 text-sm" />
       </label>
       <label className="text-[11px] font-semibold text-amber-900">
-        Minutes
-        <input type="number" min={0} max={59} value={mins} onChange={(e) => setMins(e.target.value)} className="mt-1 block w-16 h-10 rounded-xl border border-amber-200 bg-white px-2 text-sm" />
+        Check out
+        <input type="time" value={checkOut} onChange={(e) => setCheckOut(e.target.value)} className="mt-1 block h-10 rounded-xl border border-amber-200 bg-white px-2 text-sm" />
       </label>
       <label className="text-[11px] font-semibold text-amber-900 min-w-[180px] flex-1">
         Note
@@ -582,7 +581,8 @@ function DeptCard({
       ...(showShiftOt ? [(() => {
         const hit = overtimeNotes.find((item) => item.personKey === row.personKey && item.day === row.day);
         if (!hit || (!reviewOvertime && hit.status !== "approved" && hit.status !== "declined")) return "";
-        return `${hit.comment} (${hit.status})`;
+        const clocks = hit.checkIn || hit.checkOut ? `In ${hit.checkIn || "—"} Out ${hit.checkOut || "—"}` : "";
+        return [clocks, hit.comment, `(${hit.status})`].filter(Boolean).join(" ");
       })()] : []),
       rowRequests(row).map((item) => `${item.kindLabel}: ${item.summary} (${item.status})`).join(" | "),
       durationLabel(row.day, row.checkIn, row.checkOut, row),
