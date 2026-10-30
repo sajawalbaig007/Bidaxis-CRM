@@ -29,13 +29,22 @@ function noStore(res: express.Response) {
   res.set("Expires", "0");
 }
 
+function publicRow(row: { id: string; fileId: string; name: string; email: string; company: string; manual: boolean }) {
+  return {
+    id: row.id,
+    fileId: row.fileId ?? "",
+    name: row.name || row.email.split("@")[0],
+    email: row.email,
+    company: row.company ?? "",
+    manual: !!row.manual,
+  };
+}
+
 async function mailLibrary() {
   const [files, rows] = await Promise.all([
-    prisma.mailListFile.findMany(),
-    prisma.mailListRow.findMany(),
+    prisma.mailListFile.findMany({ orderBy: { createdAt: "desc" } }),
+    prisma.mailListRow.findMany({ orderBy: { createdAt: "asc" } }),
   ]);
-  files.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
-  rows.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
   return {
     files: files.map((file) => ({
       id: file.id,
@@ -43,14 +52,7 @@ async function mailLibrary() {
       createdAt: file.createdAt,
       count: file.count,
     })),
-    recipients: rows.map((row) => ({
-      id: row.id,
-      fileId: row.fileId,
-      name: row.name,
-      email: row.email,
-      company: row.company,
-      manual: row.manual,
-    })),
+    recipients: rows.map(publicRow),
   };
 }
 
@@ -93,14 +95,29 @@ async function saveLinkedMailbox(req: AuthRequest, res: express.Response) {
     }
   }
   const smtp = mailboxSmtpDefaults(email);
-  await prisma.linkedMailbox.upsert({
+  const saved = await prisma.linkedMailbox.upsert({
     where: { email },
     create: { email, name, pass, host: smtp.host, port: smtp.port, secure: smtp.secure },
     update: { name, pass, host: smtp.host, port: smtp.port, secure: smtp.secure },
   });
   console.info(`[mail-campaign] mailbox saved by=${req.user?.id} email=${email}`);
   noStore(res);
-  return res.json({ success: true, senders: await listAllPublicSenders() });
+  let senders = await listAllPublicSenders();
+  if (!senders.some((sender) => sender.email.toLowerCase() === email)) {
+    senders = [
+      ...senders,
+      {
+        id: `g:${saved.id}`,
+        email: saved.email,
+        name: saved.name || saved.email,
+        signatureBrand: null,
+        signatureLabel: isGmailMailbox(email) ? "Gmail" : null,
+        defaultFooter: "",
+        linked: !/^(info|sales)@bidaxis\.co$/i.test(email),
+      },
+    ];
+  }
+  return res.json({ success: true, senders });
 }
 
 router.post("/gmail", async (req: AuthRequest, res) => {
@@ -211,11 +228,15 @@ router.post("/rows", async (req, res) => {
     if (duplicate) {
       return res.status(400).json({ success: false, message: "This contact is already in the list." });
     }
-    await prisma.mailListRow.create({
+    const created = await prisma.mailListRow.create({
       data: { email, name, company: "", manual: true, fileId: "" },
     });
     noStore(res);
-    return res.json({ success: true, ...(await mailLibrary()) });
+    const library = await mailLibrary();
+    const recipients = library.recipients.some((row) => row.email === email)
+      ? library.recipients
+      : [...library.recipients, publicRow(created)];
+    return res.json({ success: true, ...library, recipients });
   } catch (err) {
     console.error("[mail-campaign] add row failed", err);
     return res.status(500).json({ success: false, message: "Could not save that email on the server." });

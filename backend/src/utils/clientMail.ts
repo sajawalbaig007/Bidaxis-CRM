@@ -180,8 +180,7 @@ export async function listResolvedSenders(): Promise<MailSender[]> {
   const env = listConfiguredSenders();
   const seen = new Set(env.map((sender) => sender.email.toLowerCase()));
   try {
-    const rows = await prisma.linkedMailbox.findMany();
-    rows.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+    const rows = await prisma.linkedMailbox.findMany({ orderBy: { createdAt: "asc" } });
     const fromDb = rows
       .filter((row) => row.pass && !seen.has(row.email.toLowerCase()))
       .map(rowToSender);

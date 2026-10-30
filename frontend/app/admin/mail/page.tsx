@@ -45,12 +45,14 @@ export default function AdminMailPage() {
   const [starting, setStarting] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const live = { headers: { "Cache-Control": "no-cache", Pragma: "no-cache" } };
+  const sendersTick = useRef(0);
+  const libraryTick = useRef(0);
 
   function applySenders(list: Sender[]) {
     const seen = new Set<string>();
     const unique = list.filter((sender) => {
-      const key = sender.email.toLowerCase();
-      if (seen.has(key)) return false;
+      const key = (sender.email ?? "").toLowerCase();
+      if (!key || seen.has(key)) return false;
       seen.add(key);
       return true;
     });
@@ -66,39 +68,50 @@ export default function AdminMailPage() {
     });
   }
 
-  function applyLibrary(data: { files?: MailFile[]; recipients?: Omit<Recipient, "selected">[] }) {
-    const incoming = (data.recipients ?? []).filter((row) => row.email && !String(row.id).startsWith("local-"));
-    setFiles(data.files ?? []);
+  function applyLibrary(data: { files?: MailFile[]; recipients?: Array<Partial<Recipient> & { _id?: string }> } | undefined) {
+    const incoming = Array.isArray(data?.recipients) ? data.recipients : [];
+    setFiles(Array.isArray(data?.files) ? data.files : []);
     setRecipients((current) => {
-      const selected = new Map(current.map((row) => [row.email, row.selected]));
-      return incoming.map((row) => ({
-        id: row.id,
-        fileId: row.fileId ?? "",
-        name: row.name || row.email.split("@")[0],
-        email: row.email,
-        company: row.company ?? "",
-        manual: !!row.manual,
-        selected: selected.get(row.email) ?? true,
-      }));
+      const selected = new Map(current.map((row) => [row.email.toLowerCase(), row.selected]));
+      return incoming.flatMap((row) => {
+        const email = String(row.email ?? "").trim().toLowerCase();
+        const id = String(row.id ?? row._id ?? "").trim();
+        if (!email || id.startsWith("local-")) return [];
+        return [{
+          id: id || email,
+          fileId: String(row.fileId ?? ""),
+          name: String(row.name || email.split("@")[0]),
+          email,
+          company: String(row.company ?? ""),
+          manual: !!row.manual,
+          selected: selected.get(email) ?? true,
+        }];
+      });
     });
   }
 
   async function loadSenders() {
+    const tick = ++sendersTick.current;
     try {
       const res = await API.get("/mail-campaign/senders", { ...live, params: { _: Date.now() } });
+      if (tick !== sendersTick.current) return;
       applySenders((res.data?.senders ?? []) as Sender[]);
     } catch {
       try {
         const res = await API.get("/mail/from-accounts", { ...live, params: { _: Date.now() } });
+        if (tick !== sendersTick.current) return;
         applySenders((res.data?.senders ?? []) as Sender[]);
       } catch (err) {
+        if (tick !== sendersTick.current) return;
         toast.error(apiErrorMessage(err, "Could not load company emails."));
       }
     }
   }
 
   async function loadLibrary() {
+    const tick = ++libraryTick.current;
     const res = await API.get("/mail-campaign/files", { ...live, params: { _: Date.now() } });
+    if (tick !== libraryTick.current) return;
     applyLibrary(res.data);
   }
 
@@ -150,6 +163,7 @@ export default function AdminMailPage() {
     body.append("file", file);
     try {
       const res = await API.post("/mail-campaign/files", body, { timeout: 60_000 });
+      libraryTick.current += 1;
       applyLibrary(res.data);
       const saved = Number(res.data?.saved ?? 0);
       const noEmail = Number(res.data?.skippedNoEmail ?? 0);
@@ -169,6 +183,7 @@ export default function AdminMailPage() {
     if (!window.confirm(`Delete ${fileName}? Its clients will be removed from the list.`)) return;
     try {
       const res = await API.delete(`/mail-campaign/files/${encodeURIComponent(id)}`);
+      libraryTick.current += 1;
       applyLibrary(res.data);
       toast.success("File deleted and its clients removed.");
     } catch (err) {
@@ -185,6 +200,7 @@ export default function AdminMailPage() {
     }
     try {
       const res = await API.post("/mail-campaign/rows", { name, email });
+      libraryTick.current += 1;
       applyLibrary(res.data);
       setManualName("");
       setManualEmail("");
@@ -197,6 +213,7 @@ export default function AdminMailPage() {
   async function removeManual(id: string) {
     try {
       const res = await API.delete(`/mail-campaign/rows/${encodeURIComponent(id)}`);
+      libraryTick.current += 1;
       applyLibrary(res.data);
     } catch (err) {
       toast.error(apiErrorMessage(err, "Could not remove that email."));
@@ -240,6 +257,7 @@ export default function AdminMailPage() {
         appPassword: gmailPass,
         name: gmailName,
       });
+      sendersTick.current += 1;
       applySenders((res.data?.senders ?? []) as Sender[]);
       setGmailAddress("");
       setGmailPass("");
@@ -255,6 +273,7 @@ export default function AdminMailPage() {
   async function unlinkGmail(id: string) {
     try {
       const res = await API.delete(`/mail-campaign/gmail/${encodeURIComponent(id)}`);
+      sendersTick.current += 1;
       applySenders((res.data?.senders ?? []) as Sender[]);
     } catch (err) {
       toast.error(apiErrorMessage(err, "Could not remove Gmail."));
