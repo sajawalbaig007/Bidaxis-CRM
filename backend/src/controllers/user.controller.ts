@@ -37,6 +37,7 @@ export const updateUser = async (req: Request, res: Response) => {
       name, email, role, isActive, csrCode, employeeCode, fatherName, currentAddress, contactNo,
       cnic, cnicPdfUrl, profilePic,
       allowedIps, allowedMacAddress, temporaryAccessIp, temporaryAccessMac, temporaryAccessHours,
+      ipRestricted,
       chatEnabled, chatAllowedUserIds, chatVisibleToUserIds,
     } = req.body;
 
@@ -71,6 +72,12 @@ export const updateUser = async (req: Request, res: Response) => {
     if (cnicPdfUrl !== undefined) data.cnicPdfUrl = cnicPdfUrl || null;
     if (profilePic !== undefined) data.profilePic = profilePic || null;
     if (allowedIps !== undefined) data.allowedIps = sanitizeIpList(allowedIps);
+    if (ipRestricted !== undefined) data.ipRestricted = Boolean(ipRestricted);
+    const editor = req as AuthRequest;
+    if (editor.user?.id && (editor.user.role === "admin" || editor.user.role === "manager")) {
+      const who = await prisma.user.findUnique({ where: { id: editor.user.id }, select: { name: true } });
+      if (who?.name) data.lastEditedByName = who.name;
+    }
     if (allowedMacAddress !== undefined) data.allowedMacAddress = allowedMacAddress?.trim() || null;
     if (temporaryAccessIp !== undefined) data.temporaryAccessIp = temporaryAccessIp?.trim() || null;
     if (temporaryAccessMac !== undefined) data.temporaryAccessMac = temporaryAccessMac?.trim() || null;
@@ -106,7 +113,7 @@ export const updateUser = async (req: Request, res: Response) => {
         id: true, name: true, email: true, role: true, csrCode: true,
         employeeCode: true, fatherName: true, currentAddress: true, contactNo: true,
         cnic: true, cnicPdfUrl: true, profilePic: true, isActive: true,
-        allowedIps: true, allowedMacAddress: true, temporaryAccessIp: true, temporaryAccessMac: true, temporaryAccessUntil: true,
+        allowedIps: true, allowedMacAddress: true, temporaryAccessIp: true, temporaryAccessMac: true, temporaryAccessUntil: true, ipRestricted: true, lastEditedByName: true,
         chatEnabled: true, chatAllowedUserIds: true, chatVisibleToUserIds: true,
       },
     });

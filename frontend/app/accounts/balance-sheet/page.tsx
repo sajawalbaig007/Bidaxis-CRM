@@ -16,6 +16,7 @@ import { useAccountsPage } from "../hooks/useAccountsPage";
 import { useScrollToHash } from "../hooks/useScrollToHash";
 import type { BalanceSheetData, BalanceLineItem } from "../types";
 import { currency, newRowId, todayIso } from "../types";
+import { peekAuthMe } from "@/lib/authMeCache";
 
 function defaultData(): BalanceSheetData {
   return { assetSections: [], equityLiabilitySections: [] };
@@ -62,7 +63,15 @@ export default function BalanceSheetPage() {
       ...prev,
       [side]: prev[side].map(sec =>
         sec.id === sectionId
-          ? { ...sec, items: sec.items.map(it => (it.id === itemId ? { ...it, ...patch } : it)) }
+          ? {
+              ...sec,
+              items: sec.items.map(it => {
+                if (it.id !== itemId) return it;
+                const me = peekAuthMe();
+                const editor = me && (me.role === "admin" || me.role === "manager") ? me.name : it.editedByName;
+                return { ...it, ...patch, ...(editor ? { editedByName: editor } : {}) };
+              }),
+            }
           : sec,
       ),
     }));

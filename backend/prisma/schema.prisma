@@ -47,6 +47,10 @@ model User {
   temporaryAccessIp  String?
   temporaryAccessMac String?
   temporaryAccessUntil DateTime?
+  /** null = legacy rule. true = this user must use an approved IP. false = any network. */
+  ipRestricted Boolean?
+  /** CEO or Admin who last saved this user. */
+  lastEditedByName String?
   /** When false, user cannot open chat / send messages. */
   chatEnabled        Boolean  @default(true)
   /** Empty = can message any active user. Non-empty = only these user IDs. */

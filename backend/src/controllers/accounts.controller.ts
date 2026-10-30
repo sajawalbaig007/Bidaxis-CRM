@@ -38,6 +38,7 @@ import {
   pickLatestRecordOnOrBefore,
 } from "../utils/projectCurrencyCollections";
 import { accountsUploadFolder } from "../utils/accountsStorage";
+import { restoreBalanceSheetAssets } from "../utils/balanceSheetAssets";
 import {
   accumulateCoreBudget,
   accumulateOpexHeads,
@@ -158,6 +159,20 @@ export async function getAccountsRecord(req: AuthRequest, res: Response) {
     const resolved = await resolveAccountsSnapshot(pageParam, recordDate);
     const record = resolved.record;
     let raw = (record?.data as Record<string, unknown> | undefined) ?? defaultAccountsData(pageParam);
+    if (pageParam === "balance_sheet") {
+      const assets = await resolveAccountsSnapshot("total_assets", recordDate);
+      const restored = restoreBalanceSheetAssets(
+        raw,
+        (assets.record?.data as Record<string, unknown> | undefined) ?? null,
+      );
+      raw = restored.data;
+      if (restored.changed && record && !resolved.copiedFrom) {
+        await prisma.accountsRecord.update({
+          where: { id: record.id },
+          data: { data: raw as Prisma.InputJsonValue },
+        });
+      }
+    }
     if (pageParam === "income_statement") {
       raw = await applyStaffPayrollToIncomeData(raw, recordDate);
     }
@@ -216,6 +231,15 @@ export async function saveAccountsRecord(req: AuthRequest, res: Response) {
       incoming = await applyStaffPayrollToIncomeData(data, recordDate);
     }
     let payload = preparePageData(pageParam, incoming);
+    if (req.user?.id && (req.user.role === "admin" || req.user.role === "manager")) {
+      const editor = await prisma.user.findUnique({
+        where: { id: req.user.id },
+        select: { name: true },
+      });
+      if (editor?.name) {
+        payload = { ...payload, editedByName: editor.name, editedAt: new Date().toISOString() };
+      }
+    }
 
     if (pageParam === "dashboard") {
       const collections = await aggregateCollectionsForDate(recordDate);

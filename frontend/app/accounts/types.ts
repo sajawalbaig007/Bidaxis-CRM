@@ -67,6 +67,7 @@ export type BalanceLineItem = {
   filledAt?: string;
   subHeads?: SubHeadEntry[];
   notes?: DatedNote[];
+  editedByName?: string;
 };
 
 export type BalanceSection = {
