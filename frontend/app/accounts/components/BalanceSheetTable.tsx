@@ -15,6 +15,7 @@ import {
 import { TABLE_VARIANT, type AccountsTableVariant } from "./accountsTheme";
 import AccountsNotesCell from "./AccountsNotesCell";
 import HeadDetailModal, { type HeadDetailModel } from "./HeadDetailModal";
+import ChangedByTag from "@/app/components/ChangedByTag";
 
 function sumItems(items: BalanceLineItem[], useInventoryFormula = false) {
   return items.reduce((a, i) => {
@@ -134,7 +135,10 @@ export default function BalanceSheetTable({
                           </button>
                         </td>
                         <td className="px-3 py-2.5 text-sm text-[#334155] font-medium">
-                          {item.label}
+                          <span className="inline-flex items-center gap-2 flex-wrap">
+                            {item.label}
+                            <ChangedByTag name={item.editedByName} />
+                          </span>
                           {subs.length > 0 && (
                             <span className="ml-2 text-[10px] font-bold text-crm-text-faint">{subs.length}</span>
                           )}

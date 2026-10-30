@@ -10,7 +10,7 @@ import { getCache, setCache, invalidateCache } from "../utils/cache";
 import { getJwtSecret, validatePassword } from "../config/security";
 import { getSessionHours, getAdminAllowedIps, isCaptchaConfigured, isSmtpConfigured } from "../config/env";
 import { getClientIp, getUserAgent } from "../utils/requestMeta";
-import { evaluateNetworkAccess, sanitizeIpList } from "../utils/networkAccess";
+import { evaluateNetworkAccess, ipRestrictionEnabled, sanitizeIpList } from "../utils/networkAccess";
 import { officeNetworkMessage } from "../utils/staffAttendance";
 import { writeAuditLog, fetchRecentAuditLogs } from "../utils/auditLog";
 import { recordAccessHistory } from "../utils/accessHistory";
@@ -227,7 +227,7 @@ export const register = async (req: AuthRequest, res: Response) => {
     const {
       name, email, password, role, csrCode, employeeCode, fatherName, currentAddress, contactNo,
       cnic, cnicPdfUrl, profilePic,
-      allowedIps, allowedMacAddress, temporaryAccessIp, temporaryAccessMac, temporaryAccessHours,
+      allowedIps, allowedMacAddress, temporaryAccessIp, temporaryAccessMac, temporaryAccessHours, ipRestricted,
     } = req.body;
 
     if (role === "csr" && !csrCode?.trim()) {
@@ -314,6 +314,7 @@ export const register = async (req: AuthRequest, res: Response) => {
       cnicPdfUrl: typeof cnicPdfUrl === "string" && cnicPdfUrl.trim() ? cnicPdfUrl.trim() : null,
       profilePic: profilePic || null,
       allowedIps: cleanedIps,
+      ...(typeof ipRestricted === "boolean" ? { ipRestricted } : {}),
       allowedMacAddress: typeof allowedMacAddress === "string" && allowedMacAddress.trim() ? allowedMacAddress.trim() : null,
       temporaryAccessIp: typeof temporaryAccessIp === "string" && temporaryAccessIp.trim() ? temporaryAccessIp.trim() : null,
       temporaryAccessMac: typeof temporaryAccessMac === "string" && temporaryAccessMac.trim() ? temporaryAccessMac.trim() : null,
@@ -435,10 +436,12 @@ export const login = async (req: Request, res: Response) => {
       });
     }
 
-    const ipError = assertAdminIp(req, user.role);
-    if (ipError) {
-      await writeAuditLog({ action: "login_blocked", userId: user.id, email: user.email, ip, userAgent: ua, meta: { reason: "ip" } });
-      return res.status(403).json({ success: false, code: "IP_NOT_ALLOWED", message: ipError });
+    if (ipRestrictionEnabled(user)) {
+      const ipError = assertAdminIp(req, user.role);
+      if (ipError) {
+        await writeAuditLog({ action: "login_blocked", userId: user.id, email: user.email, ip, userAgent: ua, meta: { reason: "ip" } });
+        return res.status(403).json({ success: false, code: "IP_NOT_ALLOWED", message: ipError });
+      }
     }
 
     const networkError = evaluateNetworkAccess(user, req);
@@ -447,7 +450,7 @@ export const login = async (req: Request, res: Response) => {
       return res.status(403).json({ success: false, code: "NETWORK_POLICY_DENIED", message: networkError });
     }
 
-    if (user.role === "manager") {
+    if (ipRestrictionEnabled(user) && user.role === "manager") {
       const officeError = await officeNetworkMessage(req);
       if (officeError) {
         await writeAuditLog({ action: "login_blocked", userId: user.id, email: user.email, ip, userAgent: ua, meta: { reason: "office_ip" } });
@@ -576,7 +579,7 @@ export const verifyOTP = async (req: Request, res: Response) => {
       where:  { id: userId },
       select: {
         id: true, name: true, email: true, role: true, tokenVersion: true,
-        allowedIps: true, allowedMacAddress: true, temporaryAccessIp: true, temporaryAccessMac: true, temporaryAccessUntil: true,
+        allowedIps: true, allowedMacAddress: true, temporaryAccessIp: true, temporaryAccessMac: true, temporaryAccessUntil: true, ipRestricted: true,
       },
     });
     if (!user) {
@@ -600,12 +603,19 @@ export const verifyOTP = async (req: Request, res: Response) => {
       });
     }
 
+    if (ipRestrictionEnabled(user)) {
+      const ipError = assertAdminIp(req, user.role);
+      if (ipError) {
+        return res.status(403).json({ success: false, code: "IP_NOT_ALLOWED", message: ipError });
+      }
+    }
+
     const networkError = evaluateNetworkAccess(user, req);
     if (networkError) {
       return res.status(403).json({ success: false, code: "NETWORK_POLICY_DENIED", message: networkError });
     }
 
-    if (user.role === "manager") {
+    if (ipRestrictionEnabled(user) && user.role === "manager") {
       const officeError = await officeNetworkMessage(req);
       if (officeError) {
         return res.status(403).json({ success: false, code: "IP_NOT_ALLOWED", message: officeError });

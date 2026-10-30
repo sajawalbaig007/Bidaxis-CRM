@@ -303,6 +303,7 @@ export function CeoManualDial() {
                 onClick={() => setPicked("web")}
                 className={`h-8 rounded-xl text-xs font-semibold border ${selected === "web" ? "bg-[#B8112D] text-white border-[#B8112D]" : "bg-white text-gray-600 border-gray-200"}`}
               >
+                {/* TODO: Add a tooltip for the web dialer */}
                 Zoom web
               </button>
             </div>

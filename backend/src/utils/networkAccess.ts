@@ -2,12 +2,23 @@ import { Request } from "express";
 import { getClientIp } from "./requestMeta";
 
 type AccessPolicyUser = {
+  role?: string | null;
   allowedIps?: string[] | null;
   allowedMacAddress?: string | null;
   temporaryAccessIp?: string | null;
   temporaryAccessMac?: string | null;
   temporaryAccessUntil?: Date | null;
+  ipRestricted?: boolean | null;
 };
+
+/** Per-user switch. Off skips every IP check. Unset keeps the old rule. */
+export function ipRestrictionEnabled(user: AccessPolicyUser): boolean {
+  if (user.ipRestricted === false) return false;
+  if (user.ipRestricted === true) return true;
+  if ((user.allowedIps ?? []).some((ip) => ip.trim())) return true;
+  const role = user.role ?? "";
+  return role === "admin" || role === "manager" || role === "technical_manager";
+}
 
 export function getClientMacAddress(req: Request): string {
   const header = req.headers["x-client-mac"];
@@ -42,6 +53,9 @@ export function sanitizeIpList(raw: unknown): string[] {
 }
 
 export function evaluateNetworkAccess(user: AccessPolicyUser, req: Request): string | null {
+  if (!ipRestrictionEnabled(user)) return null;
+  const listed = (user.allowedIps ?? []).map((ip) => ip.trim()).filter(Boolean);
+  if (!listed.length) return null;
   const ip = getClientIp(req);
   const mac = getClientMacAddress(req);
   const now = Date.now();

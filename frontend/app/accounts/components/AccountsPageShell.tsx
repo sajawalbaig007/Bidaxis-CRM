@@ -16,6 +16,7 @@ import {
 import { STAFF_PAGE_PAD } from "@/lib/staffPageLayout";
 import { useAccountsVisualPdf } from "../utils/useAccountsVisualPdf";
 import LatePolicyProvider from "./LatePolicyProvider";
+import ChangedByTag from "@/app/components/ChangedByTag";
 
 type AccountsPageShellProps = {
   title: string;
@@ -45,6 +46,7 @@ type AccountsPageShellProps = {
   uploads?: AccountsUpload[];
   /** Last same-month saved day this view was filled from (empty today). */
   copiedFrom?: string | null;
+  editedByName?: string;
   /** Dashboard: "Accounts Dashboard" on one line */
   inlineTitle?: boolean;
   /** Hide Upload File + Save (dashboard is live totals) */
@@ -82,6 +84,7 @@ export default function AccountsPageShell({
   dirty,
   uploads = [],
   copiedFrom = null,
+  editedByName = "",
   inlineTitle = false,
   hideFileActions = false,
   headerActions,
@@ -153,6 +156,9 @@ export default function AccountsPageShell({
             {subtitle ? (
               <p className="text-xs text-crm-text-muted mt-1 max-w-2xl leading-relaxed">{subtitle}</p>
             ) : null}
+            <div className="mt-2">
+              <ChangedByTag name={editedByName} />
+            </div>
           </div>
           {showActions && (
             <div className="flex flex-wrap items-center gap-2 shrink-0">

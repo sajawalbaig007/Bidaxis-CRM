@@ -123,6 +123,8 @@ type User = {
   tabVisible:  boolean | null;
   hiddenAt:    string | null;
   allowedIps: string[];
+  ipRestricted: boolean | null;
+  lastEditedByName: string | null;
   allowedMacAddress: string | null;
   temporaryAccessIp: string | null;
   temporaryAccessMac: string | null;
@@ -148,6 +150,7 @@ const EMPTY_USER_FORM = {
   cnicPdfUrl: "",
   profilePic: "",
   allowedIps: [""] as string[],
+  ipRestricted: false,
   allowedMacAddress: "",
   temporaryAccessIp: "",
   temporaryAccessMac: "",
@@ -454,6 +457,8 @@ export default function UsersPage() {
         browser?: string; tabId?: string; openedAt?: string;
         tabVisible?: boolean; hiddenAt?: string;
         allowedIps?: string[];
+        ipRestricted?: boolean | null;
+        lastEditedByName?: string | null;
         allowedMacAddress?: string | null;
         temporaryAccessIp?: string | null;
         temporaryAccessMac?: string | null;
@@ -492,6 +497,8 @@ export default function UsersPage() {
         tabVisible: u.tabVisible ?? null,
         hiddenAt:   u.hiddenAt   ?? null,
         allowedIps: Array.isArray(u.allowedIps) && u.allowedIps.length > 0 ? u.allowedIps : [""],
+        ipRestricted: typeof u.ipRestricted === "boolean" ? u.ipRestricted : null,
+        lastEditedByName: u.lastEditedByName ?? null,
         allowedMacAddress: u.allowedMacAddress ?? null,
         temporaryAccessIp: u.temporaryAccessIp ?? null,
         temporaryAccessMac: u.temporaryAccessMac ?? null,
@@ -693,6 +700,7 @@ export default function UsersPage() {
         cnicPdfUrl: form.cnicPdfUrl || null,
         profilePic: form.profilePic  || null,
         allowedIps: form.allowedIps.map(v => v.trim()).filter(Boolean).slice(0, 5),
+        ipRestricted: form.ipRestricted,
         allowedMacAddress: null,
         temporaryAccessIp: form.temporaryAccessIp.trim() || null,
         temporaryAccessMac: null,
@@ -725,6 +733,7 @@ export default function UsersPage() {
         cnicPdfUrl: form.cnicPdfUrl || null,
         profilePic: form.profilePic || null,
         allowedIps: form.allowedIps.map(v => v.trim()).filter(Boolean).slice(0, 5),
+        ipRestricted: form.ipRestricted,
       };
       if (savedId) {
         setUsers(prev => {
@@ -1044,6 +1053,9 @@ export default function UsersPage() {
       cnicPdfUrl: u.cnicPdfUrl ?? "",
       profilePic: u.profilePic ?? "",
       allowedIps: u.allowedIps?.length ? u.allowedIps : [""],
+      ipRestricted: u.ipRestricted === true || (u.ipRestricted == null && (
+        (u.allowedIps ?? []).some(Boolean) || u.role === "CEO" || u.role === "Admin" || u.role === "Chief Estimator"
+      )),
       allowedMacAddress: u.allowedMacAddress ?? "",
       temporaryAccessIp: u.temporaryAccessIp ?? "",
       temporaryAccessMac: u.temporaryAccessMac ?? "",
@@ -1315,6 +1327,11 @@ export default function UsersPage() {
                                 CSR {u.csrCode}
                               </span>
                             )}
+                            {u.lastEditedByName ? (
+                              <span className="inline-flex items-center rounded-md bg-[#EAF5FF] px-1.5 py-0.5 text-[9px] font-bold text-[#0B84F3]">
+                                Changed by {u.lastEditedByName}
+                              </span>
+                            ) : null}
                           </div>
                           <p className="text-[11px] text-gray-400 truncate">{u.email}</p>
                         </div>
@@ -1972,6 +1989,18 @@ export default function UsersPage() {
                 </div>
 
                 <div className="border border-gray-100 rounded-2xl p-4">
+                  <label className="flex items-center justify-between gap-3 mb-3">
+                    <span>
+                      <p className="text-sm font-semibold text-gray-700">Restricted IP</p>
+                      <p className="text-[11px] text-gray-400">On for the users who must use an approved IP. Off lets that user sign in from any network.</p>
+                    </span>
+                    <input
+                      type="checkbox"
+                      checked={form.ipRestricted}
+                      onChange={(event) => setForm((current) => ({ ...current, ipRestricted: event.target.checked }))}
+                      className="h-4 w-4 accent-[#B8112D]"
+                    />
+                  </label>
                   <div className="flex items-center justify-between mb-2">
                     <div>
                       <p className="text-sm font-semibold text-gray-700">In-house Access Policy</p>

@@ -28,5 +28,6 @@ export function accountsShellProps<T extends Record<string, unknown>>(
     dirty: acc.dirty,
     copiedFrom: acc.copiedFrom,
     uploads: acc.uploads,
+    editedByName: typeof acc.data.editedByName === "string" ? acc.data.editedByName : "",
   };
 }

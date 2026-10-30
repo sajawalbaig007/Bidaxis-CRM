@@ -3,7 +3,7 @@ import jwt from "jsonwebtoken";
 import prisma from "../config/db";
 import { getJwtSecret } from "../config/security";
 import { touchActiveSession } from "../utils/sessions";
-import { evaluateNetworkAccess } from "../utils/networkAccess";
+import { evaluateNetworkAccess, ipRestrictionEnabled } from "../utils/networkAccess";
 import { officeNetworkMessage } from "../utils/staffAttendance";
 
 export interface AuthRequest extends Request {
@@ -50,6 +50,7 @@ export const verifyToken = async (
         temporaryAccessIp: true,
         temporaryAccessMac: true,
         temporaryAccessUntil: true,
+        ipRestricted: true,
       },
     });
 
@@ -78,7 +79,7 @@ export const verifyToken = async (
     }
 
     const networkError = evaluateNetworkAccess(user, req);
-    if (user.role === "manager" && !networkError) {
+    if (ipRestrictionEnabled(user) && user.role === "manager" && !networkError) {
       const officeError = await officeNetworkMessage(req);
       if (officeError) {
         return res.status(403).json({ success: false, code: "IP_NOT_ALLOWED", message: officeError });

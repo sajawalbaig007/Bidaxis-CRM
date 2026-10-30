@@ -10,6 +10,7 @@ import type { StaffRequestItem } from "@/app/components/StaffRequestButton";
 import TechnicalPageShell from "@/app/technical/components/TechnicalPageShell";
 import ReportsSubpage from "../ReportsSubpage";
 import RequestDecisionDialog from "./RequestDecisionDialog";
+import ChangedByTag from "@/app/components/ChangedByTag";
 
 const DEPT_LABEL: Record<string, string> = {
   csr: "CSR",
@@ -262,6 +263,7 @@ export default function EmployeeRequestsPage() {
                     {row.detail && row.detail !== row.summary ? <RequestMessage text={row.detail} /> : null}
                   </td>
                   <td className="px-4 py-3" onClick={(event) => event.stopPropagation()}>
+                    <div className="flex flex-col items-start gap-1">
                     {canApprove ? (
                       <select
                         value={row.status}
@@ -290,6 +292,8 @@ export default function EmployeeRequestsPage() {
                         {row.status === "declined" ? "Rejected" : row.status === "approved" ? "Approved" : "Pending"}
                       </span>
                     )}
+                    <ChangedByTag name={row.reviewedBy} />
+                    </div>
                   </td>
                 </tr>
               ))}
