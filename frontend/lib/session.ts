@@ -46,11 +46,24 @@ export async function logoutSession(apiLogout: () => Promise<unknown>): Promise<
   await clearFrontendSession();
 }
 
+function roleFromToken(token?: string): string {
+  if (!token) return "";
+  try {
+    const part = token.split(".")[1];
+    if (!part) return "";
+    const payload = JSON.parse(atob(part.replace(/-/g, "+").replace(/_/g, "/"))) as { role?: string };
+    return String(payload.role ?? "");
+  } catch {
+    return "";
+  }
+}
+
 export function resolveLoginRole(data: {
   role?: string;
   user?: { role?: string };
+  token?: string;
 }): PortalRole | null {
-  const r = (data.role ?? data.user?.role ?? "").toLowerCase();
+  const r = (data.role ?? data.user?.role ?? roleFromToken(data.token)).toLowerCase();
   if (
     r === "admin" ||
     r === "csr" ||

@@ -38,7 +38,6 @@ const navItems = [
   { title: "Payments",   shortTitle: "Payments",   href: `${BASE}/payments`,       icon: Wallet          },
   { title: "Data Hub",   shortTitle: "Data Hub",   href: `${BASE}/uploads`,         icon: Upload          },
   { title: "Bin",        shortTitle: "Bin",        href: `${BASE}/bin`,             icon: Trash2          },
-  { title: "Zoom Dialer", shortTitle: "Zoom",      href: `${BASE}/zoom-dialer`,    icon: Phone           },
   { title: "Mail",       shortTitle: "Mail",      href: `${BASE}/mail`,           icon: Mail            },
   { title: "Settings",   shortTitle: "Settings",   href: `${BASE}/settings`,        icon: Settings        },
 ];
