@@ -56,14 +56,19 @@ function cleanSecret(raw: string): string {
 function inferSmtpHost(email: string): string | undefined {
   if (isGmailAddress(email)) return undefined;
   const domain = emailDomain(email);
-  if (domain === "bidaxis.co" || domain === "titan.email") return "smtp.titan.email";
+  if (domain === "bidaxis.co") return "smtpout.secureserver.net";
+  if (domain === "titan.email") return "smtp.titan.email";
   const envHost = (process.env.CRM_SMTP_HOST ?? "").trim();
-  return envHost || "smtp.hostinger.com";
+  return envHost || "smtpout.secureserver.net";
+}
+
+function sslSmtpPort(host: string): number {
+  return host ? 465 : 0;
 }
 
 export function mailboxSmtpDefaults(email: string): { host: string; port: number; secure: boolean } | { host: ""; port: number; secure: boolean } {
   const host = inferSmtpHost(email) ?? "";
-  const port = host === "smtp.titan.email" ? 465 : host ? 465 : 0;
+  const port = sslSmtpPort(host);
   return { host, port, secure: port === 465 };
 }
 
@@ -81,7 +86,7 @@ function readSlot(n: 1 | 2 | 3 | 4): MailSender | null {
   const name = (process.env[`CRM_FROM_NAME_${n}`] ?? "").trim() || email;
   if (!email || !pass || !isValidEmail(email)) return null;
   const host = (process.env[`CRM_FROM_HOST_${n}`] ?? "").trim() || inferSmtpHost(email);
-  const port = readOptionalPort(process.env[`CRM_FROM_PORT_${n}`] ?? "") ?? (host === "smtp.titan.email" ? 465 : undefined);
+  const port = readOptionalPort(process.env[`CRM_FROM_PORT_${n}`] ?? "") ?? (host ? 465 : undefined);
   const secureRaw = (process.env[`CRM_FROM_SECURE_${n}`] ?? "").trim().toLowerCase();
   const secure = secureRaw === "true" ? true : secureRaw === "false" ? false : port === 465 ? true : undefined;
   return { id: String(n), email, name, pass, host, port, secure };
@@ -117,20 +122,13 @@ function smtpPorts(sender: MailSender): Array<{ port: number; secure: boolean; r
   const envPort = readOptionalPort(process.env.CRM_SMTP_PORT ?? "");
   const envSecureRaw = (process.env.CRM_SMTP_SECURE ?? "").trim().toLowerCase();
   const envSecure = envSecureRaw === "true" ? true : envSecureRaw === "false" ? false : undefined;
-  const titan = (sender.host ?? inferSmtpHost(sender.email)) === "smtp.titan.email";
-  const primaryPort = sender.port ?? envPort ?? (titan ? 587 : 465);
+  const primaryPort = sender.port ?? envPort ?? 465;
   const primarySecure = sender.secure ?? envSecure ?? primaryPort === 465;
-  const list = titan
-    ? [
-        { port: 587, secure: false, requireTLS: true },
-        { port: 465, secure: true },
-        { port: primaryPort, secure: primarySecure, requireTLS: !primarySecure ? true : undefined },
-      ]
-    : [
-        { port: primaryPort, secure: primarySecure, requireTLS: !primarySecure ? true : undefined },
-        { port: 465, secure: true },
-        { port: 587, secure: false, requireTLS: true },
-      ];
+  const list = [
+    { port: 465, secure: true },
+    { port: 587, secure: false, requireTLS: true },
+    { port: primaryPort, secure: primarySecure, requireTLS: !primarySecure ? true : undefined },
+  ];
   const seen = new Set<string>();
   return list.filter(p => {
     const key = `${p.port}:${p.secure}`;
@@ -160,7 +158,7 @@ function toPublicSender(sender: MailSender): MailSenderPublic {
 function rowToSender(row: { id: string; email: string; name: string; pass: string; host?: string | null; port?: number | null; secure?: boolean | null }): MailSender {
   const email = row.email.trim();
   const host = (row.host ?? "").trim() || inferSmtpHost(email);
-  const port = row.port && row.port > 0 ? row.port : host === "smtp.titan.email" ? 465 : undefined;
+  const port = row.port && row.port > 0 ? row.port : host ? 465 : undefined;
   return {
     id: `g:${row.id}`,
     email,
@@ -217,7 +215,7 @@ export async function syncCompanyMailboxesFromEnv(): Promise<void> {
   for (const sender of slots) {
     const email = sender.email.toLowerCase();
     const host = sender.host || inferSmtpHost(email) || "";
-    const port = sender.port ?? (host === "smtp.titan.email" ? 465 : 0);
+    const port = sender.port ?? sslSmtpPort(host);
     await prisma.linkedMailbox.upsert({
       where: { email },
       create: {
@@ -361,6 +359,54 @@ export async function sendClientMail(opts: {
     }
   }
   throw lastErr;
+}
+
+/** Confirms SMTP/Gmail login before we keep a mailbox for sending. */
+export async function verifyMailboxLogin(sender: MailSender): Promise<void> {
+  if (isGmailAddress(sender.email) && !sender.host) {
+    const transporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: { user: sender.email, pass: sender.pass.replace(/\s/g, "") },
+    });
+    await transporter.verify();
+    return;
+  }
+
+  let lastErr: unknown;
+  const passwords = passwordVariants(sender.pass, sender.email);
+  const hosts = smtpHosts(sender);
+  const ports = smtpPorts(sender);
+
+  passLoop: for (const pass of passwords) {
+    for (const host of hosts) {
+      for (const port of ports) {
+        try {
+          const transporter = nodemailer.createTransport({
+            host,
+            port: port.port,
+            secure: port.secure,
+            requireTLS: port.requireTLS,
+            auth: { user: sender.email, pass },
+            authMethod: "LOGIN",
+            connectionTimeout: 12_000,
+            greetingTimeout: 12_000,
+            socketTimeout: 20_000,
+            tls: { minVersion: "TLSv1.2" },
+          });
+          await transporter.verify();
+          return;
+        } catch (err) {
+          lastErr = err;
+          const code = (err as { code?: string }).code ?? "";
+          if (code === "EAUTH") continue passLoop;
+          if (code !== "ESOCKET" && code !== "ETIMEDOUT" && code !== "ECONNECTION") {
+            throw err;
+          }
+        }
+      }
+    }
+  }
+  throw lastErr ?? new Error("Could not reach the mail server.");
 }
 
 function greetName(clientName: string): string {

@@ -116,7 +116,7 @@ router.post("/send", sendLimiter, async (req: AuthRequest, res) => {
     console.error("[mail/send]", err);
     return res.status(500).json({
       success: false,
-      message: "Send failed. Mailbox login was rejected — confirm the From email and password (Titan mailbox password, or Gmail app password), then try again.",
+      message: "Send failed. Mailbox login was rejected — confirm the From email and password (GoDaddy mailbox password, or Gmail app password), then try again.",
     });
   }
 });

@@ -8,6 +8,7 @@ import {
   listAllPublicSenders,
   mailboxSmtpDefaults,
   publicSenders,
+  verifyMailboxLogin,
 } from "../utils/clientMail";
 import { campaignStatus, startCampaign, stopCampaign } from "../utils/mailCampaign";
 import { mailSheetRejectReason, parseClientMailSheet } from "../utils/mailListParse";
@@ -83,7 +84,7 @@ async function saveLinkedMailbox(req: AuthRequest, res: express.Response) {
       success: false,
       message: isGmailMailbox(email)
         ? "Paste the Gmail app password."
-        : "Paste the mailbox password (Titan / company email password).",
+        : "Paste the mailbox password (GoDaddy / company email password).",
     });
   }
   const existing = await prisma.linkedMailbox.findUnique({ where: { email } });
@@ -95,6 +96,29 @@ async function saveLinkedMailbox(req: AuthRequest, res: express.Response) {
     }
   }
   const smtp = mailboxSmtpDefaults(email);
+  try {
+    await verifyMailboxLogin({
+      id: "check",
+      email,
+      name,
+      pass,
+      host: smtp.host || undefined,
+      port: smtp.port || undefined,
+      secure: smtp.secure,
+    });
+  } catch (err) {
+    const code = (err as { code?: string }).code ?? "";
+    const msg = err instanceof Error ? err.message : "Could not sign in to that mailbox.";
+    if (code === "EAUTH" || /invalid login|authentication/i.test(msg)) {
+      return res.status(400).json({
+        success: false,
+        message: isGmailMailbox(email)
+          ? "Gmail rejected that password. Use a 16-character Google app password, not the normal Gmail login."
+          : "Mailbox password was rejected. Check the GoDaddy mailbox password for this address.",
+      });
+    }
+    console.error("[mail-campaign] mailbox verify failed", email, err);
+  }
   const saved = await prisma.linkedMailbox.upsert({
     where: { email },
     create: { email, name, pass, host: smtp.host, port: smtp.port, secure: smtp.secure },
