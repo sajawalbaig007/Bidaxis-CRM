@@ -19,9 +19,11 @@ function safeFileName(raw: string): string {
 
 async function mailLibrary() {
   const [files, rows] = await Promise.all([
-    prisma.mailListFile.findMany({ orderBy: { createdAt: "desc" } }),
-    prisma.mailListRow.findMany({ orderBy: { createdAt: "asc" } }),
+    prisma.mailListFile.findMany(),
+    prisma.mailListRow.findMany(),
   ]);
+  files.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  rows.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
   return {
     files: files.map((file) => ({
       id: file.id,

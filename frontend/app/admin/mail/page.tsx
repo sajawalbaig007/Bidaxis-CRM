@@ -44,6 +44,7 @@ export default function AdminMailPage() {
   const [status, setStatus] = useState<Status | null>(null);
   const [starting, setStarting] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const libraryRev = useRef(0);
 
   function applySenders(list: Sender[]) {
     setSenders(list);
@@ -60,18 +61,26 @@ export default function AdminMailPage() {
   }
 
   function applyLibrary(data: { files?: MailFile[]; recipients?: Omit<Recipient, "selected">[] }) {
+    const rev = ++libraryRev.current;
     setFiles(data.files ?? []);
     setRecipients((current) => {
-      const selected = new Map(current.map((row) => [row.id, row.selected]));
-      return (data.recipients ?? []).map((row) => ({
-        id: row.id,
-        fileId: row.fileId ?? "",
-        name: row.name || row.email.split("@")[0],
-        email: row.email,
-        company: row.company ?? "",
-        manual: !!row.manual,
-        selected: selected.get(row.id) ?? true,
-      }));
+      if (rev !== libraryRev.current) return current;
+      const selected = new Map(current.map((row) => [row.email, row.selected]));
+      const incoming = (data.recipients ?? []).filter((row) => row.email);
+      const seen = new Set(incoming.map((row) => row.email));
+      const kept = current.filter((row) => row.id.startsWith("local-") && !seen.has(row.email));
+      return [
+        ...incoming.map((row) => ({
+          id: row.id,
+          fileId: row.fileId ?? "",
+          name: row.name || row.email.split("@")[0],
+          email: row.email,
+          company: row.company ?? "",
+          manual: !!row.manual,
+          selected: selected.get(row.email) ?? true,
+        })),
+        ...kept,
+      ];
     });
   }
 
@@ -79,8 +88,11 @@ export default function AdminMailPage() {
     API.get("/mail-campaign/senders")
       .then((res) => applySenders((res.data?.senders ?? []) as Sender[]))
       .catch((err) => toast.error(apiErrorMessage(err, "Could not load company emails.")));
+    const rev = ++libraryRev.current;
     API.get("/mail-campaign/files")
-      .then((res) => applyLibrary(res.data))
+      .then((res) => {
+        if (rev === libraryRev.current) applyLibrary(res.data);
+      })
       .catch((err) => toast.error(apiErrorMessage(err, "Could not load uploaded files.")));
   }, []);
 
@@ -154,12 +166,25 @@ export default function AdminMailPage() {
       toast.error("Enter a valid client email.");
       return;
     }
+    const pending = {
+      id: `local-${email}`,
+      fileId: "",
+      name: name || email.split("@")[0],
+      email,
+      company: "",
+      manual: true,
+      selected: true,
+    };
+    setRecipients((rows) => (rows.some((row) => row.email === email) ? rows : [...rows, pending]));
+    setManualName("");
+    setManualEmail("");
     try {
       const res = await API.post("/mail-campaign/rows", { name, email });
       applyLibrary(res.data);
-      setManualName("");
-      setManualEmail("");
     } catch (err) {
+      setRecipients((rows) => rows.filter((row) => row.id !== pending.id));
+      setManualName(name);
+      setManualEmail(email);
       toast.error(apiErrorMessage(err, "Could not add that email."));
     }
   }
