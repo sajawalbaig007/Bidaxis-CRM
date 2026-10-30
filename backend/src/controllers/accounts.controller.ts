@@ -54,6 +54,7 @@ import { collapsePfNameBuckets, pfHasLongerCanonical } from "../utils/pfNameAlia
 import { loadMergedNamePairs, resolveMergedName } from "../utils/employeeNameMerge";
 import { estDateYmd } from "../utils/estTime";
 import {
+  balanceSheetHasContent,
   hasMeaningfulAccountsData,
   pickLatestMeaningful,
   pickLatestMeaningfulByMonth,
@@ -90,19 +91,6 @@ async function getOrCreateRecord(page: AccountsPageKey, recordDate: string, user
       data: defaultAccountsData(page) as Prisma.InputJsonValue,
       updatedBy: userId ?? null,
     },
-  });
-}
-
-function balanceSheetHasLines(data: unknown): boolean {
-  if (!data || typeof data !== "object") return false;
-  const row = data as { assetSections?: unknown; equityLiabilitySections?: unknown };
-  const sections = [
-    ...(Array.isArray(row.assetSections) ? row.assetSections : []),
-    ...(Array.isArray(row.equityLiabilitySections) ? row.equityLiabilitySections : []),
-  ];
-  return sections.some((section) => {
-    const items = (section as { items?: unknown[] } | null)?.items;
-    return Array.isArray(items) && items.length > 0;
   });
 }
 
@@ -148,7 +136,7 @@ export async function listAccountsDates(req: AuthRequest, res: Response) {
     });
     const visible = records.filter(r =>
       pageParam === "balance_sheet"
-        ? hasMeaningfulAccountsData(r.data) || balanceSheetHasLines(r.data)
+        ? balanceSheetHasContent(r.data)
         : hasMeaningfulAccountsData(r.data),
     );
 
@@ -184,25 +172,17 @@ export async function getAccountsRecord(req: AuthRequest, res: Response) {
     if (pageParam === "balance_sheet") {
       res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
       res.setHeader("Pragma", "no-cache");
-      const sections = Array.isArray(raw.assetSections) ? raw.assetSections : [];
-      const hasSavedAssets = sections.some((section) => {
-        const items = (section as { items?: unknown[] } | null)?.items;
-        return Array.isArray(items) && items.length > 0;
-      });
-      // A saved sheet is returned as stored. Restore only fills a sheet that has no asset lines yet.
-      if (!hasSavedAssets) {
-        const assets = await resolveAccountsSnapshot("total_assets", recordDate);
-        const restored = restoreBalanceSheetAssets(
-          raw,
-          (assets.record?.data as Record<string, unknown> | undefined) ?? null,
-        );
-        raw = restored.data;
-        if (restored.changed && record) {
-          await prisma.accountsRecord.update({
-            where: { id: record.id },
-            data: { data: raw as Prisma.InputJsonValue },
-          });
-        }
+      const assets = await resolveAccountsSnapshot("total_assets", recordDate);
+      const restored = restoreBalanceSheetAssets(
+        raw,
+        (assets.record?.data as Record<string, unknown> | undefined) ?? null,
+      );
+      raw = restored.data;
+      if (restored.changed && record && !resolved.copiedFrom) {
+        await prisma.accountsRecord.update({
+          where: { id: record.id },
+          data: { data: raw as Prisma.InputJsonValue },
+        });
       }
     }
     if (pageParam === "income_statement") {

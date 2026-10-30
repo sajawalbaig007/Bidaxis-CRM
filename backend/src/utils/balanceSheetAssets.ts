@@ -152,14 +152,12 @@ function hasLines(item: Line | undefined): boolean {
 
 /**
  * Put missing asset-register heads back under Current Assets.
- * Saved heads are left as they are. Runs once per balance sheet (`inventoryAssetsRestored`).
+ * A head that already has lines is left as saved.
  */
 export function restoreBalanceSheetAssets(
   data: Record<string, unknown>,
   totalAssets?: Record<string, unknown> | null,
 ): { data: Record<string, unknown>; changed: boolean } {
-  if (data.inventoryAssetsRestored === true) return { data, changed: false };
-
   const defaults = defaultAccountsData("balance_sheet") as { assetSections?: Section[] };
   let sections = asSections(data.assetSections);
   if (!sections.length) sections = asSections(defaults.assetSections);
