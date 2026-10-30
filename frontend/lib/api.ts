@@ -43,17 +43,36 @@ function isLocalHost(): boolean {
   return h === "localhost" || h === "127.0.0.1";
 }
 
+/** Keep the API prefix when a host is configured without /api. */
+function withApiPrefix(raw: string): string {
+  const base = raw.replace(/\/$/, "");
+  if (!base) return "";
+  try {
+    const url = new URL(base);
+    const path = url.pathname.replace(/\/$/, "");
+    if (path === "/api" || path.endsWith("/api")) return `${url.origin}${path}`;
+    return `${url.origin}/api`;
+  } catch {
+    return base.endsWith("/api") ? base : `${base}/api`;
+  }
+}
+
 /**
- * Browser on this site → the public API directly.
- * Localhost, and office check-in pages, use the same-origin `/api/backend` proxy.
- * Server-side / SSR → direct BACKEND_URL.
+ * The live site calls the same-origin `/api/backend` proxy.
+ * That proxy uses BACKEND_URL on Vercel, which reaches Render.
+ * A baked API host that points at this website returns a plain 404 page.
+ * Localhost uses the same proxy. Server-side / SSR calls BACKEND_URL directly.
  */
 export function resolveBaseURL(): string {
   const direct = (process.env.NEXT_PUBLIC_API_URL ?? "").replace(/\/$/, "");
 
   if (typeof window !== "undefined") {
     if (isLocalHost()) return "/api/backend";
-    if (direct && !/localhost|127\.0\.0\.1/i.test(direct)) return direct;
+    const host = window.location.hostname.toLowerCase();
+    if (host === "dashboard.bidaxis.co" || host.endsWith(".vercel.app") || host.endsWith(".bidaxis.co")) {
+      return "/api/backend";
+    }
+    if (direct && !/localhost|127\.0\.0\.1/i.test(direct)) return withApiPrefix(direct);
     return "/api/backend";
   }
 
@@ -152,7 +171,7 @@ export function apiErrorMessage(err: unknown, fallback = "Something went wrong."
   if (e?.response?.status === 404) {
     return isLocalHost()
       ? "API route not ready. Refresh once and try again — backend should be on port 5000."
-      : "API not found. Redeploy frontend and set BACKEND_URL on Vercel.";
+      : fallback;
   }
   if (e?.response?.status === 502) {
     return isLocalHost()
