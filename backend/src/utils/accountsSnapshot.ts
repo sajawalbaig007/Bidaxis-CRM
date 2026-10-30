@@ -13,6 +13,54 @@ const CARRY_FORWARD_PAGES = new Set<AccountsPageKey>([
   "technical_payroll",
 ]);
 
+const BALANCE_SHEET_TEMPLATE_LABELS = new Set([
+  "property, plant & equipment",
+  "intangible assets",
+  "investments",
+  "other non-current assets",
+  "inventories",
+  "trade receivables",
+  "cash and cash equivalents",
+  "other current assets",
+  "share capital",
+  "retained earnings",
+  "other equity",
+  "long-term borrowings",
+  "long-term provisions",
+  "deferred tax liabilities (net)",
+  "other non-current liabilities",
+  "short-term borrowings",
+  "trade payables",
+  "other current liabilities",
+  "short-term provisions",
+]);
+
+function balanceSheetItems(data: unknown): Record<string, unknown>[] {
+  if (!data || typeof data !== "object") return [];
+  const row = data as { assetSections?: unknown; equityLiabilitySections?: unknown };
+  const sections = [
+    ...(Array.isArray(row.assetSections) ? row.assetSections : []),
+    ...(Array.isArray(row.equityLiabilitySections) ? row.equityLiabilitySections : []),
+  ];
+  return sections.flatMap((section) => {
+    const items = (section as { items?: unknown[] } | null)?.items;
+    if (!Array.isArray(items)) return [];
+    return items.filter((item): item is Record<string, unknown> => !!item && typeof item === "object");
+  });
+}
+
+/** A saved balance sheet, not the empty zero template. */
+export function balanceSheetHasContent(data: unknown): boolean {
+  for (const item of balanceSheetItems(data)) {
+    if ((Number(item.amount) || 0) > 0) return true;
+    if ((Number(item.qty) || 0) > 0) return true;
+    if (Array.isArray(item.subHeads) && item.subHeads.length > 0) return true;
+    const label = String(item.label ?? "").trim().toLowerCase();
+    if (label && !BALANCE_SHEET_TEMPLATE_LABELS.has(label)) return true;
+  }
+  return false;
+}
+
 /** True when the JSON has a real money figure (not FX rates / empty defaults). */
 export function hasMeaningfulAccountsData(data: unknown): boolean {
   return hasNonZeroAmount(data);
@@ -83,8 +131,20 @@ export async function resolveAccountsSnapshot(page: AccountsPageKey, recordDate:
   const exact = await prisma.accountsRecord.findUnique({
     where: { page_recordDate: { page: prismaPage, recordDate } },
   });
-  // Balance sheet is the saved row for this date. A previous day must not replace it.
+  // Use this date when it has real assets. Otherwise show the latest saved sheet, any month.
   if (page === "balance_sheet") {
+    if (exact && balanceSheetHasContent(exact.data)) {
+      return { record: exact, copiedFrom: null as string | null };
+    }
+    if (/^\d{4}-\d{2}-\d{2}$/.test(recordDate)) {
+      const prev = await prisma.accountsRecord.findMany({
+        where: { page: prismaPage, recordDate: { lt: recordDate } },
+        orderBy: { recordDate: "desc" },
+        take: 500,
+      });
+      const found = prev.find((row) => balanceSheetHasContent(row.data));
+      if (found) return { record: found, copiedFrom: found.recordDate };
+    }
     return { record: exact, copiedFrom: null as string | null };
   }
   if (exact && hasMeaningfulAccountsData(exact.data)) {
