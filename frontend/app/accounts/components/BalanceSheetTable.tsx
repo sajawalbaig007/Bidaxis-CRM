@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { ChevronDown, ChevronRight, Pencil, Plus } from "lucide-react";
 import type { BalanceLineItem, BalanceSection } from "../types";
 import {
@@ -36,6 +36,9 @@ type BalanceSheetTableProps = {
   onDeleteItem: (sectionId: string, itemId: string) => void;
   onAddItem: (sectionId: string) => void;
   onAddSection: () => void;
+  /** Writes this line, with the rest of the sheet, straight to the database. */
+  onSaveRow?: (sectionId: string, itemId: string) => void;
+  saving?: boolean;
 };
 
 export default function BalanceSheetTable({
@@ -48,11 +51,17 @@ export default function BalanceSheetTable({
   onDeleteItem,
   onAddItem,
   onAddSection,
+  onSaveRow,
+  saving = false,
 }: BalanceSheetTableProps) {
   const theme = TABLE_VARIANT[variant];
   const inventoryEnabled = variant === "assets";
   const [openItems, setOpenItems] = useState<Set<string>>(new Set());
   const [editing, setEditing] = useState<(HeadDetailModel & { sectionId: string }) | null>(null);
+  const [savingId, setSavingId] = useState("");
+  useEffect(() => {
+    if (!saving) setSavingId("");
+  }, [saving]);
   const grandTotal = sections.reduce((a, s) => a + sumItems(s.items, inventoryEnabled), 0);
 
   const toggleItem = (id: string) => {
@@ -136,6 +145,20 @@ export default function BalanceSheetTable({
                         </td>
                         <td className="px-3 py-2.5 text-sm text-[#334155] font-medium">
                           <span className="inline-flex items-center gap-2 flex-wrap">
+                            {onSaveRow ? (
+                              <button
+                                type="button"
+                                disabled={saving}
+                                title="Save this line to the database"
+                                onClick={() => {
+                                  setSavingId(item.id);
+                                  onSaveRow(section.id, item.id);
+                                }}
+                                className="h-7 px-2.5 rounded-lg bg-[#B8112D] text-white text-[10px] font-bold disabled:opacity-50"
+                              >
+                                {saving && savingId === item.id ? "Saving…" : "Save"}
+                              </button>
+                            ) : null}
                             {item.label}
                             <ChangedByTag name={item.editedByName} />
                           </span>

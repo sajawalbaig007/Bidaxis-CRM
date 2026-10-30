@@ -89,7 +89,7 @@ export default function BalanceSheetPage() {
         <AccountsPageShell
           {...accountsShellProps(acc)}
           title="Balance Sheet"
-          subtitle="Assets: TOTAL = QTY × Unit price. Equity & Liabilities stay amount-only."
+          subtitle="Click Save on a line to store it in the database. Refresh loads that saved sheet."
           inlineTitle
           hideFileActions
         >
@@ -193,6 +193,8 @@ export default function BalanceSheetPage() {
                 ...prev,
                 assetSections: [...prev.assetSections, { id: newRowId("as"), title: "New Asset Section", items: [] }],
               }))}
+              onSaveRow={() => { void acc.save(acc.data); }}
+              saving={acc.saving}
             />
             </div>
 
@@ -228,6 +230,8 @@ export default function BalanceSheetPage() {
                 ...prev,
                 equityLiabilitySections: [...prev.equityLiabilitySections, { id: newRowId("es"), title: "New Section", items: [] }],
               }))}
+              onSaveRow={() => { void acc.save(acc.data); }}
+              saving={acc.saving}
             />
             </div>
           </div>
