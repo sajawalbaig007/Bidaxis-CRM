@@ -237,23 +237,31 @@ router.post("/stop", (_req, res) => {
 });
 
 router.post("/start", async (req: AuthRequest, res) => {
-  const ids = Array.isArray(req.body?.recipientIds)
-    ? req.body.recipientIds.map((id: unknown) => String(id ?? "").trim()).filter(Boolean)
-    : [];
-  let recipients: { name: string; email: string }[] = Array.isArray(req.body?.recipients) ? req.body.recipients : [];
+  const rawIds: unknown[] = Array.isArray(req.body?.recipientIds) ? req.body.recipientIds : [];
+  const ids: string[] = rawIds.map((value) => String(value ?? "").trim()).filter((id) => id.length > 0);
+  let recipients: { name: string; email: string }[] = [];
+  if (Array.isArray(req.body?.recipients)) {
+    recipients = req.body.recipients.map((value: { name?: unknown; email?: unknown }) => ({
+      name: String(value?.name ?? ""),
+      email: String(value?.email ?? ""),
+    }));
+  }
   if (ids.length) {
     const rows = await prisma.mailListRow.findMany({ where: { id: { in: ids } } });
     const byId = new Map(rows.map((item) => [item.id, item]));
-    recipients = ids.flatMap((id) => {
+    recipients = ids.flatMap((id: string) => {
       const item = byId.get(id);
       return item ? [{ name: item.name, email: item.email }] : [];
     });
   }
+  const senders: { id: string }[] = Array.isArray(req.body?.senders)
+    ? req.body.senders.map((value: { id?: unknown }) => ({ id: String(value?.id ?? "") }))
+    : [];
   const result = await startCampaign({
     subject: String(req.body?.subject ?? ""),
     body: String(req.body?.body ?? ""),
     recipients,
-    senders: Array.isArray(req.body?.senders) ? req.body.senders : [],
+    senders,
     minDelaySec: Number(req.body?.minDelaySec),
     maxDelaySec: Number(req.body?.maxDelaySec),
   });
