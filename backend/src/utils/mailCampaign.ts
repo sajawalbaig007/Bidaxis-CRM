@@ -1,8 +1,8 @@
-import { findSender, isValidEmail, sendClientMail } from "./clientMail";
+import { isValidEmail, resolveMailbox, sendClientMail, type MailSender } from "./clientMail";
 import { bidaxisFooterFor } from "./bidaxisFooters";
 
 export type CampaignRecipient = { name: string; email: string };
-export type CampaignSender = { id: string; footer: string };
+export type CampaignSender = { sender: MailSender; footer: string };
 
 export type CampaignLogRow = {
   email: string;
@@ -92,14 +92,14 @@ export function stopCampaign(): CampaignStatus {
   return campaignStatus();
 }
 
-export function startCampaign(input: {
+export async function startCampaign(input: {
   subject: string;
   body: string;
   recipients: CampaignRecipient[];
-  senders: CampaignSender[];
+  senders: { id: string }[];
   minDelaySec: number;
   maxDelaySec: number;
-}): { ok: true } | { ok: false; message: string } {
+}): Promise<{ ok: true } | { ok: false; message: string }> {
   if (job?.status === "running") {
     return { ok: false, message: "A send is already running. Stop it before starting another." };
   }
@@ -124,17 +124,14 @@ export function startCampaign(input: {
     return { ok: false, message: `Select at most ${MAX_RECIPIENTS} emails in one run.` };
   }
 
-  const senders = input.senders
-    .map((s) => {
-      const id = String(s.id ?? "").trim();
-      const sender = findSender(id);
-      const typed = String(s.footer ?? "").trim();
-      const footer = (typed || (sender ? bidaxisFooterFor(sender.email) : "")).slice(0, 20_000);
-      return { id, footer };
-    })
-    .filter((s) => findSender(s.id));
+  const senders: CampaignSender[] = [];
+  for (const raw of input.senders) {
+    const sender = await resolveMailbox(String(raw.id ?? "").trim());
+    if (!sender) continue;
+    senders.push({ sender, footer: bidaxisFooterFor(sender.email) });
+  }
   if (!senders.length) {
-    return { ok: false, message: "Select at least one company email that is already configured on the server." };
+    return { ok: false, message: "Select at least one mailbox." };
   }
 
   const minDelaySec = Number(input.minDelaySec) || 45;
@@ -175,19 +172,7 @@ async function run(
     }
     const person = input.recipients[i];
     const slot = input.senders[i % input.senders.length];
-    const sender = findSender(slot.id);
-    if (!sender) {
-      active.failed += 1;
-      active.log.push({
-        email: person.email,
-        name: person.name,
-        from: slot.id,
-        ok: false,
-        error: "Sender is no longer configured.",
-        at: new Date().toISOString(),
-      });
-      continue;
-    }
+    const sender = slot.sender;
     active.current = person.email;
     try {
       await sendClientMail({

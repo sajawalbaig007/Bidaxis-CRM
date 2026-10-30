@@ -7,7 +7,7 @@ import DashboardSidebar from "../components/layout/Sidebar";
 import DashboardNavbar from "../components/layout/Navbar";
 import API, { apiErrorMessage } from "@/lib/api";
 
-type Sender = { id: string; email: string; name: string; defaultFooter?: string };
+type Sender = { id: string; email: string; name: string; defaultFooter?: string; linked?: boolean };
 type Recipient = { name: string; email: string; selected: boolean };
 type LogRow = { email: string; name: string; from: string; ok: boolean; error?: string; at: string };
 type Status = {
@@ -52,7 +52,10 @@ function parseList(text: string): Recipient[] {
 export default function AdminMailPage() {
   const [senders, setSenders] = useState<Sender[]>([]);
   const [picked, setPicked] = useState<Record<string, boolean>>({});
-  const [footers, setFooters] = useState<Record<string, string>>({});
+  const [gmailAddress, setGmailAddress] = useState("");
+  const [gmailPass, setGmailPass] = useState("");
+  const [gmailName, setGmailName] = useState("");
+  const [linking, setLinking] = useState(false);
   const [subject, setSubject] = useState("Need Estimating Support for Upcoming Bids?");
   const [body, setBody] = useState(
     "Hi {{name}},\n\nDoes your team need extra support with quantity takeoffs or cost estimates for upcoming construction bids?\nBidAxis LLC is here to help you manage your estimating workload efficiently.\nWe provide detailed quantity takeoffs and cost estimates for residential, commercial, industrial, and other construction projects.\nOur team can assist with single projects or multiple bids with tight deadlines.\nIf you'd like to review our estimating work, we'd be happy to share sample takeoffs and estimates.\nDo you have an upcoming project we could help you with?\nBest regards,",
@@ -64,15 +67,23 @@ export default function AdminMailPage() {
   const [starting, setStarting] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
+  function applySenders(list: Sender[]) {
+    setSenders(list);
+    setPicked((prev) => {
+      const next: Record<string, boolean> = {};
+      const preferred = list.filter((s) => /^(info|sales)@bidaxis\.co$/i.test(s.email));
+      for (const s of list) {
+        if (s.id in prev) next[s.id] = prev[s.id];
+        else if (s.linked) next[s.id] = true;
+        else next[s.id] = preferred.length ? preferred.some((p) => p.id === s.id) : true;
+      }
+      return next;
+    });
+  }
+
   useEffect(() => {
     API.get("/mail-campaign/senders")
-      .then((res) => {
-        const list = (res.data?.senders ?? []) as Sender[];
-        setSenders(list);
-        const preferred = list.filter((s) => /^(info|sales)@bidaxis\.co$/i.test(s.email));
-        const on = new Set((preferred.length ? preferred : list).map((s) => s.id));
-        setPicked(Object.fromEntries(list.map((s) => [s.id, on.has(s.id)])));
-      })
+      .then((res) => applySenders((res.data?.senders ?? []) as Sender[]))
       .catch((err) => toast.error(apiErrorMessage(err, "Could not load company emails.")));
   }, []);
 
@@ -137,7 +148,7 @@ export default function AdminMailPage() {
         minDelaySec: minDelay,
         maxDelaySec: maxDelay,
         recipients: selected.map((r) => ({ name: r.name, email: r.email })),
-        senders: chosen.map((s) => ({ id: s.id, footer: footers[s.id] ?? "" })),
+        senders: chosen.map((s) => ({ id: s.id })),
       });
       setStatus(res.data as Status);
       toast.success("Sending started. Emails go out one by one.");
@@ -145,6 +156,35 @@ export default function AdminMailPage() {
       toast.error(apiErrorMessage(err, "Could not start."));
     } finally {
       setStarting(false);
+    }
+  }
+
+  async function linkGmail() {
+    setLinking(true);
+    try {
+      const res = await API.post("/mail-campaign/gmail", {
+        email: gmailAddress,
+        appPassword: gmailPass,
+        name: gmailName,
+      });
+      applySenders((res.data?.senders ?? []) as Sender[]);
+      setGmailAddress("");
+      setGmailPass("");
+      setGmailName("");
+      toast.success("Gmail linked.");
+    } catch (err) {
+      toast.error(apiErrorMessage(err, "Could not link Gmail."));
+    } finally {
+      setLinking(false);
+    }
+  }
+
+  async function unlinkGmail(id: string) {
+    try {
+      const res = await API.delete(`/mail-campaign/gmail/${encodeURIComponent(id)}`);
+      applySenders((res.data?.senders ?? []) as Sender[]);
+    } catch (err) {
+      toast.error(apiErrorMessage(err, "Could not remove Gmail."));
     }
   }
 
@@ -205,7 +245,7 @@ export default function AdminMailPage() {
           <section className="bg-white rounded-3xl border border-gray-100 shadow-sm p-5">
             <h2 className="font-semibold text-gray-800">From emails</h2>
             <p className="text-xs text-gray-400 mt-1 mb-3">
-              Selected mailboxes take turns. Each one keeps the footer you paste under it.
+              info and sales take turns. Their signatures stay fixed.
             </p>
             {!senders.length && (
               <p className="text-sm text-amber-700 bg-amber-50 rounded-xl p-3">
@@ -225,22 +265,56 @@ export default function AdminMailPage() {
                     {s.name} · {s.email}
                   </label>
                   {s.defaultFooter ? (
-                    <p className="mt-2 text-xs text-[#1B6FE8]">
-                      Signature is attached
-                      {s.email.toLowerCase() === "info@bidaxis.co" ? " · Daniel Parker" : ""}
-                      {s.email.toLowerCase() === "sales@bidaxis.co" ? " · Emma Collins" : ""}
-                    </p>
+                    <p className="mt-2 text-xs text-[#1B6FE8]">Fixed signature is attached.</p>
+                  ) : (
+                    <p className="mt-2 text-xs text-gray-400">Template only. No signature on this mailbox.</p>
+                  )}
+                  {s.linked ? (
+                    <button
+                      type="button"
+                      disabled={running}
+                      onClick={() => void unlinkGmail(s.id)}
+                      className="mt-2 text-xs text-gray-500 underline"
+                    >
+                      Remove
+                    </button>
                   ) : null}
-                  <textarea
-                    value={footers[s.id] ?? ""}
-                    onChange={(e) => setFooters((f) => ({ ...f, [s.id]: e.target.value }))}
-                    disabled={running}
-                    rows={3}
-                    placeholder="Footer for this mailbox"
-                    className="mt-2 w-full rounded-xl border border-gray-200 px-3 py-2 text-xs"
-                  />
                 </div>
               ))}
+            </div>
+            <div className="mt-4 rounded-2xl border border-dashed border-gray-200 p-3">
+              <p className="text-sm font-medium text-gray-800">Link a Gmail</p>
+              <p className="text-xs text-gray-400 mt-1 mb-2">Use a Google app password, not the normal login password.</p>
+              <input
+                value={gmailName}
+                onChange={(e) => setGmailName(e.target.value)}
+                disabled={running}
+                placeholder="Display name"
+                className="mb-2 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm"
+              />
+              <input
+                value={gmailAddress}
+                onChange={(e) => setGmailAddress(e.target.value)}
+                disabled={running}
+                placeholder="name@gmail.com"
+                className="mb-2 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm"
+              />
+              <input
+                value={gmailPass}
+                onChange={(e) => setGmailPass(e.target.value)}
+                disabled={running}
+                type="password"
+                placeholder="App password"
+                className="mb-2 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm"
+              />
+              <button
+                type="button"
+                disabled={running || linking}
+                onClick={() => void linkGmail()}
+                className="rounded-full bg-[#1B6FE8] text-white px-4 py-2 text-sm disabled:opacity-50"
+              >
+                Link Gmail
+              </button>
             </div>
             <div className="mt-4 grid grid-cols-2 gap-3">
               <label className="text-xs text-gray-500">

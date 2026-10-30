@@ -7,6 +7,7 @@ import {
   type MailSignature,
 } from "./mailSignatures";
 import { bidaxisFooterFor } from "./bidaxisFooters";
+import prisma from "../config/db";
 
 export type MailSenderPublic = {
   id: string;
@@ -15,9 +16,10 @@ export type MailSenderPublic = {
   signatureBrand: ReturnType<typeof resolveMailBrand>;
   signatureLabel: string | null;
   defaultFooter: string;
+  linked: boolean;
 };
 
-type MailSender = {
+export type MailSender = {
   id: string;
   email: string;
   name: string;
@@ -114,7 +116,40 @@ export function publicSenders(): MailSenderPublic[] {
     signatureBrand: resolveMailBrand(email, name),
     signatureLabel: signatureLabel(email, name),
     defaultFooter: bidaxisFooterFor(email),
+    linked: false,
   }));
+}
+
+export async function listLinkedGmail(): Promise<MailSenderPublic[]> {
+  const rows = await prisma.linkedMailbox.findMany({ orderBy: { createdAt: "asc" } });
+  return rows.map((row) => ({
+    id: `g:${row.id}`,
+    email: row.email,
+    name: row.name || row.email,
+    signatureBrand: null,
+    signatureLabel: "Gmail",
+    defaultFooter: "",
+    linked: true,
+  }));
+}
+
+export async function listAllPublicSenders(): Promise<MailSenderPublic[]> {
+  const linked = await listLinkedGmail();
+  return [...publicSenders(), ...linked];
+}
+
+export async function resolveMailbox(id: string): Promise<MailSender | null> {
+  const envSender = findSender(id);
+  if (envSender) return envSender;
+  if (!id.startsWith("g:")) return null;
+  const row = await prisma.linkedMailbox.findUnique({ where: { id: id.slice(2) } });
+  if (!row?.pass) return null;
+  return {
+    id,
+    email: row.email,
+    name: row.name || row.email,
+    pass: row.pass,
+  };
 }
 
 export function findSender(id: string): MailSender | null {

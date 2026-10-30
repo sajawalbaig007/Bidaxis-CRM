@@ -760,3 +760,14 @@ model CsrDialerPreference {
   @@index([accountId])
   @@map("csr_dialer_preferences")
 }
+
+/** Gmail mailbox the CEO linked from the Mail page. Password stays on the server. */
+model LinkedMailbox {
+  id        String   @id @default(cuid()) @map("_id")
+  email     String   @unique
+  name      String   @default("")
+  pass      String
+  createdAt DateTime @default(now())
+
+  @@map("linked_mailboxes")
+}
