@@ -27,10 +27,6 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/i;
 export default function AdminMailPage() {
   const [senders, setSenders] = useState<Sender[]>([]);
   const [picked, setPicked] = useState<Record<string, boolean>>({});
-  const [gmailAddress, setGmailAddress] = useState("");
-  const [gmailPass, setGmailPass] = useState("");
-  const [gmailName, setGmailName] = useState("");
-  const [linking, setLinking] = useState(false);
   const [subject, setSubject] = useState("Need Estimating Support for Upcoming Bids?");
   const [body, setBody] = useState(
     "Hi {{name}},\n\nDoes your team need extra support with quantity takeoffs or cost estimates for upcoming construction bids?\nBidAxis LLC is here to help you manage your estimating workload efficiently.\nWe provide detailed quantity takeoffs and cost estimates for residential, commercial, industrial, and other construction projects.\nOur team can assist with single projects or multiple bids with tight deadlines.\nIf you'd like to review our estimating work, we'd be happy to share sample takeoffs and estimates.\nDo you have an upcoming project we could help you with?\nBest regards,",
@@ -269,28 +265,6 @@ export default function AdminMailPage() {
     }
   }
 
-  async function linkGmail() {
-    setLinking(true);
-    try {
-      const res = await API.post("/mail-campaign/mailbox", {
-        email: gmailAddress,
-        appPassword: gmailPass,
-        name: gmailName,
-      });
-      sendersTick.current += 1;
-      applySenders(readSenderList(res.data));
-      void loadSenders();
-      setGmailAddress("");
-      setGmailPass("");
-      setGmailName("");
-      toast.success("Mailbox saved to the database.");
-    } catch (err) {
-      toast.error(apiErrorMessage(err, "Could not save that mailbox."));
-    } finally {
-      setLinking(false);
-    }
-  }
-
   async function unlinkGmail(id: string) {
     try {
       const res = await API.delete(`/mail-campaign/gmail/${encodeURIComponent(id)}`);
@@ -358,11 +332,11 @@ export default function AdminMailPage() {
           <section className="bg-white rounded-3xl border border-gray-100 shadow-sm p-5">
             <h2 className="font-semibold text-gray-800">From emails</h2>
             <p className="text-xs text-gray-400 mt-1 mb-3">
-              info and sales take turns. Their signatures stay fixed.
+              Company mailboxes from the database. info and sales take turns. Their signatures stay fixed.
             </p>
-            {!senders.some((s) => /^(info|sales)@bidaxis\.co$/i.test(s.email)) && (
+            {!senders.length && (
               <p className="text-sm text-amber-700 bg-amber-50 rounded-xl p-3">
-                Save info@bidaxis.co and sales@bidaxis.co below with the Titan mailbox password. They are stored in the database and used live — no cache.
+                No company emails are in the database yet. Ask admin to set them on the server, then refresh.
               </p>
             )}
             <div className="space-y-3">
@@ -394,42 +368,6 @@ export default function AdminMailPage() {
                   ) : null}
                 </div>
               ))}
-            </div>
-            <div className="mt-4 rounded-2xl border border-dashed border-gray-200 p-3">
-              <p className="text-sm font-medium text-gray-800">Save a mailbox</p>
-              <p className="text-xs text-gray-400 mt-1 mb-2">
-                Company Titan: info@bidaxis.co or sales@bidaxis.co with the mailbox password. Gmail: use an app password, not the login password.
-              </p>
-              <input
-                value={gmailName}
-                onChange={(e) => setGmailName(e.target.value)}
-                disabled={running}
-                placeholder="Display name"
-                className="mb-2 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm"
-              />
-              <input
-                value={gmailAddress}
-                onChange={(e) => setGmailAddress(e.target.value)}
-                disabled={running}
-                placeholder="info@bidaxis.co"
-                className="mb-2 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm"
-              />
-              <input
-                value={gmailPass}
-                onChange={(e) => setGmailPass(e.target.value)}
-                disabled={running}
-                type="password"
-                placeholder="Mailbox or Gmail app password"
-                className="mb-2 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm"
-              />
-              <button
-                type="button"
-                disabled={running || linking}
-                onClick={() => void linkGmail()}
-                className="rounded-full bg-[#1B6FE8] text-white px-4 py-2 text-sm disabled:opacity-50"
-              >
-                Save mailbox
-              </button>
             </div>
             <div className="mt-4 grid grid-cols-2 gap-3">
               <label className="text-xs text-gray-500">

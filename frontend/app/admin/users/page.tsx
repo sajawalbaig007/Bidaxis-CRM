@@ -587,7 +587,7 @@ export default function UsersPage() {
   const activitySubtitle = useMemo(() => {
     if (isEmployeesView) return "All Employees · dashboard linked + manual staff";
     const names = activityDashboards.map((d) => d.role).join(", ");
-    return portalCompany === "GPS" ? `GPS · ${names}` : `BEM · ${names}`;
+    return portalCompany === "GPS" ? `GPS · ${names}` : `BidAxis · ${names}`;
   }, [activityDashboards, isEmployeesView, portalCompany]);
   const countByCompany = {
     BEM: users.filter(u => companyForRole(u.role) === "BEM").length,
@@ -1222,7 +1222,7 @@ export default function UsersPage() {
             }}
             accent={companyFilter === "GPS" ? "#0F398A" : companyFilter === "EMPLOYEES" ? "#0F766E" : "#1B6FE8"}
             tabs={[
-              { key: "BEM", label: "BEM Solutions", shortLabel: "BEM", count: countByCompany.BEM },
+              { key: "BEM", label: "BidAxis", shortLabel: "BidAxis", count: countByCompany.BEM },
               { key: "GPS", label: "GPS · Global", shortLabel: "GPS", count: countByCompany.GPS },
               { key: "EMPLOYEES", label: "All Employees", shortLabel: "Employees", count: undefined },
             ]}
@@ -1234,7 +1234,7 @@ export default function UsersPage() {
               onChange={key => { setRoleFilter(key as "All" | UserRole); setPage(1); }}
               accent={companyFilter === "GPS" ? "#0F398A" : "#1B6FE8"}
               tabs={[
-                { key: "All", label: companyFilter === "GPS" ? "All GPS" : "All BEM", count: companyAllCount },
+                { key: "All", label: companyFilter === "GPS" ? "All GPS" : "All BidAxis", count: companyAllCount },
                 ...activityDashboards.map(d => ({
                   key: d.role,
                   label: d.role,
@@ -1449,7 +1449,7 @@ export default function UsersPage() {
                 {[
                   { label:"Email",          value: detailUser.email  },
                   { label:"Role",           value: detailUser.role   },
-                  { label:"Company",        value: companyForRole(detailUser.role) === "GPS" ? "GPS · Global" : "BEM Solutions" },
+                  { label:"Company",        value: companyForRole(detailUser.role) === "GPS" ? "GPS · Global" : "BidAxis" },
                   { label:"Account Status", value: detailUser.status },
                 ].map(({ label, value }) => (
                   <div key={label} className="bg-[#F8F9FC] rounded-2xl p-4">
@@ -1707,7 +1707,7 @@ export default function UsersPage() {
                 <p className="text-xs text-gray-400 mt-0.5">
                   {editingUser
                     ? "Scroll down for access policy & more fields"
-                    : "Choose company first (BEM or GPS), then pick a role for that company"}
+                    : "Choose company first (BidAxis or GPS), then pick a role for that company"}
                 </p>
               </div>
 
@@ -1749,7 +1749,7 @@ export default function UsersPage() {
                   </label>
                   <div className="grid grid-cols-2 gap-2">
                     {([
-                      { key: "BEM" as const, title: "BEM Solutions", hint: PORTAL_DASHBOARDS.filter(d => d.company === "BEM").map(d => d.shortLabel).join(" · "), accent: "#1B6FE8" },
+                      { key: "BEM" as const, title: "BidAxis", hint: PORTAL_DASHBOARDS.filter(d => d.company === "BEM").map(d => d.shortLabel).join(" · "), accent: "#1B6FE8" },
                       { key: "GPS" as const, title: "GPS · Global", hint: PORTAL_DASHBOARDS.filter(d => d.company === "GPS").map(d => d.shortLabel).join(" · "), accent: "#0F398A" },
                     ]).map(opt => {
                       const active = form.company === opt.key;

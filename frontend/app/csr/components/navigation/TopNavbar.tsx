@@ -303,7 +303,7 @@ export default function TopNavbar() {
               CRM Dashboard
             </h2>
             <p className="text-[10px] font-semibold text-[#1B6FE8] mt-1 tracking-wide uppercase">
-              BEM Solutions
+              BidAxis
             </p>
           </div>
         </Link>

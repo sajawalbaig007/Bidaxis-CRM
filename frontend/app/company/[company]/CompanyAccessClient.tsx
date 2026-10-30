@@ -1,11 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, ArrowRight, Eye, EyeOff, Shield } from "lucide-react";
 import toast from "react-hot-toast";
 import API, { apiErrorMessage } from "@/lib/api";
-import { PORTAL_LOGIN_COPY } from "@/lib/loginRole";
 import {
   COMPANY_META,
   COMPANY_PORTAL_ROLES,
@@ -23,9 +22,6 @@ import GpsWordmark from "@/app/components/GpsWordmark";
 import CompanyPortalChrome from "@/app/components/CompanyPortalChrome";
 import LoginPeekCharacter from "@/app/components/LoginPeekCharacter";
 
-const SLIDE_MS = 5200;
-const CHIPS_PER_ROW = 2;
-
 export default function CompanyAccessPage({ company }: { company: PortalCompany }) {
   const meta = COMPANY_META[company];
   const portals = useMemo(
@@ -40,59 +36,6 @@ export default function CompanyAccessPage({ company }: { company: PortalCompany 
   const [showPassword, setShowPassword] = useState(false);
   const [focusedField, setFocusedField] = useState<"username" | "password" | null>(null);
   const [loading, setLoading] = useState(false);
-
-  const [index, setIndex] = useState(0);
-  const [paused, setPaused] = useState(false);
-  const active = portals[index] ?? portals[0];
-  const chipTrackRef = useRef<HTMLDivElement>(null);
-  const chipBtnRefs = useRef<(HTMLButtonElement | null)[]>([]);
-  const [capsule, setCapsule] = useState({
-    left: 0,
-    top: 0,
-    width: 0,
-    height: 0,
-    ready: false,
-  });
-
-  const go = useCallback((next: number) => {
-    if (portals.length === 0) return;
-    setIndex(((next % portals.length) + portals.length) % portals.length);
-  }, [portals.length]);
-
-  const measureCapsule = useCallback(() => {
-    const btn = chipBtnRefs.current[index];
-    if (!btn) return;
-    setCapsule({
-      left: btn.offsetLeft,
-      top: btn.offsetTop,
-      width: btn.offsetWidth,
-      height: btn.offsetHeight,
-      ready: true,
-    });
-  }, [index]);
-
-  useLayoutEffect(() => {
-    measureCapsule();
-  }, [measureCapsule, unlocked]);
-
-  useEffect(() => {
-    const track = chipTrackRef.current;
-    if (!track) return;
-    const onResize = () => measureCapsule();
-    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(onResize) : null;
-    ro?.observe(track);
-    window.addEventListener("resize", onResize);
-    return () => {
-      ro?.disconnect();
-      window.removeEventListener("resize", onResize);
-    };
-  }, [measureCapsule, unlocked]);
-
-  useEffect(() => {
-    if (!unlocked || paused || portals.length < 2) return;
-    const t = setInterval(() => go(index + 1), SLIDE_MS);
-    return () => clearInterval(t);
-  }, [index, paused, go, unlocked, portals.length]);
 
   useEffect(() => {
     let cancelled = false;
@@ -138,7 +81,6 @@ export default function CompanyAccessPage({ company }: { company: PortalCompany 
       }
       setCompanyGate(company, token);
       setUnlocked(true);
-      setIndex(0);
       toast.success(`${meta.name} unlocked`);
     } catch (err) {
       toast.error(apiErrorMessage(err, "Invalid company username or password."));
@@ -232,7 +174,7 @@ export default function CompanyAccessPage({ company }: { company: PortalCompany 
                       onChange={e => setUsername(e.target.value)}
                       onFocus={() => setFocusedField("username")}
                       onBlur={() => setFocusedField(prev => (prev === "username" ? null : prev))}
-                      placeholder={company}
+                      placeholder={meta.name}
                       className="w-full h-12 rounded-xl border border-white/20 bg-white/10 px-4 text-sm text-white placeholder:text-white/35 outline-none focus:border-white/50"
                     />
                   </div>
@@ -277,137 +219,45 @@ export default function CompanyAccessPage({ company }: { company: PortalCompany 
               </div>
             </div>
           ) : (
-            <div
-              className="rounded-[1.35rem] sm:rounded-[1.75rem] border border-white/20 bg-white/[0.09] backdrop-blur-xl shadow-[0_24px_80px_-12px_rgba(0,0,0,0.5)] overflow-hidden flex-1 min-h-0 flex flex-col"
-              onMouseEnter={() => setPaused(true)}
-              onMouseLeave={() => setPaused(false)}
-              onFocusCapture={() => setPaused(true)}
-              onBlurCapture={() => setPaused(false)}
-            >
-              <div className="relative p-4 sm:p-6 md:p-7 flex-1">
-                <div className="flex items-center justify-between gap-2 mb-4 sm:mb-5">
-                  <div className="inline-flex items-center gap-2">
-                    <Shield size={13} className="text-white/70" />
-                    <p className="text-[10px] sm:text-[11px] font-bold uppercase tracking-[0.14em] text-white/70">
-                      Dashboard preview
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <button
-                      type="button"
-                      onClick={lockCompany}
-                      className="text-[11px] font-semibold text-white/55 hover:text-white"
-                    >
-                      Lock
-                    </button>
-                    <Link href="/" className="inline-flex items-center gap-1 text-[11px] font-semibold text-white/55 hover:text-white">
-                      <ArrowLeft size={13} /> Companies
-                    </Link>
-                  </div>
-                </div>
-
-                <div className="relative overflow-hidden">
-                  {portals.map((portal, i) => {
-                    const PIcon = portal.icon;
-                    const visible = i === index;
-                    return (
-                      <div
-                        key={portal.value}
-                        className={`transition-all duration-500 ease-out ${
-                          visible
-                            ? "relative opacity-100 translate-x-0"
-                            : "absolute inset-0 opacity-0 translate-x-6 pointer-events-none"
-                        }`}
-                        aria-hidden={!visible}
-                      >
-                        <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-5">
-                          <div
-                            className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl flex items-center justify-center text-white shadow-lg shrink-0 transition-transform duration-500 overflow-hidden"
-                            style={{
-                              background: `linear-gradient(145deg, ${portal.accent}, ${portal.accent}cc)`,
-                              boxShadow: `0 12px 32px ${portal.accent}55`,
-                              transform: visible ? "scale(1)" : "scale(0.92)",
-                            }}
-                          >
-                            <PIcon size={32} />
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <p className="text-[10px] font-bold uppercase tracking-[0.16em] mb-1.5 drop-shadow-sm">
-                              <span style={{ color: portal.accent }}>{PORTAL_LOGIN_COPY[portal.value].eyebrow}</span>
-                            </p>
-                            <h2 className="text-white text-xl sm:text-2xl md:text-[1.75rem] font-black tracking-tight leading-tight drop-shadow-sm">
-                              {PORTAL_LOGIN_COPY[portal.value].slides[0]?.title ?? `${portal.label} Dashboard`}
-                            </h2>
-                            <p className="text-white/80 text-[12px] sm:text-[13px] mt-1.5 leading-relaxed max-w-md">
-                              {portal.hint}
-                            </p>
-                          </div>
-                        </div>
-
-                        <div className="mt-5 sm:mt-6 flex flex-col sm:flex-row sm:items-center gap-2.5 sm:gap-3">
-                          <Link
-                            href={`/login/${portal.value}`}
-                            className="inline-flex items-center justify-center gap-2 h-11 sm:h-12 px-5 rounded-xl text-white text-sm font-bold transition-all hover:brightness-110 active:scale-[0.98]"
-                            style={{
-                              background: `linear-gradient(135deg, ${portal.accent}, ${portal.accent}dd)`,
-                              boxShadow: `0 8px 24px ${portal.accent}55`,
-                            }}
-                          >
-                            Continue to {portal.label}
-                            <ArrowRight size={16} />
-                          </Link>
-                          <p className="text-[11px] text-white/65 sm:ml-1">
-                            Staff sign-in · separate portal credentials
-                          </p>
-                        </div>
-                      </div>
-                    );
-                  })}
+            <div className="rounded-[1.35rem] border border-white/20 bg-white/[0.09] p-4 shadow-[0_24px_80px_-12px_rgba(0,0,0,0.5)] backdrop-blur-xl sm:rounded-[1.75rem] sm:p-6">
+              <div className="mb-4 flex items-center justify-between gap-2">
+                <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-white/70">
+                  {meta.name} dashboards
+                </p>
+                <div className="flex items-center gap-3">
+                  <button type="button" onClick={lockCompany} className="text-[11px] font-semibold text-white/55 hover:text-white">
+                    Lock
+                  </button>
+                  <Link href="/" className="inline-flex items-center gap-1 text-[11px] font-semibold text-white/55 hover:text-white">
+                    <ArrowLeft size={13} /> Home
+                  </Link>
                 </div>
               </div>
-
-              {active && (
-                <div className="border-t border-white/10 bg-black/25 px-2.5 sm:px-3 py-2 sm:py-2.5 shrink-0">
-                  <div
-                    ref={chipTrackRef}
-                    className="relative grid gap-1 sm:gap-1.5"
-                    style={{ gridTemplateColumns: `repeat(${Math.min(CHIPS_PER_ROW, portals.length)}, minmax(0, 1fr))` }}
-                  >
-                    <span
-                      aria-hidden
-                      className="pointer-events-none absolute rounded-full border border-white/25 backdrop-blur-md transition-[transform,width,height,background-color,box-shadow] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] will-change-[transform,width,height]"
-                      style={{
-                        width: capsule.width,
-                        height: capsule.height,
-                        transform: `translate(${capsule.left}px, ${capsule.top}px)`,
-                        opacity: capsule.ready ? 1 : 0,
-                        background: `linear-gradient(135deg, ${active.accent}ee, ${active.accent}99)`,
-                        boxShadow: `0 4px 18px ${active.accent}55, inset 0 1px 0 rgba(255,255,255,0.25)`,
-                      }}
-                    />
-                    {portals.map((portal, i) => {
-                      const ChipIcon = portal.icon;
-                      const on = i === index;
-                      return (
-                        <button
-                          key={portal.value}
-                          type="button"
-                          ref={el => {
-                            chipBtnRefs.current[i] = el;
-                          }}
-                          onClick={() => go(i)}
-                          className={`relative z-[1] inline-flex w-full items-center justify-center gap-1 sm:gap-1.5 h-9 px-1.5 sm:px-2 rounded-full text-[10px] sm:text-xs font-bold whitespace-nowrap transition-colors duration-300 min-w-0 ${
-                            on ? "text-white" : "text-white/60 hover:text-white/95"
-                          }`}
-                        >
-                          <ChipIcon size={13} className="shrink-0" />
-                          <span className="truncate">{portal.label}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                {portals.map((portal) => {
+                  const Icon = portal.icon;
+                  return (
+                    <Link
+                      key={portal.value}
+                      href={`/login/${portal.value}`}
+                      className="group rounded-2xl border border-white/15 bg-white/[0.07] p-4 transition-all hover:-translate-y-0.5 hover:border-white/30 hover:bg-white/[0.12]"
+                    >
+                      <span
+                        className="mb-3 grid h-10 w-10 place-items-center rounded-xl text-white"
+                        style={{ background: `linear-gradient(145deg, ${portal.accent}, ${portal.accent}cc)` }}
+                      >
+                        <Icon size={18} />
+                      </span>
+                      <h2 className="text-[15px] font-bold text-white">{portal.label}</h2>
+                      <p className="mt-1 text-[12px] leading-relaxed text-white/65">{portal.hint}</p>
+                      <span className="mt-3 inline-flex items-center gap-1 text-[12px] font-semibold text-[#8EBEFF] group-hover:text-white">
+                        Sign in
+                        <ArrowRight size={14} />
+                      </span>
+                    </Link>
+                  );
+                })}
+              </div>
             </div>
           )}
         </div>

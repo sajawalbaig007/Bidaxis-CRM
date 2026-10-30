@@ -21,11 +21,11 @@ export default function AttendanceFrame({
         <div className="relative flex items-center gap-3">
           <img
             src="/images/LOGO.png"
-            alt="BEM Solutions"
+            alt="BidAxis"
             className="h-14 w-14 sm:h-16 sm:w-16 rounded-2xl bg-white object-contain p-1 shadow-lg"
           />
           <div>
-            <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-white/70">BEM Solutions</p>
+            <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-white/70">BidAxis</p>
             <p className="text-sm font-semibold text-white/90">Attendance</p>
           </div>
         </div>

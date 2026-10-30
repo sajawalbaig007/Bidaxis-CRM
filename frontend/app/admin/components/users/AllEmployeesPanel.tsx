@@ -699,7 +699,7 @@ export default function AllEmployeesPanel({ dashboardUsers }: AllEmployeesPanelP
                             : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
                         }`}
                       >
-                        {c === "GPS" ? "GPS · Global" : "BEM Solutions"}
+                        {c === "GPS" ? "GPS · Global" : "BidAxis"}
                       </button>
                     ))}
                   </div>
@@ -942,7 +942,7 @@ export default function AllEmployeesPanel({ dashboardUsers }: AllEmployeesPanelP
             <div className="flex-1 overflow-y-auto px-6 py-2 space-y-3 min-h-0">
               {[
                 { label: "Role", value: detail.role },
-                { label: "Company", value: detail.company === "GPS" ? "GPS · Global" : "BEM Solutions" },
+                { label: "Company", value: detail.company === "GPS" ? "GPS · Global" : "BidAxis" },
                 { label: "Source", value: detail.source === "dashboard" ? "Dashboard" : "Manual" },
                 ...(detail.source === "manual"
                   ? [{ label: "IP access", value: detail.allowedIps?.filter(Boolean).join(", ") || "Company network" }]
