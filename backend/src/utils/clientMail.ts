@@ -180,10 +180,13 @@ export async function listResolvedSenders(): Promise<MailSender[]> {
   const env = listConfiguredSenders();
   const byEmail = new Map(env.map((sender) => [sender.email.toLowerCase(), sender]));
   try {
-    const rows = await prisma.linkedMailbox.findMany();
+    const rows = await prisma.linkedMailbox.findMany({
+      select: { id: true, email: true, name: true, pass: true, host: true, port: true, secure: true },
+    });
     for (const row of rows) {
       const email = (row.email ?? "").trim().toLowerCase();
-      if (!email || !row.pass || byEmail.has(email)) continue;
+      if (!email || !String(row.pass ?? "").trim()) continue;
+      if (byEmail.has(email)) continue;
       byEmail.set(email, rowToSender(row));
     }
   } catch (err) {
@@ -193,8 +196,20 @@ export async function listResolvedSenders(): Promise<MailSender[]> {
 }
 
 export async function listAllPublicSenders(): Promise<MailSenderPublic[]> {
+  try {
+    await syncCompanyMailboxesFromEnv();
+  } catch (err) {
+    console.error("[mail] env mailbox sync failed", err);
+  }
   const senders = await listResolvedSenders();
-  return senders.map(toPublicSender);
+  const listed = senders.map(toPublicSender);
+  if (listed.length) {
+    console.info("[mail] public senders", listed.map((s) => s.email).join(", "));
+    return listed;
+  }
+  const envOnly = publicSenders();
+  console.info("[mail] public senders fallback", envOnly.map((s) => s.email).join(", ") || "(none)");
+  return envOnly;
 }
 
 export async function syncCompanyMailboxesFromEnv(): Promise<void> {

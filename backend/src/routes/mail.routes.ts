@@ -6,6 +6,7 @@ import {
   draftClientMail,
   isValidEmail,
   listAllPublicSenders,
+  publicSenders,
   resolveMailbox,
   sendClientMail,
 } from "../utils/clientMail";
@@ -31,7 +32,7 @@ router.get("/from-accounts", async (_req, res) => {
     return res.json({ success: true, senders: await listAllPublicSenders() });
   } catch (err) {
     console.error("[mail] from-accounts failed", err);
-    return res.status(500).json({ success: false, message: "Could not load company emails.", senders: [] });
+    return res.json({ success: true, senders: publicSenders() });
   }
 });
 

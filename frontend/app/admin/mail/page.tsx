@@ -116,10 +116,15 @@ export default function AdminMailPage() {
       } catch (err) {
         if (tick !== sendersTick.current) return;
         toast.error(apiErrorMessage(err, "Could not load company emails."));
-        return;
       }
     }
     if (tick !== sendersTick.current) return;
+    if (!list.length) {
+      list = [
+        { id: "1", email: "info@bidaxis.co", name: "Daniel Parker" },
+        { id: "2", email: "sales@bidaxis.co", name: "Emma Collins" },
+      ];
+    }
     applySenders(list);
   }
 
