@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
-import API from "@/lib/api";
+import API, { getClientAuthToken, resolveBaseURL } from "@/lib/api";
 import { invalidateAccountsDashboardCache } from "@/lib/accountsDashboardCache";
 import type { AccountsPageKey, AccountsUpload, IncomeStatementData } from "../types";
 import { todayIso } from "../types";
@@ -214,12 +214,18 @@ export function useAccountsPage<T extends Record<string, unknown>>({
           return;
         }
         const next = (res.data.data as T) ?? defaultRef.current();
+        const copied = typeof res.data.copiedFrom === "string" ? res.data.copiedFrom : null;
         dataRef.current = next;
         setData(next);
         setUploads(res.data.uploads ?? []);
-        setCopiedFrom(typeof res.data.copiedFrom === "string" ? res.data.copiedFrom : null);
+        setCopiedFrom(copied);
         dirtyRef.current = false;
         setDirty(false);
+        // Edit the saved sheet itself. A new line then stays on that date after refresh.
+        if (page === "balance_sheet" && copied && copied !== recordDateRef.current) {
+          recordDateRef.current = copied;
+          setRecordDate(copied);
+        }
       })
       .catch(() => {
         if (cancelled) return;
@@ -245,9 +251,16 @@ export function useAccountsPage<T extends Record<string, unknown>>({
       dirtyRef.current = true;
       seqRef.current += 1;
       setDirty(true);
+      // Balance sheet edits must hit the database immediately. A refresh was dropping
+      // lines that only existed in this page until the Save button was pressed.
+      if (page === "balance_sheet") {
+        queueMicrotask(() => {
+          void saveRef.current(next);
+        });
+      }
       return next;
     });
-  }, []);
+  }, [page]);
 
   /**
    * Persist to DB. Pass `override` to save just-updated data without waiting for state.
@@ -318,6 +331,25 @@ export function useAccountsPage<T extends Record<string, unknown>>({
   useEffect(() => {
     saveRef.current = save;
   }, [save]);
+
+  useEffect(() => {
+    if (page !== "balance_sheet") return;
+    const flush = () => {
+      if (!dirtyRef.current && !pendingSaveRef.current) return;
+      const token = getClientAuthToken();
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (token) headers.Authorization = `Bearer ${token}`;
+      void fetch(`${resolveBaseURL()}/accounts/balance_sheet/${recordDateRef.current}`, {
+        method: "PUT",
+        credentials: "include",
+        keepalive: true,
+        headers,
+        body: JSON.stringify({ data: dataRef.current }),
+      }).catch(() => {});
+    };
+    window.addEventListener("pagehide", flush);
+    return () => window.removeEventListener("pagehide", flush);
+  }, [page]);
 
   const uploadFile = useCallback(async (file: File) => {
     setUploading(true);
