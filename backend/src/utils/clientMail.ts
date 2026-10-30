@@ -6,6 +6,7 @@ import {
   stripMailSignOff,
   type MailSignature,
 } from "./mailSignatures";
+import { bidaxisFooterFor } from "./bidaxisFooters";
 
 export type MailSenderPublic = {
   id: string;
@@ -13,6 +14,7 @@ export type MailSenderPublic = {
   name: string;
   signatureBrand: ReturnType<typeof resolveMailBrand>;
   signatureLabel: string | null;
+  defaultFooter: string;
 };
 
 type MailSender = {
@@ -111,6 +113,7 @@ export function publicSenders(): MailSenderPublic[] {
     name,
     signatureBrand: resolveMailBrand(email, name),
     signatureLabel: signatureLabel(email, name),
+    defaultFooter: bidaxisFooterFor(email),
   }));
 }
 
@@ -126,17 +129,30 @@ function escapeHtml(text: string): string {
     .replace(/"/g, "&quot;");
 }
 
+function footerHtml(footer: string): string {
+  const raw = footer.trim();
+  if (!raw) return "";
+  if (/<[a-z][\s\S]*>/i.test(raw)) {
+    return `<div style="margin-top:22px">${raw}</div>`;
+  }
+  return `<div style="margin-top:22px;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:1.5;color:#333">${escapeHtml(raw).replace(/\r\n|\n|\r/g, "<br>")}</div>`;
+}
+
 export async function sendClientMail(opts: {
   sender: MailSender;
   to: string;
   subject: string;
   body: string;
+  /** When set, this footer is used instead of the saved brand signature. */
+  footer?: string;
 }): Promise<void> {
-  const signature = getMailSignature(opts.sender.email, opts.sender.name);
+  const customFooter = (opts.footer ?? "").trim();
+  const signature = customFooter ? null : getMailSignature(opts.sender.email, opts.sender.name);
   const bodyText = signature ? stripMailSignOff(opts.body) : opts.body;
   const htmlBody = escapeHtml(bodyText).replace(/\r\n|\n|\r/g, "<br>");
   const html = [
     `<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.6;color:#111">${htmlBody}</div>`,
+    customFooter ? footerHtml(customFooter) : "",
     signature
       ? `<div style="margin-top:22px;padding-top:8px">${signature.html}</div>`
       : "",
@@ -152,7 +168,9 @@ export async function sendClientMail(opts: {
     from: `"${opts.sender.name.replace(/"/g, "")}" <${opts.sender.email}>`,
     to: opts.to.trim(),
     subject: opts.subject.trim(),
-    text: bodyText,
+    text: customFooter
+      ? `${bodyText}\n\n${customFooter.replace(/<br\s*\/?>/gi, "\n").replace(/<[^>]+>/g, "")}`
+      : bodyText,
     html,
   };
   if (signature?.attachments.length) mail.attachments = signature.attachments;

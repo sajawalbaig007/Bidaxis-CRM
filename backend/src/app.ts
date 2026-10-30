@@ -19,6 +19,7 @@ import mailRoutes from "./routes/mail.routes";
 import assistantRoutes from "./routes/assistant.routes";
 import attendanceRoutes from "./routes/attendance.routes";
 import zoomDialerRoutes from "./routes/zoomDialer.routes";
+import mailCampaignRoutes from "./routes/mailCampaign.routes";
 import { apiLimiter } from "./middleware/rateLimit.middleware";
 
 import { validateEnv } from "./config/env";
@@ -89,6 +90,7 @@ app.use("/api/accounts", accountsRoutes);
 app.use("/api/estimator", estimatorRoutes);
 app.use("/api/admin/staff-employees", staffEmployeesRoutes);
 app.use("/api/mail", mailRoutes);
+app.use("/api/mail-campaign", mailCampaignRoutes);
 app.use("/api/assistant", assistantRoutes);
 app.use("/api/attendance", attendanceRoutes);
 app.use("/api/dialer", zoomDialerRoutes);
