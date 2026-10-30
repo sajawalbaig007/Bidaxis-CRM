@@ -1,7 +1,8 @@
 import { isValidEmail, resolveMailbox, sendClientMail, type MailSender } from "./clientMail";
 import { bidaxisFooterFor } from "./bidaxisFooters";
+import prisma from "../config/db";
 
-export type CampaignRecipient = { name: string; email: string };
+export type CampaignRecipient = { id?: string; name: string; email: string };
 export type CampaignSender = { sender: MailSender; footer: string };
 
 export type CampaignLogRow = {
@@ -22,6 +23,7 @@ export type CampaignStatus = {
   current: string | null;
   nextInSec: number | null;
   log: CampaignLogRow[];
+  removed: string[];
 };
 
 type Job = {
@@ -32,6 +34,7 @@ type Job = {
   current: string | null;
   nextAt: number | null;
   log: CampaignLogRow[];
+  removed: string[];
   stop: boolean;
 };
 
@@ -72,6 +75,7 @@ export function campaignStatus(): CampaignStatus {
       current: null,
       nextInSec: null,
       log: [],
+      removed: [],
     };
   }
   const nextInSec = job.nextAt ? Math.max(0, Math.ceil((job.nextAt - Date.now()) / 1000)) : null;
@@ -84,6 +88,7 @@ export function campaignStatus(): CampaignStatus {
     current: job.current,
     nextInSec: job.status === "running" ? nextInSec : null,
     log: job.log.slice(-40),
+    removed: job.removed,
   };
 }
 
@@ -115,9 +120,10 @@ export async function startCampaign(input: {
   for (const row of input.recipients) {
     const email = String(row.email ?? "").trim().toLowerCase();
     const name = String(row.name ?? "").trim();
+    const id = String(row.id ?? "").trim();
     if (!isValidEmail(email) || seen.has(email)) continue;
     seen.add(email);
-    recipients.push({ email, name: name || email.split("@")[0] });
+    recipients.push({ id: id || undefined, email, name: name || email.split("@")[0] });
   }
   if (!recipients.length) return { ok: false, message: "Add at least one valid client email." };
   if (recipients.length > MAX_RECIPIENTS) {
@@ -145,6 +151,7 @@ export async function startCampaign(input: {
     current: null,
     nextAt: null,
     log: [],
+    removed: [],
     stop: false,
   };
 
@@ -183,6 +190,7 @@ async function run(
         footer: slot.footer,
       });
       active.sent += 1;
+      active.removed.push(person.email);
       active.log.push({
         email: person.email,
         name: person.name,
@@ -190,6 +198,15 @@ async function run(
         ok: true,
         at: new Date().toISOString(),
       });
+      try {
+        if (person.id) {
+          await prisma.mailListRow.deleteMany({ where: { id: person.id } });
+        } else {
+          await prisma.mailListRow.deleteMany({ where: { email: person.email } });
+        }
+      } catch (err) {
+        console.error("[mail-campaign] could not drop sent row", person.email, err);
+      }
     } catch (err) {
       active.failed += 1;
       const message = err instanceof Error ? err.message : "Send failed";

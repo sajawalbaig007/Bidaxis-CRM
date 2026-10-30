@@ -20,6 +20,7 @@ type Status = {
   current: string | null;
   nextInSec: number | null;
   log: LogRow[];
+  removed?: string[];
 };
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/i;
@@ -47,6 +48,7 @@ export default function AdminMailPage() {
   const live = { headers: { "Cache-Control": "no-cache", Pragma: "no-cache" } };
   const sendersTick = useRef(0);
   const libraryTick = useRef(0);
+  const seenLog = useRef(new Set<string>());
 
   function readSenderList(data: unknown): Sender[] {
     if (!data || typeof data !== "object") return [];
@@ -169,6 +171,31 @@ export default function AdminMailPage() {
     };
   }, []);
 
+  useEffect(() => {
+    const gone = new Set(
+      [
+        ...(status?.removed ?? []),
+        ...(status?.log ?? []).filter((row) => row.ok).map((row) => row.email),
+      ].map((email) => email.trim().toLowerCase()),
+    );
+    if (gone.size) {
+      setRecipients((rows) => {
+        const next = rows.filter((row) => !gone.has(row.email.toLowerCase()));
+        return next.length === rows.length ? rows : next;
+      });
+    }
+    for (const row of status?.log ?? []) {
+      const key = `${row.at}-${row.email}`;
+      if (seenLog.current.has(key)) continue;
+      seenLog.current.add(key);
+      if (row.ok) {
+        toast.success(`Sent: ${row.email}`);
+      } else {
+        toast.error(`Not sent: ${row.email}${row.error ? ` — ${row.error}` : ""}`);
+      }
+    }
+  }, [status]);
+
   const selected = useMemo(() => recipients.filter((r) => r.selected), [recipients]);
   const running = status?.running === true;
   const preview = selected[0];
@@ -266,7 +293,7 @@ export default function AdminMailPage() {
         senders: ready.map((s) => ({ id: s.id })),
       });
       setStatus(res.data as Status);
-      toast.success("Sending started. Emails go out one by one.");
+      toast.success("First email is going out now. Sent addresses drop off this list. Failed stays with the error.");
     } catch (err) {
       toast.error(apiErrorMessage(err, "Could not start."));
     } finally {

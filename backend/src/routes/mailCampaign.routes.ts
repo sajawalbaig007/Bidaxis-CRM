@@ -284,7 +284,7 @@ router.post("/stop", (_req, res) => {
 router.post("/start", async (req: AuthRequest, res) => {
   const rawIds: unknown[] = Array.isArray(req.body?.recipientIds) ? req.body.recipientIds : [];
   const ids: string[] = rawIds.map((value) => String(value ?? "").trim()).filter((id) => id.length > 0);
-  let recipients: { name: string; email: string }[] = [];
+  let recipients: { id?: string; name: string; email: string }[] = [];
   if (Array.isArray(req.body?.recipients)) {
     recipients = req.body.recipients.map((value: { name?: unknown; email?: unknown }) => ({
       name: String(value?.name ?? ""),
@@ -296,7 +296,7 @@ router.post("/start", async (req: AuthRequest, res) => {
     const byId = new Map(rows.map((item) => [item.id, item]));
     recipients = ids.flatMap((id: string) => {
       const item = byId.get(id);
-      return item ? [{ name: item.name, email: item.email }] : [];
+      return item ? [{ id: item.id, name: item.name, email: item.email }] : [];
     });
   }
   const senders: { id: string }[] = Array.isArray(req.body?.senders)

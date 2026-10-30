@@ -56,10 +56,9 @@ function cleanSecret(raw: string): string {
 function inferSmtpHost(email: string): string | undefined {
   if (isGmailAddress(email)) return undefined;
   const domain = emailDomain(email);
-  if (domain === "bidaxis.co") return "smtpout.secureserver.net";
-  if (domain === "titan.email") return "smtp.titan.email";
+  if (domain === "bidaxis.co" || domain === "titan.email") return "smtp.titan.email";
   const envHost = (process.env.CRM_SMTP_HOST ?? "").trim();
-  return envHost || "smtpout.secureserver.net";
+  return envHost || "smtp.titan.email";
 }
 
 function sslSmtpPort(host: string): number {
@@ -113,9 +112,18 @@ function passwordVariants(pass: string, email: string): string[] {
 
 
 function smtpHosts(sender: MailSender): string[] {
-  if (sender.host) return [sender.host];
-  const inferred = inferSmtpHost(sender.email);
-  return inferred ? [inferred] : [];
+  const out: string[] = [];
+  const push = (host?: string) => {
+    const value = (host ?? "").trim();
+    if (value && !out.includes(value)) out.push(value);
+  };
+  if (emailDomain(sender.email) === "bidaxis.co") {
+    push("smtp.titan.email");
+    push("smtpout.secureserver.net");
+  }
+  push(sender.host);
+  push(inferSmtpHost(sender.email));
+  return out;
 }
 
 function smtpPorts(sender: MailSender): Array<{ port: number; secure: boolean; requireTLS?: boolean }> {
@@ -336,7 +344,6 @@ export async function sendClientMail(opts: {
             secure: port.secure,
             requireTLS: port.requireTLS,
             auth: { user: opts.sender.email, pass },
-            authMethod: "LOGIN",
             connectionTimeout: 12_000,
             greetingTimeout: 12_000,
             socketTimeout: 20_000,
@@ -358,7 +365,8 @@ export async function sendClientMail(opts: {
       }
     }
   }
-  throw lastErr;
+  const detail = lastErr instanceof Error ? lastErr.message : String(lastErr ?? "unknown");
+  throw new Error(`Could not send from ${opts.sender.email} (${detail})`);
 }
 
 /** Confirms SMTP/Gmail login before we keep a mailbox for sending. */
@@ -387,7 +395,6 @@ export async function verifyMailboxLogin(sender: MailSender): Promise<void> {
             secure: port.secure,
             requireTLS: port.requireTLS,
             auth: { user: sender.email, pass },
-            authMethod: "LOGIN",
             connectionTimeout: 12_000,
             greetingTimeout: 12_000,
             socketTimeout: 20_000,
