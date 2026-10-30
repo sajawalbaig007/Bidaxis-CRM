@@ -8,7 +8,7 @@ import API, { apiErrorMessage, getClientAuthToken, setClientAuthToken } from "@/
 import { invalidateAuthMeCache } from "@/lib/authMeCache";
 import { invalidateCsrDashboardCache } from "@/lib/csrDashboardCache";
 import { invalidateAllCsrListCaches } from "@/lib/csrApiCache";
-import { setFrontendSession, resolveLoginRole, dashboardPathForRole } from "@/lib/session";
+import { setFrontendSession, resolveLoginRole, loginTokenFrom, dashboardPathForRole } from "@/lib/session";
 import { PORTAL_LOGIN_COPY, PORTAL_OPTIONS, portalLabel, type PortalRole } from "@/lib/loginRole";
 import { companyForPortal, setCompanyGate } from "@/lib/companyGate";
 import DevToolsGuard from "@/app/components/DevToolsGuard";
@@ -117,19 +117,19 @@ export default function LoginPortalForm({
   }
 
   async function completeLogin(
-    data: { role?: string; user?: { role?: string }; token?: string },
+    data: { role?: string; user?: { role?: string }; token?: string; success?: boolean },
     expectedPortal: PortalRole,
   ) {
     const role = resolveLoginRole(data);
     if (!role) {
-      toast.error("Could not determine your role. Contact admin.");
+      toast.error("Could not determine your role. Refresh once and try again.");
       return;
     }
     if (role !== expectedPortal) {
       toast.error(`This account is not a ${portalLabel(expectedPortal)}. Use the correct portal on the home page.`);
       return;
     }
-    const token = data.token?.trim();
+    const token = loginTokenFrom(data);
     if (!token) {
       toast.error("Session could not be created. Redeploy backend and try again.");
       return;
@@ -157,8 +157,8 @@ export default function LoginPortalForm({
         loginRole: loginPortal,
         captchaToken: captchaToken || undefined,
       }, { withCredentials: true });
-      const data = res.data;
-      if (data.requires2FA) {
+      const data = res.data ?? {};
+      if (data.requires2FA || (data.userId && !data.token && !data.role)) {
         setUserId(data.userId);
         setAttemptsLeft(2);
         setIsBlocked(false);

@@ -51,19 +51,36 @@ function roleFromToken(token?: string): string {
   try {
     const part = token.split(".")[1];
     if (!part) return "";
-    const payload = JSON.parse(atob(part.replace(/-/g, "+").replace(/_/g, "/"))) as { role?: string };
-    return String(payload.role ?? "");
+    const b64 = part.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = b64 + "=".repeat((4 - (b64.length % 4)) % 4);
+    const payload = JSON.parse(atob(padded)) as { role?: string };
+    return String(payload.role ?? "").trim().toLowerCase();
   } catch {
     return "";
   }
 }
 
-export function resolveLoginRole(data: {
-  role?: string;
-  user?: { role?: string };
-  token?: string;
-}): PortalRole | null {
-  const r = (data.role ?? data.user?.role ?? roleFromToken(data.token)).toLowerCase();
+function asLoginBody(data: unknown): { role?: string; user?: { role?: string }; token?: string } {
+  if (!data || typeof data !== "object") return {};
+  const o = data as Record<string, unknown>;
+  const inner =
+    o.data && typeof o.data === "object" && !Array.isArray(o.data) && !(o.role || o.token || o.user)
+      ? (o.data as Record<string, unknown>)
+      : o;
+  const user = inner.user && typeof inner.user === "object" ? (inner.user as { role?: string }) : undefined;
+  return {
+    role: typeof inner.role === "string" ? inner.role : user?.role,
+    user,
+    token: typeof inner.token === "string" ? inner.token : typeof o.token === "string" ? o.token : undefined,
+  };
+}
+
+export function resolveLoginRole(data: unknown): PortalRole | null {
+  const body = asLoginBody(data);
+  const r = String(body.role ?? body.user?.role ?? roleFromToken(body.token) ?? "")
+    .trim()
+    .toLowerCase();
+  if (r === "ceo") return "admin";
   if (
     r === "admin" ||
     r === "csr" ||
@@ -77,6 +94,10 @@ export function resolveLoginRole(data: {
     return r;
   }
   return null;
+}
+
+export function loginTokenFrom(data: unknown): string {
+  return (asLoginBody(data).token ?? "").trim();
 }
 
 export type PortalRole = "admin" | "csr" | "manager" | "technical_manager" | "accounts" | "estimator" | "bim_manager" | "bim";
