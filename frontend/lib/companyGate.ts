@@ -40,21 +40,20 @@ export const COMPANY_META: Record<PortalCompany, CompanyMeta> = {
 };
 
 export const COMPANY_PORTAL_ROLES: Record<PortalCompany, PortalRole[]> = {
-  BEM: ["admin", "manager", "csr", "accounts"],
-  GPS: ["technical_manager", "estimator", "bim_manager", "bim"],
+  BEM: ["admin", "manager", "csr", "accounts", "technical_manager", "estimator", "bim_manager", "bim"],
+  GPS: [],
 };
 
 const STORAGE_KEY = "crm_company_gate";
 
 export function parseCompanyParam(raw: string | undefined | null): PortalCompany | null {
   const v = String(raw ?? "").trim().toLowerCase();
-  if (v === "bem") return "BEM";
-  if (v === "gps") return "GPS";
+  if (v === "bem" || v === "bidaxis" || v === "gps") return "BEM";
   return null;
 }
 
-export function companyForPortal(role: PortalRole): PortalCompany {
-  return COMPANY_PORTAL_ROLES.GPS.includes(role) ? "GPS" : "BEM";
+export function companyForPortal(_role: PortalRole): PortalCompany {
+  return "BEM";
 }
 
 export type CompanyGateSession = {
@@ -66,7 +65,7 @@ function parseGateRaw(raw: string | null): CompanyGateSession | null {
   if (!raw) return null;
   try {
     const parsed = JSON.parse(raw) as { company?: string; token?: string };
-    const company = parsed.company === "GPS" ? "GPS" : parsed.company === "BEM" ? "BEM" : null;
+    const company = parsed.company === "GPS" || parsed.company === "BEM" ? "BEM" : null;
     const token = typeof parsed.token === "string" ? parsed.token.trim() : "";
     if (!company || !token) return null;
     return { company, token };

@@ -29,10 +29,8 @@ const ROLE_LABEL: Record<string, string> = {
   bim: "BIM",
 };
 
-const GPS_ROLES = new Set(["technical_manager", "estimator", "bim_manager", "bim"]);
-
-function companyFromUserRole(role: string): "BEM" | "GPS" {
-  return GPS_ROLES.has(role) ? "GPS" : "BEM";
+function companyFromUserRole(_role: string): "BEM" | "GPS" {
+  return "BEM";
 }
 
 function strOrNull(v: unknown): string | null {
@@ -158,7 +156,7 @@ async function listEnriched() {
       id: r.id,
       userId: null as string | null,
       source: "manual" as const,
-      company: r.company === "GPS" ? "GPS" : "BEM",
+      company: "BEM",
       role: r.manualRole || "Staff",
       manualRole: r.manualRole,
       name: r.name || "",
@@ -367,7 +365,7 @@ router.post("/", async (req: AuthRequest, res) => {
     if (!name) return res.status(400).json({ success: false, message: "Name is required." });
     if (!manualRole) return res.status(400).json({ success: false, message: "Role is required." });
 
-    const company = String(req.body?.company || "BEM").toUpperCase() === "GPS" ? "GPS" : "BEM";
+    const company = "BEM";
 
     await prisma.staffEmployee.create({
       data: {
@@ -475,7 +473,7 @@ router.put("/:id", async (req: AuthRequest, res) => {
     const manualRole = strOrNull(req.body?.manualRole);
     if (!name) return res.status(400).json({ success: false, message: "Name is required." });
     if (!manualRole) return res.status(400).json({ success: false, message: "Role is required." });
-    const company = String(req.body?.company || existing.company).toUpperCase() === "GPS" ? "GPS" : "BEM";
+    const company = "BEM";
 
     await prisma.staffEmployee.update({
       where: { id },

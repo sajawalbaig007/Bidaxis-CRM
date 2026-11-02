@@ -29,15 +29,11 @@ async function main() {
   }
 
   const companyHash = await bcrypt.hash("TrioA15A20S30@", 12);
+  await prisma.companyCredential.deleteMany({ where: { company: "GPS" } });
   await prisma.companyCredential.upsert({
     where: { company: "BEM" },
-    update: { username: "BEM", password: companyHash },
-    create: { company: "BEM", username: "BEM", password: companyHash },
-  });
-  await prisma.companyCredential.upsert({
-    where: { company: "GPS" },
-    update: { username: "GPS", password: companyHash },
-    create: { company: "GPS", username: "GPS", password: companyHash },
+    update: { username: "BidAxis", password: companyHash },
+    create: { company: "BEM", username: "BidAxis", password: companyHash },
   });
 
   const allUsers = await prisma.user.updateMany({

@@ -29,7 +29,7 @@ export async function upsertCompanyCredential(req: AuthRequest, res: Response) {
   try {
     const company = normalizeCompanyKey(req.params.company ?? req.body?.company);
     if (!company) {
-      return res.status(400).json({ success: false, message: "Company must be BEM or GPS." });
+      return res.status(400).json({ success: false, message: "Company must be BidAxis." });
     }
 
     const username = String(req.body?.username ?? "").trim();
@@ -80,7 +80,7 @@ export async function deleteCompanyCredential(req: AuthRequest, res: Response) {
   try {
     const company = normalizeCompanyKey(req.params.company);
     if (!company) {
-      return res.status(400).json({ success: false, message: "Company must be BEM or GPS." });
+      return res.status(400).json({ success: false, message: "Company must be BidAxis." });
     }
     const existing = await prisma.companyCredential.findUnique({ where: { company } });
     if (!existing) {

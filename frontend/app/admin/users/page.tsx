@@ -73,21 +73,19 @@ const PORTAL_DASHBOARDS: PortalDashboard[] = [
   { role: "Admin", company: "BEM", shortLabel: "Admin", onlineLabel: "Admins Online", formLabel: "Admin" },
   { role: "Accounts", company: "BEM", shortLabel: "Accounts", onlineLabel: "Accounts Online", formLabel: "Accounts" },
   { role: "CEO", company: "BEM", shortLabel: "CEO", onlineLabel: "CEO Online", formLabel: "CEO" },
-  { role: "Chief Estimator", company: "GPS", shortLabel: "Chief Est.", onlineLabel: "Chief Estimator Online", formLabel: "Chief Estimator" },
-  { role: "Estimator", company: "GPS", shortLabel: "Estimator", onlineLabel: "Estimators Online", formLabel: "Estimator" },
-  { role: "BIM Manager", company: "GPS", shortLabel: "BIM Mgr", onlineLabel: "BIM Manager Online", formLabel: "BIM Manager" },
-  { role: "BIM", company: "GPS", shortLabel: "BIM", onlineLabel: "BIM Online", formLabel: "BIM" },
+  { role: "Chief Estimator", company: "BEM", shortLabel: "Chief Est.", onlineLabel: "Chief Estimator Online", formLabel: "Chief Estimator" },
+  { role: "Estimator", company: "BEM", shortLabel: "Estimator", onlineLabel: "Estimators Online", formLabel: "Estimator" },
+  { role: "BIM Manager", company: "BEM", shortLabel: "BIM Mgr", onlineLabel: "BIM Manager Online", formLabel: "BIM Manager" },
+  { role: "BIM", company: "BEM", shortLabel: "BIM", onlineLabel: "BIM Online", formLabel: "BIM" },
 ];
 
-const BEM_ROLES: UserRole[] = PORTAL_DASHBOARDS.filter((d) => d.company === "BEM").map((d) => d.role);
-const GPS_ROLES: UserRole[] = PORTAL_DASHBOARDS.filter((d) => d.company === "GPS").map((d) => d.role);
-
 function rolesForCompany(company: PortalCompany): UserRole[] {
-  return company === "GPS" ? GPS_ROLES : BEM_ROLES;
+  if (company === "GPS") return [];
+  return PORTAL_DASHBOARDS.map((d) => d.role);
 }
 
-function companyForRole(role: UserRole): PortalCompany {
-  return GPS_ROLES.includes(role) ? "GPS" : "BEM";
+function companyForRole(_role: UserRole): PortalCompany {
+  return "BEM";
 }
 
 function dashboardsForCompany(company: PortalCompany, presentRoles: UserRole[]): PortalDashboard[] {
@@ -154,20 +152,12 @@ const EMPTY_USER_FORM = {
   temporaryAccessHours: "9",
 };
 
-const BEM_ROLE_OPTIONS: { value: UserRole; label: string }[] = PORTAL_DASHBOARDS
-  .filter((d) => d.company === "BEM")
-  .map((d) => ({ value: d.role, label: d.formLabel }));
-
-const GPS_ROLE_OPTIONS: { value: UserRole; label: string }[] = PORTAL_DASHBOARDS
-  .filter((d) => d.company === "GPS")
-  .map((d) => ({ value: d.role, label: d.formLabel }));
-
-function defaultRoleForCompany(company: PortalCompany): UserRole {
-  return company === "GPS" ? "Chief Estimator" : "CSR";
+function defaultRoleForCompany(_company: PortalCompany): UserRole {
+  return "CSR";
 }
 
-function roleOptionsForCompany(company: PortalCompany) {
-  return company === "GPS" ? GPS_ROLE_OPTIONS : BEM_ROLE_OPTIONS;
+function roleOptionsForCompany(_company: PortalCompany) {
+  return PORTAL_DASHBOARDS.map((d) => ({ value: d.role, label: d.formLabel }));
 }
 
 type UserSortKey =
@@ -1223,7 +1213,6 @@ export default function UsersPage() {
             accent={companyFilter === "GPS" ? "#0F398A" : companyFilter === "EMPLOYEES" ? "#0F766E" : "#1B6FE8"}
             tabs={[
               { key: "BEM", label: "BidAxis", shortLabel: "BidAxis", count: countByCompany.BEM },
-              { key: "GPS", label: "GPS · Global", shortLabel: "GPS", count: countByCompany.GPS },
               { key: "EMPLOYEES", label: "All Employees", shortLabel: "Employees", count: undefined },
             ]}
           />
@@ -1234,7 +1223,7 @@ export default function UsersPage() {
               onChange={key => { setRoleFilter(key as "All" | UserRole); setPage(1); }}
               accent={companyFilter === "GPS" ? "#0F398A" : "#1B6FE8"}
               tabs={[
-                { key: "All", label: companyFilter === "GPS" ? "All GPS" : "All BidAxis", count: companyAllCount },
+                { key: "All", label: "All BidAxis", count: companyAllCount },
                 ...activityDashboards.map(d => ({
                   key: d.role,
                   label: d.role,
@@ -1449,7 +1438,7 @@ export default function UsersPage() {
                 {[
                   { label:"Email",          value: detailUser.email  },
                   { label:"Role",           value: detailUser.role   },
-                  { label:"Company",        value: companyForRole(detailUser.role) === "GPS" ? "GPS · Global" : "BidAxis" },
+                  { label:"Company",        value: "BidAxis" },
                   { label:"Account Status", value: detailUser.status },
                 ].map(({ label, value }) => (
                   <div key={label} className="bg-[#F8F9FC] rounded-2xl p-4">
@@ -1707,7 +1696,7 @@ export default function UsersPage() {
                 <p className="text-xs text-gray-400 mt-0.5">
                   {editingUser
                     ? "Scroll down for access policy & more fields"
-                    : "Choose company first (BidAxis or GPS), then pick a role for that company"}
+                    : "BidAxis staff — pick a role"}
                 </p>
               </div>
 
@@ -1741,55 +1730,18 @@ export default function UsersPage() {
                   </div>
                 )}
 
-                {/* Company — BEM vs GPS */}
                 <div>
                   <label className="text-sm text-gray-500 block mb-2">
-                    Company{!editingUser && <RequiredMark />}
-                    <span className="text-xs text-gray-400 ml-2">Which company is this employee for?</span>
+                    Company
                   </label>
-                  <div className="grid grid-cols-2 gap-2">
-                    {([
-                      { key: "BEM" as const, title: "BidAxis", hint: PORTAL_DASHBOARDS.filter(d => d.company === "BEM").map(d => d.shortLabel).join(" · "), accent: "#1B6FE8" },
-                      { key: "GPS" as const, title: "GPS · Global", hint: PORTAL_DASHBOARDS.filter(d => d.company === "GPS").map(d => d.shortLabel).join(" · "), accent: "#0F398A" },
-                    ]).map(opt => {
-                      const active = form.company === opt.key;
-                      return (
-                        <button
-                          key={opt.key}
-                          type="button"
-                          onClick={() => {
-                            if (form.company === opt.key) return;
-                            setForm({
-                              ...form,
-                              company: opt.key,
-                              role: defaultRoleForCompany(opt.key),
-                              csrCode: "",
-                            });
-                          }}
-                          className={`rounded-2xl border-2 px-3 py-3 text-left transition-all ${
-                            active
-                              ? "shadow-sm"
-                              : "border-gray-200 bg-white hover:border-gray-300"
-                          }`}
-                          style={
-                            active
-                              ? { borderColor: opt.accent, background: `${opt.accent}0D` }
-                              : undefined
-                          }
-                        >
-                          <p className="text-sm font-bold" style={{ color: active ? opt.accent : "#374151" }}>
-                            {opt.title}
-                          </p>
-                          <p className="text-[10px] text-gray-400 mt-0.5 leading-snug">{opt.hint}</p>
-                        </button>
-                      );
-                    })}
-                  </div>
+                  <p className="rounded-2xl border-2 border-[#1B6FE8] bg-[#1B6FE80D] px-4 py-3 text-sm font-bold text-[#1B6FE8]">
+                    BidAxis
+                  </p>
                 </div>
 
                 <div>
                   <label className="text-sm text-gray-500 block mb-2">
-                    Role <span className="text-xs text-gray-400">({form.company})</span>
+                    Role
                   </label>
                   <select
                     value={form.role}

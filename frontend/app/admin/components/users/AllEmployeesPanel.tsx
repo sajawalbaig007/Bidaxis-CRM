@@ -218,7 +218,7 @@ export default function AllEmployeesPanel({ dashboardUsers }: AllEmployeesPanelP
       setManualForm({
         name: row.name || "",
         manualRole: row.manualRole || row.role || "",
-        company: row.company === "GPS" ? "GPS" : "BEM",
+        company: "BEM",
         email: row.email || "",
         employeeCode: row.employeeCode || "",
         fatherName: row.fatherName || "",
@@ -685,23 +685,14 @@ export default function AllEmployeesPanel({ dashboardUsers }: AllEmployeesPanelP
               {(!editing || editing.source === "manual") && (
                 <div>
                   <p className="text-xs font-semibold text-gray-600 mb-1.5">Company</p>
-                  <div className="grid grid-cols-2 gap-2">
-                    {(["BEM", "GPS"] as const).map((c) => (
-                      <button
-                        key={c}
-                        type="button"
-                        onClick={() => setManualForm({ ...manualForm, company: c })}
-                        className={`h-10 rounded-xl text-xs font-bold border transition-colors ${
-                          manualForm.company === c
-                            ? c === "GPS"
-                              ? "bg-[#0F398A] text-white border-[#0F398A]"
-                              : "bg-[#1B6FE8] text-white border-[#1B6FE8]"
-                            : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
-                        }`}
-                      >
-                        {c === "GPS" ? "GPS · Global" : "BidAxis"}
-                      </button>
-                    ))}
+                  <div className="grid grid-cols-1 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setManualForm({ ...manualForm, company: "BEM" })}
+                      className="h-10 rounded-xl text-xs font-bold border bg-[#1B6FE8] text-white border-[#1B6FE8]"
+                    >
+                      BidAxis
+                    </button>
                   </div>
                 </div>
               )}
@@ -942,7 +933,7 @@ export default function AllEmployeesPanel({ dashboardUsers }: AllEmployeesPanelP
             <div className="flex-1 overflow-y-auto px-6 py-2 space-y-3 min-h-0">
               {[
                 { label: "Role", value: detail.role },
-                { label: "Company", value: detail.company === "GPS" ? "GPS · Global" : "BidAxis" },
+                { label: "Company", value: "BidAxis" },
                 { label: "Source", value: detail.source === "dashboard" ? "Dashboard" : "Manual" },
                 ...(detail.source === "manual"
                   ? [{ label: "IP access", value: detail.allowedIps?.filter(Boolean).join(", ") || "Company network" }]

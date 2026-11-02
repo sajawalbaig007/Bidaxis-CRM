@@ -19,7 +19,7 @@ export async function companyLogin(req: Request, res: Response) {
     const password = String(req.body?.password ?? "");
 
     if (!company) {
-      return res.status(400).json({ success: false, message: "Select BEM or GPS." });
+      return res.status(400).json({ success: false, message: "Select BidAxis." });
     }
     if (!username || !password) {
       return res.status(400).json({ success: false, message: "Username and password are required." });
