@@ -238,13 +238,18 @@ export async function syncCompanyMailboxesFromEnv(): Promise<void> {
   for (const sender of slots) {
     const email = sender.email.toLowerCase();
     const existing = await prisma.linkedMailbox.findUnique({ where: { email } });
+    const envGoogleOnCompany = !isGmailAddress(email) && looksLikeGoogleAppPassword(sender.pass);
     const keepGooglePass = !!(
       existing?.pass
       && looksLikeGoogleAppPassword(existing.pass)
       && isGmailAddress(email)
       && !looksLikeGoogleAppPassword(sender.pass)
     );
-    const pass = keepGooglePass ? existing!.pass : sender.pass;
+    const pass = envGoogleOnCompany && existing?.pass
+      ? existing.pass
+      : keepGooglePass
+        ? existing!.pass
+        : sender.pass;
     const host = isGmailAddress(email)
       ? "smtp.gmail.com"
       : (sender.host && !sender.host.includes("gmail") ? sender.host : inferSmtpHost(email) || "smtp.titan.email");
@@ -261,7 +266,7 @@ export async function syncCompanyMailboxesFromEnv(): Promise<void> {
       },
       update: {
         name: sender.name,
-        ...(keepGooglePass ? {} : { pass }),
+        ...(keepGooglePass || envGoogleOnCompany ? {} : { pass }),
         host,
         port,
         secure: true,
