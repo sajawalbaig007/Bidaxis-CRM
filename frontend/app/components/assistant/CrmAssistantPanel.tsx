@@ -120,7 +120,7 @@ function AssistantRichText({ text }: { text: string }) {
     </div>
   );
 }
-I*
+
 export default function CrmAssistantPanel() {
   const openCompose = useOpenCrmMail();
   const isCeo = useCeoSession();
@@ -149,7 +149,7 @@ export default function CrmAssistantPanel() {
     if (!userId || !chats.length) return;
     saveCeoChats(userId, { activeId, chats });
   }, [userId, activeId, chats]);
-// useMemo is a hook that returns a memoized value.
+
   const active = useMemo(
     () => chats.find(c => c.id === activeId) ?? chats[0] ?? null,
     [chats, activeId],

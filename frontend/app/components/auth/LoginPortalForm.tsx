@@ -166,7 +166,7 @@ export default function LoginPortalForm({
         requires2FA?: boolean; userId?: string; message?: string;
       };
       if (data.requires2FA || (data.userId && !data.token && !data.role)) {
-        setUserId(data.userId);
+        setUserId(data.userId ?? "");
         setAttemptsLeft(2);
         setIsBlocked(false);
         setOtp(["", "", "", "", "", ""]);
