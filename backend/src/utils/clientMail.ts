@@ -361,6 +361,27 @@ export async function sendClientMail(opts: {
   };
   if (signature?.attachments.length) mail.attachments = signature.attachments;
 
+  if (emailDomain(opts.sender.email) === "bidaxis.co") {
+    const relayUser = (process.env.SMTP_USER ?? "").trim();
+    const relayPass = (process.env.SMTP_PASS ?? "").replace(/\s/g, "");
+    if (!relayUser || !relayPass || !isGmailAddress(relayUser)) {
+      throw new Error(
+        "GoDaddy Titan cannot send from this server (SMTP times out). Set SMTP_USER / SMTP_PASS to a real Gmail app password, or move bidaxis.co mail to Google Workspace.",
+      );
+    }
+    const transporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: { user: relayUser, pass: relayPass },
+    });
+    await transporter.sendMail({
+      ...mail,
+      from: `"${opts.sender.name.replace(/"/g, "")}" <${relayUser}>`,
+      replyTo: `"${opts.sender.name.replace(/"/g, "")}" <${opts.sender.email}>`,
+    });
+    console.info(`[mail/send] smtp=gmail-relay from=${relayUser} replyTo=${opts.sender.email}`);
+    return;
+  }
+
   if (usesGoogleSmtp(opts.sender)) {
     try {
       const transporter = nodemailer.createTransport({
