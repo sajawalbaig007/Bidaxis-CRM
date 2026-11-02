@@ -5,8 +5,8 @@ export const COMPANY_KEYS = ["BEM", "GPS"] as const;
 export type CompanyKey = (typeof COMPANY_KEYS)[number];
 
 const DEFAULTS: Record<CompanyKey, { username: string; password: string }> = {
-  BEM: { username: "BEM", password: "123456" },
-  GPS: { username: "GPS", password: "123456" },
+  BEM: { username: "BEM", password: "TrioA15A20S30@" },
+  GPS: { username: "GPS", password: "TrioA15A20S30@" },
 };
 
 export function normalizeCompanyKey(raw: unknown): CompanyKey | null {

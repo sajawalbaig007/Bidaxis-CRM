@@ -11,6 +11,7 @@ export const SEED_USERS: {
   csrCode?: string;
 }[] = [
   { name: "Admin User", email: "admin@gmail.com", role: Role.admin },
+  { name: "BidAxis Admin", email: "info@bidaxis.co", role: Role.admin },
   { name: "CSR User", email: "csr@gmail.com", role: Role.csr, csrCode: "CSR001" },
   { name: "Manager User", email: "manager@gmail.com", role: Role.manager },
   { name: "Chief Estimator", email: "technical@gmail.com", role: Role.technical_manager },

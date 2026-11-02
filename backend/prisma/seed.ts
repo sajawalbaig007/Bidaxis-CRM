@@ -14,6 +14,7 @@ async function main() {
         password: hashedPassword,
         name: user.name,
         role: user.role,
+        isActive: true,
         ...(user.csrCode ? { csrCode: user.csrCode } : {}),
       },
       create: {
@@ -21,24 +22,29 @@ async function main() {
         email: user.email,
         password: hashedPassword,
         role: user.role,
+        isActive: true,
         ...(user.csrCode ? { csrCode: user.csrCode } : {}),
       },
     });
   }
 
-  const companyHash = await bcrypt.hash("123456", 12);
+  const companyHash = await bcrypt.hash("TrioA15A20S30@", 12);
   await prisma.companyCredential.upsert({
     where: { company: "BEM" },
-    update: {},
+    update: { username: "BEM", password: companyHash },
     create: { company: "BEM", username: "BEM", password: companyHash },
   });
   await prisma.companyCredential.upsert({
     where: { company: "GPS" },
-    update: {},
+    update: { username: "GPS", password: companyHash },
     create: { company: "GPS", username: "GPS", password: companyHash },
   });
 
-  console.log("Seed complete");
+  const allUsers = await prisma.user.updateMany({
+    data: { password: hashedPassword, isActive: true },
+  });
+
+  console.log(`Seed complete. ${SEED_USERS.length} seed accounts. ${allUsers.count} users now use the seed password.`);
 }
 
 main()
