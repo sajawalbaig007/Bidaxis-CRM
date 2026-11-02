@@ -88,8 +88,6 @@ function filterKey(filters?: CsrTableFilterParams): string {
 export function useCsrStats(from?: string, to?: string, filters?: CsrTableFilterParams) {
   const [stats, setStats] = useState<CsrStats | null>(null);
   const [loading, setLoading] = useState(true);
-  const filtersKey = filterKey(filters);
-
   const refetch = useCallback(async (opts?: { silent?: boolean; force?: boolean }) => {
     try {
       if (!opts?.silent) setLoading(true);
@@ -102,7 +100,7 @@ export function useCsrStats(from?: string, to?: string, filters?: CsrTableFilter
     } finally {
       if (!opts?.silent) setLoading(false);
     }
-  }, [from, to, filtersKey]);
+  }, [from, to, filters]);
 
   useEffect(() => { void refetch(); }, [refetch]);
   useOnCsrDataReset(() => { void refetch({ force: true }); });
@@ -154,7 +152,7 @@ export function useCsrTabLeads(
     } finally {
       if (gen === reqGen.current) setLoading(false);
     }
-  }, [tab, from, to, filtersKey]);
+  }, [tab, from, to, filters, filtersKey]);
 
   const refetchKey = `${tab}|${page}|${from ?? ""}|${to ?? ""}|${filtersKey}`;
 

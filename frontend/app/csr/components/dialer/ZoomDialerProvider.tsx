@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { usePathname } from "next/navigation";
 import toast from "react-hot-toast";
 import { Pencil, Phone, X } from "lucide-react";
@@ -45,6 +45,29 @@ function readSavedPlace(): ZoomPlace | null {
   return value === "web" || value === "app" ? value : null;
 }
 
+const placeListeners = new Set<() => void>();
+
+function emitSavedPlace() {
+  placeListeners.forEach(listener => listener());
+}
+
+function subscribeSavedPlace(onStoreChange: () => void) {
+  placeListeners.add(onStoreChange);
+  const onStorage = (event: StorageEvent) => {
+    if (event.key === PLACE_KEY) onStoreChange();
+  };
+  window.addEventListener("storage", onStorage);
+  return () => {
+    placeListeners.delete(onStoreChange);
+    window.removeEventListener("storage", onStorage);
+  };
+}
+
+function writeSavedPlace(next: ZoomPlace) {
+  window.localStorage.setItem(PLACE_KEY, next);
+  emitSavedPlace();
+}
+
 function launchZoomApp(number: string) {
   const link = document.createElement("a");
   link.setAttribute("href", `zoomphonecall://${number}`);
@@ -55,19 +78,13 @@ function launchZoomApp(number: string) {
 }
 
 export function ZoomDialerProvider({ children }: { children: React.ReactNode }) {
-  const [place, setPlace] = useState<ZoomPlace>("app");
-  const [hasDefault, setHasDefault] = useState(false);
+  const savedPlace = useSyncExternalStore(subscribeSavedPlace, readSavedPlace, () => null);
+  const place: ZoomPlace = savedPlace ?? "app";
+  const hasDefault = savedPlace !== null;
   const [prompt, setPrompt] = useState<DialTarget | null>(null);
   const [changingDefault, setChangingDefault] = useState(false);
   const [saveDefault, setSaveDefault] = useState(false);
   const saveDefaultRef = useRef(false);
-
-  useEffect(() => {
-    const saved = readSavedPlace();
-    if (!saved) return;
-    setPlace(saved);
-    setHasDefault(true);
-  }, []);
 
   const placeCall = useCallback((next: ZoomPlace, number: string) => {
     if (next === "web") return;
@@ -76,9 +93,7 @@ export function ZoomDialerProvider({ children }: { children: React.ReactNode }) 
 
   const rememberPlace = (next: ZoomPlace) => {
     const already = readSavedPlace();
-    setPlace(next);
-    setHasDefault(true);
-    window.localStorage.setItem(PLACE_KEY, next);
+    writeSavedPlace(next);
     if (already !== next) {
       toast.success(next === "web" ? "Zoom web saved as default." : "Zoom app saved as default.");
     }
@@ -93,8 +108,6 @@ export function ZoomDialerProvider({ children }: { children: React.ReactNode }) 
     markLeadDialed(target.leadId);
     const saved = readSavedPlace();
     if (saved) {
-      setPlace(saved);
-      setHasDefault(true);
       setPrompt(null);
       setChangingDefault(false);
       placeCall(saved, number);
