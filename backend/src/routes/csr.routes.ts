@@ -50,10 +50,26 @@ import {
   reorderByIds,
   type CsrTabKey,
 } from "../utils/csrDashboardQueries";
+import { csrTableFilterKey, type CsrTableFilters } from "../utils/csrLeadTableFilters";
 import { ensureMasterFormatTrades } from "../utils/masterFormatTrades";
 import { allocateNextProjectCode } from "../utils/nextProjectCode";
 import { lateDeductionSummary } from "../utils/dailyLateReport";
 const router = express.Router();
+
+function readCsrTableFilters(req: { query: Record<string, unknown> }): CsrTableFilters {
+  const pick = (key: string) => {
+    const value = req.query[key];
+    return typeof value === "string" ? value.trim() : "";
+  };
+  return {
+    q: pick("q"),
+    state: pick("state"),
+    tz: pick("tz"),
+    phone: pick("phone"),
+    source: pick("source"),
+    trade: pick("trade"),
+  };
+}
 
 async function logStatusChange(csrId: string, leadId: string, status: string) {
   try {
@@ -263,12 +279,13 @@ router.get("/stats", verifyToken, allowRoles("csr"), async (req: any, res) => {
     const csrId    = req.user.id;
     const from   = typeof req.query.from === "string" ? req.query.from : undefined;
     const to     = typeof req.query.to === "string" ? req.query.to : undefined;
-    const cacheKey = `csr:stats:${csrId}:${from ?? ""}:${to ?? ""}`;
+    const filters = readCsrTableFilters(req);
+    const cacheKey = `csr:stats:${csrId}:${from ?? ""}:${to ?? ""}:${csrTableFilterKey(filters)}`;
 
     const cached = getCache<object>(cacheKey);
     if (cached) return res.json(cached);
 
-    const stats = await getCsrLeadStats(csrId, from, to);
+    const stats = await getCsrLeadStats(csrId, from, to, filters);
     const payload = { success: true, stats };
     setCache(cacheKey, payload, 45_000);
     return res.json(payload);
@@ -287,6 +304,7 @@ router.get("/tab-leads", verifyToken, allowRoles("csr"), async (req: any, res) =
     const pageSize = Math.min(500, Math.max(10, Number(req.query.pageSize) || 30));
     const from   = typeof req.query.from === "string" ? req.query.from : undefined;
     const to     = typeof req.query.to === "string" ? req.query.to : undefined;
+    const filters = readCsrTableFilters(req);
 
     const validTabs: CsrTabKey[] = [
       "today", "pending", "important", "schedule", "interested", "projectwon",
@@ -303,11 +321,11 @@ router.get("/tab-leads", verifyToken, allowRoles("csr"), async (req: any, res) =
         .catch(err => console.log("[csr] background heal failed:", err));
     }
 
-    const cacheKey = `csr:tab:${csrId}:${tab}:${page}:${pageSize}:${from ?? ""}:${to ?? ""}`;
+    const cacheKey = `csr:tab:${csrId}:${tab}:${page}:${pageSize}:${from ?? ""}:${to ?? ""}:${csrTableFilterKey(filters)}`;
     const cached   = getCache<object>(cacheKey);
     if (cached) return res.json(cached);
 
-    const result = await fetchCsrTabLeads({ csrId, tab, page, pageSize, from, to });
+    const result = await fetchCsrTabLeads({ csrId, tab, page, pageSize, from, to, filters });
     const payload = { success: true, ...result };
     setCache(cacheKey, payload, 20_000);
     return res.json(payload);

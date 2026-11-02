@@ -7,10 +7,10 @@ import { apiErrorMessage } from "@/lib/api";
 import {
   fetchCsrStatsCached,
   fetchCsrTabLeadsCached,
-  fetchCsrTabLeadsBatchCached,
   fetchPotentialLeadsCached,
   CSR_TAB_PAGE_SIZE,
   CSR_FILTER_BATCH_SIZE,
+  type CsrTableFilterParams,
 } from "@/lib/csrTabApiCache";
 
 import { BackendLead, Lead, mapBackendLead } from "../types/lead";
@@ -78,23 +78,31 @@ function monthEnd(ym: string): string {
 
 
 
-export function useCsrStats(from?: string, to?: string) {
+function filterKey(filters?: CsrTableFilterParams): string {
+  if (!filters) return "";
+  return [filters.q, filters.state, filters.tz, filters.phone, filters.source, filters.trade]
+    .map(v => v?.trim() ?? "")
+    .join("|");
+}
+
+export function useCsrStats(from?: string, to?: string, filters?: CsrTableFilterParams) {
   const [stats, setStats] = useState<CsrStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const filtersKey = filterKey(filters);
 
   const refetch = useCallback(async (opts?: { silent?: boolean; force?: boolean }) => {
     try {
       if (!opts?.silent) setLoading(true);
       const fromDate = from ? monthStart(from) : undefined;
       const toDate   = to ? monthEnd(to) : undefined;
-      const res = await fetchCsrStatsCached(opts?.force, fromDate, toDate);
+      const res = await fetchCsrStatsCached(opts?.force, fromDate, toDate, filters);
       setStats(res.stats as CsrStats);
     } catch (err) {
       if (!opts?.silent) toast.error(apiErrorMessage(err, "Could not load stats."));
     } finally {
       if (!opts?.silent) setLoading(false);
     }
-  }, [from, to]);
+  }, [from, to, filtersKey]);
 
   useEffect(() => { void refetch(); }, [refetch]);
   useOnCsrDataReset(() => { void refetch({ force: true }); });
@@ -107,7 +115,7 @@ export function useCsrTabLeads(
   page: number,
   from?: string,
   to?: string,
-  batchMode = false,
+  filters?: CsrTableFilterParams,
 ) {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [total, setTotal] = useState(0);
@@ -116,6 +124,7 @@ export function useCsrTabLeads(
   const reqGen = useRef(0);
   const pageRef = useRef(page);
   pageRef.current = page;
+  const filtersKey = filterKey(filters);
 
   const refetch = useCallback(async (force = false) => {
     const gen = ++reqGen.current;
@@ -123,9 +132,15 @@ export function useCsrTabLeads(
       setLoading(true);
       const fromDate = from ? monthStart(from) : undefined;
       const toDate   = to ? monthEnd(to) : undefined;
-      const data = batchMode
-        ? await fetchCsrTabLeadsBatchCached(tab, fromDate, toDate, force)
-        : await fetchCsrTabLeadsCached(tab, pageRef.current, fromDate, toDate, force, CSR_TAB_PAGE_SIZE);
+      const data = await fetchCsrTabLeadsCached(
+        tab,
+        pageRef.current,
+        fromDate,
+        toDate,
+        force,
+        CSR_TAB_PAGE_SIZE,
+        filters,
+      );
       if (gen !== reqGen.current) return;
       setLeads((data.leads as BackendLead[] ?? []).map(mapBackendLead));
       setTotal(data.total ?? 0);
@@ -139,11 +154,9 @@ export function useCsrTabLeads(
     } finally {
       if (gen === reqGen.current) setLoading(false);
     }
-  }, [tab, from, to, batchMode]);
+  }, [tab, from, to, filtersKey]);
 
-  const refetchKey = batchMode
-    ? `${tab}|batch|${from ?? ""}|${to ?? ""}`
-    : `${tab}|${page}|${from ?? ""}|${to ?? ""}`;
+  const refetchKey = `${tab}|${page}|${from ?? ""}|${to ?? ""}|${filtersKey}`;
 
   useEffect(() => { void refetch(); }, [refetchKey, refetch]);
   useOnCsrDataReset(() => { void refetch(true); });

@@ -13,6 +13,12 @@ import {
   isPotentialClientLead,
 } from "./potentialClientBuckets";
 import { countUniqueWonClients } from "./uniqueWonClients";
+import {
+  CSR_FILTER_LEAD_SELECT,
+  type CsrTableFilters,
+  hasCsrTableFilters,
+  leadMatchesTableFilters,
+} from "./csrLeadTableFilters";
 
 const STATUS_NI = "Not Interested";
 const STATUS_NP = ["not picked", "not completed"] as const;
@@ -83,9 +89,88 @@ function withCreatedRange(
   return { AND: [where, { createdAt }] };
 }
 
-export async function getCsrLeadStats(csrId: string, from?: string, to?: string) {
+const WON_STATUSES = new Set(["close client", "completed", "closed"]);
+
+function bucketFilteredStats(rows: {
+  id: string;
+  name: string | null;
+  company: string | null;
+  phone: string | null;
+  status: string | null;
+  nextSchedule: string | null;
+  hiddenOnMain: boolean | null;
+  notPickedCount: number | null;
+  notInterestedCount: number | null;
+}[]) {
+  const st = (s: string | null | undefined) => (s ?? "").trim().toLowerCase();
+  const scheduled = (s: string | null | undefined) => !!(s && String(s).trim());
+  let pendingCount = 0;
+  let importantOnlyCount = 0;
+  let scheduledCount = 0;
+  let interestedCount = 0;
+  let notInterestedCount = 0;
+  let notPickedCount = 0;
+  let noOwnerCount = 0;
+  let notInServiceCount = 0;
+  let inHouseCount = 0;
+  let mainPipelineCount = 0;
+  const wonRows: { id: string; name: string | null; phone: string | null; company: string | null }[] = [];
+
+  for (const row of rows) {
+    if (row.hiddenOnMain !== true) mainPipelineCount += 1;
+    const status = st(row.status);
+    if (status === "pending") pendingCount += 1;
+    else if (status === "important" && !scheduled(row.nextSchedule)) importantOnlyCount += 1;
+    else if (status === "important" && scheduled(row.nextSchedule)) scheduledCount += 1;
+    else if (status === "interested") interestedCount += 1;
+    else if (WON_STATUSES.has(status)) {
+      wonRows.push({ id: row.id, name: row.name, phone: row.phone, company: row.company });
+    } else if (status === "not interested" && (row.notInterestedCount ?? 0) < NOT_INTERESTED_LIMIT) {
+      notInterestedCount += 1;
+    } else if (
+      (status === "not picked" || status === "not completed") &&
+      (row.notPickedCount ?? 0) < NOT_PICKED_LIMIT
+    ) {
+      notPickedCount += 1;
+    } else if (status === "no owner available") noOwnerCount += 1;
+    else if (status === "not in service") notInServiceCount += 1;
+    else if (status === "in house") inHouseCount += 1;
+  }
+
+  return {
+    pendingCount,
+    importantOnlyCount,
+    scheduledCount,
+    interestedCount,
+    projectWonCount: countUniqueWonClients(wonRows),
+    notInterestedCount,
+    notPickedCount,
+    noOwnerCount,
+    notInServiceCount,
+    inHouseCount,
+    totalAssigned: rows.length,
+    mainPipelineCount,
+    totalLeads: rows.length,
+  };
+}
+
+export async function getCsrLeadStats(
+  csrId: string,
+  from?: string,
+  to?: string,
+  filters?: CsrTableFilters,
+) {
   const base = activeCsrLeadWhere(csrId);
   const range = (where: Prisma.LeadWhereInput) => withCreatedRange(where, from, to);
+
+  if (hasCsrTableFilters(filters)) {
+    const rows = await prisma.lead.findMany({
+      where: range(base),
+      select: CSR_FILTER_LEAD_SELECT,
+    });
+    const matched = rows.filter(row => leadMatchesTableFilters(row, filters));
+    return bucketFilteredStats(matched);
+  }
 
   const [
     pendingCount,
@@ -215,8 +300,9 @@ export async function fetchCsrTabLeads(opts: {
   pageSize: number;
   from?: string;
   to?: string;
+  filters?: CsrTableFilters;
 }) {
-  const { csrId, tab, page, pageSize, from, to } = opts;
+  const { csrId, tab, page, pageSize, from, to, filters } = opts;
   const where: Prisma.LeadWhereInput = { ...buildCsrTabWhere(csrId, tab) };
 
   if (from || to) {
@@ -226,7 +312,21 @@ export async function fetchCsrTabLeads(opts: {
     where.createdAt = createdAt;
   }
 
-  const ids = await fetchLeadIdsByOldestNote(where);
+  let ids: string[];
+  if (hasCsrTableFilters(filters)) {
+    const rows = await prisma.lead.findMany({
+      where,
+      select: {
+        ...CSR_FILTER_LEAD_SELECT,
+        notes: { orderBy: { createdAt: "asc" as const }, take: 1, select: { createdAt: true } },
+      },
+    });
+    const matched = rows.filter(row => leadMatchesTableFilters(row, filters));
+    matched.sort(compareOldestNote);
+    ids = matched.map(row => row.id);
+  } else {
+    ids = await fetchLeadIdsByOldestNote(where);
+  }
   const total = ids.length;
   const pageIds = ids.slice((page - 1) * pageSize, page * pageSize);
   const rawLeads = pageIds.length

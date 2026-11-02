@@ -73,16 +73,44 @@ export type CsrTabLeadsPayload = {
   totalPages: number;
 };
 
+export type CsrTableFilterParams = {
+  q?: string;
+  state?: string;
+  tz?: string;
+  phone?: string;
+  source?: string;
+  trade?: string;
+};
+
+function appendTableFilters(params: URLSearchParams, filters?: CsrTableFilterParams) {
+  if (!filters) return;
+  if (filters.q?.trim()) params.set("q", filters.q.trim());
+  if (filters.state?.trim()) params.set("state", filters.state.trim());
+  if (filters.tz?.trim()) params.set("tz", filters.tz.trim());
+  if (filters.phone?.trim()) params.set("phone", filters.phone.trim());
+  if (filters.source?.trim()) params.set("source", filters.source.trim());
+  if (filters.trade?.trim()) params.set("trade", filters.trade.trim());
+}
+
+function filterCacheKey(filters?: CsrTableFilterParams): string {
+  if (!filters) return "";
+  return [filters.q, filters.state, filters.tz, filters.phone, filters.source, filters.trade]
+    .map(v => v?.trim() ?? "")
+    .join("|");
+}
+
 export async function fetchCsrStatsCached(
   force = false,
   from?: string,
   to?: string,
+  filters?: CsrTableFilterParams,
 ): Promise<CsrStatsPayload> {
-  const key = `csr:stats:${from ?? ""}:${to ?? ""}`;
+  const key = `csr:stats:${from ?? ""}:${to ?? ""}:${filterCacheKey(filters)}`;
   return cached(key, STATS_TTL_MS, async () => {
     const params = new URLSearchParams();
     if (from) params.set("from", from);
     if (to) params.set("to", to);
+    appendTableFilters(params, filters);
     const qs = params.toString();
     const res = await API.get(`/csr/stats${qs ? `?${qs}` : ""}`, { timeout: 45_000 });
     return res.data as CsrStatsPayload;
@@ -96,12 +124,14 @@ export async function fetchCsrTabLeadsCached(
   to?: string,
   force = false,
   pageSize = CSR_TAB_PAGE_SIZE,
+  filters?: CsrTableFilterParams,
 ): Promise<CsrTabLeadsPayload> {
-  const key = `csr:tab:${tab}:${page}:${pageSize}:${from ?? ""}:${to ?? ""}`;
+  const key = `csr:tab:${tab}:${page}:${pageSize}:${from ?? ""}:${to ?? ""}:${filterCacheKey(filters)}`;
   return cached(key, TAB_TTL_MS, async () => {
     const params = new URLSearchParams({ tab, page: String(page), pageSize: String(pageSize) });
     if (from) params.set("from", from);
     if (to) params.set("to", to);
+    appendTableFilters(params, filters);
     const res = await API.get(`/csr/tab-leads?${params}`, { timeout: 60_000 });
     return res.data as CsrTabLeadsPayload;
   }, force);

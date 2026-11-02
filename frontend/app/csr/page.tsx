@@ -32,7 +32,7 @@ import ClientNameCell from "./components/shared/ClientNameCell";
 import PhoneWithTzCell from "./components/shared/PhoneWithTzCell";
 import { DialGatedSelect } from "./components/dialer/dialUnlock";
 import { collectLeadPhones } from "./utils/parsePhones";
-import { useCsrStats, useCsrTabLeads, CSR_FILTER_BATCH_SIZE, type CsrTabKey } from "./hooks/useCsrTabPage";
+import { useCsrStats, useCsrTabLeads, type CsrTabKey } from "./hooks/useCsrTabPage";
 import { invalidateCsrDashboardCache } from "@/lib/csrDashboardCache";
 import API from "@/lib/api";
 import { invalidateAllCsrListCaches } from "@/lib/csrApiCache";
@@ -75,14 +75,27 @@ export default function CSRPage() {
   const [tradeFilter, setTradeFilter]   = useState("");
   const [tradeOptions, setTradeOptions] = useState<string[]>([]);
   const [searchQuery, setSearchQuery]   = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [dismissedNotification, setDismissedNotification] = useState(false);
 
-  const hasTableFilters = !!(stateFilter || timezoneFilter || phoneFilter || sourceFilter || tradeFilter || searchQuery.trim());
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebouncedSearch(searchQuery), 300);
+    return () => window.clearTimeout(timer);
+  }, [searchQuery]);
+
+  const tableFilters = useMemo(() => ({
+    q: debouncedSearch.trim() || undefined,
+    state: stateFilter || undefined,
+    tz: timezoneFilter || undefined,
+    phone: phoneFilter || undefined,
+    source: sourceFilter || undefined,
+    trade: tradeFilter || undefined,
+  }), [debouncedSearch, stateFilter, timezoneFilter, phoneFilter, sourceFilter, tradeFilter]);
 
   const tabKey = (activeTab === "today" || activeTab === "dialer" ? "pending" : activeTab) as CsrTabKey;
-  const { stats, loading: statsLoading, refetch: refetchStats } = useCsrStats(monthFrom || undefined, monthTo || undefined);
+  const { stats, loading: statsLoading, refetch: refetchStats } = useCsrStats(monthFrom || undefined, monthTo || undefined, tableFilters);
   const { leads, setLeads, total: tabTotal, totalPages: serverTotalPages, loading: tabLoading, refetch: refetchTab } =
-    useCsrTabLeads(tabKey, page, monthFrom || undefined, monthTo || undefined, hasTableFilters);
+    useCsrTabLeads(tabKey, page, monthFrom || undefined, monthTo || undefined, tableFilters);
   const loading = statsLoading || tabLoading;
   const refetch = () => { void refetchStats(); void refetchTab(true); };
 
@@ -155,7 +168,7 @@ export default function CSRPage() {
         ? (item.sourceSudoName?.trim().toLowerCase() === sourceFilter.toLowerCase())
         : true;
       const matchesTrade = leadMatchesTradeFilter(item.trade, item.subTrades, tradeFilter);
-      const q = searchQuery.trim().toLowerCase();
+      const q = debouncedSearch.trim().toLowerCase();
       const digits = q.replace(/\D/g, "");
       const matchesSearch = !q || [
         item.client,
@@ -166,7 +179,7 @@ export default function CSRPage() {
         (digits.length >= 3 && (item.phone ?? "").replace(/\D/g, "").includes(digits));
       return matchesState && matchesPhone && matchesTimezone && matchesSource && matchesTrade && matchesSearch;
     });
-  }, [visibleLeads, stateFilter, timezoneFilter, phoneFilter, sourceFilter, tradeFilter, searchQuery]);
+  }, [visibleLeads, stateFilter, timezoneFilter, phoneFilter, sourceFilter, tradeFilter, debouncedSearch]);
 
   const tabSorted = useMemo(() => sortByOldestNote(tabFiltered), [tabFiltered]);
 
@@ -201,15 +214,11 @@ export default function CSRPage() {
     return [...MASTER_FORMAT_TRADES, ...extras];
   }, [tradeOptions, visibleLeads]);
 
-  const paginated = hasTableFilters
-    ? tabSorted.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
-    : tabSorted;
+  const paginated = tabSorted;
 
-  const displayTotalPages = hasTableFilters
-    ? Math.max(1, Math.ceil(tabSorted.length / PAGE_SIZE))
-    : serverTotalPages;
+  const displayTotalPages = serverTotalPages;
 
-  const displayTotal = hasTableFilters ? tabSorted.length : tabTotal;
+  const displayTotal = tabTotal;
 
   const pillCount = (tab: string, stat: number) => {
     /* Close Client rows live on Clients — unique count, not project rows / empty Call Data table. */
@@ -495,11 +504,6 @@ export default function CSRPage() {
                 onChange={v => { setTradeFilter(v); setPage(1); }}
               />
             </div>
-            {hasTableFilters && tabTotal > CSR_FILTER_BATCH_SIZE && (
-              <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-1.5">
-                Filters search the most recent {CSR_FILTER_BATCH_SIZE} leads in this tab. Clear filters to browse all pages.
-              </p>
-            )}
           </div>
 
           {/* ── TABS ── */}
@@ -762,7 +766,7 @@ export default function CSRPage() {
           {activeTab !== "dialer" && (
           <div className="flex items-center justify-between px-1 pt-4 mt-2 border-t border-gray-100">
             <p className="text-xs text-gray-400">
-              {tabSorted.length === 0 ? "0" : `${(page - 1) * PAGE_SIZE + 1}–${Math.min(page * PAGE_SIZE, tabSorted.length)}`} of {displayTotal}
+              {displayTotal === 0 ? "0" : `${(page - 1) * PAGE_SIZE + 1}–${Math.min(page * PAGE_SIZE, displayTotal)}`} of {displayTotal}
             </p>
             <div className="flex items-center gap-2">
               <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
