@@ -301,6 +301,7 @@ export function CeoManualDial() {
                 <Pencil size={12} />
               </button>
             )}
+            {/* TODO: Add a tooltip for the app dialer */}
           </div>
           {showChoices && (
             <div className="mt-2 grid grid-cols-2 gap-2">
