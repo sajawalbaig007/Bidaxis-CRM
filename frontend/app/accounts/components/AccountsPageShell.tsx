@@ -59,6 +59,17 @@ type AccountsPageShellProps = {
 const inputCls =
   "mt-1 h-10 w-full rounded-xl border border-crm-border bg-crm-input px-3 text-sm text-crm-text outline-none transition-shadow focus:ring-2 focus:ring-[#B8112D]/20 focus:border-[#B8112D]/40";
 
+function formatSavedDay(iso: string): string {
+  const [year, month, day] = iso.split("-").map(Number);
+  if (!year || !month || !day) return iso;
+  return new Date(Date.UTC(year, month - 1, day)).toLocaleDateString("en-US", {
+    month: "short",
+    day: "2-digit",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+}
+
 export default function AccountsPageShell({
   title,
   subtitle,
@@ -327,20 +338,32 @@ export default function AccountsPageShell({
                 </p>
               )}
 
-              {pickSavedDate && (activePreset === "month" || activePreset === "date_range") && sortedSavedDays.length > 0 && (
-                <div className="max-h-24 overflow-y-auto flex flex-wrap gap-1.5">
-                  {sortedSavedDays.map(d => (
-                    <button
-                      key={d}
-                      type="button"
-                      onClick={() => pickSavedDate(d)}
-                      className={`h-7 px-2.5 rounded-lg text-[11px] font-semibold ${
-                        d === recordDate ? "bg-[#B8112D] text-white" : "bg-crm-muted text-crm-text-secondary"
-                      }`}
-                    >
-                      {d}
-                    </button>
-                  ))}
+              {pickSavedDate && sortedSavedDays.length > 0 && (
+                <div>
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-crm-text-faint mb-2">History</p>
+                  <div className="max-h-64 overflow-y-auto rounded-xl border border-crm-border-subtle bg-crm-muted/40">
+                    {sortedSavedDays.map(d => {
+                      const selected = d === recordDate;
+                      return (
+                        <button
+                          key={d}
+                          type="button"
+                          onClick={() => {
+                            (onRecordDateChange ?? pickSavedDate)(d);
+                            setFilterOpen(false);
+                          }}
+                          className={`flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left text-sm border-b border-crm-border-subtle last:border-b-0 ${
+                            selected
+                              ? "bg-[#B8112D] text-white"
+                              : "text-crm-text hover:bg-[#FFF1F3] dark:hover:bg-crm-brand-soft"
+                          }`}
+                        >
+                          <span className="font-semibold">{formatSavedDay(d)}</span>
+                          {selected && <span className="text-[10px] font-bold uppercase tracking-wide">Open</span>}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
 
