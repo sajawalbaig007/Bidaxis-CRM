@@ -120,7 +120,8 @@ export default function LoginPortalForm({
     data: { role?: string; user?: { role?: string }; token?: string; success?: boolean },
     expectedPortal: PortalRole,
   ) {
-    const role = resolveLoginRole(data);
+    const token = loginTokenFrom(data);
+    const role = resolveLoginRole(data) ?? (token ? expectedPortal : null);
     if (!role) {
       toast.error("Could not determine your role. Refresh once and try again.");
       return;
@@ -129,7 +130,6 @@ export default function LoginPortalForm({
       toast.error(`This account is not a ${portalLabel(expectedPortal)}. Use the correct portal on the home page.`);
       return;
     }
-    const token = loginTokenFrom(data);
     if (!token) {
       toast.error("Session could not be created. Redeploy backend and try again.");
       return;
@@ -157,7 +157,14 @@ export default function LoginPortalForm({
         loginRole: loginPortal,
         captchaToken: captchaToken || undefined,
       }, { withCredentials: true });
-      const data = res.data ?? {};
+      const raw = (res.data ?? {}) as Record<string, unknown>;
+      const nested = raw.data && typeof raw.data === "object" && !Array.isArray(raw.data)
+        ? (raw.data as Record<string, unknown>)
+        : null;
+      const data = (nested ? { ...raw, ...nested } : raw) as {
+        role?: string; user?: { role?: string }; token?: string; success?: boolean;
+        requires2FA?: boolean; userId?: string; message?: string;
+      };
       if (data.requires2FA || (data.userId && !data.token && !data.role)) {
         setUserId(data.userId);
         setAttemptsLeft(2);
@@ -206,7 +213,13 @@ export default function LoginPortalForm({
         rememberMe,
         loginRole: loginPortal,
       }, { withCredentials: true });
-      await completeLogin(res.data, loginPortal);
+      const raw = (res.data ?? {}) as Record<string, unknown>;
+      const nested = raw.data && typeof raw.data === "object" && !Array.isArray(raw.data)
+        ? (raw.data as Record<string, unknown>)
+        : null;
+      await completeLogin((nested ? { ...raw, ...nested } : raw) as {
+        role?: string; user?: { role?: string }; token?: string; success?: boolean;
+      }, loginPortal);
     } catch (err: unknown) {
       const e = err as APIError;
       const data = e?.response?.data;
