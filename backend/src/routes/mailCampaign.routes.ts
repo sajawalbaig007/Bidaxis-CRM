@@ -95,7 +95,10 @@ async function saveLinkedMailbox(req: AuthRequest, res: express.Response) {
       return res.status(400).json({ success: false, message: "You can link up to 3 Gmail accounts." });
     }
   }
-  const smtp = mailboxSmtpDefaults(email);
+  const googlePass = /^[a-z]{16}$/i.test(pass);
+  const smtp = googlePass
+    ? { host: "smtp.gmail.com", port: 465, secure: true }
+    : mailboxSmtpDefaults(email);
   try {
     await verifyMailboxLogin({
       id: "check",
@@ -273,6 +276,39 @@ router.delete("/rows/:id", async (req, res) => {
   return res.json({ success: true, ...(await mailLibrary()) });
 });
 
+const DEFAULT_SUBJECT = "Need Estimating Support for Upcoming Bids?";
+const DEFAULT_BODY =
+  "Hi {{name}},\n\nDoes your team need extra support with quantity takeoffs or cost estimates for upcoming construction bids?\nBidAxis LLC is here to help you manage your estimating workload efficiently.\nWe provide detailed quantity takeoffs and cost estimates for residential, commercial, industrial, and other construction projects.\nOur team can assist with single projects or multiple bids with tight deadlines.\nIf you'd like to review our estimating work, we'd be happy to share sample takeoffs and estimates.\nDo you have an upcoming project we could help you with?\nBest regards,";
+
+async function loadSavedTemplate(): Promise<{ subject: string; body: string }> {
+  const row = await prisma.mailCampaignTemplate.findUnique({ where: { id: "default" } });
+  if (row?.subject.trim() && row.body.trim()) {
+    return { subject: row.subject, body: row.body };
+  }
+  return { subject: DEFAULT_SUBJECT, body: DEFAULT_BODY };
+}
+
+router.get("/template", async (_req, res) => {
+  noStore(res);
+  const template = await loadSavedTemplate();
+  return res.json({ success: true, ...template });
+});
+
+router.put("/template", async (req, res) => {
+  const subject = String(req.body?.subject ?? "").trim();
+  const body = String(req.body?.body ?? "").trim();
+  if (!subject || !body) {
+    return res.status(400).json({ success: false, message: "Subject and message are required." });
+  }
+  const saved = await prisma.mailCampaignTemplate.upsert({
+    where: { id: "default" },
+    create: { id: "default", subject, body },
+    update: { subject, body },
+  });
+  noStore(res);
+  return res.json({ success: true, subject: saved.subject, body: saved.body });
+});
+
 router.get("/status", (_req, res) => {
   return res.json({ success: true, ...campaignStatus() });
 });
@@ -302,9 +338,12 @@ router.post("/start", async (req: AuthRequest, res) => {
   const senders: { id: string }[] = Array.isArray(req.body?.senders)
     ? req.body.senders.map((value: { id?: unknown }) => ({ id: String(value?.id ?? "") }))
     : [];
+  const saved = await loadSavedTemplate();
+  const subject = String(req.body?.subject ?? "").trim() || saved.subject;
+  const body = String(req.body?.body ?? "").trim() || saved.body;
   const result = await startCampaign({
-    subject: String(req.body?.subject ?? ""),
-    body: String(req.body?.body ?? ""),
+    subject,
+    body,
     recipients,
     senders,
     minDelaySec: Number(req.body?.minDelaySec),

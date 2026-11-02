@@ -801,3 +801,13 @@ model MailListRow {
   @@index([email])
   @@map("mail_list_rows")
 }
+
+/** Saved Mail page template. One row; CEO can edit, then every send uses it plus the BidAxis footer. */
+model MailCampaignTemplate {
+  id        String   @id @default("default") @map("_id")
+  subject   String
+  body      String
+  updatedAt DateTime @updatedAt
+
+  @@map("mail_campaign_templates")
+}

@@ -28,10 +28,6 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/i;
 export default function AdminMailPage() {
   const [senders, setSenders] = useState<Sender[]>([]);
   const [picked, setPicked] = useState<Record<string, boolean>>({});
-  const [boxName, setBoxName] = useState("");
-  const [boxEmail, setBoxEmail] = useState("");
-  const [boxPass, setBoxPass] = useState("");
-  const [linking, setLinking] = useState(false);
   const [subject, setSubject] = useState("Need Estimating Support for Upcoming Bids?");
   const [body, setBody] = useState(
     "Hi {{name}},\n\nDoes your team need extra support with quantity takeoffs or cost estimates for upcoming construction bids?\nBidAxis LLC is here to help you manage your estimating workload efficiently.\nWe provide detailed quantity takeoffs and cost estimates for residential, commercial, industrial, and other construction projects.\nOur team can assist with single projects or multiple bids with tight deadlines.\nIf you'd like to review our estimating work, we'd be happy to share sample takeoffs and estimates.\nDo you have an upcoming project we could help you with?\nBest regards,",
@@ -49,6 +45,7 @@ export default function AdminMailPage() {
   const sendersTick = useRef(0);
   const libraryTick = useRef(0);
   const seenLog = useRef(new Set<string>());
+  const templateReady = useRef(false);
 
   function readSenderList(data: unknown): Sender[] {
     if (!data || typeof data !== "object") return [];
@@ -141,8 +138,23 @@ export default function AdminMailPage() {
     applyLibrary(res.data);
   }
 
+  async function loadTemplate() {
+    try {
+      const res = await API.get("/mail-campaign/template", { ...live, params: { _: Date.now() } });
+      const nextSubject = String(res.data?.subject ?? "").trim();
+      const nextBody = String(res.data?.body ?? "").trim();
+      if (nextSubject) setSubject(nextSubject);
+      if (nextBody) setBody(nextBody);
+    } catch {
+      /* keep the default template until the server has one */
+    } finally {
+      templateReady.current = true;
+    }
+  }
+
   useEffect(() => {
     void loadSenders();
+    void loadTemplate();
     void loadLibrary().catch((err) => toast.error(apiErrorMessage(err, "Could not load clients from the database.")));
     const onFocus = () => {
       void loadSenders();
@@ -170,6 +182,14 @@ export default function AdminMailPage() {
       if (timer) clearTimeout(timer);
     };
   }, []);
+
+  useEffect(() => {
+    if (!templateReady.current) return;
+    const timer = setTimeout(() => {
+      void API.put("/mail-campaign/template", { subject, body }).catch(() => undefined);
+    }, 800);
+    return () => clearTimeout(timer);
+  }, [subject, body]);
 
   useEffect(() => {
     const gone = new Set(
@@ -284,6 +304,7 @@ export default function AdminMailPage() {
     }
     setStarting(true);
     try {
+      await API.put("/mail-campaign/template", { subject, body }).catch(() => undefined);
       const res = await API.post("/mail-campaign/start", {
         subject,
         body,
@@ -298,37 +319,6 @@ export default function AdminMailPage() {
       toast.error(apiErrorMessage(err, "Could not start."));
     } finally {
       setStarting(false);
-    }
-  }
-
-  async function linkMailbox() {
-    const email = boxEmail.trim().toLowerCase();
-    if (!EMAIL_RE.test(email)) {
-      toast.error("Enter the mailbox email.");
-      return;
-    }
-    if (boxPass.replace(/\s/g, "").length < 8) {
-      toast.error("Paste the Gmail app password, or the GoDaddy mailbox password.");
-      return;
-    }
-    setLinking(true);
-    try {
-      const res = await API.post("/mail-campaign/mailbox", {
-        email,
-        appPassword: boxPass,
-        name: boxName.trim(),
-      });
-      sendersTick.current += 1;
-      applySenders(readSenderList(res.data));
-      void loadSenders();
-      setBoxName("");
-      setBoxEmail("");
-      setBoxPass("");
-      toast.success(`${email} connected. You can send from it.`);
-    } catch (err) {
-      toast.error(apiErrorMessage(err, "Could not connect that mailbox."));
-    } finally {
-      setLinking(false);
     }
   }
 
@@ -362,7 +352,7 @@ export default function AdminMailPage() {
           <div>
             <h1 className="text-2xl font-semibold text-gray-800">Mail</h1>
             <p className="text-sm text-gray-500 mt-1">
-              One template, your client list, and a slow send so each email leaves with that client&apos;s name.
+              Upload contacts and press Start. The saved template goes out from info@ and sales@ with the BidAxis footer.
             </p>
           </div>
           <Mail className="text-[#1B6FE8] shrink-0" />
@@ -372,7 +362,7 @@ export default function AdminMailPage() {
           <section className="bg-white rounded-3xl border border-gray-100 shadow-sm p-5">
             <h2 className="font-semibold text-gray-800">Template</h2>
             <p className="text-xs text-gray-400 mt-1 mb-3">
-              Use {"{{name}}"} for the full client name and {"{{first}}"} for the first name.
+              This message is saved automatically. Every send uses it, plus the BidAxis footer. {"{{name}}"} and {"{{first}}"} still fill in per client.
             </p>
             <label className="block text-xs font-medium text-gray-500 mb-1">Subject</label>
             <input
@@ -399,11 +389,11 @@ export default function AdminMailPage() {
           <section className="bg-white rounded-3xl border border-gray-100 shadow-sm p-5">
             <h2 className="font-semibold text-gray-800">From emails</h2>
             <p className="text-xs text-gray-400 mt-1 mb-3">
-              Connect Gmail with an app password, or info@ / sales@ with the GoDaddy mailbox password. Then tick which ones to send from.
+              Company mailboxes are already connected. Tick which ones to send from. Footer stays attached.
             </p>
             {!senders.length && (
               <p className="text-sm text-amber-700 bg-amber-50 rounded-xl p-3">
-                Connect a mailbox below to start sending.
+                Company emails are still loading. Refresh once.
               </p>
             )}
             <div className="space-y-3">
@@ -435,42 +425,6 @@ export default function AdminMailPage() {
                   ) : null}
                 </div>
               ))}
-            </div>
-            <div className="mt-4 rounded-2xl border border-dashed border-gray-200 p-3">
-              <p className="text-sm font-medium text-gray-800">Connect mailbox</p>
-              <p className="text-xs text-gray-400 mt-1 mb-2">
-                Gmail: Google app password (16 characters), not the login password. Company mail: info@bidaxis.co or sales@bidaxis.co mailbox password.
-              </p>
-              <input
-                value={boxName}
-                onChange={(e) => setBoxName(e.target.value)}
-                disabled={running}
-                placeholder="Display name"
-                className="mb-2 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm"
-              />
-              <input
-                value={boxEmail}
-                onChange={(e) => setBoxEmail(e.target.value)}
-                disabled={running}
-                placeholder="name@gmail.com or info@bidaxis.co"
-                className="mb-2 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm"
-              />
-              <input
-                value={boxPass}
-                onChange={(e) => setBoxPass(e.target.value)}
-                disabled={running}
-                type="password"
-                placeholder="App password or mailbox password"
-                className="mb-2 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm"
-              />
-              <button
-                type="button"
-                disabled={running || linking}
-                onClick={() => void linkMailbox()}
-                className="rounded-full bg-[#1B6FE8] text-white px-4 py-2 text-sm disabled:opacity-50"
-              >
-                {linking ? "Connecting…" : "Connect"}
-              </button>
             </div>
             <div className="mt-4 grid grid-cols-2 gap-3">
               <label className="text-xs text-gray-500">

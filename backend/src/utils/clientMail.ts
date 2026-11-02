@@ -44,6 +44,16 @@ function isGmailAddress(email: string): boolean {
   return GMAIL_DOMAINS.has(emailDomain(email));
 }
 
+function looksLikeGoogleAppPassword(pass: string): boolean {
+  return /^[a-z]{16}$/i.test(pass.replace(/\s/g, ""));
+}
+
+function usesGoogleSmtp(sender: Pick<MailSender, "email" | "pass" | "host">): boolean {
+  if (isGmailAddress(sender.email)) return true;
+  if ((sender.host ?? "").toLowerCase().includes("gmail")) return true;
+  return looksLikeGoogleAppPassword(sender.pass);
+}
+
 function readOptionalPort(raw: string): number | undefined {
   const n = Number(raw.trim());
   return Number.isInteger(n) && n > 0 ? n : undefined;
@@ -84,7 +94,10 @@ function readSlot(n: 1 | 2 | 3 | 4): MailSender | null {
   const pass = cleanSecret(process.env[`CRM_FROM_PASS_${n}`] ?? "").replace(/\s/g, "");
   const name = (process.env[`CRM_FROM_NAME_${n}`] ?? "").trim() || email;
   if (!email || !pass || !isValidEmail(email)) return null;
-  const host = (process.env[`CRM_FROM_HOST_${n}`] ?? "").trim() || inferSmtpHost(email);
+  const google = looksLikeGoogleAppPassword(pass);
+  const host = google
+    ? "smtp.gmail.com"
+    : (process.env[`CRM_FROM_HOST_${n}`] ?? "").trim() || inferSmtpHost(email);
   const port = readOptionalPort(process.env[`CRM_FROM_PORT_${n}`] ?? "") ?? (host ? 465 : undefined);
   const secureRaw = (process.env[`CRM_FROM_SECURE_${n}`] ?? "").trim().toLowerCase();
   const secure = secureRaw === "true" ? true : secureRaw === "false" ? false : port === 465 ? true : undefined;
@@ -94,7 +107,7 @@ function readSlot(n: 1 | 2 | 3 | 4): MailSender | null {
 function passwordVariants(pass: string, email: string): string[] {
   const spaced = pass.trim();
   const compact = spaced.replace(/\s/g, "");
-  if (!isGmailAddress(email)) {
+  if (!isGmailAddress(email) && !looksLikeGoogleAppPassword(pass)) {
     return [...new Set([compact, spaced].filter(Boolean))];
   }
   const swapped =
@@ -117,6 +130,7 @@ function smtpHosts(sender: MailSender): string[] {
     const value = (host ?? "").trim();
     if (value && !out.includes(value)) out.push(value);
   };
+  if (usesGoogleSmtp(sender)) push("smtp.gmail.com");
   if (emailDomain(sender.email) === "bidaxis.co") {
     push("smtp.titan.email");
     push("smtpout.secureserver.net");
@@ -157,7 +171,7 @@ function toPublicSender(sender: MailSender): MailSenderPublic {
     email: sender.email,
     name: sender.name,
     signatureBrand: resolveMailBrand(sender.email, sender.name),
-    signatureLabel: signatureLabel(sender.email, sender.name) || (isGmailAddress(sender.email) ? "Gmail" : null),
+    signatureLabel: signatureLabel(sender.email, sender.name) || (usesGoogleSmtp(sender) ? "Gmail" : null),
     defaultFooter: bidaxisFooterFor(sender.email),
     linked: sender.id.startsWith("g:") && !company,
   };
@@ -165,16 +179,17 @@ function toPublicSender(sender: MailSender): MailSenderPublic {
 
 function rowToSender(row: { id: string; email: string; name: string; pass: string; host?: string | null; port?: number | null; secure?: boolean | null }): MailSender {
   const email = row.email.trim();
-  const host = (row.host ?? "").trim() || inferSmtpHost(email);
-  const port = row.port && row.port > 0 ? row.port : host ? 465 : undefined;
+  const google = looksLikeGoogleAppPassword(row.pass) || isGmailAddress(email) || (row.host ?? "").toLowerCase().includes("gmail");
+  const host = google ? "smtp.gmail.com" : ((row.host ?? "").trim() || inferSmtpHost(email));
+  const port = google ? 465 : (row.port && row.port > 0 ? row.port : host ? 465 : undefined);
   return {
     id: `g:${row.id}`,
     email,
     name: row.name || email,
     pass: row.pass,
-    host: isGmailAddress(email) ? undefined : host,
-    port: isGmailAddress(email) ? undefined : port,
-    secure: isGmailAddress(email) ? undefined : row.secure ?? (port === 465),
+    host: google ? "smtp.gmail.com" : host,
+    port,
+    secure: google ? true : row.secure ?? (port === 465),
   };
 }
 
@@ -183,8 +198,7 @@ export function publicSenders(): MailSenderPublic[] {
 }
 
 export async function listResolvedSenders(): Promise<MailSender[]> {
-  const env = listConfiguredSenders();
-  const byEmail = new Map(env.map((sender) => [sender.email.toLowerCase(), sender]));
+  const byEmail = new Map<string, MailSender>();
   try {
     const rows = await prisma.linkedMailbox.findMany({
       select: { id: true, email: true, name: true, pass: true, host: true, port: true, secure: true },
@@ -192,11 +206,14 @@ export async function listResolvedSenders(): Promise<MailSender[]> {
     for (const row of rows) {
       const email = (row.email ?? "").trim().toLowerCase();
       if (!email || !String(row.pass ?? "").trim()) continue;
-      if (byEmail.has(email)) continue;
       byEmail.set(email, rowToSender(row));
     }
   } catch (err) {
     console.error("[mail] linked mailbox list failed", err);
+  }
+  for (const sender of listConfiguredSenders()) {
+    const email = sender.email.toLowerCase();
+    if (!byEmail.has(email)) byEmail.set(email, sender);
   }
   return [...byEmail.values()];
 }
@@ -222,24 +239,29 @@ export async function syncCompanyMailboxesFromEnv(): Promise<void> {
   const slots = listConfiguredSenders();
   for (const sender of slots) {
     const email = sender.email.toLowerCase();
-    const host = sender.host || inferSmtpHost(email) || "";
-    const port = sender.port ?? sslSmtpPort(host);
+    const envGoogle = looksLikeGoogleAppPassword(sender.pass);
+    const existing = await prisma.linkedMailbox.findUnique({ where: { email } });
+    const keepDbPass = !!(existing?.pass && looksLikeGoogleAppPassword(existing.pass) && !envGoogle);
+    const pass = keepDbPass ? existing!.pass : sender.pass;
+    const google = looksLikeGoogleAppPassword(pass);
+    const host = google ? "smtp.gmail.com" : sender.host || inferSmtpHost(email) || "";
+    const port = google ? 465 : sender.port ?? sslSmtpPort(host);
     await prisma.linkedMailbox.upsert({
       where: { email },
       create: {
         email,
         name: sender.name,
-        pass: sender.pass,
+        pass,
         host,
         port,
         secure: sender.secure ?? port === 465,
       },
       update: {
         name: sender.name,
-        pass: sender.pass,
+        ...(keepDbPass ? {} : { pass }),
         host,
         port,
-        secure: sender.secure ?? port === 465,
+        secure: true,
       },
     });
   }
@@ -320,13 +342,19 @@ export async function sendClientMail(opts: {
   };
   if (signature?.attachments.length) mail.attachments = signature.attachments;
 
-  if (isGmailAddress(opts.sender.email) && !opts.sender.host) {
-    const transporter = nodemailer.createTransport({
-      service: "gmail",
-      auth: { user: opts.sender.email, pass: opts.sender.pass.replace(/\s/g, "") },
-    });
-    await transporter.sendMail(mail);
-    return;
+  if (usesGoogleSmtp(opts.sender)) {
+    try {
+      const transporter = nodemailer.createTransport({
+        service: "gmail",
+        auth: { user: opts.sender.email, pass: opts.sender.pass.replace(/\s/g, "") },
+      });
+      await transporter.sendMail(mail);
+      console.info(`[mail/send] smtp=gmail from=${opts.sender.email}`);
+      return;
+    } catch (err) {
+      if (isGmailAddress(opts.sender.email)) throw err;
+      console.warn(`[mail/send] gmail rejected ${opts.sender.email}, trying company SMTP`);
+    }
   }
 
   let lastErr: unknown;
@@ -371,13 +399,17 @@ export async function sendClientMail(opts: {
 
 /** Confirms SMTP/Gmail login before we keep a mailbox for sending. */
 export async function verifyMailboxLogin(sender: MailSender): Promise<void> {
-  if (isGmailAddress(sender.email) && !sender.host) {
-    const transporter = nodemailer.createTransport({
-      service: "gmail",
-      auth: { user: sender.email, pass: sender.pass.replace(/\s/g, "") },
-    });
-    await transporter.verify();
-    return;
+  if (usesGoogleSmtp(sender)) {
+    try {
+      const transporter = nodemailer.createTransport({
+        service: "gmail",
+        auth: { user: sender.email, pass: sender.pass.replace(/\s/g, "") },
+      });
+      await transporter.verify();
+      return;
+    } catch (err) {
+      if (isGmailAddress(sender.email)) throw err;
+    }
   }
 
   let lastErr: unknown;
