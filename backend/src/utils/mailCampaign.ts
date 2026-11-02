@@ -48,7 +48,7 @@ function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function applyName(template: string, name: string): string {
+export function applyName(template: string, name: string): string {
   const full = name.trim() || "there";
   const first = full.split(/\s+/)[0] || full;
   return template
@@ -101,7 +101,7 @@ export async function startCampaign(input: {
   subject: string;
   body: string;
   recipients: CampaignRecipient[];
-  senders: { id: string }[];
+  senders: { id: string; email?: string }[];
   minDelaySec: number;
   maxDelaySec: number;
 }): Promise<{ ok: true } | { ok: false; message: string }> {
@@ -132,12 +132,16 @@ export async function startCampaign(input: {
 
   const senders: CampaignSender[] = [];
   for (const raw of input.senders) {
-    const sender = await resolveMailbox(String(raw.id ?? "").trim());
+    const sender = await resolveMailbox(String(raw.id ?? "").trim(), String(raw.email ?? "").trim());
     if (!sender) continue;
     senders.push({ sender, footer: bidaxisFooterFor(sender.email) });
   }
   if (!senders.length) {
-    return { ok: false, message: "Select at least one mailbox." };
+    const fallback = await resolveMailbox("");
+    if (fallback) senders.push({ sender: fallback, footer: bidaxisFooterFor(fallback.email) });
+  }
+  if (!senders.length) {
+    return { ok: false, message: "No company mailbox is ready to send." };
   }
 
   const minDelaySec = Number(input.minDelaySec) || 45;
@@ -241,4 +245,57 @@ async function run(
   active.status = active.stop ? "stopped" : "done";
   active.current = null;
   active.nextAt = null;
+}
+
+export async function sendOneClient(input: {
+  recipientId?: string;
+  email?: string;
+  name?: string;
+  subject: string;
+  body: string;
+  senderId?: string;
+  senderEmail?: string;
+}): Promise<{ ok: true; to: string; name: string; from: string } | { ok: false; message: string }> {
+  const subject = input.subject.trim();
+  const body = input.body.trim();
+  if (!subject || !body) return { ok: false, message: "Save the template first." };
+
+  let row: { id?: string; name: string; email: string } | null = null;
+  const recipientId = (input.recipientId ?? "").trim();
+  if (recipientId) {
+    const found = await prisma.mailListRow.findUnique({ where: { id: recipientId } });
+    if (found) row = { id: found.id, name: found.name, email: found.email };
+  }
+  if (!row) {
+    const email = (input.email ?? "").trim().toLowerCase();
+    if (!isValidEmail(email)) return { ok: false, message: "That client email is not in the list." };
+    row = { name: (input.name ?? "").trim() || email.split("@")[0], email };
+  }
+
+  const sender = await resolveMailbox(input.senderId ?? "", input.senderEmail ?? "");
+  if (!sender) return { ok: false, message: "No company mailbox is ready to send." };
+
+  const name = (row.name || row.email.split("@")[0]).trim();
+  try {
+    await sendClientMail({
+      sender,
+      to: row.email,
+      subject: applyName(subject, name),
+      body: applyName(body, name),
+      footer: bidaxisFooterFor(sender.email),
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Send failed";
+    return { ok: false, message: message.slice(0, 220) };
+  }
+
+  if (row.id) {
+    try {
+      await prisma.mailListRow.deleteMany({ where: { id: row.id } });
+    } catch (err) {
+      console.error("[mail-campaign] could not drop sent row", row.email, err);
+    }
+  }
+
+  return { ok: true, to: row.email, name, from: sender.email };
 }

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import toast, { Toaster } from "react-hot-toast";
-import { Mail, Play, Plus, Square, Trash2, Upload } from "lucide-react";
+import { Mail, Play, Plus, Send, Square, Trash2, Upload } from "lucide-react";
 import DashboardSidebar from "../components/layout/Sidebar";
 import DashboardNavbar from "../components/layout/Navbar";
 import API, { apiErrorMessage } from "@/lib/api";
@@ -40,6 +40,7 @@ export default function AdminMailPage() {
   const [maxDelay, setMaxDelay] = useState(90);
   const [status, setStatus] = useState<Status | null>(null);
   const [starting, setStarting] = useState(false);
+  const [sendingId, setSendingId] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
   const live = { headers: { "Cache-Control": "no-cache", Pragma: "no-cache" } };
   const sendersTick = useRef(0);
@@ -308,7 +309,7 @@ export default function AdminMailPage() {
         minDelaySec: minDelay,
         maxDelaySec: maxDelay,
         recipientIds: selected.map((r) => r.id),
-        senders: ready.map((s) => ({ id: s.id })),
+        senders: ready.map((s) => ({ id: s.id, email: s.email })),
       });
       setStatus(res.data as Status);
       toast.success("First email is going out now. Sent addresses drop off this list. Failed stays with the error.");
@@ -316,6 +317,35 @@ export default function AdminMailPage() {
       toast.error(apiErrorMessage(err, "Could not start."), { id: "mail-start" });
     } finally {
       setStarting(false);
+    }
+  }
+
+  async function sendOne(row: Recipient) {
+    const chosen = senders.filter((s) => picked[s.id]);
+    const from = chosen[0] ?? senders[0];
+    setSendingId(row.id);
+    try {
+      await API.put("/mail-campaign/template", { subject, body }).catch(() => undefined);
+      const res = await API.post(
+        "/mail-campaign/send-one",
+        {
+          recipientId: row.id,
+          email: row.email,
+          name: row.name,
+          subject,
+          body,
+          senderId: from?.id ?? "",
+          senderEmail: from?.email ?? "",
+        },
+        { timeout: 90_000 },
+      );
+      libraryTick.current += 1;
+      applyLibrary(res.data);
+      toast.success(`Sent to ${row.name || row.email}`);
+    } catch (err) {
+      toast.error(apiErrorMessage(err, `Could not send to ${row.email}.`));
+    } finally {
+      setSendingId("");
     }
   }
 
@@ -349,7 +379,7 @@ export default function AdminMailPage() {
           <div>
             <h1 className="text-2xl font-semibold text-gray-800">Mail</h1>
             <p className="text-sm text-gray-500 mt-1">
-              Upload contacts and press Start. The saved template goes out from info@ and sales@ with the BidAxis footer.
+              Upload a list or add an email. Send on each row uses this template, that client&apos;s name, and the BidAxis footer.
             </p>
           </div>
           <Mail className="text-[#1B6FE8] shrink-0" />
@@ -465,7 +495,7 @@ export default function AdminMailPage() {
             <div>
               <h2 className="font-semibold text-gray-800">Clients</h2>
               <p className="text-xs text-gray-400 mt-1">
-                Clients are stored in the database and loaded live. Browse any Excel, CSV, or Google Sheet file on this PC. Rows with no email are skipped, and duplicate contacts are skipped. Delete a file to remove only that file&apos;s clients.
+                Upload a sheet or add an email. Press Send on a row — that client&apos;s name fills the template. Footer stays the same.
               </p>
             </div>
             <div className="flex gap-2">
@@ -595,6 +625,7 @@ export default function AdminMailPage() {
                   <th className="p-2">Company</th>
                   <th className="p-2">Email</th>
                   <th className="p-2">File</th>
+                  <th className="p-2 w-28">Send</th>
                 </tr>
               </thead>
               <tbody>
@@ -619,7 +650,7 @@ export default function AdminMailPage() {
                       {r.manual ? (
                         <button
                           type="button"
-                          disabled={running}
+                          disabled={running || !!sendingId}
                           onClick={() => void removeManual(r.id)}
                           className="text-xs underline disabled:opacity-40"
                         >
@@ -629,11 +660,22 @@ export default function AdminMailPage() {
                         files.find((file) => file.id === r.fileId)?.fileName ?? "Uploaded file"
                       )}
                     </td>
+                    <td className="p-2">
+                      <button
+                        type="button"
+                        disabled={running || !!sendingId}
+                        onClick={() => void sendOne(r)}
+                        className="inline-flex items-center gap-1 rounded-full bg-[#1B6FE8] text-white px-3 py-1.5 text-xs disabled:opacity-50"
+                      >
+                        <Send size={12} />
+                        {sendingId === r.id ? "Sending…" : "Send"}
+                      </button>
+                    </td>
                   </tr>
                 ))}
                 {!recipients.length && (
                   <tr>
-                    <td colSpan={5} className="p-6 text-center text-gray-400">
+                    <td colSpan={6} className="p-6 text-center text-gray-400">
                       Upload a file from this PC, or add an email by hand.
                     </td>
                   </tr>

@@ -10,7 +10,7 @@ import {
   publicSenders,
   verifyMailboxLogin,
 } from "../utils/clientMail";
-import { campaignStatus, startCampaign, stopCampaign } from "../utils/mailCampaign";
+import { campaignStatus, sendOneClient, startCampaign, stopCampaign } from "../utils/mailCampaign";
 import { mailSheetRejectReason, parseClientMailSheet } from "../utils/mailListParse";
 import prisma from "../config/db";
 
@@ -335,8 +335,11 @@ router.post("/start", async (req: AuthRequest, res) => {
       return item ? [{ id: item.id, name: item.name, email: item.email }] : [];
     });
   }
-  const senders: { id: string }[] = Array.isArray(req.body?.senders)
-    ? req.body.senders.map((value: { id?: unknown }) => ({ id: String(value?.id ?? "") }))
+  const senders: { id: string; email?: string }[] = Array.isArray(req.body?.senders)
+    ? req.body.senders.map((value: { id?: unknown; email?: unknown }) => ({
+        id: String(value?.id ?? ""),
+        email: String(value?.email ?? ""),
+      }))
     : [];
   const saved = await loadSavedTemplate();
   const subject = String(req.body?.subject ?? "").trim() || saved.subject;
@@ -354,6 +357,28 @@ router.post("/start", async (req: AuthRequest, res) => {
   }
   console.info(`[mail-campaign] started by=${req.user?.id} count=${campaignStatus().total}`);
   return res.json({ success: true, ...campaignStatus() });
+});
+
+router.post("/send-one", async (req: AuthRequest, res) => {
+  const saved = await loadSavedTemplate();
+  const result = await sendOneClient({
+    recipientId: String(req.body?.recipientId ?? ""),
+    email: String(req.body?.email ?? ""),
+    name: String(req.body?.name ?? ""),
+    subject: String(req.body?.subject ?? "").trim() || saved.subject,
+    body: String(req.body?.body ?? "").trim() || saved.body,
+    senderId: String(req.body?.senderId ?? ""),
+    senderEmail: String(req.body?.senderEmail ?? ""),
+  });
+  if (!result.ok) {
+    return res.status(400).json({ success: false, message: result.message });
+  }
+  noStore(res);
+  return res.json({
+    success: true,
+    ...result,
+    ...(await mailLibrary()),
+  });
 });
 
 export default router;

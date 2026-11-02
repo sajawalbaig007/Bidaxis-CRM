@@ -270,18 +270,29 @@ export async function syncCompanyMailboxesFromEnv(): Promise<void> {
   }
 }
 
-export async function resolveMailbox(id: string): Promise<MailSender | null> {
+export async function resolveMailbox(id: string, email?: string): Promise<MailSender | null> {
   const key = id.trim();
-  if (!key) return null;
+  const wantEmail = (email ?? "").trim().toLowerCase();
   const all = await listResolvedSenders();
-  const match = all.find((sender) => sender.id === key)
-    || all.find((sender) => sender.email.toLowerCase() === key.toLowerCase());
-  if (match) return match;
-  if (key.startsWith("g:")) {
-    const row = await prisma.linkedMailbox.findUnique({ where: { id: key.slice(2) } });
-    if (row?.pass) return rowToSender(row);
+  if (wantEmail) {
+    const byEmail = all.find((sender) => sender.email.toLowerCase() === wantEmail);
+    if (byEmail) return byEmail;
   }
-  return null;
+  if (key) {
+    const match = all.find((sender) => sender.id === key)
+      || all.find((sender) => sender.email.toLowerCase() === key.toLowerCase());
+    if (match) return match;
+    const slot = listConfiguredSenders().find((sender) => sender.id === key);
+    if (slot) {
+      const fromDb = all.find((sender) => sender.email.toLowerCase() === slot.email.toLowerCase());
+      return fromDb ?? slot;
+    }
+    if (key.startsWith("g:")) {
+      const row = await prisma.linkedMailbox.findUnique({ where: { id: key.slice(2) } });
+      if (row?.pass) return rowToSender(row);
+    }
+  }
+  return all[0] ?? listConfiguredSenders()[0] ?? null;
 }
 
 export function findSender(id: string): MailSender | null {
