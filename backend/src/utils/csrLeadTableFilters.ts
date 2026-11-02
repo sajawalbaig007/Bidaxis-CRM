@@ -22,6 +22,7 @@ export type FilterableLead = {
   notPickedCount?: number | null;
   notInterestedCount?: number | null;
   uploadFile?: { source?: { sudoName?: string | null } | null } | null;
+  subContacts?: Array<{ phone?: string | null }> | null;
 };
 
 export function hasCsrTableFilters(f?: CsrTableFilters | null): boolean {
@@ -266,13 +267,38 @@ function standardTimezone(phone: string | null | undefined): string | null {
   const abbr = AREA_CODE_TZ[area];
   if (!abbr) return null;
   if (abbr === "MST") return "MT";
-  if (abbr === "ET" || abbr === "CT" || abbr === "MT" || abbr === "PT") return abbr;
+  if (abbr === "ET" || abbr === "CT" || abbr === "MT" || abbr === "PT" || abbr === "AKT") return abbr;
   return null;
 }
 
-function matchesTimezone(phone: string | null | undefined, filterAbbr: string): boolean {
+function splitPhones(raw: string | null | undefined): string[] {
+  if (!raw?.trim()) return [];
+  const parts = raw.split(/\s*[\/|,;]\s*/).map(part => part.trim()).filter(part => part.replace(/\D/g, "").length >= 7);
+  if (parts.length > 1) return parts;
+  const matches = raw.match(/[+\d][\d\s.()\-]{5,}\d/g);
+  if (matches && matches.length > 1) {
+    return matches.map(part => part.trim()).filter(part => part.replace(/\D/g, "").length >= 7);
+  }
+  return raw.replace(/\D/g, "").length >= 7 ? [raw] : [];
+}
+
+function leadPhoneTimezones(lead: FilterableLead): Set<string> {
+  const zones = new Set<string>();
+  const values = [lead.phone, ...(lead.subContacts ?? []).map(contact => contact.phone)];
+  for (const value of values) {
+    const numbers = splitPhones(value);
+    const list = numbers.length > 0 ? numbers : value ? [value] : [];
+    for (const phone of list) {
+      const zone = standardTimezone(phone);
+      if (zone) zones.add(zone);
+    }
+  }
+  return zones;
+}
+
+function matchesTimezone(lead: FilterableLead, filterAbbr: string): boolean {
   if (!filterAbbr.trim()) return true;
-  return standardTimezone(phone) === filterAbbr.trim();
+  return leadPhoneTimezones(lead).has(filterAbbr.trim());
 }
 
 function matchesTrade(trade: string | null | undefined, subTrades: string | null | undefined, filter: string): boolean {
@@ -300,7 +326,7 @@ export function leadMatchesTableFilters(lead: FilterableLead, filters?: CsrTable
   const f = filters!;
   if (!matchesState(lead.state, lead.phone, f.state ?? "")) return false;
   if (!matchesPhone(lead.phone, f.phone ?? "")) return false;
-  if (!matchesTimezone(lead.phone, f.tz ?? "")) return false;
+  if (!matchesTimezone(lead, f.tz ?? "")) return false;
   if (f.source?.trim()) {
     const sudo = lead.uploadFile?.source?.sudoName?.trim().toLowerCase() ?? "";
     if (sudo !== f.source.trim().toLowerCase()) return false;
@@ -325,4 +351,5 @@ export const CSR_FILTER_LEAD_SELECT = {
   notInterestedCount: true,
   createdAt: true,
   uploadFile: { select: { source: { select: { sudoName: true } } } },
+  subContacts: { select: { phone: true } },
 } as const;

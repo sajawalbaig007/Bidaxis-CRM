@@ -98,28 +98,43 @@ export function timeToMinutes(t: string | undefined | null): number | null {
   return h * 60 + m;
 }
 
-/** Sales shift 18:00 EST — late arrival tiers */
+/** Minutes after the shift start. Negative means the person arrived before the start. */
+export function minutesAfterShiftStart(
+  checkIn: string,
+  shiftStart: string,
+  overnight = false,
+): number | null {
+  const arrived = timeToMinutes(checkIn);
+  const start = timeToMinutes(shiftStart);
+  if (arrived == null || start == null) return null;
+  if (arrived >= start) return arrived - start;
+  if (!overnight) return arrived - start;
+  const earlyBy = start - arrived;
+  if (earlyBy <= 6 * 60) return -earlyBy;
+  return (24 * 60 - start) + arrived;
+}
+
+/**
+ * Late tiers follow the saved shift start.
+ * 15 minutes after start is still on time. Then ⅕, ¼, ⅓, and half day.
+ */
 export function calcSalesLateDeduction(
   daySalary: number,
   checkIn: string,
   override?: number | null,
+  shiftStart = "18:00",
+  overnight = true,
 ): { amount: number; rule: string } {
   if (override != null && Number.isFinite(override) && override >= 0) {
     return { amount: Number(override) || 0, rule: "Manual late override" };
   }
-  const inMin = timeToMinutes(checkIn);
-  if (inMin == null) return { amount: 0, rule: "No check-in — no late cut" };
-
-  const t1815 = 18 * 60 + 15;
-  const t1830 = 18 * 60 + 30;
-  const t1900 = 19 * 60;
-  const t2000 = 20 * 60;
-
-  if (inMin <= t1815) return { amount: 0, rule: "On time (≤ 18:15 EST)" };
-  if (inMin < t1830) return { amount: daySalary / 5, rule: "18:15–18:30 → ⅕ day" };
-  if (inMin < t1900) return { amount: daySalary / 4, rule: "18:30–19:00 → ¼ day" };
-  if (inMin < t2000) return { amount: daySalary / 3, rule: "19:00–20:00 → ⅓ day" };
-  return { amount: daySalary / 2, rule: "20:00+ → half day" };
+  const lateBy = minutesAfterShiftStart(checkIn, shiftStart, overnight);
+  if (lateBy == null) return { amount: 0, rule: "No check-in — no late cut" };
+  if (lateBy <= 15) return { amount: 0, rule: `On time (within 15 min of ${shiftStart})` };
+  if (lateBy < 30) return { amount: daySalary / 5, rule: `15–30 min after ${shiftStart} → ⅕ day` };
+  if (lateBy < 60) return { amount: daySalary / 4, rule: `30–60 min after ${shiftStart} → ¼ day` };
+  if (lateBy < 120) return { amount: daySalary / 3, rule: `1–2 hours after ${shiftStart} → ⅓ day` };
+  return { amount: daySalary / 2, rule: `2+ hours after ${shiftStart} → half day` };
 }
 
 export function calcSalesCommission(

@@ -250,7 +250,11 @@ export function mapDashboardLead<T extends {
 
 const LEAD_LIST_SELECT = {
   ...CSR_DASHBOARD_LEAD_SELECT,
-    notes: {
+  subContacts: {
+    orderBy: { createdAt: "asc" as const },
+    select: { id: true, name: true, designation: true, phone: true, email: true, createdAt: true },
+  },
+  notes: {
     orderBy: { createdAt: "desc" as const },
     take: 5,
     select: { id: true, text: true, createdAt: true, parentId: true },

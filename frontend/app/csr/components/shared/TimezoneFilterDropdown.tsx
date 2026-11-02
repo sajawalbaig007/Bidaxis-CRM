@@ -45,7 +45,7 @@ export default function TimezoneFilterDropdown({ value, onChange, compact = fals
       >
         <Clock size={12} className={`shrink-0 sm:w-[14px] sm:h-[14px] ${value ? "text-[#B8112D]" : "text-gray-400"}`} />
         <span className="flex-1 text-left truncate text-[12px] sm:text-[13px]">
-          {selected ? (compact ? selected.abbr : `${selected.abbr} · ${selected.label}`) : (compact ? "Phone TZ" : "Phone TZ (ET/CT/MT/PT)")}
+          {selected ? (compact ? selected.abbr : `${selected.abbr} · ${selected.label}`) : (compact ? "Phone TZ" : "Phone TZ (ET/CT/MT/PT/AKT)")}
         </span>
         {value ? (
           <span

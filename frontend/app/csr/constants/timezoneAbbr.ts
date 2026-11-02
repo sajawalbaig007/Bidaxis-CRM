@@ -1,3 +1,5 @@
+import { collectLeadPhones } from "../utils/parsePhones";
+
 export const STATE_TIMEZONES: Record<string, { label: string; abbreviation: string }> = {
   "washington d c":       { label: "Eastern Time",           abbreviation: "ET"  },
   "washington dc":        { label: "Eastern Time",           abbreviation: "ET"  },
@@ -187,31 +189,38 @@ export function getLeadTimezoneAbbr(lead: {
   return getCompanyTimezoneAbbr(lead);
 }
 
-/** Map lead timezone to one of the 4 standard US zones (ET, CT, MT, PT) */
+/** Phone area-code timezone used by the filter. Alaska stays AKT. Arizona (MST) counts as Mountain. */
 export function normalizeStandardTimezone(abbr: string | null): string | null {
   if (!abbr) return null;
-  if (abbr === "MST") return "MT"; /* Arizona → Mountain */
-  if (abbr === "ET" || abbr === "CT" || abbr === "MT" || abbr === "PT") return abbr;
-  return null; /* AK, HI, etc. — not in standard 4 */
+  if (abbr === "MST") return "MT";
+  if (abbr === "ET" || abbr === "CT" || abbr === "MT" || abbr === "PT" || abbr === "AKT") return abbr;
+  return null;
 }
 
-/** Map lead timezone to one of the 4 standard US zones (ET, CT, MT, PT) — phone area code only */
-export function getLeadStandardTimezone(lead: { state?: string | null; phone?: string }): string | null {
+/** Exact area-code timezone of one phone number. */
+export function getLeadStandardTimezone(lead: { phone?: string | null }): string | null {
   if (!lead.phone) return null;
   return normalizeStandardTimezone(getTimezoneAbbrFromPhone(lead.phone));
 }
 
+/** A lead matches when any of its numbers has that exact area-code timezone. */
 export function leadMatchesTimezoneFilter(
-  lead: { state?: string | null; phone?: string },
+  lead: {
+    phone?: string | null;
+    subContacts?: Array<{ phone?: string | null }> | null;
+  },
   filterAbbr: string
 ): boolean {
   if (!filterAbbr) return true;
-  return getLeadStandardTimezone(lead) === filterAbbr;
+  const phones = collectLeadPhones(lead.phone, lead.subContacts);
+  const list = phones.length > 0 ? phones : lead.phone ? [lead.phone] : [];
+  return list.some(phone => normalizeStandardTimezone(getTimezoneAbbrFromPhone(phone)) === filterAbbr);
 }
 
 export const TIMEZONE_FILTER_OPTIONS = [
-  { abbr: "ET", label: "Eastern Time",  sub: "NY, FL, GA, OH, PA…" },
-  { abbr: "CT", label: "Central Time",  sub: "TX, IL, MO, MN, LA…" },
-  { abbr: "MT", label: "Mountain Time", sub: "CO, UT, AZ, NM, WY…" },
-  { abbr: "PT", label: "Pacific Time",  sub: "CA, WA, OR, NV…" },
+  { abbr: "ET",  label: "Eastern Time",  sub: "NY, FL, GA, OH, PA…" },
+  { abbr: "CT",  label: "Central Time",  sub: "TX, IL, MO, MN, LA…" },
+  { abbr: "MT",  label: "Mountain Time", sub: "CO, UT, AZ, NM, WY…" },
+  { abbr: "PT",  label: "Pacific Time",  sub: "CA, WA, OR, NV…" },
+  { abbr: "AKT", label: "Alaska Time",   sub: "AK · area code 907" },
 ] as const;

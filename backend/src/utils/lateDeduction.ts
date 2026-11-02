@@ -1,6 +1,6 @@
 import prisma from "../config/db";
 import { SEED_USER_EMAILS } from "../constants/seedUsers";
-import { DEPT_ROSTER } from "./staffAttendance";
+import { DEPT_ROSTER, attendanceShift } from "./staffAttendance";
 import { SHIFT_DEPARTMENTS } from "./shiftSchedule";
 
 export const PAY_PARTS = ["basic", "commission", "overtime", "allowance"] as const;
@@ -47,6 +47,30 @@ function minutesOf(value: string): number | null {
   if (!validClock(value)) return null;
   const [h, m] = value.split(":").map(Number);
   return h * 60 + m;
+}
+
+function shiftDepartment(policyDepartment: string, personKey = ""): string {
+  if (!personKey) return policyDepartment;
+  for (const [department, roster] of Object.entries(DEPT_ROSTER)) {
+    if (roster.some((person) => person.key === personKey)) return department;
+  }
+  return policyDepartment;
+}
+
+/** Check-in at or before the shift saved for that month is not late. */
+function arrivedByShiftStart(department: string, personKey: string, day: string, checkIn: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return false;
+  const window = attendanceShift(
+    shiftDepartment(department, personKey),
+    personKey,
+    new Date(`${day}T12:00:00+05:00`),
+  );
+  const arrived = minutesOf(checkIn);
+  const start = minutesOf(window.start);
+  if (arrived == null || start == null) return false;
+  if (arrived >= start) return arrived === start;
+  if (!window.overnight) return true;
+  return start - arrived <= 6 * 60;
 }
 
 function rangeHolds(checkIn: string, range: LateRange): boolean {
@@ -237,7 +261,7 @@ export function policyDeductionForDays(
     if (isPktWeekend(day) || skipDays?.has(day)) continue;
     const punch = byDay.get(day);
     const checkIn = String(punch?.checkIn ?? "").trim();
-    if (!checkIn) continue;
+    if (!checkIn || arrivedByShiftStart(department, person?.personKey ?? "", day, checkIn)) continue;
     const hit = pickLateRange(checkIn, row.ranges);
     if (hit) amount += perDay * hit.percent;
   }
@@ -264,7 +288,7 @@ export function monthLateAmountFor(
     if (isPktWeekend(day) || opts?.skipDays?.has(day)) continue;
     const punch = byDay.get(day);
     const checkIn = String(punch?.checkIn ?? "").trim();
-    if (!checkIn) continue;
+    if (!checkIn || arrivedByShiftStart(department, person?.personKey ?? "", day, checkIn)) continue;
     const hit = pickLateRange(checkIn, row.ranges);
     if (!hit) continue;
     amount += perDay * hit.percent;

@@ -2,7 +2,7 @@ import prisma from "../config/db";
 import { applyStaffPayrollToIncomeData } from "./loadStaffPayroll";
 import { leaveDaysFor } from "./paidLeave";
 import { attendanceNameMatch, punchNameMatch } from "./salaryAttendanceSync";
-import { addCalendarDays, DEPT_ROSTER } from "./staffAttendance";
+import { addCalendarDays, attendanceShift, DEPT_ROSTER } from "./staffAttendance";
 import {
   elapsedMonthDays,
   isPktWeekend,
@@ -46,7 +46,9 @@ function salesDeductionForDays(
   perDay: number,
   punches: AttendanceDay[] | undefined,
   dayList: string[],
-  skip?: ReadonlySet<string>,
+  skip: ReadonlySet<string> | undefined,
+  department: string,
+  personKey: string,
 ): number {
   const byDay = new Map((punches ?? []).filter((day) => day?.day).map((day) => [day.day, day]));
   let amount = 0;
@@ -54,7 +56,8 @@ function salesDeductionForDays(
     if (isPktWeekend(day) || skip?.has(day)) continue;
     const checkIn = String(byDay.get(day)?.checkIn ?? "").trim();
     if (!checkIn) continue;
-    amount += calcSalesLateDeduction(perDay, checkIn).amount;
+    const window = attendanceShift(department, personKey, new Date(`${day}T12:00:00+05:00`));
+    amount += calcSalesLateDeduction(perDay, checkIn, null, window.start, window.overnight).amount;
   }
   return amount;
 }
@@ -161,9 +164,12 @@ async function peopleForMonth(month: string, dayList: string[], monthDays: strin
       const skip = leaveDaysFor(name, approvedLeaves, month, person.personKey);
       const perDay = perDayForPolicy(department, month, amounts, person) ?? 0;
       const sales = !!sub.salesPayroll;
-      const cutFor = (days: string[]) => sales
-        ? salesDeductionForDays(perDay, punches, days, skip)
-        : policyDeductionForDays(department, month, amounts, punches ?? [], days, person, skip) ?? 0;
+      const cutFor = (days: string[]) => {
+        const fromPolicy = policyDeductionForDays(department, month, amounts, punches ?? [], days, person, skip);
+        if (fromPolicy != null) return fromPolicy;
+        if (!sales) return 0;
+        return salesDeductionForDays(perDay, punches, days, skip, department, person.personKey);
+      };
       const dayCut = cutFor(dayList);
       const monthCut = cutFor(monthDays);
       const rangeCut = cutFor(rangeDays);
