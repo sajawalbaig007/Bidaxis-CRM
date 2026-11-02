@@ -116,9 +116,8 @@ export default function AdminMailPage() {
       try {
         const res = await API.get("/mail/from-accounts", { ...live, params: { _: Date.now() } });
         list = readSenderList(res.data);
-      } catch (err) {
-        if (tick !== sendersTick.current) return;
-        toast.error(apiErrorMessage(err, "Could not load company emails."));
+      } catch {
+        /* hardcoded company emails below */
       }
     }
     if (tick !== sendersTick.current) return;
@@ -155,7 +154,7 @@ export default function AdminMailPage() {
   useEffect(() => {
     void loadSenders();
     void loadTemplate();
-    void loadLibrary().catch((err) => toast.error(apiErrorMessage(err, "Could not load clients from the database.")));
+    void loadLibrary().catch(() => undefined);
     const onFocus = () => {
       void loadSenders();
       void loadLibrary().catch(() => undefined);
@@ -208,10 +207,8 @@ export default function AdminMailPage() {
       const key = `${row.at}-${row.email}`;
       if (seenLog.current.has(key)) continue;
       seenLog.current.add(key);
-      if (row.ok) {
-        toast.success(`Sent: ${row.email}`);
-      } else {
-        toast.error(`Not sent: ${row.email}${row.error ? ` — ${row.error}` : ""}`);
+      if (!row.ok) {
+        toast.error(`Not sent: ${row.email}`, { id: `mail-fail-${row.email}` });
       }
     }
   }, [status]);
@@ -316,7 +313,7 @@ export default function AdminMailPage() {
       setStatus(res.data as Status);
       toast.success("First email is going out now. Sent addresses drop off this list. Failed stays with the error.");
     } catch (err) {
-      toast.error(apiErrorMessage(err, "Could not start."));
+      toast.error(apiErrorMessage(err, "Could not start."), { id: "mail-start" });
     } finally {
       setStarting(false);
     }

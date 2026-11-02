@@ -152,7 +152,7 @@ API.interceptors.response.use(
       }).catch(() => {});
       setClientAuthToken(null);
       void fetch("/api/auth/clear-session", { method: "POST", credentials: "include" });
-      toast.error("Session expired. Please log in again.", { duration: 4000 });
+      toast.error("Session expired. Please log in again.", { duration: 4000, id: "session-expired" });
       setTimeout(() => { window.location.href = "/"; }, 1200);
     }
     return Promise.reject(err);
@@ -161,28 +161,24 @@ API.interceptors.response.use(
 
 export default API;
 
+function isOpsNoise(message: string): boolean {
+  return /BACKEND_URL|Vercel|Render URL|npm run dev|localhost:5000|127\.0\.0\.1/i.test(message);
+}
+
 export function apiErrorMessage(err: unknown, fallback = "Something went wrong."): string {
   const e = err as {
     response?: { status?: number; data?: { message?: string } };
     code?: string;
     message?: string;
   };
-  if (e?.response?.data?.message) return e.response.data.message;
-  if (e?.response?.status === 404) {
-    return isLocalHost()
-      ? "API route not ready. Refresh once and try again — backend should be on port 5000."
-      : fallback;
+  const serverMsg = String(e?.response?.data?.message ?? "").trim();
+  if (serverMsg && !isOpsNoise(serverMsg)) return serverMsg;
+  const status = e?.response?.status;
+  if (status === 404) return fallback;
+  if (status === 429) return "Too many attempts. Please wait and try again.";
+  if (e?.code === "ECONNABORTED" || status === 408) return "Request timed out. Please try again.";
+  if (!e?.response || status === 502 || status === 503 || status === 504) {
+    return fallback === "Something went wrong." ? "Could not reach the server. Try again." : fallback;
   }
-  if (e?.response?.status === 502) {
-    return isLocalHost()
-      ? "Cannot reach backend. Start it: cd backend && npm run dev"
-      : "API server unreachable. Set BACKEND_URL on Vercel to your Render backend URL.";
-  }
-  if (e?.response?.status === 429) return "Too many attempts. Please wait and try again.";
-  if (!e?.response) {
-    if (isLocalHost()) return "Cannot reach backend. Start it: cd backend && npm run dev";
-    return "Cannot reach server. Check BACKEND_URL on Vercel.";
-  }
-  if (e?.code === "ECONNABORTED") return "Request timed out. Please try again.";
   return fallback;
 }
