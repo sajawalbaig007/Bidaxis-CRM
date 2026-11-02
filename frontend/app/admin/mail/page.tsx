@@ -337,7 +337,7 @@ export default function AdminMailPage() {
           senderId: from?.id ?? "",
           senderEmail: from?.email ?? "",
         },
-        { timeout: 90_000 },
+        { timeout: 40_000 },
       );
       libraryTick.current += 1;
       applyLibrary(res.data);

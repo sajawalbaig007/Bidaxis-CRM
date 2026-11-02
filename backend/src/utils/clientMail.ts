@@ -49,9 +49,9 @@ function looksLikeGoogleAppPassword(pass: string): boolean {
 }
 
 function usesGoogleSmtp(sender: Pick<MailSender, "email" | "pass" | "host">): boolean {
+  if (emailDomain(sender.email) === "bidaxis.co") return false;
   if (isGmailAddress(sender.email)) return true;
-  if ((sender.host ?? "").toLowerCase().includes("gmail")) return true;
-  return looksLikeGoogleAppPassword(sender.pass);
+  return false;
 }
 
 function readOptionalPort(raw: string): number | undefined {
@@ -94,10 +94,7 @@ function readSlot(n: 1 | 2 | 3 | 4): MailSender | null {
   const pass = cleanSecret(process.env[`CRM_FROM_PASS_${n}`] ?? "").replace(/\s/g, "");
   const name = (process.env[`CRM_FROM_NAME_${n}`] ?? "").trim() || email;
   if (!email || !pass || !isValidEmail(email)) return null;
-  const google = looksLikeGoogleAppPassword(pass);
-  const host = google
-    ? "smtp.gmail.com"
-    : (process.env[`CRM_FROM_HOST_${n}`] ?? "").trim() || inferSmtpHost(email);
+  const host = (process.env[`CRM_FROM_HOST_${n}`] ?? "").trim() || inferSmtpHost(email);
   const port = readOptionalPort(process.env[`CRM_FROM_PORT_${n}`] ?? "") ?? (host ? 465 : undefined);
   const secureRaw = (process.env[`CRM_FROM_SECURE_${n}`] ?? "").trim().toLowerCase();
   const secure = secureRaw === "true" ? true : secureRaw === "false" ? false : port === 465 ? true : undefined;
@@ -130,11 +127,12 @@ function smtpHosts(sender: MailSender): string[] {
     const value = (host ?? "").trim();
     if (value && !out.includes(value)) out.push(value);
   };
-  if (usesGoogleSmtp(sender)) push("smtp.gmail.com");
   if (emailDomain(sender.email) === "bidaxis.co") {
     push("smtp.titan.email");
     push("smtpout.secureserver.net");
+    return out;
   }
+  if (usesGoogleSmtp(sender)) push("smtp.gmail.com");
   push(sender.host);
   push(inferSmtpHost(sender.email));
   return out;
@@ -179,17 +177,17 @@ function toPublicSender(sender: MailSender): MailSenderPublic {
 
 function rowToSender(row: { id: string; email: string; name: string; pass: string; host?: string | null; port?: number | null; secure?: boolean | null }): MailSender {
   const email = row.email.trim();
-  const google = looksLikeGoogleAppPassword(row.pass) || isGmailAddress(email) || (row.host ?? "").toLowerCase().includes("gmail");
-  const host = google ? "smtp.gmail.com" : ((row.host ?? "").trim() || inferSmtpHost(email));
-  const port = google ? 465 : (row.port && row.port > 0 ? row.port : host ? 465 : undefined);
+  const google = isGmailAddress(email);
+  const host = google ? "smtp.gmail.com" : ((row.host ?? "").trim() || inferSmtpHost(email) || "smtp.titan.email");
+  const port = google ? 465 : (row.port && row.port > 0 ? row.port : 465);
   return {
     id: `g:${row.id}`,
     email,
     name: row.name || email,
     pass: row.pass,
-    host: google ? "smtp.gmail.com" : host,
+    host: google ? "smtp.gmail.com" : (host.includes("gmail") ? "smtp.titan.email" : host),
     port,
-    secure: google ? true : row.secure ?? (port === 465),
+    secure: true,
   };
 }
 
@@ -239,13 +237,18 @@ export async function syncCompanyMailboxesFromEnv(): Promise<void> {
   const slots = listConfiguredSenders();
   for (const sender of slots) {
     const email = sender.email.toLowerCase();
-    const envGoogle = looksLikeGoogleAppPassword(sender.pass);
     const existing = await prisma.linkedMailbox.findUnique({ where: { email } });
-    const keepDbPass = !!(existing?.pass && looksLikeGoogleAppPassword(existing.pass) && !envGoogle);
-    const pass = keepDbPass ? existing!.pass : sender.pass;
-    const google = looksLikeGoogleAppPassword(pass);
-    const host = google ? "smtp.gmail.com" : sender.host || inferSmtpHost(email) || "";
-    const port = google ? 465 : sender.port ?? sslSmtpPort(host);
+    const keepGooglePass = !!(
+      existing?.pass
+      && looksLikeGoogleAppPassword(existing.pass)
+      && isGmailAddress(email)
+      && !looksLikeGoogleAppPassword(sender.pass)
+    );
+    const pass = keepGooglePass ? existing!.pass : sender.pass;
+    const host = isGmailAddress(email)
+      ? "smtp.gmail.com"
+      : (sender.host && !sender.host.includes("gmail") ? sender.host : inferSmtpHost(email) || "smtp.titan.email");
+    const port = sender.port ?? sslSmtpPort(host);
     await prisma.linkedMailbox.upsert({
       where: { email },
       create: {
@@ -258,7 +261,7 @@ export async function syncCompanyMailboxesFromEnv(): Promise<void> {
       },
       update: {
         name: sender.name,
-        ...(keepDbPass ? {} : { pass }),
+        ...(keepGooglePass ? {} : { pass }),
         host,
         port,
         secure: true,
@@ -383,9 +386,9 @@ export async function sendClientMail(opts: {
             secure: port.secure,
             requireTLS: port.requireTLS,
             auth: { user: opts.sender.email, pass },
-            connectionTimeout: 12_000,
-            greetingTimeout: 12_000,
-            socketTimeout: 20_000,
+            connectionTimeout: 8_000,
+            greetingTimeout: 8_000,
+            socketTimeout: 15_000,
             tls: { minVersion: "TLSv1.2" },
           });
           await transporter.sendMail(mail);
@@ -405,6 +408,12 @@ export async function sendClientMail(opts: {
     }
   }
   const detail = lastErr instanceof Error ? lastErr.message : String(lastErr ?? "unknown");
+  const code = (lastErr as { code?: string } | undefined)?.code ?? "";
+  if (code === "EAUTH" || /authentication|invalid login/i.test(detail)) {
+    throw new Error(
+      `GoDaddy/Titan rejected the mailbox login for ${opts.sender.email}. Use the password from Titan webmail (secureserver.titan.email), not a Google app password.`,
+    );
+  }
   throw new Error(`Could not send from ${opts.sender.email} (${detail})`);
 }
 
@@ -438,9 +447,9 @@ export async function verifyMailboxLogin(sender: MailSender): Promise<void> {
             secure: port.secure,
             requireTLS: port.requireTLS,
             auth: { user: sender.email, pass },
-            connectionTimeout: 12_000,
-            greetingTimeout: 12_000,
-            socketTimeout: 20_000,
+            connectionTimeout: 8_000,
+            greetingTimeout: 8_000,
+            socketTimeout: 15_000,
             tls: { minVersion: "TLSv1.2" },
           });
           await transporter.verify();
