@@ -1,5 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import prisma from "../config/db";
+import { getCache, setCache } from "./cache";
 import {
   importantOnlyWhere,
   isImportantStatusWhere,

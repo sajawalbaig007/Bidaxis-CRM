@@ -71,6 +71,7 @@ export type CsrTabLeadsPayload = {
   leads: unknown[];
   total: number;
   totalPages: number;
+  sources?: string[];
 };
 
 export type CsrTableFilterParams = {

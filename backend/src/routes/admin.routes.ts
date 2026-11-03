@@ -5,7 +5,7 @@ import { verifyToken } from "../middleware/auth.middleware";
 import { allowRoles } from "../middleware/role.middleware";
 import { getCache, setCache, invalidateCache, invalidatePattern, flushAdminClientsCache } from "../utils/cache";
 import { notifyCsrDataReset, notifyAdminSummaryStale } from "../chat/chatSocket";
-import { invalidateCsrLeadCaches } from "../utils/csrCache";
+import { invalidateCsrCachesForSource, invalidateCsrLeadCaches } from "../utils/csrCache";
 import { purgeCsrLeads } from "../utils/purgeCsrLeads";
 import { CSR_RESET_GROUPS, normalizeCsrResetScopes } from "../utils/csrResetPages";
 import { countLeadStatuses } from "../utils/uploadSourceStats";

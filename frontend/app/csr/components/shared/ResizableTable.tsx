@@ -16,7 +16,7 @@ function resizeEdgeIndex(th: HTMLTableCellElement, clientX: number): number | nu
 }
 
 function storageKey(tableId: string, count: number) {
-  return `crm-colw:${tableId}:${count}`;
+  return `crm-colw2:${tableId}:${count}`;
 }
 
 function percentsToPixels(widths: readonly string[], containerWidth: number): number[] {
@@ -58,27 +58,16 @@ function readSaved(tableId: string, count: number): number[] | null {
   }
 }
 
-/** Excel-style column drag. Widths are saved in this browser. */
-export default function ResizableTable({
-  tableId,
-  defaultWidths,
-  className,
-  children,
-}: {
-  tableId: string;
-  defaultWidths: readonly string[];
-  className?: string;
-  children: React.ReactNode;
-}) {
-  const wrapRef = useRef<HTMLDivElement>(null);
-  const widthsRef = useRef<number[]>([]);
-  const [widths, setWidths] = useState<number[] | null>(null);
-  const [box, setBox] = useState(0);
   const count = defaultWidths.length;
   const defaultsKey = defaultWidths.join("|");
 
   useEffect(() => {
-    const el = wrapRef.current;
+    const saved = readSaved(tableId, count);
+    const width = wrapRef.current?.clientWidth || 1100;
+    const next = saved ?? percentsToPixels(defaultWidths, width);
+    widthsRef.current = next;
+    setWidths(next);
+  }, [tableId, count, defaultsKey]);
     if (!el) return;
     const measure = () => setBox(el.clientWidth);
     measure();
@@ -90,27 +79,8 @@ export default function ResizableTable({
   useEffect(() => {
     const saved = readSaved(tableId, count);
     const width = box || wrapRef.current?.clientWidth || 1100;
-    const next = fitColumns(saved ?? percentsToPixels(defaultWidths, width), width);
-    widthsRef.current = next;
-    setWidths(next);
-  }, [tableId, count, defaultsKey, box]);
-
-  const onMouseDown = (event: React.MouseEvent) => {
-    if (!widthsRef.current.length) return;
-    const th = (event.target as HTMLElement).closest("th");
-    if (!th) return;
-    const index = resizeEdgeIndex(th, event.clientX);
-    if (index == null || index >= widthsRef.current.length) return;
-    event.preventDefault();
-    const startX = event.clientX;
-    const startW = widthsRef.current[index] ?? MIN_COL;
-    const move = (ev: MouseEvent) => {
-      const current = widthsRef.current.slice();
-      const grown = Math.max(MIN_COL, Math.round(startW + ev.clientX - startX));
-      const delta = grown - current[index];
-      current[index] = grown;
-      let left = delta;
-      const order = current.map((_, i) => i).filter(i => i !== index);
+      const next = widthsRef.current.slice();
+      next[index] = Math.max(MIN_COL, Math.round(startW + ev.clientX - startX));
       for (const i of order) {
         if (left === 0) break;
         if (left > 0) {
@@ -137,13 +107,14 @@ export default function ResizableTable({
       } catch {
         /* ignore quota */
       }
-    };
-    window.addEventListener("mousemove", move);
-    window.addEventListener("mouseup", up);
-  };
+  const px = widths ?? percentsToPixels(defaultWidths, 1100);
+  const sum = px.reduce((total, n) => total + n, 0);
 
-  const onMouseMove = (event: React.MouseEvent) => {
-    const th = (event.target as HTMLElement).closest("th");
+  return (
+    <div ref={wrapRef} className="w-full min-w-0 overflow-x-auto">
+      <table
+        className={`${className ?? ""} crm-col-resize`}
+        style={{ width: sum, minWidth: sum }}
     const table = event.currentTarget as HTMLTableElement;
     if (!th || resizeEdgeIndex(th, event.clientX) == null) {
       table.style.cursor = "";

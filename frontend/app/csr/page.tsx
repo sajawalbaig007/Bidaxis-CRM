@@ -95,7 +95,7 @@ export default function CSRPage() {
 
   const tabKey = (activeTab === "today" || activeTab === "dialer" ? "pending" : activeTab) as CsrTabKey;
   const { stats, loading: statsLoading, refetch: refetchStats } = useCsrStats(monthFrom || undefined, monthTo || undefined, tableFilters);
-  const { leads, setLeads, total: tabTotal, totalPages: serverTotalPages, loading: tabLoading, refetch: refetchTab } =
+  const { leads, setLeads, sourceOptions, total: tabTotal, totalPages: serverTotalPages, loading: tabLoading, refetch: refetchTab } =
     useCsrTabLeads(tabKey, page, monthFrom || undefined, monthTo || undefined, tableFilters);
   const loading = statsLoading || tabLoading;
   const refetch = () => { void refetchStats(); void refetchTab(true); };
@@ -186,12 +186,18 @@ export default function CSRPage() {
 
   const sourceSudoOptions = useMemo(() => {
     const names = new Set<string>();
+    sourceOptions.forEach(name => {
+      const s = name.trim();
+      if (s) names.add(s);
+    });
     visibleLeads.forEach(l => {
       const s = l.sourceSudoName?.trim();
       if (s) names.add(s);
     });
+    const selected = sourceFilter.trim();
+    if (selected) names.add(selected);
     return [...names].sort((a, b) => a.localeCompare(b));
-  }, [visibleLeads]);
+  }, [sourceOptions, visibleLeads, sourceFilter]);
 
   const tradeFilterOptions = MASTER_FORMAT_TRADES;
 

@@ -126,6 +126,7 @@ export function useCsrTabLeads(
   filters?: CsrTableFilterParams,
 ) {
   const [leads, setLeads] = useState<Lead[]>([]);
+  const [sourceOptions, setSourceOptions] = useState<string[]>([]);
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(true);
