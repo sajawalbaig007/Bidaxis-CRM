@@ -6,7 +6,7 @@ import {
   type MailSignature,
 } from "./mailSignatures";
 import { bidaxisFooterFor } from "./bidaxisFooters";
-import { createSmtpTransport } from "./smtpIpv4";
+import { createGmailTransport, createSmtpTransport } from "./smtpIpv4";
 import prisma from "../config/db";
 
 export type MailSenderPublic = {
@@ -73,24 +73,11 @@ async function sendViaGmail(opts: {
   if (!user || !pass) {
     throw new Error(`Gmail app password is missing for ${user || "this mailbox"}.`);
   }
-  const ports: Array<{ port: number; secure: boolean }> = [
-    { port: 465, secure: true },
-    { port: 587, secure: false },
-  ];
+  const ports: Array<465 | 587> = [465, 587];
   let lastErr: unknown;
   for (const port of ports) {
     try {
-      const transporter = createSmtpTransport({
-        host: "smtp.gmail.com",
-        port: port.port,
-        secure: port.secure,
-        requireTLS: !port.secure,
-        auth: { user, pass },
-        connectionTimeout: 8_000,
-        greetingTimeout: 8_000,
-        socketTimeout: 12_000,
-        tls: { minVersion: "TLSv1.2", servername: "smtp.gmail.com" },
-      });
+      const transporter = await createGmailTransport({ user, pass }, port);
       await transporter.sendMail(opts.mail);
       return;
     } catch (err) {

@@ -4,27 +4,36 @@ import nodemailer from "nodemailer";
 try {
   dns.setDefaultResultOrder("ipv4first");
 } catch {
-  /* Node without setDefaultResultOrder */
+  /* older Node */
 }
 
-/** Render has no IPv6 route to Gmail (ENETUNREACH ::). Force A records only. */
-export function lookupIpv4(
-  hostname: string,
-  options: unknown,
-  callback?: (err: NodeJS.ErrnoException | null, address: string, family: number) => void,
-): void {
-  const cb = typeof options === "function"
-    ? (options as (err: NodeJS.ErrnoException | null, address: string, family: number) => void)
-    : callback;
-  dns.lookup(hostname, { family: 4 }, (err, address, family) => {
-    cb?.(err, address, family);
-  });
+/** Render cannot route to Gmail IPv6 (ENETUNREACH ::). Resolve A record only. */
+export async function resolveIpv4(hostname: string): Promise<string> {
+  const { address } = await dns.promises.lookup(hostname, { family: 4 });
+  if (!address) throw new Error(`No IPv4 address for ${hostname}`);
+  return address;
 }
 
 export function createSmtpTransport(options: Record<string, unknown>) {
   return nodemailer.createTransport({
-    family: 4,
-    lookup: lookupIpv4,
     ...options,
+    family: 4,
   } as Parameters<typeof nodemailer.createTransport>[0]);
+}
+
+export async function createGmailTransport(auth: { user: string; pass: string }, port: 465 | 587) {
+  const ipv4 = await resolveIpv4("smtp.gmail.com");
+  const secure = port === 465;
+  return createSmtpTransport({
+    host: ipv4,
+    port,
+    secure,
+    requireTLS: !secure,
+    name: "smtp.gmail.com",
+    auth,
+    connectionTimeout: 12_000,
+    greetingTimeout: 10_000,
+    socketTimeout: 20_000,
+    tls: { minVersion: "TLSv1.2", servername: "smtp.gmail.com" },
+  });
 }

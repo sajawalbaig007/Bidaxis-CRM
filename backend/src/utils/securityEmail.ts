@@ -1,28 +1,26 @@
 import { detectBrowser } from "./sessions";
-import { createSmtpTransport } from "./smtpIpv4";
+import { createGmailTransport } from "./smtpIpv4";
 
 const SMTP_USER = process.env.SMTP_USER || "";
 const SMTP_PASS = (process.env.SMTP_PASS || "").replace(/\s/g, "");
 
-const transporter = createSmtpTransport({
-  host: "smtp.gmail.com",
-  port: 465,
-  secure: true,
-  auth: { user: SMTP_USER, pass: SMTP_PASS },
-  pool: true,
-  connectionTimeout: 8_000,
-  greetingTimeout: 8_000,
-  socketTimeout: 12_000,
-});
+let cached: Awaited<ReturnType<typeof createGmailTransport>> | null = null;
 
 function sendMail(opts: { to: string; subject: string; html: string }): void {
   if (!SMTP_USER || !SMTP_PASS) return;
-  transporter.sendMail({
-    from:    `"BidAxis" <${SMTP_USER}>`,
-    to:      opts.to,
-    subject: opts.subject,
-    html:    opts.html,
-  }).catch((err) => console.log("[Security Email]", err));
+  void (async () => {
+    try {
+      if (!cached) cached = await createGmailTransport({ user: SMTP_USER, pass: SMTP_PASS }, 465);
+      await cached.sendMail({
+        from: `"BidAxis" <${SMTP_USER}>`,
+        to: opts.to,
+        subject: opts.subject,
+        html: opts.html,
+      });
+    } catch (err) {
+      console.log("[Security Email]", err);
+    }
+  })();
 }
 
 export function sendOTPEmail(to: string, otp: string): void {
