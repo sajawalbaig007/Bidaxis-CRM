@@ -246,7 +246,7 @@ export function leadTradeAndSubtradeNames(
 ): string[] {
   const seen = new Set<string>();
   const out: string[] = [];
-  for (const name of [...parseTradeList(trade), ...parseSubTradeList(subTrades)]) {
+  for (const name of [...parseTradeList(trade), ...parseTradeList(subTrades)]) {
     const key = name.toLowerCase();
     if (seen.has(key)) continue;
     seen.add(key);

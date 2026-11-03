@@ -6,6 +6,7 @@ import { Hammer, Pencil, Plus, Search, Trash2, X, Check } from "lucide-react";
 import { useFixedPopover } from "../../hooks/useFixedPopover";
 import {
   MASTER_FORMAT_TRADES,
+  leadTradeAndSubtradeNames,
   parseSubTradeList,
   parseTradeList,
   parseTradeNotes,
@@ -28,8 +29,7 @@ export default function TradesCell({
   onSave,
   className = "",
 }: TradesCellProps) {
-  const trades = parseTradeList(trade);
-  const hiddenCount = Math.max(0, trades.length - 1);
+  const trades = leadTradeAndSubtradeNames(trade, subTrades);
   const catalog = pickerCatalog(trades);
   const { open, toggle, setOpen, anchorRef, panelRef, style } = useFixedPopover(340, 420);
 
@@ -93,18 +93,16 @@ export default function TradesCell({
       </span>
     ) : (
       <div className={`flex flex-wrap items-center gap-1 min-w-0 ${className}`}>
-        <span
-          className="inline-flex items-center gap-1 bg-[#FFF1F3] text-[#B8112D] font-semibold px-2 py-0.5 rounded-lg text-[10px] sm:text-xs max-w-[120px]"
-          title={trades[0]}
-        >
-          <Hammer size={9} className="shrink-0" />
-          <span className="truncate">{trades[0]}</span>
-        </span>
-        {hiddenCount > 0 && (
-          <span className="bg-[#B8112D] text-white text-[9px] font-bold px-1.5 py-0.5 rounded-md shrink-0">
-            +{hiddenCount}
+        {trades.map(name => (
+          <span
+            key={name}
+            className="inline-flex items-center gap-1 bg-[#FFF1F3] text-[#B8112D] font-semibold px-2 py-0.5 rounded-lg text-[10px] sm:text-xs max-w-[160px]"
+            title={name}
+          >
+            <Hammer size={9} className="shrink-0" />
+            <span className="truncate">{name}</span>
           </span>
-        )}
+        ))}
         {onSave && <Pencil size={10} className="shrink-0 text-[#B8112D] opacity-70" />}
       </div>
     );
