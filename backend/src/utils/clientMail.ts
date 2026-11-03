@@ -1,4 +1,3 @@
-import nodemailer from "nodemailer";
 import {
   getMailSignature,
   resolveMailBrand,
@@ -7,6 +6,7 @@ import {
   type MailSignature,
 } from "./mailSignatures";
 import { bidaxisFooterFor } from "./bidaxisFooters";
+import { createSmtpTransport } from "./smtpIpv4";
 import prisma from "../config/db";
 
 export type MailSenderPublic = {
@@ -80,7 +80,7 @@ async function sendViaGmail(opts: {
   let lastErr: unknown;
   for (const port of ports) {
     try {
-      const transporter = nodemailer.createTransport({
+      const transporter = createSmtpTransport({
         host: "smtp.gmail.com",
         port: port.port,
         secure: port.secure,
@@ -456,7 +456,7 @@ export async function sendClientMail(opts: {
     for (const host of hosts) {
       for (const port of ports) {
         try {
-          const transporter = nodemailer.createTransport({
+          const transporter = createSmtpTransport({
             host,
             port: port.port,
             secure: port.secure,
@@ -497,9 +497,14 @@ export async function sendClientMail(opts: {
 export async function verifyMailboxLogin(sender: MailSender): Promise<void> {
   if (usesGoogleSmtp(sender)) {
     try {
-      const transporter = nodemailer.createTransport({
-        service: "gmail",
+      const transporter = createSmtpTransport({
+        host: "smtp.gmail.com",
+        port: 465,
+        secure: true,
         auth: { user: sender.email, pass: sender.pass.replace(/\s/g, "") },
+        connectionTimeout: 8_000,
+        greetingTimeout: 8_000,
+        socketTimeout: 12_000,
       });
       await transporter.verify();
       return;
@@ -517,7 +522,7 @@ export async function verifyMailboxLogin(sender: MailSender): Promise<void> {
     for (const host of hosts) {
       for (const port of ports) {
         try {
-          const transporter = nodemailer.createTransport({
+          const transporter = createSmtpTransport({
             host,
             port: port.port,
             secure: port.secure,

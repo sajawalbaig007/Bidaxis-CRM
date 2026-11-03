@@ -1,6 +1,13 @@
 import http from "http";
+import dns from "node:dns";
 import dotenv from "dotenv";
 dotenv.config();
+
+try {
+  dns.setDefaultResultOrder("ipv4first");
+} catch {
+  /* older Node */
+}
 
 import { getJwtSecret } from "./config/security";
 import { validateEnv } from "./config/env";

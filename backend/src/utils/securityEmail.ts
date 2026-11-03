@@ -1,13 +1,18 @@
-import nodemailer from "nodemailer";
 import { detectBrowser } from "./sessions";
+import { createSmtpTransport } from "./smtpIpv4";
 
 const SMTP_USER = process.env.SMTP_USER || "";
-const SMTP_PASS = process.env.SMTP_PASS || "";
+const SMTP_PASS = (process.env.SMTP_PASS || "").replace(/\s/g, "");
 
-const transporter = nodemailer.createTransport({
-  service: "gmail",
+const transporter = createSmtpTransport({
+  host: "smtp.gmail.com",
+  port: 465,
+  secure: true,
   auth: { user: SMTP_USER, pass: SMTP_PASS },
   pool: true,
+  connectionTimeout: 8_000,
+  greetingTimeout: 8_000,
+  socketTimeout: 12_000,
 });
 
 function sendMail(opts: { to: string; subject: string; html: string }): void {
