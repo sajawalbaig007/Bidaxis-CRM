@@ -279,6 +279,9 @@ router.put(
 router.get("/csrs", verifyToken, allowRoles("admin", "manager", "technical_manager"), async (req, res) => {
   try {
     const role = req.query.role === "bim" ? "bim" : req.query.role === "estimator" ? "estimator" : "csr";
+    const cacheKey = `admin:csrs:${role}`;
+    const cached = getCache<object>(cacheKey);
+    if (cached) return res.json(cached);
 
     const csrs = await prisma.user.findMany({
       where: {
@@ -294,16 +297,16 @@ router.get("/csrs", verifyToken, allowRoles("admin", "manager", "technical_manag
         isOnline: true,
         lastActive: true,
         createdAt: true,
-        _count: { select: { leads: true } },
       },
       orderBy: { csrCode: "asc" },
     });
 
     const payload = { success: true, csrs };
+    setCache(cacheKey, payload, 60_000);
     return res.json(payload);
   } catch (error) {
     console.log(error);
-    return res.status(500).json({ success: false, message: "Failed to fetch CSRs" });
+    return res.status(500).json({ success: false, message: "Could not load the CSR list" });
   }
 });
 
@@ -396,7 +399,7 @@ router.get("/clients/summary", verifyToken, allowRoles("admin", "manager", "tech
     if (cached) return res.json(cached);
 
     const payload = await buildAdminClientSummaryPayload();
-    setCache(CACHE_KEY, payload, 180_000);
+    setCache(CACHE_KEY, payload, 300_000);
     return res.json(payload);
   } catch (error) {
     console.log(error);

@@ -127,7 +127,7 @@ export default function AdminBinPage() {
     setSelectedCsrId("");
     setShowReassign(true);
     if (csrOptions.length === 0) {
-      API.get("/admin/csrs").then(res => setCsrOptions(res.data.csrs ?? [])).catch(() => toast.error("Failed to load CSRs."));
+      API.get("/admin/csrs").then(res => setCsrOptions(res.data.csrs ?? [])).catch(() => {});
     }
   };
 

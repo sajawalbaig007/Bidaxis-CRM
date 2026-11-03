@@ -133,25 +133,21 @@ export async function isRemovedFromProjectDb(leadId: string): Promise<boolean> {
   return true;
 }
 
-const CHILD_CHUNK = 5000;
-const CHILD_PARALLEL = 4;
+const DELETE_CHUNK = 8000;
 
-async function runPool(jobs: Array<() => Promise<unknown>>, limit: number): Promise<void> {
-  if (jobs.length === 0) return;
-  let next = 0;
-  const workers = Array.from({ length: Math.min(limit, jobs.length) }, async () => {
-    while (next < jobs.length) {
-      const job = jobs[next];
-      next += 1;
-      await job();
-    }
-  });
-  await Promise.all(workers);
+async function rawDeleteIn(collection: string, field: string, ids: string[]): Promise<void> {
+  for (let i = 0; i < ids.length; i += DELETE_CHUNK) {
+    const slice = ids.slice(i, i + DELETE_CHUNK);
+    await prisma.$runCommandRaw({
+      delete: collection,
+      deletes: [{ q: { [field]: { $in: slice } }, limit: 0 }],
+    });
+  }
 }
 
 /**
- * Permanently remove every lead tied to one upload file.
- * One indexed lead delete, plus a few parallel child deletes — not one row at a time.
+ * Permanently remove every lead tied to one upload file, including notes,
+ * sub-contacts, and call logs. One bulk delete per collection, not one row at a time.
  */
 export async function hardDeleteLeadsForUpload(uploadFileId: string): Promise<{ deleted: number; csrIds: string[] }> {
   const leads = await prisma.lead.findMany({
@@ -160,23 +156,25 @@ export async function hardDeleteLeadsForUpload(uploadFileId: string): Promise<{ 
   });
   if (leads.length === 0) return { deleted: 0, csrIds: [] };
 
+  const ids = leads.map((lead) => lead.id);
   const csrIds = [...new Set(leads.map((lead) => lead.assignedTo).filter(Boolean))];
-  const chunks: string[][] = [];
-  for (let i = 0; i < leads.length; i += CHILD_CHUNK) {
-    chunks.push(leads.slice(i, i + CHILD_CHUNK).map((lead) => lead.id));
+
+  await Promise.all([
+    rawDeleteIn("LeadNote", "leadId", ids),
+    rawDeleteIn("SubContact", "leadId", ids),
+    rawDeleteIn("CallLog", "leadId", ids),
+  ]);
+  await prisma.$runCommandRaw({
+    delete: "Lead",
+    deletes: [{ q: { uploadedFileId: uploadFileId }, limit: 0 }],
+  });
+
+  const leftover = await prisma.lead.count({ where: { uploadedFileId: uploadFileId } });
+  if (leftover > 0) {
+    await prisma.lead.deleteMany({ where: { uploadedFileId: uploadFileId } });
   }
 
-  await runPool(
-    chunks.map((ids) => () => Promise.all([
-      prisma.leadNote.deleteMany({ where: { leadId: { in: ids } } }),
-      prisma.subContact.deleteMany({ where: { leadId: { in: ids } } }),
-      prisma.callLog.deleteMany({ where: { leadId: { in: ids } } }),
-    ])),
-    CHILD_PARALLEL,
-  );
-
-  const removed = await prisma.lead.deleteMany({ where: { uploadedFileId: uploadFileId } });
-  return { deleted: removed.count, csrIds };
+  return { deleted: ids.length, csrIds };
 }
 
 /** Clear CSR + admin caches so dashboards reflect DB deletions immediately */

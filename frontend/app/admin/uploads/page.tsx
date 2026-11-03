@@ -431,11 +431,13 @@ export default function UploadPage() {
     }
   };
 
-  const fetchCSRs = async () => {
+  const fetchCSRs = async (silent = false) => {
     try {
-      const res = await API.get("/admin/csrs");
-      setCsrs(res.data.csrs);
-    } catch { toast.error("Failed to fetch CSRs"); }
+      const res = await API.get("/admin/csrs", { timeout: 20_000 });
+      setCsrs(res.data.csrs ?? []);
+    } catch {
+      if (!silent) toast.error("Could not load the CSR list. Try again.");
+    }
   };
 
   const openReassignModal = async () => {
@@ -673,7 +675,7 @@ export default function UploadPage() {
   };
 
   useEffect(() => {
-    const load = async () => { await fetchLatestUpload(); await fetchCSRs(); await fetchUploadSources(); await fetchTrades(); };
+    const load = async () => { await fetchLatestUpload(); await fetchCSRs(true); await fetchUploadSources(); await fetchTrades(); };
     load();
   }, []);
 

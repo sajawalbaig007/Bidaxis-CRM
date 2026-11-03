@@ -14,20 +14,18 @@ import {
 } from "./adminClientQueries";
 import {
   addDaysToYmd,
+  BUSINESS_DAY_START_HOUR,
+  BUSINESS_TIMEZONE,
   businessChartSinceUtc,
   businessDayStartUtc,
-  businessHourBucketKey,
   currentBusinessYmd,
   fmtMonthShortFromYmd,
   fmtShortDateFromYmd,
   fmtWeekDayFromYmd,
-  getBusinessYmd,
   initBusinessHourBuckets,
-  isSameBusinessDay,
 } from "./businessCalendar";
 
 const CHART_DAYS = 45;
-const LOG_BATCH = 2000;
 
 export type ChartSeriesPoint = { label: string; calls: number };
 export type ChartSeries = {
@@ -96,27 +94,6 @@ function pickYearBucketKey(bizYmd: string, yearKeys: string[]): string | null {
   return yearKeys.find(k => fmtMonthShortFromYmd(k) === month) ?? null;
 }
 
-function bumpChartBuckets(
-  buckets: ReturnType<typeof initChartBuckets>,
-  createdAt: Date,
-  now: Date,
-) {
-  const bizYmd = getBusinessYmd(createdAt);
-
-  if (isSameBusinessDay(createdAt, now)) {
-    const hourKey = businessHourBucketKey(createdAt);
-    if (hourKey in buckets.today) buckets.today[hourKey]++;
-  }
-
-  if (bizYmd in buckets.week) buckets.week[bizYmd]++;
-
-  const monthKey = pickMonthBucketKey(bizYmd, buckets.monthKeys);
-  if (monthKey && monthKey in buckets.month) buckets.month[monthKey]++;
-
-  const yearKey = pickYearBucketKey(bizYmd, buckets.yearKeys);
-  if (yearKey && yearKey in buckets.year) buckets.year[yearKey]++;
-}
-
 function bucketsToSeries(buckets: ReturnType<typeof initChartBuckets>): ChartSeries {
   const toPoints = (map: Record<string, number>, labels: Record<string, string>): ChartSeriesPoint[] =>
     Object.keys(map).map(key => ({ label: labels[key] ?? key, calls: map[key] ?? 0 }));
@@ -139,40 +116,61 @@ function bucketsToSeries(buckets: ReturnType<typeof initChartBuckets>): ChartSer
   };
 }
 
-/** Call activity charts — cursor walk on createdAt so later batches do not re-skip the whole range. */
-export async function fetchChartSeries(since: Date): Promise<ChartSeries> {
-  const now = new Date();
-  const buckets = initChartBuckets(now);
-  let cursor: { createdAt: Date; id: string } | null = null;
+type ChartAggRow = { _id?: { ymd?: string; hour?: number }; n?: number };
 
-  for (;;) {
-    const batch: { id: string; createdAt: Date }[] = await prisma.callLog.findMany({
-      where: cursor
-        ? {
-            AND: [
-              { createdAt: { gte: since } },
-              {
-                OR: [
-                  { createdAt: { gt: cursor.createdAt } },
-                  { AND: [{ createdAt: cursor.createdAt }, { id: { gt: cursor.id } }] },
-                ],
-              },
-            ],
-          }
-        : { createdAt: { gte: since } },
-      select: { id: true, createdAt: true },
-      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
-      take: LOG_BATCH,
-    });
-
-    if (batch.length === 0) break;
-
-    for (const row of batch) bumpChartBuckets(buckets, row.createdAt, now);
-    const last: { id: string; createdAt: Date } = batch[batch.length - 1]!;
-    cursor = { createdAt: last.createdAt, id: last.id };
-    if (batch.length < LOG_BATCH) break;
+function addChartCount(
+  buckets: ReturnType<typeof initChartBuckets>,
+  ymd: string,
+  hour: number,
+  n: number,
+) {
+  if (!ymd || !Number.isFinite(n) || n <= 0) return;
+  if (ymd === buckets.currentBizYmd) {
+    const offset = (hour - BUSINESS_DAY_START_HOUR + 24) % 24;
+    const displayHour = (BUSINESS_DAY_START_HOUR + Math.floor(offset / 3) * 3) % 24;
+    const key = `${displayHour}:00`;
+    if (key in buckets.today) buckets.today[key] += n;
   }
+  if (ymd in buckets.week) buckets.week[ymd] += n;
+  const monthKey = pickMonthBucketKey(ymd, buckets.monthKeys);
+  if (monthKey && monthKey in buckets.month) buckets.month[monthKey] += n;
+  const yearKey = pickYearBucketKey(ymd, buckets.yearKeys);
+  if (yearKey && yearKey in buckets.year) buckets.year[yearKey] += n;
+}
 
+/** One grouped count for the chart — does not pull every call log into the server. */
+export async function fetchChartSeries(since: Date): Promise<ChartSeries> {
+  const buckets = initChartBuckets();
+  try {
+    const agg = await prisma.$runCommandRaw({
+      aggregate: "CallLog",
+      pipeline: [
+        { $match: { createdAt: { $gte: { $date: since.toISOString() } } } },
+        {
+          $group: {
+            _id: {
+              ymd: {
+                $dateToString: {
+                  format: "%Y-%m-%d",
+                  date: "$createdAt",
+                  timezone: BUSINESS_TIMEZONE,
+                },
+              },
+              hour: { $hour: { date: "$createdAt", timezone: BUSINESS_TIMEZONE } },
+            },
+            n: { $sum: 1 },
+          },
+        },
+      ],
+      cursor: { batchSize: 5000 },
+    }) as { cursor?: { firstBatch?: ChartAggRow[] } };
+
+    for (const row of agg.cursor?.firstBatch ?? []) {
+      addChartCount(buckets, String(row._id?.ymd ?? ""), Number(row._id?.hour ?? 0), Number(row.n ?? 0));
+    }
+  } catch (err) {
+    console.log("[admin summary] chart aggregate failed", err);
+  }
   return bucketsToSeries(buckets);
 }
 
@@ -347,8 +345,6 @@ async function countUniqueClosedForSummary(): Promise<number | null> {
         company: true,
         clientCode: true,
         projectCode: true,
-        status: true,
-        nextSchedule: true,
       },
     });
     return uniqueClosedLeadsByClientCode(rows).length;

@@ -152,18 +152,18 @@ export function apiErrorMessage(err: unknown, fallback = "Something went wrong."
   if (e?.response?.status === 404) {
     return isLocalHost()
       ? "API route not ready. Refresh once and try again — backend should be on port 5000."
-      : "API not found. Redeploy frontend and set BACKEND_URL on Vercel.";
+      : "That request didn't reach the server. Refresh and try again.";
   }
-  if (e?.response?.status === 502) {
+  if (e?.response?.status === 502 || e?.response?.status === 503 || e?.response?.status === 504) {
     return isLocalHost()
       ? "Cannot reach backend. Start it: cd backend && npm run dev"
-      : "API server unreachable. Set BACKEND_URL on Vercel to your Render backend URL.";
+      : "The server is busy right now. Wait a moment and try again.";
   }
   if (e?.response?.status === 429) return "Too many attempts. Please wait and try again.";
   if (!e?.response) {
     if (isLocalHost()) return "Cannot reach backend. Start it: cd backend && npm run dev";
-    return "Cannot reach server. Check BACKEND_URL on Vercel.";
+    return "The server didn't answer in time. Wait a moment and try again.";
   }
-  if (e?.code === "ECONNABORTED") return "Request timed out. Please try again.";
+  if (e?.code === "ECONNABORTED") return "That took too long. Try again.";
   return fallback;
 }

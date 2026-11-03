@@ -10,7 +10,6 @@ import TopPerformers    from "./components/widgets/TopPerformer";
 import TopEstimatorsWidget from "./components/widgets/TopEstimatorsWidget";
 import ActiveProjectsWidget from "./components/widgets/ActiveProjectsWidget";
 import { getAdminSummary, isEmptyAdminSummary, peekAdminSummary, subscribeAdminSummaryStale, type AdminDashboardSummary } from "@/lib/adminSummaryCache";
-import { apiErrorMessage } from "@/lib/api";
 import toast from "react-hot-toast";
 import {
   Users, PhoneCall, CheckCircle2, Clock3, Star,
@@ -83,7 +82,9 @@ export default function DashboardPage() {
       setOverviewLoaded(true);
     } catch (err) {
       if (process.env.NODE_ENV === "development") console.error("[AdminDash]", err);
-      toast.error(apiErrorMessage(err, "Failed to load dashboard stats."));
+      if (!peekAdminSummary()) {
+        toast.error("Dashboard numbers didn't load. Refresh in a moment.");
+      }
     } finally {
       setLoadingOverview(false);
     }
@@ -97,8 +98,8 @@ export default function DashboardPage() {
       setStats(statsFromSummary(cached));
       setOverviewLoaded(true);
     }
-    /* Always refetch — empty sessionStorage from a backend 502 used to stick as zeros. */
-    void loadOverview(true);
+    /* Cached numbers show immediately. Refetch only when that cache is empty or stale. */
+    void loadOverview(!usable);
   }, [loadOverview]);
 
   useEffect(() => {

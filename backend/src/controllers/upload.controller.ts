@@ -1015,20 +1015,17 @@ export const deleteUploadFile = async (req: Request, res: Response) => {
 
     const { deleted, csrIds } = await hardDeleteLeadsForUpload(id);
 
-    await prisma.lead.updateMany({
-      where: { uploadedFileId: id },
-      data: { uploadedFileId: null },
-    });
-
     await prisma.uploadFile.delete({ where: { id } });
 
-    await invalidateAllLeadCaches(csrIds);
-
-    return res.json({
+    res.json({
       success:      true,
-      message:      `"${upload.fileName}" deleted — ${deleted} lead(s) removed from database and CSR dashboards`,
+      message:      `"${upload.fileName}" deleted — ${deleted} contact(s) removed from the database and CSR dashboards`,
       deletedLeads: deleted,
     });
+    setImmediate(() => {
+      void invalidateAllLeadCaches(csrIds).catch((err) => console.log("[upload delete] cache", err));
+    });
+    return;
   } catch (error) {
     console.log(error);
     const msg = error instanceof Error ? error.message : "Failed to delete upload";

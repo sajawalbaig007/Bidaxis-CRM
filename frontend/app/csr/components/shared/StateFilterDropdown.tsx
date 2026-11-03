@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { ChevronDown, MapPin, Search, X } from "lucide-react";
 import { US_STATES, CA_PROVINCES } from "../../constants/locations";
+import { useFixedPopover } from "../../hooks/useFixedPopover";
 
 interface StateFilterDropdownProps {
   value: string;
@@ -15,17 +17,15 @@ type Country = "all" | "usa" | "canada";
 
 export default function StateFilterDropdown({ value, onChange, compact = false, fullWidth = false }: StateFilterDropdownProps) {
   const [search,  setSearch]  = useState("");
-  const [open,    setOpen]    = useState(false);
   const [country, setCountry] = useState<Country>("all");
-  const ref = useRef<HTMLDivElement>(null);
+  const { open, setOpen, toggle, anchorRef, panelRef, style } = useFixedPopover(280, 300, "start");
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, []);
+    if (!open) return;
+    const t = window.setTimeout(() => inputRef.current?.focus(), 0);
+    return () => window.clearTimeout(t);
+  }, [open]);
 
   const filteredUSStates = useMemo(() => {
     if (country === "canada") return [];
@@ -48,10 +48,99 @@ export default function StateFilterDropdown({ value, onChange, compact = false, 
     { key: "canada", label: "Canada", flag: "🇨🇦" },
   ];
 
+  const panel = open && typeof document !== "undefined" ? createPortal(
+    <div
+      ref={panelRef}
+      style={style}
+      className="bg-white dark:bg-crm-surface rounded-xl border border-gray-100 dark:border-crm-border shadow-2xl overflow-hidden"
+    >
+      <div className="flex gap-1 p-1.5 border-b border-gray-100 dark:border-crm-border bg-[#FAFAFB] dark:bg-crm-surface-raised">
+        {countryTabs.map(tab => (
+          <button key={tab.key} type="button"
+            onClick={() => { setCountry(tab.key); setSearch(""); }}
+            className={`flex-1 h-7 rounded-lg text-[11px] font-bold flex items-center justify-center gap-1 transition-all ${
+              country === tab.key
+                ? "bg-[#B8112D] text-white shadow-sm"
+                : "text-gray-500 hover:bg-gray-100"
+            }`}
+          >
+            <span>{tab.flag}</span>
+            <span>{tab.label}</span>
+          </button>
+        ))}
+      </div>
+      <div className="p-1.5 border-b border-gray-100">
+        <div className="relative">
+          <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+          <input
+            ref={inputRef}
+            type="text"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder={
+              country === "usa"    ? "Search US states…" :
+              country === "canada" ? "Search provinces…" :
+              "Search states / provinces…"
+            }
+            className="w-full h-8 rounded-lg border border-gray-200 bg-[#FAFAFA] pl-7 pr-2 text-[12px] outline-none focus:border-[#B8112D]"
+          />
+        </div>
+      </div>
+      <div className="overflow-y-auto max-h-[200px]">
+        {filteredUSStates.length > 0 && (
+          <>
+            {country === "all" && (
+              <div className="sticky top-0 px-3 py-1 bg-[#F8F9FC] border-b border-gray-100">
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">United States</p>
+              </div>
+            )}
+            {filteredUSStates.map(s => (
+              <button key={s.code} type="button"
+                onClick={() => select(s.name)}
+                className={`w-full text-left px-3 py-1.5 text-[12px] flex items-center justify-between transition-colors hover:bg-[#FFF1F3] ${
+                  value === s.name ? "bg-[#FFF1F3] text-[#B8112D] font-semibold" : "text-[#0F172A]"
+                }`}
+              >
+                <span>{s.name}</span>
+                <span className="text-[10px] text-gray-400 font-mono ml-2">{s.code}</span>
+              </button>
+            ))}
+          </>
+        )}
+        {filteredCAProvinces.length > 0 && (
+          <>
+            {country === "all" && (
+              <div className="sticky top-0 px-3 py-1 bg-[#F8F9FC] border-y border-gray-100">
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Canada</p>
+              </div>
+            )}
+            {filteredCAProvinces.map(p => (
+              <button key={p.code} type="button"
+                onClick={() => select(p.name)}
+                className={`w-full text-left px-3 py-1.5 text-[12px] flex items-center justify-between transition-colors hover:bg-[#FFF1F3] ${
+                  value === p.name ? "bg-[#FFF1F3] text-[#B8112D] font-semibold" : "text-[#0F172A]"
+                }`}
+              >
+                <span>{p.name}</span>
+                <span className="text-[10px] text-gray-400 font-mono ml-2">{p.code}</span>
+              </button>
+            ))}
+          </>
+        )}
+        {filteredUSStates.length === 0 && filteredCAProvinces.length === 0 && (
+          <div className="py-6 text-center text-gray-400 text-xs">No results found</div>
+        )}
+      </div>
+    </div>,
+    document.body,
+  ) : null;
+
   return (
-    <div className={`relative ${fullWidth ? "w-full min-w-0" : ""}`} ref={ref}>
+    <div className={fullWidth ? "w-full min-w-0" : ""}>
       <button
-        onClick={() => setOpen(v => !v)}
+        ref={anchorRef}
+        type="button"
+        onClick={toggle}
         className={`px-3 sm:px-4 rounded-xl sm:rounded-2xl border flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm font-medium transition-colors ${fullWidth ? "h-10 sm:h-[42px] w-full min-w-0" : compact ? "h-10 sm:h-[42px] min-w-[140px] sm:min-w-[168px]" : "h-10 sm:h-[42px] min-w-[160px] sm:min-w-[200px]"} ${
           value
             ? "border-[#B8112D] bg-[#FFF1F3] text-[#B8112D]"
@@ -68,100 +157,7 @@ export default function StateFilterDropdown({ value, onChange, compact = false, 
           <ChevronDown size={12} className="text-gray-400 shrink-0 sm:w-[13px] sm:h-[13px]" />
         )}
       </button>
-
-      {open && (
-        <div className={`bg-white dark:bg-crm-surface rounded-xl sm:rounded-2xl border border-gray-100 dark:border-crm-border overflow-hidden ${fullWidth ? "relative mt-1 w-full shadow-sm" : "absolute top-full mt-1 right-0 z-[80] w-[260px] sm:w-[290px] shadow-2xl"}`}>
-
-          {/* Country tabs */}
-          <div className="flex gap-1 p-2 border-b border-gray-100 dark:border-crm-border bg-[#FAFAFB] dark:bg-crm-surface-raised">
-            {countryTabs.map(tab => (
-              <button key={tab.key}
-                onClick={() => { setCountry(tab.key); setSearch(""); }}
-                className={`flex-1 h-8 rounded-lg text-[11px] font-bold flex items-center justify-center gap-1 transition-all ${
-                  country === tab.key
-                    ? "bg-[#B8112D] text-white shadow-sm"
-                    : "text-gray-500 hover:bg-gray-100"
-                }`}
-              >
-                <span>{tab.flag}</span>
-                <span>{tab.label}</span>
-              </button>
-            ))}
-          </div>
-
-          {/* Search */}
-          <div className="p-2.5 sm:p-3 border-b border-gray-100">
-            <div className="relative">
-              <Search size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 sm:w-[13px] sm:h-[13px]" />
-              <input
-                type="text"
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                placeholder={
-                  country === "usa"    ? "Search US states…" :
-                  country === "canada" ? "Search provinces…" :
-                  "Search states / provinces…"
-                }
-                autoFocus
-                className="w-full h-8 sm:h-9 rounded-lg sm:rounded-xl border border-gray-200 bg-[#FAFAFA] pl-7 sm:pl-8 pr-3 text-[12px] sm:text-[13px] outline-none focus:border-[#B8112D]"
-              />
-            </div>
-          </div>
-
-          {/* List */}
-          <div className="overflow-y-auto" style={{ maxHeight: "240px" }}>
-            {filteredUSStates.length > 0 && (
-              <>
-                {country === "all" && (
-                  <div className="sticky top-0 px-3 py-1.5 bg-[#F8F9FC] border-b border-gray-100">
-                    <p className="text-[9px] sm:text-[10px] font-bold text-gray-400 uppercase tracking-wider">🇺🇸 United States</p>
-                  </div>
-                )}
-                {filteredUSStates.map(s => (
-                  <button key={s.code}
-                    onClick={() => select(s.name)}
-                    className={`w-full text-left px-3 sm:px-4 py-2 text-[12px] sm:text-[13px] flex flex-col transition-colors hover:bg-[#FFF1F3] ${
-                      value === s.name ? "bg-[#FFF1F3] text-[#B8112D] font-semibold" : "text-[#0F172A]"
-                    }`}
-                  >
-                    <div className="flex items-center justify-between w-full">
-                      <span>{s.name}</span>
-                      <span className="text-[10px] sm:text-[11px] text-gray-400 font-mono ml-2">{s.code}</span>
-                    </div>
-                  </button>
-                ))}
-              </>
-            )}
-
-            {filteredCAProvinces.length > 0 && (
-              <>
-                {country === "all" && (
-                  <div className="sticky top-0 px-3 py-1.5 bg-[#F8F9FC] border-b border-t border-gray-100">
-                    <p className="text-[9px] sm:text-[10px] font-bold text-gray-400 uppercase tracking-wider">🇨🇦 Canada</p>
-                  </div>
-                )}
-                {filteredCAProvinces.map(p => (
-                  <button key={p.code}
-                    onClick={() => select(p.name)}
-                    className={`w-full text-left px-3 sm:px-4 py-2 text-[12px] sm:text-[13px] flex flex-col transition-colors hover:bg-[#FFF1F3] ${
-                      value === p.name ? "bg-[#FFF1F3] text-[#B8112D] font-semibold" : "text-[#0F172A]"
-                    }`}
-                  >
-                    <div className="flex items-center justify-between w-full">
-                      <span>{p.name}</span>
-                      <span className="text-[10px] sm:text-[11px] text-gray-400 font-mono ml-2">{p.code}</span>
-                    </div>
-                  </button>
-                ))}
-              </>
-            )}
-
-            {filteredUSStates.length === 0 && filteredCAProvinces.length === 0 && (
-              <div className="py-6 sm:py-8 text-center text-gray-400 text-xs sm:text-sm">No results found</div>
-            )}
-          </div>
-        </div>
-      )}
+      {panel}
     </div>
   );
 }

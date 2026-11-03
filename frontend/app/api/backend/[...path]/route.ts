@@ -78,7 +78,7 @@ async function proxyRequest(req: NextRequest, pathSegments: string[]) {
     return NextResponse.json(
       {
         success: false,
-        message: "Cannot reach API server. Set BACKEND_URL on Vercel to your Render URL.",
+        message: "The server is busy right now. Wait a moment and try again.",
       },
       { status: 502 }
     );
