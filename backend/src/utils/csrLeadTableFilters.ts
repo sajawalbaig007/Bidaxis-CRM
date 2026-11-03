@@ -351,5 +351,4 @@ export const CSR_FILTER_LEAD_SELECT = {
   notInterestedCount: true,
   createdAt: true,
   uploadFile: { select: { source: { select: { sudoName: true } } } },
-  subContacts: { select: { phone: true } },
 } as const;

@@ -55,11 +55,36 @@ export function mainPipelineWhere(csrId: string): Prisma.LeadWhereInput {
   };
 }
 
+/** Case variants so Mongo can use the status index. `mode: insensitive` cannot. */
+export function statusEquals(value: string): Prisma.LeadWhereInput {
+  const text = value.trim();
+  const variants = new Set([
+    text,
+    text.toLowerCase(),
+    text.toUpperCase(),
+    text.charAt(0).toUpperCase() + text.slice(1).toLowerCase(),
+  ]);
+  return { status: { in: [...variants] } };
+}
+
+export function statusOneOf(values: string[]): Prisma.LeadWhereInput {
+  const variants = new Set<string>();
+  for (const value of values) {
+    const text = value.trim();
+    if (!text) continue;
+    variants.add(text);
+    variants.add(text.toLowerCase());
+    variants.add(text.toUpperCase());
+    variants.add(text.charAt(0).toUpperCase() + text.slice(1).toLowerCase());
+  }
+  return { status: { in: [...variants] } };
+}
+
 /** Today / Pending queue — pending status is enough; hiddenOnMain must not hide them */
 export function pendingLeadWhere(csrId: string): Prisma.LeadWhereInput {
   return {
     ...activeCsrLeadWhere(csrId),
-    status: { equals: "pending", mode: "insensitive" },
+    ...statusEquals("pending"),
   };
 }
 
@@ -80,11 +105,11 @@ export function buildActiveRetryWhere(csrId: string): Prisma.LeadWhereInput {
     ...notInBinFilter(),
     OR: [
       {
-        status:             { equals: "Not Interested", mode: "insensitive" },
+        ...statusEquals("Not Interested"),
         notInterestedCount: { lt: NOT_INTERESTED_LIMIT },
       },
       {
-        status:         { in: ["not picked", "not completed"], mode: "insensitive" },
+        ...statusOneOf(["not picked", "not completed"]),
         notPickedCount: { lt: NOT_PICKED_LIMIT },
       },
     ],

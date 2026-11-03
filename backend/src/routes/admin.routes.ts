@@ -21,7 +21,7 @@ import {
   paidDatesFromPayments,
   syncAccountsCurrencyForDates,
 } from "../utils/projectCurrencyCollections";
-import { buildAdminBinWhere, filterActiveLeads, notInBinFilter } from "../utils/binLeads";
+import { buildAdminBinWhere, filterActiveLeads, notInBinFilter, statusEquals } from "../utils/binLeads";
 import { findLeadsByPhone, buildPhoneLookupResponse } from "../utils/leadPhoneLookup";
 import { findDuplicateLead } from "../utils/leadDuplicateCheck";
 import { CSR_UPLOAD_FILE_SELECT } from "../utils/uploadSourceSelect";
@@ -1208,72 +1208,31 @@ router.get(
         });
       }
 
-      const leads = await prisma.lead.findMany({
-        where: { assignedTo: csr.id },
-        select: {
-          id: true,
-          name: true,
-          company: true,
-          phone: true,
-          email: true,
-          state: true,
-          status: true,
-          important: true,
-          interested: true,
-          comments: true,
-          nextSchedule: true,
-          nextTime: true,
-          timezone: true,
-          interestedService: true,
-          projectTitle: true,
-          projectCode: true,
-          projectBudget: true,
-          projectDeadline: true,
-          clientCode: true,
-          isOldClient: true,
-          createdAt: true,
-          updatedAt: true,
-          uploadFile: { select: { companyName: true } },
-          callLogs: {
-            orderBy: { createdAt: "desc" },
-            select: {
-              id: true,
-              status: true,
-              notes: true,
-              duration: true,
-              createdAt: true,
-            },
+      const assigned = { assignedTo: csr.id };
+      const [totalLeads, pending, important, interested, projectWon, completed] = await Promise.all([
+        prisma.lead.count({ where: assigned }),
+        prisma.lead.count({ where: { ...assigned, ...statusEquals("pending") } }),
+        prisma.lead.count({
+          where: {
+            ...assigned,
+            OR: [{ important: true }, statusEquals("important")],
           },
-        },
-        orderBy: { updatedAt: "desc" },
-      });
-
-      const completed = await prisma.callLog.count({
-        where: { csrId: csr.id },
-      });
-
-      const pending = leads.filter(
-        (l) => l.status?.toLowerCase() === "pending"
-      ).length;
-
-      const important = leads.filter(
-        (l) => l.important === true || l.status?.toLowerCase() === "important"
-      ).length;
-
-      const interested = leads.filter(
-        (l) =>
-          l.interested === true || l.status?.toLowerCase() === "interested"
-      ).length;
-
-      const projectWon = leads.filter(
-        (l) => l.status?.toLowerCase() === "close client"
-      ).length;
+        }),
+        prisma.lead.count({
+          where: {
+            ...assigned,
+            OR: [{ interested: true }, statusEquals("interested")],
+          },
+        }),
+        prisma.lead.count({ where: { ...assigned, ...statusEquals("Close Client") } }),
+        prisma.callLog.count({ where: { csrId: csr.id } }),
+      ]);
 
       return res.json({
         success: true,
         csr,
         stats: {
-          totalLeads: leads.length,
+          totalLeads,
           /** Status updates performed by this CSR */
           completed,
           pending,
@@ -1281,7 +1240,6 @@ router.get(
           interested,
           projectWon,
         },
-        leads,
       });
     } catch (error) {
       console.log(error);

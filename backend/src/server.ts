@@ -36,6 +36,28 @@ runAutoCheckout();
 setInterval(runAutoCheckout, 60 * 1000);
 void refreshShiftSchedules().catch((err) => console.error("[shift-schedules]", err));
 void refreshLatePolicies().catch((err) => console.error("[late-deductions]", err));
+void ensureLeadListIndexes().catch((err) => console.error("[lead-indexes]", err));
+
+/** Page queries sort by createdAt inside one CSR. Create once; ignore if the index already exists. */
+async function ensureLeadListIndexes() {
+  const specs = [
+    { key: { assignedTo: 1, createdAt: 1 }, name: "Lead_assignedTo_createdAt" },
+    { key: { assignedTo: 1, status: 1, createdAt: 1 }, name: "Lead_assignedTo_status_createdAt" },
+  ];
+  for (const spec of specs) {
+    try {
+      await prisma.$runCommandRaw({
+        createIndexes: "Lead",
+        indexes: [spec],
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (!/already exists|IndexOptionsConflict|equivalent index/i.test(message)) {
+        console.error("[lead-indexes]", spec.name, message);
+      }
+    }
+  }
+}
 
 setInterval(async () => {
   if (_offlinePaused) return;

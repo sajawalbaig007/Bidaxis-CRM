@@ -7,7 +7,7 @@ import {
   scheduledCallWhere,
 } from "./adminClientQueries";
 import { wonClientStatusWhere } from "./projectLeads";
-import { NOT_INTERESTED_LIMIT, NOT_PICKED_LIMIT, activeCsrLeadWhere, mainPipelineWhere, pendingLeadWhere } from "./binLeads";
+import { NOT_INTERESTED_LIMIT, NOT_PICKED_LIMIT, activeCsrLeadWhere, mainPipelineWhere, pendingLeadWhere, statusEquals, statusOneOf } from "./binLeads";
 import { CSR_DASHBOARD_LEAD_SELECT } from "./csrLeadSelect";
 import {
   isPotentialClientLead,
@@ -55,23 +55,23 @@ export function buildCsrTabWhere(csrId: string, tab: CsrTabKey): Prisma.LeadWher
     case "notinterested":
       return {
         ...activeCsrLeadWhere(csrId),
-        status: { equals: STATUS_NI, mode: "insensitive" },
+        ...statusEquals(STATUS_NI),
         notInterestedCount: { lt: NOT_INTERESTED_LIMIT },
       };
     case "notpicked":
       return {
         ...activeCsrLeadWhere(csrId),
-        status: { in: [...STATUS_NP], mode: "insensitive" },
+        ...statusOneOf([...STATUS_NP]),
         notPickedCount: { lt: NOT_PICKED_LIMIT },
       };
     case "noowner":
-      return { ...base, status: { equals: "no owner available", mode: "insensitive" } };
+      return { ...base, ...statusEquals("no owner available") };
     case "notinservice":
-      return { ...base, status: { equals: "not in service", mode: "insensitive" } };
+      return { ...base, ...statusEquals("not in service") };
     case "inhouse":
-      return { ...base, status: { equals: "in house", mode: "insensitive" } };
+      return { ...base, ...statusEquals("in house") };
     case "notuseful":
-      return { ...base, status: { equals: "Not useful", mode: "insensitive" } };
+      return { ...base, ...statusEquals("Not useful") };
     default:
       return base;
   }
@@ -87,6 +87,38 @@ function withCreatedRange(
   if (from) createdAt.gte = new Date(`${from}T00:00:00.000Z`);
   if (to)   createdAt.lte = new Date(`${to}T23:59:59.999Z`);
   return { AND: [where, { createdAt }] };
+}
+
+type SlimFilterRow = Prisma.LeadGetPayload<{ select: typeof CSR_FILTER_LEAD_SELECT }>;
+
+const slimRowCache = new Map<string, { at: number; rows: SlimFilterRow[] }>();
+const SLIM_ROW_TTL_MS = 60_000;
+
+/** Drop the in-memory filter scan after a lead write so the next filter is fresh. */
+export function clearCsrFilterRowCache(csrId?: string): void {
+  if (!csrId) {
+    slimRowCache.clear();
+    return;
+  }
+  const prefix = `${csrId}:`;
+  for (const key of slimRowCache.keys()) {
+    if (key.startsWith(prefix)) slimRowCache.delete(key);
+  }
+}
+
+async function loadSlimRows(
+  cacheKey: string,
+  where: Prisma.LeadWhereInput,
+): Promise<SlimFilterRow[]> {
+  const hit = slimRowCache.get(cacheKey);
+  if (hit && Date.now() - hit.at < SLIM_ROW_TTL_MS) return hit.rows;
+  const rows = await prisma.lead.findMany({
+    where,
+    orderBy: { createdAt: "asc" },
+    select: CSR_FILTER_LEAD_SELECT,
+  });
+  slimRowCache.set(cacheKey, { at: Date.now(), rows });
+  return rows;
 }
 
 const WON_STATUSES = new Set(["close client", "completed", "closed"]);
@@ -164,10 +196,10 @@ export async function getCsrLeadStats(
   const range = (where: Prisma.LeadWhereInput) => withCreatedRange(where, from, to);
 
   if (hasCsrTableFilters(filters)) {
-    const rows = await prisma.lead.findMany({
-      where: range(base),
-      select: CSR_FILTER_LEAD_SELECT,
-    });
+    const rows = await loadSlimRows(
+      `${csrId}:${from ?? ""}:${to ?? ""}:stats`,
+      range(base),
+    );
     const matched = rows.filter(row => leadMatchesTableFilters(row, filters));
     return bucketFilteredStats(matched);
   }
@@ -261,32 +293,6 @@ const LEAD_LIST_SELECT = {
   },
 };
 
-type OldestNoteSlim = {
-  id: string;
-  createdAt: Date;
-  notes: { createdAt: Date }[];
-};
-
-function compareOldestNote(a: OldestNoteSlim, b: OldestNoteSlim): number {
-  const ta = a.notes[0]?.createdAt?.getTime() ?? Number.POSITIVE_INFINITY;
-  const tb = b.notes[0]?.createdAt?.getTime() ?? Number.POSITIVE_INFINITY;
-  if (ta !== tb) return ta - tb;
-  return a.createdAt.getTime() - b.createdAt.getTime();
-}
-
-export async function fetchLeadIdsByOldestNote(where: Prisma.LeadWhereInput): Promise<string[]> {
-  const rows = await prisma.lead.findMany({
-    where,
-    select: {
-      id: true,
-      createdAt: true,
-      notes: { orderBy: { createdAt: "asc" as const }, take: 1, select: { createdAt: true } },
-    },
-  });
-  rows.sort(compareOldestNote);
-  return rows.map(r => r.id);
-}
-
 export function reorderByIds<T extends { id: string }>(rows: T[], ids: string[]): T[] {
   const map = new Map(rows.map(r => [r.id, r]));
   const out: T[] = [];
@@ -316,23 +322,35 @@ export async function fetchCsrTabLeads(opts: {
     where.createdAt = createdAt;
   }
 
-  let ids: string[];
-  if (hasCsrTableFilters(filters)) {
-    const rows = await prisma.lead.findMany({
-      where,
-      select: {
-        ...CSR_FILTER_LEAD_SELECT,
-        notes: { orderBy: { createdAt: "asc" as const }, take: 1, select: { createdAt: true } },
-      },
-    });
-    const matched = rows.filter(row => leadMatchesTableFilters(row, filters));
-    matched.sort(compareOldestNote);
-    ids = matched.map(row => row.id);
-  } else {
-    ids = await fetchLeadIdsByOldestNote(where);
+  if (!hasCsrTableFilters(filters)) {
+    const skip = (page - 1) * pageSize;
+    const [total, rawLeads] = await Promise.all([
+      prisma.lead.count({ where }),
+      prisma.lead.findMany({
+        where,
+        orderBy: { createdAt: "asc" },
+        skip,
+        take: pageSize,
+        select: LEAD_LIST_SELECT,
+      }),
+    ]);
+    return {
+      leads: rawLeads.map(mapDashboardLead),
+      total,
+      page,
+      pageSize,
+      totalPages: Math.max(1, Math.ceil(total / pageSize)),
+    };
   }
-  const total = ids.length;
-  const pageIds = ids.slice((page - 1) * pageSize, page * pageSize);
+
+  const rows = await loadSlimRows(
+    `${csrId}:${tab}:${from ?? ""}:${to ?? ""}:tab`,
+    where,
+  );
+  const matched = rows.filter(row => leadMatchesTableFilters(row, filters));
+  const total = matched.length;
+  const pageRows = matched.slice((page - 1) * pageSize, page * pageSize);
+  const pageIds = pageRows.map(row => row.id);
   const rawLeads = pageIds.length
     ? await prisma.lead.findMany({
         where: { id: { in: pageIds } },
@@ -355,14 +373,12 @@ export async function fetchPotentialLeads(csrId: string) {
     ...activeCsrLeadWhere(csrId),
     OR: [isImportantStatusWhere(), isInterestedStatusWhere()],
   };
-  const [ids, rawLeads] = await Promise.all([
-    fetchLeadIdsByOldestNote(where),
-    prisma.lead.findMany({
-      where,
-      select: LEAD_LIST_SELECT,
-    }),
-  ]);
+  const rawLeads = await prisma.lead.findMany({
+    where,
+    orderBy: { createdAt: "asc" },
+    select: LEAD_LIST_SELECT,
+  });
 
-  const ordered = reorderByIds(rawLeads, ids).filter(isPotentialClientLead);
+  const ordered = rawLeads.filter(isPotentialClientLead);
   return ordered.map(mapDashboardLead);
 }

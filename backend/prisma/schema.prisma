@@ -164,6 +164,8 @@ model Lead {
   @@index([createdAt])
   @@index([updatedAt])
   @@index([assignedTo, status])
+  @@index([assignedTo, createdAt])
+  @@index([assignedTo, status, createdAt])
   @@index([company, status])
   @@index([status, assignedTo])
   @@index([inBin])

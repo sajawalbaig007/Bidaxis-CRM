@@ -1,6 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import prisma from "../config/db";
-import { buildBinWhere, buildNotBinWhere } from "./binLeads";
+import { buildBinWhere, buildNotBinWhere, statusEquals, statusOneOf } from "./binLeads";
 import {
   adminClientBucket,
   buildAdminClientListWhere,
@@ -139,42 +139,48 @@ function bucketsToSeries(buckets: ReturnType<typeof initChartBuckets>): ChartSer
   };
 }
 
-/** Call activity charts — full CallLog scan in batches (no 5k cap). */
+/** Call activity charts — cursor walk on createdAt so later batches do not re-skip the whole range. */
 export async function fetchChartSeries(since: Date): Promise<ChartSeries> {
   const now = new Date();
   const buckets = initChartBuckets(now);
-  let skip = 0;
+  let cursor: { createdAt: Date; id: string } | null = null;
 
   for (;;) {
-    const batch = await prisma.callLog.findMany({
-      where: { createdAt: { gte: since } },
-      select: { createdAt: true },
+    const batch: { id: string; createdAt: Date }[] = await prisma.callLog.findMany({
+      where: cursor
+        ? {
+            AND: [
+              { createdAt: { gte: since } },
+              {
+                OR: [
+                  { createdAt: { gt: cursor.createdAt } },
+                  { AND: [{ createdAt: cursor.createdAt }, { id: { gt: cursor.id } }] },
+                ],
+              },
+            ],
+          }
+        : { createdAt: { gte: since } },
+      select: { id: true, createdAt: true },
       orderBy: [{ createdAt: "asc" }, { id: "asc" }],
-      skip,
       take: LOG_BATCH,
     });
 
     if (batch.length === 0) break;
 
     for (const row of batch) bumpChartBuckets(buckets, row.createdAt, now);
-    skip += batch.length;
+    const last: { id: string; createdAt: Date } = batch[batch.length - 1]!;
+    cursor = { createdAt: last.createdAt, id: last.id };
     if (batch.length < LOG_BATCH) break;
   }
 
   return bucketsToSeries(buckets);
 }
 
-const legacyCompletedWhere: Prisma.LeadWhereInput = {
-  status: { in: ["completed", "closed"], mode: "insensitive" },
-};
+const legacyCompletedWhere: Prisma.LeadWhereInput = statusOneOf(["completed", "closed"]);
 
-const closeClientOnlyWhere: Prisma.LeadWhereInput = {
-  status: { equals: "Close Client", mode: "insensitive" },
-};
+const closeClientOnlyWhere: Prisma.LeadWhereInput = statusEquals("Close Client");
 
-const pendingWhere: Prisma.LeadWhereInput = {
-  status: { equals: "pending", mode: "insensitive" },
-};
+const pendingWhere: Prisma.LeadWhereInput = statusEquals("pending");
 
 const performerResolvedWhere: Prisma.LeadWhereInput = {
   OR: [
