@@ -280,9 +280,15 @@ const DEFAULT_SUBJECT = "Need Estimating Support for Upcoming Bids?";
 const DEFAULT_BODY =
   "Hi {{name}},\n\nDoes your team need extra support with quantity takeoffs or cost estimates for upcoming construction bids?\nBidAxis LLC is here to help you manage your estimating workload efficiently.\nWe provide detailed quantity takeoffs and cost estimates for residential, commercial, industrial, and other construction projects.\nOur team can assist with single projects or multiple bids with tight deadlines.\nIf you'd like to review our estimating work, we'd be happy to share sample takeoffs and estimates.\nDo you have an upcoming project we could help you with?\nBest regards,";
 
+const ALLOWED_FROM = new Set([
+  "info@bidaxis.co",
+  "sales@bidaxis.co",
+  "engg.annasterling@gmail.com",
+]);
+
 function normalizeFromEmail(raw: unknown): string {
   const email = String(raw ?? "").trim().toLowerCase();
-  if (email === "sales@bidaxis.co") return email;
+  if (ALLOWED_FROM.has(email)) return email;
   return "info@bidaxis.co";
 }
 

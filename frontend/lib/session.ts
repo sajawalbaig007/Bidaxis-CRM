@@ -92,7 +92,9 @@ function asLoginBody(data: unknown): { role?: string; user?: { role?: string }; 
     loginTokenFromRecord(asRecord(nested?.user));
   const roleRaw =
     root.role ??
+    root.portalRole ??
     nested?.role ??
+    nested?.portalRole ??
     user?.role ??
     roleFromToken(token);
   return {

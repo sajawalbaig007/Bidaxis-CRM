@@ -15,6 +15,7 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/i;
 const FROM_ACCOUNTS: Sender[] = [
   { id: "1", email: "info@bidaxis.co", name: "Daniel Parker" },
   { id: "2", email: "sales@bidaxis.co", name: "Emma Collins" },
+  { id: "3", email: "engg.annasterling@gmail.com", name: "Anna Sterling" },
 ];
 
 export default function AdminMailPage() {
@@ -70,7 +71,7 @@ export default function AdminMailPage() {
       if (nextSubject) setSubject(nextSubject);
       if (nextBody) setBody(nextBody);
       const nextFrom = String(res.data?.fromEmail ?? "").trim().toLowerCase();
-      if (nextFrom === "sales@bidaxis.co" || nextFrom === "info@bidaxis.co") setFromEmail(nextFrom);
+      if (FROM_ACCOUNTS.some((s) => s.email === nextFrom)) setFromEmail(nextFrom);
     } catch {
       /* keep the default template until the server has one */
     } finally {

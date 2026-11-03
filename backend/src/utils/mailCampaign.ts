@@ -272,13 +272,16 @@ export async function sendOneClient(input: {
     row = { name: (input.name ?? "").trim() || email.split("@")[0], email };
   }
 
-  const fromEmail = (input.senderEmail ?? "").trim().toLowerCase() === "sales@bidaxis.co"
-    ? "sales@bidaxis.co"
-    : "info@bidaxis.co";
-  const fromName = fromEmail === "sales@bidaxis.co" ? "Emma Collins" : "Daniel Parker";
-  const mailbox = await resolveMailbox(input.senderId ?? "", fromEmail);
+  const wanted = (input.senderEmail ?? "").trim().toLowerCase();
+  const fromAccount =
+    wanted === "sales@bidaxis.co"
+      ? { email: "sales@bidaxis.co", name: "Emma Collins" }
+      : wanted === "engg.annasterling@gmail.com"
+        ? { email: "engg.annasterling@gmail.com", name: "Anna Sterling" }
+        : { email: "info@bidaxis.co", name: "Daniel Parker" };
+  const mailbox = await resolveMailbox(input.senderId ?? "", fromAccount.email);
   if (!mailbox) return { ok: false, message: "No company mailbox is ready to send." };
-  const sender = { ...mailbox, email: fromEmail, name: fromName };
+  const sender = { ...mailbox, email: fromAccount.email, name: fromAccount.name };
 
   const name = (row.name || row.email.split("@")[0]).trim();
   try {
@@ -287,7 +290,7 @@ export async function sendOneClient(input: {
       to: row.email,
       subject: applyName(subject, name),
       body: applyName(body, name),
-      footer: bidaxisFooterFor(fromEmail),
+      footer: bidaxisFooterFor(fromAccount.email),
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Send failed";

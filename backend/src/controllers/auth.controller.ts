@@ -8,7 +8,7 @@ import { generateToken } from "../utils/jwt";
 import { AuthRequest } from "../middleware/auth.middleware";
 import { getCache, setCache, invalidateCache } from "../utils/cache";
 import { getJwtSecret, validatePassword } from "../config/security";
-import { getSessionHours, getAdminAllowedIps, isCaptchaConfigured, isSmtpConfigured } from "../config/env";
+import { getSessionHours, getAdminAllowedIps, isCaptchaConfigured } from "../config/env";
 import { getClientIp, getUserAgent } from "../utils/requestMeta";
 import { evaluateNetworkAccess, sanitizeIpList } from "../utils/networkAccess";
 import { officeNetworkMessage } from "../utils/staffAttendance";
@@ -126,6 +126,7 @@ async function finishLogin(
     success:     true,
     requires2FA: false,
     role:        user.role,
+    portalRole:  user.role,
     user:        userPayload(user),
     token,
   });
@@ -168,6 +169,14 @@ function portalRoleLabel(role: PortalRole): string {
 function assertPortalRoleMatch(userRole: string, loginRole: PortalRole): string | null {
   if (userRole === loginRole) return null;
   return `This account is registered as ${portalRoleLabel(userRole as PortalRole)}. Select "${portalRoleLabel(userRole as PortalRole)}" on the login page.`;
+}
+
+async function findUserForPortal(email: string, loginRole: PortalRole) {
+  const exact = await prisma.user.findFirst({ where: { email, role: loginRole } });
+  if (exact) return exact;
+  return prisma.user.findFirst({
+    where: { email: { equals: email, mode: "insensitive" }, role: loginRole },
+  });
 }
 
 function assertAdminIp(req: Request, role: string): string | null {
@@ -370,36 +379,23 @@ export const login = async (req: Request, res: Response) => {
       }
     }
 
-    let user = await prisma.user.findUnique({ where: { email } });
-    if (!user) {
-      user = await prisma.user.findFirst({
-        where: { email: { equals: email, mode: "insensitive" } },
-      });
-    }
+    const user = await findUserForPortal(email, loginRole);
     if (!user) {
       await recordFailedLogin(email ?? "", ip);
-      await writeAuditLog({ action: "login_failed", email, ip, userAgent: ua, meta: { reason: "user_not_found" } });
-      return res.status(401).json({ success: false, message: "Invalid credentials" });
+      await writeAuditLog({
+        action: "login_failed",
+        email,
+        ip,
+        userAgent: ua,
+        meta: { reason: "portal_user_not_found", loginRole },
+      });
+      return res.status(401).json({
+        success: false,
+        message: `No ${portalRoleLabel(loginRole)} account for this email.`,
+      });
     }
     if (!user.isActive) {
       return res.status(403).json({ success: false, message: "Account is deactivated" });
-    }
-
-    const roleMismatch = assertPortalRoleMatch(user.role, loginRole);
-    if (roleMismatch) {
-      await writeAuditLog({
-        action: "login_failed",
-        userId: user.id,
-        email: user.email,
-        ip,
-        userAgent: ua,
-        meta: { reason: "portal_role_mismatch", loginRole, userRole: user.role },
-      });
-      return res.status(403).json({
-        success: false,
-        code: "PORTAL_ROLE_MISMATCH",
-        message: roleMismatch,
-      });
     }
 
     const ipError = assertAdminIp(req, user.role);
@@ -445,34 +441,6 @@ export const login = async (req: Request, res: Response) => {
         meta: { reason: "csr_shift_window" },
       });
       return res.status(403).json({ success: false, code: "CSR_SHIFT_CLOSED", message: shiftBlock });
-    }
-
-    if (user.twoFAEnabled && isSmtpConfigured()) {
-      if (await blockIfAlreadyLoggedIn(user.id, req, res)) return;
-
-      const existing = otpAttempts.get(user.id);
-      if (existing?.blockedUntil && Date.now() < existing.blockedUntil) {
-        const mins = Math.ceil((existing.blockedUntil - Date.now()) / 60000);
-        return res.status(429).json({
-          success: false,
-          blocked: true,
-          message: `Too many failed attempts. Try again in ${mins} minute${mins !== 1 ? "s" : ""}.`,
-        });
-      }
-
-      otpAttempts.delete(user.id);
-      otpResendCount.delete(user.id);
-      const otp = makeOTP();
-      otpStore.set(user.id, { otp, expiresAt: Date.now() + 5 * 60 * 1000, loginRole });
-
-      sendOTPEmail(user.email, otp);
-
-      return res.json({
-        success:     true,
-        requires2FA: true,
-        userId:      user.id,
-        message:     `OTP sent to ${user.email}`,
-      });
     }
 
     if (await blockIfAlreadyLoggedIn(user.id, req, res)) return;

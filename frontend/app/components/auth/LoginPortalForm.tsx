@@ -121,13 +121,9 @@ export default function LoginPortalForm({
     expectedPortal: PortalRole,
   ) {
     const token = loginTokenFrom(data);
-    const role = resolveLoginRole(data) ?? (token ? expectedPortal : null);
-    if (!role) {
-      toast.error("Could not determine your role. Refresh once and try again.");
-      return;
-    }
+    const role = resolveLoginRole(data) ?? expectedPortal;
     if (role !== expectedPortal) {
-      toast.error(`This account is not a ${portalLabel(expectedPortal)}. Use the correct portal on the home page.`);
+      toast.error(`This email is not a ${portalLabel(expectedPortal)} account.`);
       return;
     }
     if (!token) {
@@ -165,8 +161,8 @@ export default function LoginPortalForm({
         role?: string; user?: { role?: string }; token?: string; success?: boolean;
         requires2FA?: boolean; userId?: string; message?: string;
       };
-      if (data.requires2FA || (data.userId && !data.token && !data.role)) {
-        setUserId(data.userId ?? "");
+      if (data.requires2FA === true && data.userId && !data.token) {
+        setUserId(String(data.userId));
         setAttemptsLeft(2);
         setIsBlocked(false);
         setOtp(["", "", "", "", "", ""]);

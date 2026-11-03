@@ -33,5 +33,8 @@ export function bidaxisFooterFor(email: string): string {
       `<a href="mailto:sales@bidaxis.co" style="color:#1B6FE8;text-decoration:none;">sales@bidaxis.co</a><br><a href="https://bidaxis.co" style="color:#1B6FE8;text-decoration:none;">bidaxis.co</a>`,
     );
   }
+  if (key === "engg.annasterling@gmail.com") {
+    return `<div style="font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:1.5;color:#334155;">Anna Sterling<br><a href="mailto:engg.annasterling@gmail.com" style="color:#1B6FE8;text-decoration:none;">engg.annasterling@gmail.com</a></div>`;
+  }
   return "";
 }
