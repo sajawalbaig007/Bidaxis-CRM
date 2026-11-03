@@ -915,7 +915,7 @@ export default function ImportantCallsPage() {
             }}
           />
         )}
-//on back button click, go to previous page
+
         <AddLeadModal
           open={showAddLead}
           onClose={() => setShowAddLead(false)}
