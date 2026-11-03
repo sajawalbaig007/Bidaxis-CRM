@@ -54,6 +54,59 @@ function usesGoogleSmtp(sender: Pick<MailSender, "email" | "pass" | "host">): bo
   return false;
 }
 
+async function sendViaGmail(opts: {
+  user: string;
+  pass: string;
+  mail: {
+    from: string;
+    to: string;
+    subject: string;
+    text: string;
+    html: string;
+    replyTo?: string;
+    envelope?: { from: string; to: string };
+    attachments?: MailSignature["attachments"];
+  };
+}): Promise<void> {
+  const user = opts.user.trim();
+  const pass = opts.pass.replace(/\s/g, "");
+  if (!user || !pass) {
+    throw new Error(`Gmail app password is missing for ${user || "this mailbox"}.`);
+  }
+  const ports: Array<{ port: number; secure: boolean }> = [
+    { port: 465, secure: true },
+    { port: 587, secure: false },
+  ];
+  let lastErr: unknown;
+  for (const port of ports) {
+    try {
+      const transporter = nodemailer.createTransport({
+        host: "smtp.gmail.com",
+        port: port.port,
+        secure: port.secure,
+        requireTLS: !port.secure,
+        auth: { user, pass },
+        connectionTimeout: 8_000,
+        greetingTimeout: 8_000,
+        socketTimeout: 12_000,
+        tls: { minVersion: "TLSv1.2", servername: "smtp.gmail.com" },
+      });
+      await transporter.sendMail(opts.mail);
+      return;
+    } catch (err) {
+      lastErr = err;
+      const code = (err as { code?: string }).code ?? "";
+      if (code === "EAUTH" || /invalid login|username and password/i.test(err instanceof Error ? err.message : "")) {
+        throw new Error(
+          `Gmail rejected login for ${user}. Use a 16-character App Password (Google Account → Security → App passwords).`,
+        );
+      }
+    }
+  }
+  const detail = lastErr instanceof Error ? lastErr.message : String(lastErr ?? "timeout");
+  throw new Error(`Gmail SMTP timed out for ${user}. ${detail.slice(0, 140)}`);
+}
+
 function readOptionalPort(raw: string): number | undefined {
   const n = Number(raw.trim());
   return Number.isInteger(n) && n > 0 ? n : undefined;
@@ -369,34 +422,29 @@ export async function sendClientMail(opts: {
         "GoDaddy Titan cannot send from this server (SMTP times out). Set SMTP_USER / SMTP_PASS to a real Gmail app password, or move bidaxis.co mail to Google Workspace.",
       );
     }
-    const transporter = nodemailer.createTransport({
-      service: "gmail",
-      auth: { user: relayUser, pass: relayPass },
-    });
     const aliasFrom = `"${opts.sender.name.replace(/"/g, "")}" <${opts.sender.email}>`;
-    await transporter.sendMail({
-      ...mail,
-      from: aliasFrom,
-      replyTo: aliasFrom,
-      envelope: { from: relayUser, to: opts.to.trim() },
+    await sendViaGmail({
+      user: relayUser,
+      pass: relayPass,
+      mail: {
+        ...mail,
+        from: aliasFrom,
+        replyTo: aliasFrom,
+        envelope: { from: relayUser, to: opts.to.trim() },
+      },
     });
     console.info(`[mail/send] smtp=gmail-alias from=${opts.sender.email} via=${relayUser}`);
     return;
   }
 
-  if (usesGoogleSmtp(opts.sender)) {
-    try {
-      const transporter = nodemailer.createTransport({
-        service: "gmail",
-        auth: { user: opts.sender.email, pass: opts.sender.pass.replace(/\s/g, "") },
-      });
-      await transporter.sendMail(mail);
-      console.info(`[mail/send] smtp=gmail from=${opts.sender.email}`);
-      return;
-    } catch (err) {
-      if (isGmailAddress(opts.sender.email)) throw err;
-      console.warn(`[mail/send] gmail rejected ${opts.sender.email}, trying company SMTP`);
-    }
+  if (usesGoogleSmtp(opts.sender) || isGmailAddress(opts.sender.email)) {
+    await sendViaGmail({
+      user: opts.sender.email,
+      pass: opts.sender.pass,
+      mail,
+    });
+    console.info(`[mail/send] smtp=gmail from=${opts.sender.email}`);
+    return;
   }
 
   let lastErr: unknown;

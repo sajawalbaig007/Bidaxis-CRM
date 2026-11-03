@@ -177,7 +177,6 @@ export default function AdminMailPage() {
     const from = FROM_ACCOUNTS.find((s) => s.email === fromEmail) ?? FROM_ACCOUNTS[0];
     setSendingId(row.id);
     try {
-      await API.put("/mail-campaign/template", { subject, body, fromEmail: from.email }).catch(() => undefined);
       const res = await API.post(
         "/mail-campaign/send-one",
         {
@@ -189,7 +188,7 @@ export default function AdminMailPage() {
           senderId: from.id,
           senderEmail: from.email,
         },
-        { timeout: 40_000 },
+        { timeout: 25_000 },
       );
       libraryTick.current += 1;
       applyLibrary(res.data);
