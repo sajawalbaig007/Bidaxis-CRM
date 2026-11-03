@@ -106,18 +106,55 @@ function withCreatedRange(
 type SlimFilterRow = Prisma.LeadGetPayload<{ select: typeof CSR_FILTER_LEAD_SELECT }>;
 
 const slimRowCache = new Map<string, { at: number; rows: SlimFilterRow[] }>();
+const phoneRowCache = new Map<string, { at: number; rows: { id: string; phone: string | null }[] }>();
 const SLIM_ROW_TTL_MS = 60_000;
 
 /** Drop the in-memory filter scan after a lead write so the next filter is fresh. */
 export function clearCsrFilterRowCache(csrId?: string): void {
   if (!csrId) {
     slimRowCache.clear();
+    phoneRowCache.clear();
     return;
   }
   const prefix = `${csrId}:`;
   for (const key of slimRowCache.keys()) {
     if (key.startsWith(prefix)) slimRowCache.delete(key);
   }
+  for (const key of phoneRowCache.keys()) {
+    if (key.startsWith(prefix)) phoneRowCache.delete(key);
+  }
+}
+
+/** 11-digit numbers that start with 1 are the same client as the 10-digit number. */
+function phoneIdentity(phone: string | null | undefined): string | null {
+  let digits = (phone ?? "").replace(/\D/g, "");
+  if (digits.length === 11 && digits.startsWith("1")) digits = digits.slice(1);
+  if (digits.length < 7) return null;
+  return digits;
+}
+
+function uniqueByPhone<T extends { id: string; phone?: string | null }>(rows: T[]): T[] {
+  const seen = new Set<string>();
+  const out: T[] = [];
+  for (const row of rows) {
+    const key = phoneIdentity(row.phone) ?? `id:${row.id}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(row);
+  }
+  return out;
+}
+
+async function loadPhoneRows(cacheKey: string, where: Prisma.LeadWhereInput) {
+  const hit = phoneRowCache.get(cacheKey);
+  if (hit && Date.now() - hit.at < SLIM_ROW_TTL_MS) return hit.rows;
+  const rows = await prisma.lead.findMany({
+    where,
+    orderBy: { createdAt: "asc" },
+    select: { id: true, phone: true },
+  });
+  phoneRowCache.set(cacheKey, { at: Date.now(), rows });
+  return rows;
 }
 
 async function loadSlimRows(
@@ -385,20 +422,38 @@ export async function fetchCsrTabLeads(opts: {
   }
   if (filters?.schedule?.trim()) where.nextSchedule = filters.schedule.trim();
 
+  const dedupe = tab !== "projectwon";
+
   if (!hasCsrTableFilters(filters)) {
-    const skip = (page - 1) * pageSize;
-    const [total, rawLeads] = await Promise.all([
-      prisma.lead.count({ where }),
-      prisma.lead.findMany({
-        where,
-        orderBy: { createdAt: "asc" },
-        skip,
-        take: pageSize,
-        select: LEAD_LIST_SELECT,
-      }),
-    ]);
+    if (!dedupe) {
+      const skip = (page - 1) * pageSize;
+      const [total, rawLeads] = await Promise.all([
+        prisma.lead.count({ where }),
+        prisma.lead.findMany({
+          where,
+          orderBy: { createdAt: "asc" },
+          skip,
+          take: pageSize,
+          select: LEAD_LIST_SELECT,
+        }),
+      ]);
+      return {
+        leads: rawLeads.map(mapDashboardLead),
+        total,
+        page,
+        pageSize,
+        totalPages: Math.max(1, Math.ceil(total / pageSize)),
+      };
+    }
+    const phoneRows = await loadPhoneRows(`${csrId}:${tab}:${from ?? ""}:${to ?? ""}:phones`, where);
+    const unique = uniqueByPhone(phoneRows);
+    const total = unique.length;
+    const pageIds = unique.slice((page - 1) * pageSize, page * pageSize).map(row => row.id);
+    const rawLeads = pageIds.length
+      ? await prisma.lead.findMany({ where: { id: { in: pageIds } }, select: LEAD_LIST_SELECT })
+      : [];
     return {
-      leads: rawLeads.map(mapDashboardLead),
+      leads: reorderByIds(rawLeads, pageIds).map(mapDashboardLead),
       total,
       page,
       pageSize,
@@ -410,7 +465,8 @@ export async function fetchCsrTabLeads(opts: {
     `${csrId}:${tab}:${from ?? ""}:${to ?? ""}:tab`,
     where,
   );
-  const matched = rows.filter(row => leadMatchesTableFilters(row, filters));
+  const filteredRows = rows.filter(row => leadMatchesTableFilters(row, filters));
+  const matched = dedupe ? uniqueByPhone(filteredRows) : filteredRows;
   const total = matched.length;
   const pageRows = matched.slice((page - 1) * pageSize, page * pageSize);
   const pageIds = pageRows.map(row => row.id);

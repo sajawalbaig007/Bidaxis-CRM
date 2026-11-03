@@ -51,8 +51,6 @@ import {
   matchesPotentialTab,
   type PotentialTab,
 } from "../utils/potentialClientBuckets";
-import { uniqueLeadsByPhone } from "../utils/uniqueLeadsByPhone";
-
 const POTENTIAL_TABS = ["all", "important", "schedule", "interested"] as const;
 
 const getTzAbbr = (tzValue: string) => {

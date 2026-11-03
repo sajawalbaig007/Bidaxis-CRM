@@ -2,10 +2,11 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, Hammer, Search, X } from "lucide-react";
+import { tradeMatchesQuery } from "../../constants/masterFormatTrades";
 
 interface TradeFilterDropdownProps {
   value: string;
-  options: string[];
+  options: readonly string[];
   onChange: (v: string) => void;
   compact?: boolean;
   fullWidth?: boolean;
@@ -39,9 +40,9 @@ export default function TradeFilterDropdown({
   }, [open]);
 
   const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
+    const q = search.trim();
     if (!q) return options;
-    return options.filter(o => o.toLowerCase().includes(q));
+    return options.filter(name => tradeMatchesQuery(name, q));
   }, [options, search]);
 
   const select = (name: string) => {
@@ -85,7 +86,7 @@ export default function TradeFilterDropdown({
       </button>
 
       {open && (
-        <div className={`bg-white dark:bg-crm-surface rounded-xl sm:rounded-2xl border border-gray-100 dark:border-crm-border overflow-hidden ${fullWidth ? "relative mt-1 w-full shadow-sm" : "absolute top-full mt-1 right-0 z-[80] w-[240px] sm:w-[280px] shadow-2xl"}`}>
+        <div className="absolute top-full left-0 z-[80] mt-1 w-[min(340px,calc(100vw-24px))] bg-white dark:bg-crm-surface rounded-xl sm:rounded-2xl border border-gray-100 dark:border-crm-border shadow-2xl overflow-hidden">
           <div className="p-2 border-b border-gray-100 dark:border-crm-border-subtle">
             <div className="relative">
               <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />

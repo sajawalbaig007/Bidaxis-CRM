@@ -41,7 +41,8 @@ import { useOpenLeadFromQuery } from "./hooks/useOpenLeadFromQuery";
 import { matchesStateLocationFilter, matchesPhoneAreaCodeFilter } from "@/lib/stateLocationFilter";
 import { PAGE_SIZE, TODAY_STR } from "./constants";
 import { leadMatchesTimezoneFilter } from "./constants/timezoneAbbr";
-import { MASTER_FORMAT_TRADES, canonicalTradeName, leadMatchesTradeFilter, leadTradeAndSubtradeNames } from "./constants/masterFormatTrades";
+import { MASTER_FORMAT_TRADES, leadMatchesTradeFilter } from "./constants/masterFormatTrades";
+import { uniqueLeadsByPhone } from "./utils/uniqueLeadsByPhone";
 import { sortByOldestNote } from "./utils/sortByOldestNote";
 import { Lead } from "./types/lead";
 import type { NoteEntry } from "./hooks/useLeadsData";
@@ -73,7 +74,6 @@ export default function CSRPage() {
   const [phoneFilter, setPhoneFilter] = useState("");
   const [sourceFilter, setSourceFilter] = useState("");
   const [tradeFilter, setTradeFilter]   = useState("");
-  const [tradeOptions, setTradeOptions] = useState<string[]>([]);
   const [searchQuery, setSearchQuery]   = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [dismissedNotification, setDismissedNotification] = useState(false);
@@ -152,12 +152,12 @@ export default function CSRPage() {
     notInServiceCount: 0, inHouseCount: 0, totalAssigned: 0, totalLeads: 0,
   };
 
-  const visibleLeads = useMemo(() => leads.filter(l => {
+  const visibleLeads = useMemo(() => uniqueLeadsByPhone(leads.filter(l => {
     const status = (l.status ?? "").toLowerCase();
     if (status === "close client" || status === "completed" || status === "closed") return false;
     if (!l.hiddenOnMain) return true;
     return status === "pending";
-  }), [leads]);
+  })), [leads]);
 
   const tabFiltered = useMemo(() => {
     return visibleLeads.filter(item => {
@@ -192,27 +192,7 @@ export default function CSRPage() {
     return [...names].sort((a, b) => a.localeCompare(b));
   }, [visibleLeads]);
 
-  const tradeFilterOptions = useMemo(() => {
-    const seen = new Set(MASTER_FORMAT_TRADES.map(t => t.toLowerCase()));
-    const extras: string[] = [];
-    for (const name of tradeOptions) {
-      const canon = canonicalTradeName(name);
-      const key = canon.toLowerCase();
-      if (!key || seen.has(key)) continue;
-      seen.add(key);
-      extras.push(canon);
-    }
-    for (const lead of visibleLeads) {
-      for (const t of leadTradeAndSubtradeNames(lead.trade, lead.subTrades)) {
-        const key = t.toLowerCase();
-        if (seen.has(key)) continue;
-        seen.add(key);
-        extras.push(t);
-      }
-    }
-    extras.sort((a, b) => a.localeCompare(b));
-    return [...MASTER_FORMAT_TRADES, ...extras];
-  }, [tradeOptions, visibleLeads]);
+  const tradeFilterOptions = MASTER_FORMAT_TRADES;
 
   const paginated = tabSorted;
 
@@ -236,13 +216,6 @@ export default function CSRPage() {
   useEffect(() => {
     if (page > displayTotalPages) setPage(displayTotalPages);
   }, [page, displayTotalPages]);
-
-  useEffect(() => {
-    API.get("/csr/trades").then(res => {
-      const names: string[] = (res.data.trades ?? []).map((t: { name: string }) => t.name);
-      setTradeOptions(names);
-    }).catch(() => {});
-  }, []);
 
   /** Lead left this tab — remove from table immediately */
   const leaveTab = (id: string) => {
@@ -629,7 +602,6 @@ export default function CSRPage() {
                         trade={currentLink.trade}
                         subTrades={currentLink.subTrades}
                         tradeNotes={currentLink.tradeNotes}
-                        extraTrades={tradeFilterOptions}
                         onSave={async next => {
                           await updateLead(currentLink.id, next);
                         }}

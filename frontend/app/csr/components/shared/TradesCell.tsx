@@ -6,18 +6,17 @@ import { Hammer, Pencil, Plus, Search, Trash2, X, Check } from "lucide-react";
 import { useFixedPopover } from "../../hooks/useFixedPopover";
 import {
   MASTER_FORMAT_TRADES,
-  canonicalTradeName,
   parseSubTradeList,
   parseTradeList,
   parseTradeNotes,
   serializeTradeNotes,
+  tradeMatchesQuery,
 } from "../../constants/masterFormatTrades";
 
 interface TradesCellProps {
   trade: string;
   subTrades?: string;
   tradeNotes?: string;
-  extraTrades?: string[];
   onSave?: (next: { trade: string; subTrades: string; tradeNotes: string }) => Promise<void> | void;
   className?: string;
 }
@@ -26,13 +25,12 @@ export default function TradesCell({
   trade,
   subTrades = "",
   tradeNotes = "",
-  extraTrades = [],
   onSave,
   className = "",
 }: TradesCellProps) {
   const trades = parseTradeList(trade);
   const hiddenCount = Math.max(0, trades.length - 1);
-  const catalog = mergeCatalog(extraTrades);
+  const catalog = pickerCatalog(trades);
   const { open, toggle, setOpen, anchorRef, panelRef, style } = useFixedPopover(340, 420);
 
   const [draftTrades, setDraftTrades] = useState<string[]>(trades);
@@ -52,9 +50,9 @@ export default function TradesCell({
   }, [open, trade, subTrades, tradeNotes]);
 
   const visibleCatalog = useMemo(() => {
-    const q = tradeSearch.trim().toLowerCase();
+    const q = tradeSearch.trim();
     if (!q) return catalog;
-    return catalog.filter(name => name.toLowerCase().includes(q));
+    return catalog.filter(name => tradeMatchesQuery(name, q));
   }, [catalog, tradeSearch]);
 
   const toggleTrade = (name: string) => {
@@ -247,11 +245,11 @@ export default function TradesCell({
   );
 }
 
-function mergeCatalog(extra: string[]): string[] {
+/** Official list, plus any trade already saved on this lead so it can be removed. */
+function pickerCatalog(saved: string[]): string[] {
   const seen = new Set(MASTER_FORMAT_TRADES.map(t => t.toLowerCase()));
   const extras: string[] = [];
-  for (const raw of extra) {
-    const name = canonicalTradeName(raw);
+  for (const name of saved) {
     const key = name.toLowerCase();
     if (!key || seen.has(key)) continue;
     seen.add(key);
