@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   X, Phone, Mail, Building2, Pencil, Check,
-  Briefcase, CalendarDays, Globe, User2, MapPin, Plus, Trash2, Users, Link2, Hash, FileText, Hammer,
+  Briefcase, CalendarDays, Globe, User2, MapPin, Plus, Trash2, Users, Link2, Hash, FileText, Hammer, Search,
 } from "lucide-react";
 import API, { apiErrorMessage } from "@/lib/api";
 import toast from "react-hot-toast";
@@ -13,7 +13,7 @@ import { collectLeadEmails } from "../utils/parseEmails";
 import EmailWithExtraCell from "./shared/EmailWithExtraCell";
 import { useZoomDialer } from "./dialer/ZoomDialerProvider";
 import { consumeLeadDial, requireLeadDial } from "./dialer/dialUnlock";
-import { leadTradeAndSubtradeNames } from "../constants/masterFormatTrades";
+import { MASTER_FORMAT_TRADES, leadTradeAndSubtradeNames, tradeMatchesQuery } from "../constants/masterFormatTrades";
 
 export type DetailLead = {
   id: string;
@@ -105,6 +105,75 @@ const ADMIN_STATUS_OPTIONS = [
 const inputClass    = "w-full h-11 rounded-2xl border-2 border-gray-200 bg-[#FAFAFA] px-4 text-sm outline-none focus:border-[#B8112D] focus:bg-white transition-colors placeholder:text-gray-300";
 const textareaClass = "w-full rounded-2xl border-2 border-gray-200 bg-[#FAFAFA] px-4 py-3 text-sm outline-none focus:border-[#B8112D] focus:bg-white transition-colors resize-none placeholder:text-gray-300";
 const labelClass    = "text-[11px] font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-1.5";
+
+function tradeOptions(selected: string[]): string[] {
+  const seen = new Set(MASTER_FORMAT_TRADES.map(name => name.toLowerCase()));
+  const extras = selected.filter(name => name.trim() && !seen.has(name.toLowerCase()));
+  return [...extras, ...MASTER_FORMAT_TRADES];
+}
+
+function TradePicker({
+  selected,
+  search,
+  onSearch,
+  onToggle,
+}: {
+  selected: string[];
+  search: string;
+  onSearch: (value: string) => void;
+  onToggle: (name: string) => void;
+}) {
+  const options = useMemo(() => {
+    const q = search.trim();
+    const all = tradeOptions(selected);
+    if (!q) return all;
+    return all.filter(name => tradeMatchesQuery(name, q));
+  }, [search, selected]);
+
+  return (
+    <div>
+      <label className={`${labelClass} mb-2`}><Hammer size={11} className="text-[#B8112D]"/>Trades</label>
+      {selected.length > 0 && (
+        <div className="flex flex-wrap gap-1 mb-2">
+          {selected.map(name => (
+            <button
+              key={name}
+              type="button"
+              onClick={() => onToggle(name)}
+              className="inline-flex items-center gap-1 bg-[#FFF1F3] text-[#B8112D] text-[11px] font-semibold px-2 py-0.5 rounded-lg"
+            >
+              {name}
+              <X size={10} />
+            </button>
+          ))}
+        </div>
+      )}
+      <div className="relative mb-2">
+        <Search size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+        <input
+          type="text"
+          value={search}
+          onChange={e => onSearch(e.target.value)}
+          placeholder="Search trades"
+          className="w-full h-9 rounded-xl border border-gray-200 bg-[#FAFAFA] pl-8 pr-3 text-[12px] outline-none focus:border-[#B8112D]"
+        />
+      </div>
+      <div className="max-h-40 overflow-y-auto rounded-xl border border-gray-200 bg-[#FAFAFA] p-1.5 space-y-0.5">
+        {options.length === 0 ? (
+          <p className="px-2 py-3 text-center text-[12px] text-gray-400">No match</p>
+        ) : options.map(name => {
+          const on = selected.some(t => t.toLowerCase() === name.toLowerCase());
+          return (
+            <label key={name} className="flex items-start gap-2 px-2 py-1.5 rounded-lg hover:bg-white cursor-pointer">
+              <input type="checkbox" checked={on} onChange={() => onToggle(name)} className="mt-0.5 accent-[#B8112D]" />
+              <span className="text-[12px] text-[#0F172A] leading-snug">{name}</span>
+            </label>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 /* Parse "[timestamp] note text" lines into sticky-note entries */
 const parseNotes = (raw?: string): { tag: string | null; text: string }[] => {
@@ -226,7 +295,8 @@ export default function LeadDetailModal({ lead, onClose, onSaved, onNoteAdded, o
   const [state, setState] = useState(lead.state ?? "");
   const [interestedService, setInterestedService] = useState(lead.interestedService ?? "");
   const [clientCode, setClientCode] = useState(lead.clientCode ?? "");
-  const [tradesText, setTradesText] = useState(() => leadTradeAndSubtradeNames(lead.trade, lead.subTrades).join(", "));
+  const [selectedTrades, setSelectedTrades] = useState<string[]>(() => leadTradeAndSubtradeNames(lead.trade, lead.subTrades));
+  const [tradeSearch, setTradeSearch] = useState("");
   const [nextSchedule, setNextSchedule] = useState(lead.nextSchedule ?? "");
   const [nextTime, setNextTime] = useState(lead.nextTime ?? "");
   const [timezone, setTimezone] = useState(lead.timezone ?? "");
@@ -269,7 +339,8 @@ export default function LeadDetailModal({ lead, onClose, onSaved, onNoteAdded, o
     setState(lead.state ?? "");
     setInterestedService(lead.interestedService ?? "");
     setClientCode(lead.clientCode ?? "");
-    setTradesText(leadTradeAndSubtradeNames(lead.trade, lead.subTrades).join(", "));
+    setSelectedTrades(leadTradeAndSubtradeNames(lead.trade, lead.subTrades));
+    setTradeSearch("");
     setNextSchedule(lead.nextSchedule ?? "");
     setNextTime(lead.nextTime && lead.nextTime !== "N/A" ? lead.nextTime : "");
     setTimezone(lead.timezone && lead.timezone !== "N/A" ? lead.timezone : "");
@@ -285,7 +356,7 @@ export default function LeadDetailModal({ lead, onClose, onSaved, onNoteAdded, o
       const websiteTrim = website.trim();
       const scopeTrim = interestedService.trim();
       const codeTrim = clientCode.trim();
-      const tradesTrim = tradesText.trim();
+      const tradesTrim = selectedTrades.join(", ");
       const payload: Record<string, unknown> = {
         name, company, phone, email, website: websiteTrim, state, interestedService: scopeTrim,
         clientCode: codeTrim || null,
@@ -613,11 +684,16 @@ export default function LeadDetailModal({ lead, onClose, onSaved, onNoteAdded, o
                   </div>
                 </div>
 
-                <div>
-                  <label className={`${labelClass} mb-2`}><Hammer size={11} className="text-[#B8112D]"/>Trades</label>
-                  <textarea rows={2} value={tradesText} onChange={e => setTradesText(e.target.value)}
-                    placeholder="Trades" className={textareaClass}/>
-                </div>
+                <TradePicker
+                  selected={selectedTrades}
+                  search={tradeSearch}
+                  onSearch={setTradeSearch}
+                  onToggle={name => setSelectedTrades(prev =>
+                    prev.some(t => t.toLowerCase() === name.toLowerCase())
+                      ? prev.filter(t => t.toLowerCase() !== name.toLowerCase())
+                      : [...prev, name],
+                  )}
+                />
 
                 {isAdmin && (
                   <>

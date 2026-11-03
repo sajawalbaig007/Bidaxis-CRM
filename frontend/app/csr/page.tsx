@@ -653,7 +653,7 @@ export default function CSRPage() {
                     </td>
 
                     {/* NOTES */}
-                    <td className={CSR_TD_TOP}>
+                    <td className={CSR_TD}>
                       <CommentCell
                         id={currentLink.id}
                         noteHistory={currentLink.noteHistory}
@@ -667,11 +667,11 @@ export default function CSRPage() {
 
                     {/* ACTION */}
                     <td className={CSR_TD}>
-                      <div className="relative w-full min-w-[160px]">
+                      <div className="relative w-[148px] max-w-full">
                         <DialGatedSelect
                           leadId={currentLink.id}
                           onPick={status => { void updateStatus(currentLink.id, status); }}
-                          className="appearance-none h-10 sm:h-[46px] w-full rounded-xl sm:rounded-2xl border border-gray-200 dark:border-crm-border bg-white dark:bg-crm-input px-3 sm:px-4 pr-9 sm:pr-11 text-[12px] sm:text-[14px] font-semibold text-[#0F172A] dark:text-crm-text outline-none"
+                          className="appearance-none h-9 w-full rounded-xl border border-gray-200 dark:border-crm-border bg-white dark:bg-crm-input px-2.5 pr-7 text-[11px] font-semibold text-[#0F172A] dark:text-crm-text outline-none"
                         >
                           <option value="">Update Status</option>
                           <option value="Not Interested">Not Interested</option>
@@ -686,8 +686,8 @@ export default function CSRPage() {
                           <option value="interested">Interested</option>
                           <option value="Close Client">Close Client</option>
                         </DialGatedSelect>
-                        <div className="absolute right-3 sm:right-4 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
-                          <ChevronDown size={14} className="sm:w-[18px] sm:h-[18px]" />
+                        <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
+                          <ChevronDown size={13} />
                         </div>
                       </div>
                     </td>

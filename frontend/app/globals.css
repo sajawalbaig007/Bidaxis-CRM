@@ -305,6 +305,24 @@ html.dark textarea::placeholder {
   background-color: transparent;
 }
 
+.crm-col-resize th {
+  position: relative;
+}
+.crm-col-resize th::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  right: 1px;
+  width: 3px;
+  height: 16px;
+  transform: translateY(-50%);
+  border-radius: 99px;
+  background: #fff;
+  box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.28);
+  pointer-events: none;
+  z-index: 4;
+}
+
 .crm-thead input {
   background-color: rgba(255, 255, 255, 0.14);
   color: #fff;

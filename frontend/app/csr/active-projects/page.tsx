@@ -12,7 +12,7 @@ import TopNavbar from "../components/navigation/TopNavbar";
 import ServicePicker from "../components/shared/ServicePicker";
 import StackedHorizontalBarChart, { StackedBarRow } from "../components/shared/StackedHorizontalBarChart";
 import Pagination from "../components/shared/Pagination";
-import { CRM_GRID_HEAD_ROW, CSR_PAGE_MAIN, matchesLeadSearch } from "../components/shared/csrTableStyles";
+import { COL_RESIZE_LINE, CRM_GRID_HEAD_ROW, CSR_PAGE_MAIN, matchesLeadSearch } from "../components/shared/csrTableStyles";
 import { useResizableColumns } from "../components/shared/ResizableTable";
 
 const PROJECT_COL_DEFAULTS = [220, 220, 110, 170, 160, 180, 96];
@@ -613,7 +613,7 @@ export default function CSRProjectsPage() {
                         role="separator"
                         aria-orientation="vertical"
                         title="Drag to resize"
-                        className="absolute right-0 top-0 h-full w-2 cursor-col-resize hover:bg-white/40"
+                        className={COL_RESIZE_LINE}
                         onMouseDown={e => { e.preventDefault(); e.stopPropagation(); projectCols.startResize(i, e.clientX); }}
                       />
                     </span>

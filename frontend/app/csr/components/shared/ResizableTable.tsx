@@ -3,6 +3,17 @@
 import { useEffect, useRef, useState } from "react";
 
 const MIN_COL = 72;
+const EDGE = 12;
+
+function resizeEdgeIndex(th: HTMLTableCellElement, clientX: number): number | null {
+  const rect = th.getBoundingClientRect();
+  const cells = Array.from(th.parentElement?.children ?? []);
+  const index = cells.indexOf(th);
+  if (index < 0) return null;
+  if (rect.right - clientX <= EDGE) return index;
+  if (clientX - rect.left <= EDGE && index > 0) return index - 1;
+  return null;
+}
 
 function storageKey(tableId: string, count: number) {
   return `crm-colw:${tableId}:${count}`;
@@ -62,12 +73,9 @@ export default function ResizableTable({
     if (!widthsRef.current.length) return;
     const th = (event.target as HTMLElement).closest("th");
     if (!th) return;
-    const rect = th.getBoundingClientRect();
-    if (rect.right - event.clientX > 8) return;
+    const index = resizeEdgeIndex(th, event.clientX);
+    if (index == null || index >= widthsRef.current.length) return;
     event.preventDefault();
-    const cells = Array.from(th.parentElement?.children ?? []);
-    const index = cells.indexOf(th);
-    if (index < 0 || index >= widthsRef.current.length) return;
     const startX = event.clientX;
     const startW = widthsRef.current[index] ?? MIN_COL;
     const move = (ev: MouseEvent) => {
@@ -92,12 +100,11 @@ export default function ResizableTable({
   const onMouseMove = (event: React.MouseEvent) => {
     const th = (event.target as HTMLElement).closest("th");
     const table = event.currentTarget as HTMLTableElement;
-    if (!th) {
+    if (!th || resizeEdgeIndex(th, event.clientX) == null) {
       table.style.cursor = "";
       return;
     }
-    const rect = th.getBoundingClientRect();
-    table.style.cursor = rect.right - event.clientX <= 8 ? "col-resize" : "";
+    table.style.cursor = "col-resize";
   };
 
   const px = widths ?? percentsToPixels(defaultWidths, 1100);
@@ -106,7 +113,7 @@ export default function ResizableTable({
   return (
     <div ref={wrapRef} className="w-full min-w-0 overflow-x-auto">
       <table
-        className={className}
+        className={`${className ?? ""} crm-col-resize`}
         style={{ width: sum, minWidth: "100%" }}
         onMouseDown={onMouseDown}
         onMouseMove={onMouseMove}

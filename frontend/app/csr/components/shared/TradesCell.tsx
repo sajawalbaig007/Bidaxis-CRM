@@ -91,24 +91,24 @@ export default function TradesCell({
     }
   };
 
+  const hiddenCount = Math.max(0, trades.length - 1);
   const badge =
     trades.length === 0 ? (
-      <span className="inline-flex items-center gap-1 text-[#B8112D] text-xs font-semibold">
+      <span className="inline-flex items-center gap-1 text-[#B8112D] text-xs font-semibold whitespace-nowrap">
         <Hammer size={11} />
         {onSave ? "Add trades" : "—"}
       </span>
     ) : (
-      <div className={`flex flex-wrap items-center gap-1 min-w-0 ${className}`}>
-        {trades.map(name => (
-          <span
-            key={name}
-            className="inline-flex items-start gap-1 bg-[#FFF1F3] text-[#B8112D] font-semibold px-2 py-0.5 rounded-lg text-[10px] sm:text-xs max-w-full"
-            title={name}
-          >
-            <Hammer size={9} className="shrink-0 mt-0.5" />
-            <span className="whitespace-normal break-words text-left">{name}</span>
+      <div className={`flex items-center gap-1 min-w-0 ${className}`} title={trades.join(", ")}>
+        <span className="inline-flex items-center gap-1 bg-[#FFF1F3] text-[#B8112D] font-semibold px-2 py-0.5 rounded-lg text-[10px] sm:text-xs min-w-0 max-w-full">
+          <Hammer size={9} className="shrink-0" />
+          <span className="truncate">{trades[0]}</span>
+        </span>
+        {hiddenCount > 0 && (
+          <span className="bg-[#B8112D] text-white text-[9px] font-bold px-1.5 py-0.5 rounded-md shrink-0">
+            +{hiddenCount}
           </span>
-        ))}
+        )}
         {onSave && <Pencil size={10} className="shrink-0 text-[#B8112D] opacity-70" />}
       </div>
     );

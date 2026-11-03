@@ -1,5 +1,8 @@
 /** Shared CSR lead-table layout — prevents column overlap on dense rows */
 
+export const COL_RESIZE_LINE =
+  "absolute top-1/2 right-0 z-30 h-8 w-3 -translate-y-1/2 translate-x-1/2 cursor-col-resize before:absolute before:left-1/2 before:top-1/2 before:h-4 before:w-[3px] before:-translate-x-1/2 before:-translate-y-1/2 before:rounded-full before:bg-white before:shadow-[0_0_0_1px_rgba(15,23,42,0.28)] before:content-['']";
+
 export const CSR_TABLE_CLASS = "w-full table-fixed border-collapse";
 /** Full-width tables when columns show/hide by breakpoint (no fixed colgroup) */
 export const CSR_TABLE_FLUID = "w-full border-collapse table-fixed";
