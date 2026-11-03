@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { ChevronDown, Hammer, Search, X } from "lucide-react";
 import { tradeMatchesQuery } from "../../constants/masterFormatTrades";
+import { useFixedPopover } from "../../hooks/useFixedPopover";
 
 interface TradeFilterDropdownProps {
   value: string;
@@ -19,18 +21,9 @@ export default function TradeFilterDropdown({
   compact = false,
   fullWidth = false,
 }: TradeFilterDropdownProps) {
-  const [open, setOpen] = useState(false);
+  const { open, setOpen, toggle, anchorRef, panelRef, style } = useFixedPopover(300, 320, "end");
   const [search, setSearch] = useState("");
-  const ref = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, []);
 
   useEffect(() => {
     if (!open) return;
@@ -56,11 +49,62 @@ export default function TradeFilterDropdown({
     setSearch("");
   };
 
+  const panel = open && typeof document !== "undefined" ? createPortal(
+    <div
+      ref={panelRef}
+      style={style}
+      className="bg-white dark:bg-crm-surface rounded-xl sm:rounded-2xl border border-gray-100 dark:border-crm-border shadow-2xl overflow-hidden"
+    >
+      <div className="p-2 border-b border-gray-100 dark:border-crm-border-subtle">
+        <div className="relative">
+          <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+          <input
+            ref={inputRef}
+            type="text"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search trades…"
+            className="w-full h-8 pl-8 pr-2 rounded-lg border border-gray-200 dark:border-crm-border bg-white dark:bg-crm-input text-xs outline-none focus:border-[#B8112D]"
+          />
+        </div>
+      </div>
+      <div className="max-h-[280px] overflow-y-auto py-1">
+        <button
+          type="button"
+          onClick={() => select("")}
+          className={`w-full text-left px-3 py-2 text-[12px] sm:text-[13px] font-semibold transition-colors hover:bg-[#FFF1F3] ${
+            !value ? "bg-[#FFF1F3] text-[#B8112D]" : "text-[#0F172A] dark:text-crm-text"
+          }`}
+        >
+          All Trades
+        </button>
+        {filtered.length === 0 ? (
+          <p className="px-3 py-4 text-xs text-gray-400 text-center">No match</p>
+        ) : (
+          filtered.map(name => (
+            <button
+              key={name}
+              type="button"
+              onClick={() => select(name)}
+              className={`w-full text-left px-3 py-2 text-[12px] sm:text-[13px] font-medium leading-snug transition-colors hover:bg-[#FFF1F3] ${
+                value === name ? "bg-[#FFF1F3] text-[#B8112D]" : "text-[#0F172A] dark:text-crm-text"
+              }`}
+            >
+              {name}
+            </button>
+          ))
+        )}
+      </div>
+    </div>,
+    document.body,
+  ) : null;
+
   return (
-    <div className={`relative ${fullWidth ? "w-full min-w-0" : ""}`} ref={ref}>
+    <div className={fullWidth ? "w-full min-w-0" : ""}>
       <button
+        ref={anchorRef}
         type="button"
-        onClick={() => setOpen(o => !o)}
+        onClick={toggle}
         className={`h-10 sm:h-[42px] px-3 sm:px-4 rounded-xl sm:rounded-2xl border text-xs sm:text-sm font-medium flex items-center gap-1.5 sm:gap-2 transition-colors ${fullWidth ? "w-full min-w-0" : compact ? "min-w-[110px] sm:min-w-[140px]" : "min-w-[130px] sm:min-w-[168px]"} ${
           value
             ? "border-[#B8112D] bg-[#FFF1F3] text-[#B8112D]"
@@ -84,53 +128,7 @@ export default function TradeFilterDropdown({
           <ChevronDown size={12} className="text-gray-400 shrink-0 ml-auto sm:w-[13px] sm:h-[13px]" />
         )}
       </button>
-
-      {open && (
-        <div className="absolute top-full left-0 z-[80] mt-1 w-[min(340px,calc(100vw-24px))] bg-white dark:bg-crm-surface rounded-xl sm:rounded-2xl border border-gray-100 dark:border-crm-border shadow-2xl overflow-hidden">
-          <div className="p-2 border-b border-gray-100 dark:border-crm-border-subtle">
-            <div className="relative">
-              <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input
-                ref={inputRef}
-                type="text"
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                placeholder="Search trades…"
-                className="w-full h-8 pl-8 pr-2 rounded-lg border border-gray-200 dark:border-crm-border bg-white dark:bg-crm-input text-xs outline-none focus:border-[#B8112D]"
-              />
-            </div>
-          </div>
-          <div className="max-h-[240px] overflow-y-auto py-1">
-            <button
-              type="button"
-              onClick={() => select("")}
-              className={`w-full text-left px-3 sm:px-4 py-2.5 text-[12px] sm:text-[13px] font-semibold transition-colors hover:bg-[#FFF1F3] ${
-                !value ? "bg-[#FFF1F3] text-[#B8112D]" : "text-[#0F172A] dark:text-crm-text"
-              }`}
-            >
-              All Trades
-            </button>
-            {options.length === 0 ? (
-              <p className="px-3 py-4 text-xs text-gray-400 text-center">No trades on your leads</p>
-            ) : filtered.length === 0 ? (
-              <p className="px-3 py-4 text-xs text-gray-400 text-center">No match</p>
-            ) : (
-              filtered.map(name => (
-                <button
-                  key={name}
-                  type="button"
-                  onClick={() => select(name)}
-                  className={`w-full text-left px-3 sm:px-4 py-2.5 text-[12px] sm:text-[13px] font-semibold transition-colors hover:bg-[#FFF1F3] truncate ${
-                    value === name ? "bg-[#FFF1F3] text-[#B8112D]" : "text-[#0F172A] dark:text-crm-text"
-                  }`}
-                >
-                  {name}
-                </button>
-              ))
-            )}
-          </div>
-        </div>
-      )}
+      {panel}
     </div>
   );
 }
