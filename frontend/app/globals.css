@@ -308,6 +308,20 @@ html.dark textarea::placeholder {
 .crm-col-resize th {
   position: relative;
 }
+.crm-col-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.7) transparent;
+}
+.crm-col-scroll::-webkit-scrollbar {
+  height: 6px;
+}
+.crm-col-scroll::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.7);
+  border-radius: 99px;
+}
+.crm-col-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
 .crm-col-resize th::after {
   content: "";
   position: absolute;
