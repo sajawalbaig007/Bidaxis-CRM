@@ -119,21 +119,21 @@ export default function LoginPortalForm({
   async function completeLogin(
     data: { role?: string; user?: { role?: string }; token?: string; success?: boolean },
     expectedPortal: PortalRole,
+    headerToken?: string,
   ) {
-    const token = loginTokenFrom(data);
+    const token = loginTokenFrom(data, headerToken);
     const role = resolveLoginRole(data) ?? expectedPortal;
     if (role !== expectedPortal) {
       toast.error(`This email is not a ${portalLabel(expectedPortal)} account.`);
       return;
     }
     if (!token) {
-      toast.error("Session could not be created. Redeploy backend and try again.");
+      toast.error("Login worked but the session token was missing. Refresh and try once more.");
       return;
     }
     const saved = await setFrontendSession(token);
     if (!saved) {
-      toast.error("Failed to save login session. Please try again.");
-      return;
+      setClientAuthToken(token);
     }
     invalidateAuthMeCache();
     invalidateCsrDashboardCache();
@@ -153,15 +153,26 @@ export default function LoginPortalForm({
         loginRole: loginPortal,
         captchaToken: captchaToken || undefined,
       }, { withCredentials: true });
-      const raw = (res.data ?? {}) as Record<string, unknown>;
-      const nested = raw.data && typeof raw.data === "object" && !Array.isArray(raw.data)
-        ? (raw.data as Record<string, unknown>)
+      const headerToken = String(res.headers?.["x-crm-session"] ?? res.headers?.["X-Crm-Session"] ?? "");
+      let raw: unknown = res.data;
+      if (typeof raw === "string") {
+        try { raw = JSON.parse(raw) as unknown; } catch { /* keep string */ }
+      }
+      const root = (raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {}) as Record<string, unknown>;
+      const nested = root.data && typeof root.data === "object" && !Array.isArray(root.data)
+        ? (root.data as Record<string, unknown>)
         : null;
-      const data = (nested ? { ...raw, ...nested } : raw) as {
+      const data = {
+        ...(nested ?? {}),
+        ...root,
+        token: root.token ?? nested?.token,
+        accessToken: root.accessToken ?? nested?.accessToken,
+      } as {
         role?: string; user?: { role?: string }; token?: string; success?: boolean;
         requires2FA?: boolean; userId?: string; message?: string;
       };
-      if (data.requires2FA === true && data.userId && !data.token) {
+      const jwt = loginTokenFrom(data, headerToken);
+      if (data.requires2FA === true && data.userId && !jwt) {
         setUserId(String(data.userId));
         setAttemptsLeft(2);
         setIsBlocked(false);
@@ -169,7 +180,7 @@ export default function LoginPortalForm({
         setStep("otp");
         toast.success(data.message ?? "OTP sent to your email");
       } else {
-        await completeLogin(data, loginPortal);
+        await completeLogin(data, loginPortal, headerToken);
       }
     } catch (err: unknown) {
       const e = err as APIError;
@@ -209,13 +220,18 @@ export default function LoginPortalForm({
         rememberMe,
         loginRole: loginPortal,
       }, { withCredentials: true });
+      const headerToken = String(res.headers?.["x-crm-session"] ?? res.headers?.["X-Crm-Session"] ?? "");
       const raw = (res.data ?? {}) as Record<string, unknown>;
       const nested = raw.data && typeof raw.data === "object" && !Array.isArray(raw.data)
         ? (raw.data as Record<string, unknown>)
         : null;
-      await completeLogin((nested ? { ...raw, ...nested } : raw) as {
+      await completeLogin({
+        ...(nested ?? {}),
+        ...raw,
+        token: raw.token ?? nested?.token,
+      } as {
         role?: string; user?: { role?: string }; token?: string; success?: boolean;
-      }, loginPortal);
+      }, loginPortal, headerToken);
     } catch (err: unknown) {
       const e = err as APIError;
       const data = e?.response?.data;

@@ -68,11 +68,44 @@ function asRecord(value: unknown): Record<string, unknown> | null {
   return value as Record<string, unknown>;
 }
 
+function asJwt(value: unknown): string {
+  if (typeof value !== "string") return "";
+  const s = value.trim().replace(/^Bearer\s+/i, "");
+  const m = s.match(/eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/);
+  return m?.[0] ?? "";
+}
+
 function loginTokenFromRecord(o: Record<string, unknown> | null): string {
   if (!o) return "";
   for (const key of ["token", "accessToken", "jwt", "sessionToken"]) {
-    const v = o[key];
-    if (typeof v === "string" && v.split(".").length === 3) return v.trim();
+    const found = asJwt(o[key]);
+    if (found) return found;
+  }
+  return "";
+}
+
+function findJwt(value: unknown, depth = 0): string {
+  if (depth > 8) return "";
+  const direct = asJwt(value);
+  if (direct) return direct;
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
+      try {
+        return findJwt(JSON.parse(trimmed) as unknown, depth + 1);
+      } catch {
+        return "";
+      }
+    }
+    return "";
+  }
+  const rec = asRecord(value);
+  if (!rec) return "";
+  const named = loginTokenFromRecord(rec);
+  if (named) return named;
+  for (const nested of Object.values(rec)) {
+    const found = findJwt(nested, depth + 1);
+    if (found) return found;
   }
   return "";
 }
@@ -130,8 +163,12 @@ export function resolveLoginRole(data: unknown): PortalRole | null {
   return normalizePortalRole(String(body.role ?? body.user?.role ?? roleFromToken(body.token) ?? ""));
 }
 
-export function loginTokenFrom(data: unknown): string {
-  return (asLoginBody(data).token ?? "").trim();
+export function loginTokenFrom(data: unknown, headerToken?: string): string {
+  return (
+    findJwt(data)
+    || (asLoginBody(data).token ?? "").trim()
+    || asJwt(headerToken)
+  );
 }
 
 export type PortalRole = "admin" | "csr" | "manager" | "technical_manager" | "accounts" | "estimator" | "bim_manager" | "bim";

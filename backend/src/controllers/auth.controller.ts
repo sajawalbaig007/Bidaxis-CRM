@@ -122,13 +122,17 @@ async function finishLogin(
 
   sendLoginAlertEmail({ to: user.email, name: user.name, ip, userAgent: ua });
 
+  res.setHeader("X-Crm-Session", token);
+  res.setHeader("Access-Control-Expose-Headers", "X-Crm-Session");
   return res.json({
-    success:     true,
-    requires2FA: false,
-    role:        user.role,
-    portalRole:  user.role,
-    user:        userPayload(user),
+    success:      true,
+    requires2FA:  false,
+    role:         user.role,
+    portalRole:   user.role,
+    user:         userPayload(user),
     token,
+    accessToken:  token,
+    sessionToken: token,
   });
 }
 

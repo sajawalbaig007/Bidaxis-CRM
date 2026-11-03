@@ -95,7 +95,12 @@ async function proxyRequest(req: NextRequest, pathSegments: string[]) {
     }
   });
 
-  return new NextResponse(upstream.body, {
+  const buf = Buffer.from(await upstream.arrayBuffer());
+  resHeaders.delete("content-encoding");
+  resHeaders.delete("content-length");
+  resHeaders.set("content-length", String(buf.byteLength));
+
+  return new NextResponse(buf, {
     status:     upstream.status,
     statusText: upstream.statusText,
     headers:    resHeaders,
