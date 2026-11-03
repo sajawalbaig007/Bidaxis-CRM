@@ -76,7 +76,7 @@ function launchZoomApp(number: string) {
   link.click();
   link.remove();
 }
-
+// TODO: Add a tooltip for the web dialer
 export function ZoomDialerProvider({ children }: { children: React.ReactNode }) {
   const savedPlace = useSyncExternalStore(subscribeSavedPlace, readSavedPlace, () => null);
   const place: ZoomPlace = savedPlace ?? "app";
