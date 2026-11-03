@@ -152,6 +152,7 @@ export function useCsrTabLeads(
       );
       if (gen !== reqGen.current) return;
       setLeads((data.leads as BackendLead[] ?? []).map(mapBackendLead));
+      setSourceOptions(data.sources ?? []);
       setTotal(data.total ?? 0);
       setTotalPages(data.totalPages ?? 1);
     } catch (err) {
@@ -170,7 +171,7 @@ export function useCsrTabLeads(
   useEffect(() => { void refetch(); }, [refetchKey, refetch]);
   useOnCsrDataReset(() => { void refetch(true); });
 
-  return { leads, setLeads, total, totalPages, loading, refetch };
+  return { leads, setLeads, sourceOptions, total, totalPages, loading, refetch };
 }
 
 
