@@ -1,6 +1,7 @@
 "use client";
 
 import { Trash2 } from "lucide-react";
+import { confirmDelete } from "@/lib/confirmToast";
 
 export type EditableColumn = {
   key: string;
@@ -91,7 +92,7 @@ export default function EditableDataTable<T extends { id: string }>({
                   <td className="px-2 py-1.5 text-center">
                     <button
                       type="button"
-                      onClick={() => onDelete(row.id)}
+                      onClick={() => confirmDelete("Delete this row?", () => onDelete(row.id))}
                       className="w-8 h-8 rounded-lg text-red-500 hover:bg-red-50 inline-flex items-center justify-center"
                       title="Delete row"
                     >

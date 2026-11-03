@@ -23,6 +23,7 @@ import {
   type SlipPayrollKind,
 } from "../utils/salarySlipFieldConfig";
 import { salarySlipCompanyForKind, SALARY_SLIP_COMPANIES } from "../utils/salarySlipCompanies";
+import { confirmDelete } from "@/lib/confirmToast";
 
 type Props = {
   open: boolean;
@@ -120,7 +121,7 @@ function AmountFieldsEditor({
               </button>
               <button
                 type="button"
-                onClick={() => onChange(fields.filter(x => x.id !== f.id))}
+                onClick={() => confirmDelete("Delete this field?", () => onChange(fields.filter(x => x.id !== f.id)))}
                 className="w-7 h-7 rounded-lg text-red-500 hover:bg-red-50 inline-flex items-center justify-center"
                 title="Delete field"
               >
@@ -201,7 +202,7 @@ function EmployeeFieldsEditor({
             )}
             <button
               type="button"
-              onClick={() => onChange(fields.filter(x => x.id !== f.id))}
+              onClick={() => confirmDelete("Delete this field?", () => onChange(fields.filter(x => x.id !== f.id)))}
               className="w-7 h-7 rounded-lg text-red-500 hover:bg-red-50 inline-flex items-center justify-center"
               title="Delete field"
             >
@@ -439,7 +440,7 @@ export default function SalarySlipTemplateEditorModal({ open, kind, onClose }: P
                 </label>
                 <button
                   type="button"
-                  onClick={() => deleteCustomSection(activeCustom.id)}
+                  onClick={() => confirmDelete("Delete this section?", () => deleteCustomSection(activeCustom.id))}
                   className="h-8 px-3 rounded-lg text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 inline-flex items-center gap-1"
                 >
                   <Trash2 size={13} /> Delete section

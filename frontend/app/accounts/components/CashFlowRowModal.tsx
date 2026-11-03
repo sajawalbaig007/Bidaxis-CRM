@@ -6,6 +6,7 @@ import { currency, newRowId, normalizeNotes, todayIso } from "../types";
 import { bankColor } from "./accountsTheme";
 import AmountInput from "./AmountInput";
 import { NoteComposer } from "@/lib/noteRichText";
+import { confirmDelete } from "@/lib/confirmToast";
 
 export type CashFlowEditModel = CashFlowRow & { monthId: string };
 
@@ -183,7 +184,7 @@ export default function CashFlowRowModal({
                       />
                       <button
                         type="button"
-                        onClick={() => setNotes(notes.filter(x => x.id !== n.id))}
+                        onClick={() => confirmDelete("Delete this note?", () => setNotes(notes.filter(x => x.id !== n.id)))}
                         className="text-red-500 w-7 h-7 flex items-center justify-center"
                       >
                         <Trash2 size={13} />
@@ -212,7 +213,7 @@ export default function CashFlowRowModal({
         <div className="px-4 py-3 border-t flex items-center justify-between gap-2 bg-[#FAFAFA]">
           <button
             type="button"
-            onClick={() => { onDelete(); onClose(); }}
+            onClick={() => confirmDelete("Delete this row?", () => { onDelete(); onClose(); })}
             className="h-9 px-3 rounded-xl text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100"
           >
             Delete

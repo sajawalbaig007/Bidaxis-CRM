@@ -30,6 +30,7 @@ import type { SalarySlipCompanyKey } from "../utils/salarySlipCompanies";
 import { DEFAULT_SALARY_SLIP_COMPANY } from "../utils/salarySlipCompanies";
 import { slipKindTitle } from "../utils/salarySlipFieldConfig";
 import { BEM_INVENTORY_CATEGORIES, matchInventoryCategory } from "../utils/bemAssetInventorySeed";
+import { confirmDelete } from "@/lib/confirmToast";
 
 function moneyClose(a: number, b: number) {
   return Math.abs(a - b) < 0.009;
@@ -459,7 +460,7 @@ export default function ExpandableHeadsTable({
                             type="button"
                             onClick={() => {
                               if (lockedHeadTitles?.includes(row.title)) return;
-                              onChange(rows.filter(r => r.id !== row.id), { persist: true });
+                              confirmDelete(`Delete "${row.title}"?`, () => onChange(rows.filter(r => r.id !== row.id), { persist: true }));
                             }}
                             disabled={lockedHeadTitles?.includes(row.title)}
                             className="w-8 h-8 rounded-lg text-red-500 hover:bg-red-50 inline-flex items-center justify-center transition-colors disabled:opacity-30 disabled:pointer-events-none"
@@ -528,7 +529,7 @@ export default function ExpandableHeadsTable({
                                             <td className="px-1 py-2 text-center">
                                               <button
                                                 type="button"
-                                                onClick={() => removeSubHead(row.id, s.id)}
+                                                onClick={() => confirmDelete("Delete this line?", () => removeSubHead(row.id, s.id))}
                                                 className="w-7 h-7 rounded-lg text-red-500 hover:bg-red-50 inline-flex items-center justify-center"
                                                 title="Delete this line"
                                               >
@@ -966,7 +967,7 @@ export default function ExpandableHeadsTable({
                                       <td className="px-2 py-2 text-center">
                                         <button
                                           type="button"
-                                          onClick={() => removeSubHead(row.id, s.id)}
+                                          onClick={() => confirmDelete("Delete this line?", () => removeSubHead(row.id, s.id))}
                                           className="w-7 h-7 rounded-lg text-red-500 hover:bg-red-50 inline-flex items-center justify-center transition-colors"
                                           title="Delete this line"
                                         >

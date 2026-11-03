@@ -7,6 +7,7 @@ import { currency } from "../types";
 import { TABLE_VARIANT, bankColor } from "./accountsTheme";
 import AccountsNotesCell from "./AccountsNotesCell";
 import CashFlowRowModal, { type CashFlowEditModel } from "./CashFlowRowModal";
+import { confirmDelete } from "@/lib/confirmToast";
 
 function bankActivity(row: CashFlowRow): boolean {
   return Object.values(row.bankAmounts ?? {}).some(
@@ -101,7 +102,7 @@ export default function CashFlowTable({
               <button type="button" onClick={() => onAddRow(month.id)} className="h-8 px-3 rounded-lg bg-[#EAF5FF] text-[#0B84F3] text-[11px] font-bold inline-flex items-center gap-1">
                 <Plus size={13} /> Row
               </button>
-              <button type="button" onClick={() => onRemoveMonth(month.id)} className="text-[11px] font-semibold text-red-500 hover:underline px-2">
+              <button type="button" onClick={() => confirmDelete("Remove this month and all its rows?", () => onRemoveMonth(month.id))} className="text-[11px] font-semibold text-red-500 hover:underline px-2">
                 Remove
               </button>
             </div>

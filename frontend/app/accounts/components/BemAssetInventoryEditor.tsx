@@ -11,6 +11,7 @@ import {
   patchInventoryLine,
 } from "../utils/bemAssetInventorySeed";
 import AmountInput from "./AmountInput";
+import { confirmDelete } from "@/lib/confirmToast";
 
 type BemAssetInventoryEditorProps = {
   subHeads: SubHeadEntry[];
@@ -128,7 +129,7 @@ export default function BemAssetInventoryEditor({
                           <td className="px-1 py-1.5 text-center">
                             <button
                               type="button"
-                              onClick={() => removeOne(s.id)}
+                              onClick={() => confirmDelete("Delete this item?", () => removeOne(s.id))}
                               className="w-7 h-7 rounded-lg text-red-500 hover:bg-red-50 inline-flex items-center justify-center"
                               title="Delete item"
                             >

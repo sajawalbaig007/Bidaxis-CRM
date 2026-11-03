@@ -5,6 +5,7 @@ import { ExternalLink, Eye, ImageIcon, Loader2, Upload } from "lucide-react";
 import toast from "react-hot-toast";
 import ProofImagePreview from "./ProofImagePreview";
 import { isImageProofUrl } from "../utils/uploadAccountsProof";
+import { confirmDelete } from "@/lib/confirmToast";
 
 type ProofUploadFieldProps = {
   proofUrl?: string;
@@ -176,7 +177,7 @@ export default function ProofUploadField({
             {onRemove && (
               <button
                 type="button"
-                onClick={onRemove}
+                onClick={() => confirmDelete("Remove this proof file?", onRemove)}
                 className="h-8 px-2 rounded-xl text-[11px] font-bold text-red-500 hover:bg-red-50"
               >
                 Remove

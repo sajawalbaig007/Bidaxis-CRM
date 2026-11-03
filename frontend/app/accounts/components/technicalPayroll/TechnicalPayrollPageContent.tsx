@@ -13,6 +13,7 @@ import {
 } from "../../utils/technicalPayrollDefaults";
 import { computeSalary, emptySalaryDetail } from "../../utils/payrollFormula";
 import { currency, newRowId } from "../../types";
+import { confirmDelete } from "@/lib/confirmToast";
 
 export default function TechnicalPayrollPageContent() {
   const acc = useAccountsPage({
@@ -128,7 +129,7 @@ export default function TechnicalPayrollPageContent() {
                 <span className="text-sm font-extrabold tabular-nums text-[#B8112D] whitespace-nowrap">{currency(net)}</span>
                 <button
                   type="button"
-                  onClick={() => removeEmployee(emp.id)}
+                  onClick={() => confirmDelete(`Remove ${emp.name || "this employee"}?`, () => removeEmployee(emp.id))}
                   className="w-8 h-8 rounded-lg text-red-500 hover:bg-red-50 inline-flex items-center justify-center"
                 >
                   <Trash2 size={14} />

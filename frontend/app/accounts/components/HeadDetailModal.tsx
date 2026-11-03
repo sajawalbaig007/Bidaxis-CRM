@@ -29,6 +29,7 @@ import AmountInput from "./AmountInput";
 import ProofUploadField from "./ProofUploadField";
 import BemAssetInventoryEditor from "./BemAssetInventoryEditor";
 import { matchInventoryCategory } from "../utils/bemAssetInventorySeed";
+import { confirmDelete } from "@/lib/confirmToast";
 
 export type HeadDetailModel = {
   id: string;
@@ -378,7 +379,7 @@ export default function HeadDetailModal({
                         onChange={e => updateNote(n.id, { date: e.target.value })}
                         className="h-8 rounded-lg border border-amber-200 bg-white px-2 text-[11px] text-amber-950 dark:text-amber-950"
                       />
-                      <button type="button" onClick={() => removeNote(n.id)} className="ml-auto text-red-500">
+                      <button type="button" onClick={() => confirmDelete("Delete this note?", () => removeNote(n.id))} className="ml-auto text-red-500">
                         <Trash2 size={13} />
                       </button>
                     </div>
@@ -472,7 +473,7 @@ export default function HeadDetailModal({
                             companyKey={salarySlipCompany}
                             salesExtra={extra}
                           />
-                          <button type="button" onClick={() => removeSub(s.id)} className="text-red-500 px-1">
+                          <button type="button" onClick={() => confirmDelete("Delete this line?", () => removeSub(s.id))} className="text-red-500 px-1">
                             <Trash2 size={13} />
                           </button>
                         </div>
@@ -531,7 +532,7 @@ export default function HeadDetailModal({
                             companyKey={salarySlipCompany}
                             execProfitBase={execProfitBase}
                           />
-                          <button type="button" onClick={() => removeSub(s.id)} className="text-red-500 px-1">
+                          <button type="button" onClick={() => confirmDelete("Delete this line?", () => removeSub(s.id))} className="text-red-500 px-1">
                             <Trash2 size={13} />
                           </button>
                         </div>
@@ -597,7 +598,7 @@ export default function HeadDetailModal({
                           recordDate={recordDate}
                           companyKey={salarySlipCompany}
                         />
-                        <button type="button" onClick={() => removeSub(s.id)} className="text-red-500 px-1">
+                        <button type="button" onClick={() => confirmDelete("Delete this line?", () => removeSub(s.id))} className="text-red-500 px-1">
                           <Trash2 size={13} />
                         </button>
                       </div>
@@ -644,7 +645,7 @@ export default function HeadDetailModal({
                         onChange={e => updateSub(s.id, { filledAt: e.target.value })}
                         className="col-span-3 h-8 rounded-lg border border-crm-border px-1 text-[10px] bg-crm-surface"
                       />
-                        <button type="button" onClick={() => removeSub(s.id)} className="col-span-2 text-red-500 flex justify-center">
+                        <button type="button" onClick={() => confirmDelete("Delete this line?", () => removeSub(s.id))} className="col-span-2 text-red-500 flex justify-center">
                         <Trash2 size={13} />
                       </button>
                     </div>
@@ -675,7 +676,7 @@ export default function HeadDetailModal({
         <div className="px-4 py-3 border-t flex items-center justify-between gap-2 bg-[#FAFAFA]">
           <button
             type="button"
-            onClick={() => { onDelete(); onClose(); }}
+            onClick={() => confirmDelete("Delete this head?", () => { onDelete(); onClose(); })}
             className="h-9 px-3 rounded-xl text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100"
           >
             Delete

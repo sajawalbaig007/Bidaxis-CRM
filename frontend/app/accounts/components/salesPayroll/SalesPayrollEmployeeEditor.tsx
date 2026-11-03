@@ -24,6 +24,7 @@ import { HAMMAD_TEAM_LEAD_ID } from "../../utils/salesPayrollDefaults";
 import { isRepAssignedToLead } from "../../utils/salesPayrollBridge";
 import { fetchAndApplyPendingLoan } from "../../utils/loanLedgerApply";
 import AmountInput from "../AmountInput";
+import { confirmDelete } from "@/lib/confirmToast";
 
 type Props = {
   employee: SalesPayrollEmployee;
@@ -303,9 +304,9 @@ export default function SalesPayrollEmployeeEditor({
                       <div className="sm:col-span-2 flex justify-end">
                         <button
                           type="button"
-                          onClick={() => setComm({
+                          onClick={() => confirmDelete("Remove this project?", () => setComm({
                             fixClientProjects: employee.commission.fixClientProjects.filter(x => x.id !== p.id),
-                          })}
+                          }))}
                           className="h-9 px-3 rounded-lg border border-red-100 text-red-500 text-xs font-semibold hover:bg-red-50"
                         >
                           Remove
@@ -338,9 +339,9 @@ export default function SalesPayrollEmployeeEditor({
                 <Read label="Commission 2.5%" value={currency(rowComm)} accent="text-emerald-800" />
                 <button
                   type="button"
-                  onClick={() => setComm({
+                  onClick={() => confirmDelete("Remove this project?", () => setComm({
                     fixClientProjects: employee.commission.fixClientProjects.filter(x => x.id !== p.id),
-                  })}
+                  }))}
                   className="h-9 rounded-lg border border-red-100 text-red-500 text-xs font-semibold hover:bg-red-50"
                 >
                   Remove

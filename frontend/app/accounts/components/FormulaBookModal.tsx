@@ -5,6 +5,7 @@ import { Pencil, Plus, RotateCcw, Save, Sigma, Trash2, X } from "lucide-react";
 import { BUILTIN_FORMULAS, FORMULA_SECTIONS, type FormulaDef } from "../utils/formulaRegistry";
 import type { CustomFormula, FormulasState } from "../types";
 import { newRowId } from "../types";
+import { confirmDelete } from "@/lib/confirmToast";
 
 type Props = {
   open: boolean;
@@ -348,7 +349,7 @@ export default function FormulaBookModal({ open, onClose, value, onChange, liveN
                             </button>
                             <button
                               type="button"
-                              onClick={() => deleteCustom(c.id)}
+                              onClick={() => confirmDelete("Delete this formula?", () => deleteCustom(c.id))}
                               className="w-7 h-7 rounded-lg text-red-500 hover:bg-red-50 inline-flex items-center justify-center"
                               title="Delete"
                             >
