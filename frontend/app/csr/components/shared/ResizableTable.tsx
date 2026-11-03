@@ -20,12 +20,27 @@ function storageKey(tableId: string, count: number) {
 }
 
 function percentsToPixels(widths: readonly string[], containerWidth: number): number[] {
-  const total = Math.max(containerWidth, 640);
+  const total = Math.max(containerWidth, 320);
   return widths.map(w => {
     const n = parseFloat(w);
     const px = Number.isFinite(n) ? Math.round((n / 100) * total) : 120;
     return Math.max(MIN_COL, px);
   });
+}
+
+/** Keep every column on screen. A wider column takes space from the others. */
+function fitColumns(cols: number[], box: number): number[] {
+  if (!cols.length || box <= 0) return cols;
+  const next = cols.slice();
+  let sum = next.reduce((total, n) => total + n, 0);
+  if (sum > box) {
+    const scale = box / sum;
+    for (let i = 0; i < next.length; i++) next[i] = Math.max(MIN_COL, Math.round(next[i] * scale));
+    sum = next.reduce((total, n) => total + n, 0);
+  }
+  const drift = box - sum;
+  next[next.length - 1] = Math.max(MIN_COL, next[next.length - 1] + drift);
+  return next;
 }
 
 function readSaved(tableId: string, count: number): number[] | null {
@@ -58,16 +73,27 @@ export default function ResizableTable({
   const wrapRef = useRef<HTMLDivElement>(null);
   const widthsRef = useRef<number[]>([]);
   const [widths, setWidths] = useState<number[] | null>(null);
+  const [box, setBox] = useState(0);
   const count = defaultWidths.length;
   const defaultsKey = defaultWidths.join("|");
 
   useEffect(() => {
+    const el = wrapRef.current;
+    if (!el) return;
+    const measure = () => setBox(el.clientWidth);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
     const saved = readSaved(tableId, count);
-    const box = wrapRef.current?.clientWidth ?? 1100;
-    const next = saved ?? percentsToPixels(defaultWidths, box);
+    const width = box || wrapRef.current?.clientWidth || 1100;
+    const next = fitColumns(saved ?? percentsToPixels(defaultWidths, width), width);
     widthsRef.current = next;
     setWidths(next);
-  }, [tableId, count, defaultsKey]);
+  }, [tableId, count, defaultsKey, box]);
 
   const onMouseDown = (event: React.MouseEvent) => {
     if (!widthsRef.current.length) return;
@@ -79,8 +105,27 @@ export default function ResizableTable({
     const startX = event.clientX;
     const startW = widthsRef.current[index] ?? MIN_COL;
     const move = (ev: MouseEvent) => {
-      const next = widthsRef.current.slice();
-      next[index] = Math.max(MIN_COL, Math.round(startW + ev.clientX - startX));
+      const current = widthsRef.current.slice();
+      const grown = Math.max(MIN_COL, Math.round(startW + ev.clientX - startX));
+      const delta = grown - current[index];
+      current[index] = grown;
+      let left = delta;
+      const order = current.map((_, i) => i).filter(i => i !== index);
+      for (const i of order) {
+        if (left === 0) break;
+        if (left > 0) {
+          const room = current[i] - MIN_COL;
+          const take = Math.min(room, left);
+          current[i] -= take;
+          left -= take;
+        } else {
+          current[i] -= left;
+          left = 0;
+        }
+      }
+      if (left > 0) current[index] -= left;
+      const width = wrapRef.current?.clientWidth || current.reduce((total, n) => total + n, 0);
+      const next = fitColumns(current, width);
       widthsRef.current = next;
       setWidths(next);
     };
@@ -107,14 +152,13 @@ export default function ResizableTable({
     table.style.cursor = "col-resize";
   };
 
-  const px = widths ?? percentsToPixels(defaultWidths, 1100);
-  const sum = px.reduce((total, n) => total + n, 0);
+  const px = widths ?? percentsToPixels(defaultWidths, box || 1100);
 
   return (
-    <div ref={wrapRef} className="w-full min-w-0 overflow-x-auto">
+    <div ref={wrapRef} className="w-full min-w-0 overflow-x-hidden">
       <table
         className={`${className ?? ""} crm-col-resize`}
-        style={{ width: sum, minWidth: "100%" }}
+        style={{ width: "100%" }}
         onMouseDown={onMouseDown}
         onMouseMove={onMouseMove}
       >

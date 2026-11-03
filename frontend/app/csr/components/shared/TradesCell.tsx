@@ -7,7 +7,6 @@ import { useFixedPopover } from "../../hooks/useFixedPopover";
 import {
   MASTER_FORMAT_TRADES,
   canonicalTradeName,
-  leadTradeAndSubtradeNames,
   parseSubTradeList,
   parseTradeList,
   parseTradeNotes,
@@ -33,10 +32,10 @@ export default function TradesCell({
   onlyTrade = "",
   className = "",
 }: TradesCellProps) {
-  const allTrades = leadTradeAndSubtradeNames(trade, subTrades);
+  const mainTrades = parseTradeList(trade);
   const want = onlyTrade.trim() ? canonicalTradeName(onlyTrade).toLowerCase() : "";
-  const trades = want ? allTrades.filter(name => name.toLowerCase() === want) : allTrades;
-  const catalog = pickerCatalog(allTrades);
+  const trades = want ? mainTrades.filter(name => name.toLowerCase() === want) : mainTrades;
+  const catalog = pickerCatalog(mainTrades);
   const { open, toggle, setOpen, anchorRef, panelRef, style } = useFixedPopover(340, 420);
 
   const [draftTrades, setDraftTrades] = useState<string[]>(trades);

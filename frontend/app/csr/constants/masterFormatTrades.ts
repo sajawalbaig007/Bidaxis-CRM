@@ -257,12 +257,12 @@ export function leadTradeAndSubtradeNames(
 
 export function leadMatchesTradeFilter(
   trade: string | null | undefined,
-  subTrades: string | null | undefined,
+  _subTrades: string | null | undefined,
   filter: string,
 ): boolean {
   if (!filter.trim()) return true;
   const want = canonicalTradeName(filter).toLowerCase();
-  return leadTradeAndSubtradeNames(trade, subTrades).some(n => n.toLowerCase() === want);
+  return parseTradeList(trade).some(n => n.toLowerCase() === want);
 }
 
 export function parseTradeNotes(raw: string | null | undefined): string[] {

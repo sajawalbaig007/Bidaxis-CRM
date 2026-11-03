@@ -305,11 +305,10 @@ function matchesTimezone(lead: FilterableLead, filterAbbr: string): boolean {
   return leadPhoneTimezones(lead).has(filterAbbr.trim());
 }
 
-function matchesTrade(trade: string | null | undefined, subTrades: string | null | undefined, filter: string): boolean {
+function matchesTrade(trade: string | null | undefined, _subTrades: string | null | undefined, filter: string): boolean {
   const want = canonicalTradeName(filter).trim().toLowerCase();
   if (!want) return true;
-  return [...parseTradeList(trade), ...parseTradeList(subTrades)]
-    .some(name => name.toLowerCase() === want);
+  return parseTradeList(trade).some(name => name.toLowerCase() === want);
 }
 
 function matchesSearch(lead: FilterableLead, q: string): boolean {

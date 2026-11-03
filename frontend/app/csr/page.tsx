@@ -446,7 +446,7 @@ export default function CSRPage() {
               </div>
             </div>
 
-            <div className="grid w-full items-start gap-2 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
+            <div className="grid w-full min-w-0 items-start gap-2 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
               <div className="relative min-w-0 sm:col-span-2 lg:col-span-3 2xl:col-span-1">
                 <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
                 <input

@@ -113,7 +113,7 @@ export default function TradeFilterDropdown({
         title="Filter by trade"
       >
         <Hammer size={12} className={`shrink-0 sm:w-[14px] sm:h-[14px] ${value ? "text-[#B8112D]" : "text-gray-400"}`} />
-        <span className={`truncate ${fullWidth ? "flex-1 text-left" : compact ? "max-w-[72px] sm:max-w-[110px]" : "max-w-[100px] sm:max-w-[130px]"}`}>
+        <span className={`truncate min-w-0 ${fullWidth ? "flex-1 text-left" : compact ? "max-w-[72px] sm:max-w-[110px]" : "max-w-[100px] sm:max-w-[130px]"}`}>
           {value || (compact ? "Trades" : "All Trades")}
         </span>
         {value ? (
