@@ -10,7 +10,8 @@ import toast from "react-hot-toast";
 import TopNavbar from "../components/navigation/TopNavbar";
 import StackedHorizontalBarChart, { StackedBarRow } from "../components/shared/StackedHorizontalBarChart";
 import Pagination from "../components/shared/Pagination";
-import { CSR_TABLE_CARD, CSR_TABLE_WRAP, CSR_THEAD, CSR_TH, CSR_TABLE_CLASS, CsrColGroup, COL_9_BIN, CSR_PAGE_MAIN } from "../components/shared/csrTableStyles";
+import { CSR_TABLE_CARD, CSR_TABLE_WRAP, CSR_THEAD, CSR_TH, CSR_TABLE_CLASS, COL_9_BIN, CSR_PAGE_MAIN } from "../components/shared/csrTableStyles";
+import ResizableTable from "../components/shared/ResizableTable";
 import { getTimezoneAbbr, tzBadgeClass, getTimezoneAbbrFromPhone } from "../constants/timezoneAbbr";
 
 import { useBinData, binCategory, binReasonLabel } from "../hooks/useBinData";
@@ -195,8 +196,7 @@ export default function CSRBinPage() {
           </div>
 
           <div className={CSR_TABLE_WRAP}>
-            <table className={CSR_TABLE_CLASS}>
-              <CsrColGroup widths={COL_9_BIN} />
+            <ResizableTable tableId="csr-bin" defaultWidths={COL_9_BIN} className={CSR_TABLE_CLASS}>
               <thead className={CSR_THEAD}>
                 <tr>
                   {["#","Client","Company","Phone","Sub Contacts","Service","Reason","Updated","Action"].map(h => (
@@ -296,7 +296,7 @@ export default function CSRBinPage() {
                   </tr>
                 )}
               </tbody>
-            </table>
+            </ResizableTable>
 
             <Pagination page={page} totalPages={totalPages} total={total} pageSize={PAGE_SIZE} onPage={setPage} />
           </div>

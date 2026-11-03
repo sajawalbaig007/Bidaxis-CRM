@@ -12,7 +12,8 @@ import TopNavbar from "../components/navigation/TopNavbar";
 import ServicePicker from "../components/shared/ServicePicker";
 import StackedHorizontalBarChart, { StackedBarRow } from "../components/shared/StackedHorizontalBarChart";
 import Pagination from "../components/shared/Pagination";
-import { CLIENT_GRID_HEAD, CRM_GRID_HEAD_ROW, CLIENT_GRID_ROW, CSR_PAGE_MAIN, matchesLeadSearch } from "../components/shared/csrTableStyles";
+import { CRM_GRID_HEAD_ROW, CSR_PAGE_MAIN, matchesLeadSearch } from "../components/shared/csrTableStyles";
+import { useIsLargeScreen, useResizableColumns } from "../components/shared/ResizableTable";
 import { PROJECT_TABLE_HEAD } from "@/app/components/projects/ProjectTableCells";
 
 import { isWonClientStatus } from "../constants/leadStatuses";
@@ -74,8 +75,12 @@ function fmtFull(iso: string) {
 }
 
 /* ─── Page ──────────────────────────────────────────────── */
+const CLIENT_COL_DEFAULTS = [80, 200, 180, 160, 150, 180, 130, 170, 140];
+
 export default function LeadsPage() {
   const { leads, setLeads, stats, loading, refetch } = useLeadsData();
+  const lg = useIsLargeScreen();
+  const clientCols = useResizableColumns("csr-clients", CLIENT_COL_DEFAULTS);
 
   /* tabs / search / pagination */
   const [activeTab, setActiveTab] = useState<"all" | "new" | "old">("new");
@@ -469,13 +474,25 @@ export default function LeadsPage() {
             <>
               <div className="overflow-x-auto">
               {/* Desktop header — min width so actions (3 buttons) never clip */}
-              <div className={`hidden lg:grid gap-2 px-4 lg:px-5 py-2.5 w-full min-w-[1100px] ${CRM_GRID_HEAD_ROW} ${CLIENT_GRID_HEAD}`}>
-                {["Code", "Client", "Company", "Phone", "Sub Contacts", "Email", "Service", "Notes", "Actions"].map(h => (
-                  <span key={h} className={PROJECT_TABLE_HEAD}>{h}</span>
+              <div
+                className={`hidden lg:grid gap-2 px-4 lg:px-5 py-2.5 w-full ${CRM_GRID_HEAD_ROW}`}
+                style={{ gridTemplateColumns: clientCols.template, minWidth: "max-content" }}
+              >
+                {["Code", "Client", "Company", "Phone", "Sub Contacts", "Email", "Service", "Notes", "Actions"].map((h, i) => (
+                  <span key={h} className={`${PROJECT_TABLE_HEAD} relative pr-2`}>
+                    {h}
+                    <span
+                      role="separator"
+                      aria-orientation="vertical"
+                      title="Drag to resize"
+                      className="absolute right-0 top-0 h-full w-2 cursor-col-resize hover:bg-white/40"
+                      onMouseDown={e => { e.preventDefault(); e.stopPropagation(); clientCols.startResize(i, e.clientX); }}
+                    />
+                  </span>
                 ))}
               </div>
 
-              <div className="divide-y divide-[#F3F3F3] w-full min-w-[1100px] lg:min-w-[1100px]">
+              <div className="divide-y divide-[#F3F3F3] w-full lg:min-w-max">
                 {paginated.map(lead => {
                   const displayName = lead.name;
                   /* Prefer clientCode from DB; fall back to projectCode only if client code missing */
@@ -488,7 +505,8 @@ export default function LeadsPage() {
                   return (
                     <div
                       key={lead.id}
-                      className={`grid gap-3 px-3 sm:px-4 lg:px-5 xl:px-6 py-3 sm:py-4 items-center hover:bg-[#FAFAFA] transition-colors grid-cols-[1fr_auto] ${CLIENT_GRID_ROW}`}
+                      className={`grid gap-3 px-3 sm:px-4 lg:px-5 xl:px-6 py-3 sm:py-4 items-center hover:bg-[#FAFAFA] transition-colors ${lg ? "" : "grid-cols-[1fr_auto]"}`}
+                      style={lg ? { gridTemplateColumns: clientCols.template } : undefined}
                     >
                       {/* Code column */}
                       <div className="hidden lg:flex items-center gap-1 min-w-0">

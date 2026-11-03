@@ -16,6 +16,7 @@ import PhoneWithTzCell from "@/app/csr/components/shared/PhoneWithTzCell";
 import InterestedServicesCell from "@/app/csr/components/shared/InterestedServicesCell";
 import StatusWithTimestamp from "@/app/csr/components/shared/StatusWithTimestamp";
 import { CSR_TABLE_CLASS, CSR_TD, CSR_TD_POPOVER, CSR_TD_TOP, CSR_TH, CSR_THEAD } from "@/app/csr/components/shared/csrTableStyles";
+import ResizableTable from "@/app/csr/components/shared/ResizableTable";
 import { mapBackendLead } from "@/app/csr/types/lead";
 
 import {
@@ -82,7 +83,11 @@ function StatusLeadTable({ rows }: { rows: StatusLeadRow[] }) {
   }
   return (
     <div className="mt-3 overflow-x-auto rounded-xl border border-gray-100 dark:border-crm-border max-h-[32rem]">
-      <table className={CSR_TABLE_CLASS}>
+      <ResizableTable
+        tableId="admin-report-leads"
+        defaultWidths={["20%", "16%", "14%", "16%", "12%", "14%", "8%"]}
+        className={CSR_TABLE_CLASS}
+      >
         <thead className={CSR_THEAD}>
           <tr>
             <th className={CSR_TH}>Client Name</th>
@@ -127,7 +132,7 @@ function StatusLeadTable({ rows }: { rows: StatusLeadRow[] }) {
             );
           })}
         </tbody>
-      </table>
+      </ResizableTable>
     </div>
   );
 }

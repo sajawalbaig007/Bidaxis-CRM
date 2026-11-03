@@ -19,7 +19,8 @@ import TimezoneFilterDropdown from "./components/shared/TimezoneFilterDropdown";
 import SourceSudoFilterDropdown from "./components/shared/SourceSudoFilterDropdown";
 import TradeFilterDropdown from "./components/shared/TradeFilterDropdown";
 import CommentCell from "./components/shared/CommentCell";
-import { CsrColGroup, CSR_TABLE_CLASS, CSR_THEAD, CSR_TH, CSR_TD, CSR_TD_TOP, CSR_TD_POPOVER, COL_6_DASHBOARD, COL_7_DASHBOARD, CSR_PAGE_MAIN } from "./components/shared/csrTableStyles";
+import { CSR_TABLE_CLASS, CSR_THEAD, CSR_TH, CSR_TD, CSR_TD_TOP, CSR_TD_POPOVER, COL_6_DASHBOARD, COL_7_DASHBOARD, CSR_PAGE_MAIN } from "./components/shared/csrTableStyles";
+import ResizableTable from "./components/shared/ResizableTable";
 import InterestedServicesCell from "./components/shared/InterestedServicesCell";
 import TradesCell from "./components/shared/TradesCell";
 import { decomposeInterestedServices, formatInterestedServices } from "./utils/parseInterestedServices";
@@ -559,9 +560,8 @@ export default function CSRPage() {
               )}
             </div>
           ) : (
-          <div className="overflow-x-hidden rounded-xl sm:rounded-2xl border border-gray-100 dark:border-crm-border">
-            <table className={CSR_TABLE_CLASS}>
-              <CsrColGroup widths={tableColWidths} />
+          <div className="rounded-xl sm:rounded-2xl border border-gray-100 dark:border-crm-border">
+            <ResizableTable tableId="csr-calls" defaultWidths={tableColWidths} className={CSR_TABLE_CLASS}>
               <thead className={CSR_THEAD}>
                 <tr>
                   <th className={CSR_TH}>Client Name</th>
@@ -602,6 +602,7 @@ export default function CSRPage() {
                         trade={currentLink.trade}
                         subTrades={currentLink.subTrades}
                         tradeNotes={currentLink.tradeNotes}
+                        onlyTrade={tradeFilter}
                         onSave={async next => {
                           await updateLead(currentLink.id, next);
                         }}
@@ -730,7 +731,7 @@ export default function CSRPage() {
                   </tr>
                 )}
               </tbody>
-            </table>
+            </ResizableTable>
           </div>
           )}
 
@@ -837,6 +838,9 @@ export default function CSRPage() {
               timezone:          viewingLead.timezone     || undefined,
               noteHistory:       viewingLead.noteHistory,
               subContacts:       viewingLead.subContacts,
+              trade:             viewingLead.trade,
+              subTrades:         viewingLead.subTrades,
+              clientCode:        viewingLead.clientCode || undefined,
               rawCompany:        viewingLead.rawCompany   || undefined,
             }}
             onClose={() => setViewingLead(null)}
@@ -848,6 +852,8 @@ export default function CSRPage() {
               if (updates.email         !== undefined) merged.email  = updates.email.trim() || "N/A";
               if (updates.website       !== undefined) merged.website = updates.website.trim();
               if (updates.state         !== undefined) merged.state  = updates.state.trim();
+              if (updates.trade         !== undefined) merged.trade = updates.trade;
+              if (updates.subTrades     !== undefined) merged.subTrades = updates.subTrades;
               if (updates.followUpNotes !== undefined) merged.followUpNotes = updates.followUpNotes;
               setLeads(prev => prev.map(i => i.id === id ? { ...i, ...merged } : i));
               setViewingLead(prev => prev ? { ...prev, ...merged } : prev);

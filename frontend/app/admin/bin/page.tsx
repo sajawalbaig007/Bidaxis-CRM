@@ -16,6 +16,7 @@ import { useZoomDialer } from "@/app/csr/components/dialer/ZoomDialerProvider";
 import { formatEstDayMonth } from "@/lib/estTime";
 import { binCategory, binReasonLabel } from "@/app/csr/hooks/useBinData";
 import { CSR_THEAD } from "@/app/csr/components/shared/csrTableStyles";
+import ResizableTable from "@/app/csr/components/shared/ResizableTable";
 import StateFilterDropdown from "@/app/csr/components/shared/StateFilterDropdown";
 import PhoneAreaCodeFilterInput from "@/app/csr/components/shared/PhoneAreaCodeFilterInput";
 import { matchesStateLocationFilter, matchesPhoneAreaCodeFilter } from "@/lib/stateLocationFilter";
@@ -298,7 +299,13 @@ export default function AdminBinPage() {
             </div>
 
             <div className="overflow-x-auto px-4 sm:px-5 pb-4">
-              <table className="w-full" style={{ minWidth: "860px" }}>
+              <ResizableTable
+                tableId={showDelete ? "admin-bin-delete" : "admin-bin"}
+                defaultWidths={showDelete
+                  ? ["5%", "6%", "10%", "14%", "13%", "12%", "12%", "12%", "10%", "6%"]
+                  : ["6%", "11%", "16%", "14%", "13%", "13%", "12%", "9%", "6%"]}
+                className="w-full table-fixed border-collapse"
+              >
                 <thead className={CSR_THEAD}>
                   <tr className="border-b border-gray-100">
                     {showDelete && (
@@ -397,7 +404,7 @@ export default function AdminBinPage() {
                     </tr>
                   )}
                 </tbody>
-              </table>
+              </ResizableTable>
             </div>
           </div>
         </div>

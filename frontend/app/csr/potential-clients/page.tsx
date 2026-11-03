@@ -10,7 +10,8 @@ import LeadDetailModal from "../components/LeadDetailModal";
 import CommentCell from "../components/shared/CommentCell";
 import StackedHorizontalBarChart, { StackedBarRow } from "../components/shared/StackedHorizontalBarChart";
 import Pagination from "../components/shared/Pagination";
-import { CsrColGroup, CSR_TABLE_CLASS, CSR_THEAD, CSR_TH, CSR_TD, CSR_TD_TOP, CSR_TD_POPOVER, COL_7_IMPORTANT_SUB, COL_9_SCHEDULE, COL_8_INTERESTED_SUB, CSR_TABLE_CARD, CSR_TABLE_WRAP, CSR_PAGE_MAIN, matchesLeadSearch } from "../components/shared/csrTableStyles";
+import { CSR_TABLE_CLASS, CSR_THEAD, CSR_TH, CSR_TD, CSR_TD_TOP, CSR_TD_POPOVER, COL_7_IMPORTANT_SUB, COL_9_SCHEDULE, COL_8_INTERESTED_SUB, CSR_TABLE_CARD, CSR_TABLE_WRAP, CSR_PAGE_MAIN, matchesLeadSearch } from "../components/shared/csrTableStyles";
+import ResizableTable from "../components/shared/ResizableTable";
 import EditClientModal, { EditAction } from "../components/modals/EditClientModal";
 import AddLeadModal from "../components/modals/AddLeadModal";
 import { matchesStateLocationFilter, matchesPhoneAreaCodeFilter } from "@/lib/stateLocationFilter";
@@ -449,8 +450,7 @@ export default function ImportantCallsPage() {
             </div>
 
             <div className={CSR_TABLE_WRAP}>
-              <table className={CSR_TABLE_CLASS}>
-                <CsrColGroup widths={COL_7_IMPORTANT_SUB} />
+              <ResizableTable tableId="csr-potential-important" defaultWidths={COL_7_IMPORTANT_SUB} className={CSR_TABLE_CLASS}>
                 <thead className={CSR_THEAD}>
                   <tr>
                     <th className={CSR_TH}>Client Name</th>
@@ -533,7 +533,7 @@ export default function ImportantCallsPage() {
                     </tr>
                   )}
                 </tbody>
-              </table>
+              </ResizableTable>
               <Pagination page={page} totalPages={totalPages} total={total} pageSize={PAGE_SIZE} onPage={setPage} />
             </div>
           </div>
@@ -577,8 +577,7 @@ export default function ImportantCallsPage() {
             </div>
 
             <div className={CSR_TABLE_WRAP}>
-              <table className={CSR_TABLE_CLASS}>
-                <CsrColGroup widths={COL_9_SCHEDULE} />
+              <ResizableTable tableId="csr-potential-schedule" defaultWidths={COL_9_SCHEDULE} className={CSR_TABLE_CLASS}>
                 <thead className={CSR_THEAD}>
                   <tr>
                     {["Client Name","Phone","Schedule","Notes","Status","Action"].map(h => (
@@ -674,7 +673,7 @@ export default function ImportantCallsPage() {
                     </tr>
                   )}
                 </tbody>
-              </table>
+              </ResizableTable>
 
               <Pagination
                 page={page}
@@ -723,8 +722,7 @@ export default function ImportantCallsPage() {
             </div>
 
             <div className={CSR_TABLE_WRAP}>
-              <table className={CSR_TABLE_CLASS}>
-                <CsrColGroup widths={COL_8_INTERESTED_SUB} />
+              <ResizableTable tableId="csr-potential-interested" defaultWidths={COL_8_INTERESTED_SUB} className={CSR_TABLE_CLASS}>
                 <thead className={CSR_THEAD}>
                   <tr>
                     <th className={CSR_TH}>Client Name</th>
@@ -811,7 +809,7 @@ export default function ImportantCallsPage() {
                     </tr>
                   )}
                 </tbody>
-              </table>
+              </ResizableTable>
 
               <Pagination
                 page={page}
@@ -886,6 +884,9 @@ export default function ImportantCallsPage() {
               nextTime:          viewingLead.nextTime     || undefined,
               timezone:          viewingLead.timezone     || undefined,
               subContacts:       viewingLead.subContacts,
+              trade:             viewingLead.trade,
+              subTrades:         viewingLead.subTrades,
+              clientCode:        viewingLead.clientCode || undefined,
               rawCompany:        viewingLead.rawCompany   || undefined,
             }}
             onClose={() => setViewingLead(null)}
@@ -897,6 +898,8 @@ export default function ImportantCallsPage() {
               if (updates.email         !== undefined) merged.email  = updates.email.trim() || "N/A";
               if (updates.website       !== undefined) merged.website = updates.website.trim();
               if (updates.state         !== undefined) merged.state  = updates.state.trim();
+              if (updates.trade         !== undefined) merged.trade = updates.trade;
+              if (updates.subTrades     !== undefined) merged.subTrades = updates.subTrades;
               if (updates.followUpNotes !== undefined) merged.followUpNotes = updates.followUpNotes;
               setLeads(prev => prev.map(i => i.id === id ? { ...i, ...merged } : i));
               setViewingLead(prev => prev ? { ...prev, ...merged } : prev);

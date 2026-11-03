@@ -1,4 +1,4 @@
-import { canonicalTradeName, parseSubTradeList, parseTradeList } from "./masterFormatTrades";
+import { canonicalTradeName, parseTradeList } from "./masterFormatTrades";
 
 /** Same rules as the CSR Client Calls filters (state, phone area code, timezone, source, trade, search). */
 
@@ -308,9 +308,7 @@ function matchesTimezone(lead: FilterableLead, filterAbbr: string): boolean {
 function matchesTrade(trade: string | null | undefined, subTrades: string | null | undefined, filter: string): boolean {
   const want = canonicalTradeName(filter).trim().toLowerCase();
   if (!want) return true;
-  const blob = `${trade ?? ""}\n${subTrades ?? ""}`;
-  if (blob.toLowerCase().includes(want)) return true;
-  return [...parseTradeList(trade), ...parseSubTradeList(subTrades)]
+  return [...parseTradeList(trade), ...parseTradeList(subTrades)]
     .some(name => name.toLowerCase() === want);
 }
 

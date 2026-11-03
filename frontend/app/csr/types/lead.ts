@@ -35,6 +35,7 @@ export interface BackendLead {
   trade?: string | null;
   subTrades?: string | null;
   tradeNotes?: string | null;
+  clientCode?: string | null;
 }
 
 export type Lead = {
@@ -67,6 +68,7 @@ export type Lead = {
   trade: string;
   subTrades: string;
   tradeNotes: string;
+  clientCode: string;
 };
 
 export const mapBackendLead = (lead: BackendLead): Lead => {
@@ -102,6 +104,7 @@ export const mapBackendLead = (lead: BackendLead): Lead => {
     trade:          lead.trade ?? "",
     subTrades:      lead.subTrades ?? "",
     tradeNotes:     lead.tradeNotes ?? "",
+    clientCode:     lead.clientCode ?? "",
     statusUpdatedAt: lead.updatedAt ?? lead.createdAt ?? "",
     noteCount,
     noteHistory,

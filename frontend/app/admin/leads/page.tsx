@@ -4,7 +4,8 @@ import { Suspense, useEffect, useState, useMemo, useRef } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import API, { apiErrorMessage } from "@/lib/api";
 import { getAdminTabCounts } from "@/lib/adminSummaryCache";
-import { CsrColGroup, CSR_TABLE_CLASS, CSR_THEAD, CSR_TH, CSR_TD, CSR_TD_TOP_POPOVER, COL_6_ADMIN, COL_7_CLOSED, COL_7_SCHEDULE_ADMIN } from "@/app/csr/components/shared/csrTableStyles";
+import { CSR_TABLE_CLASS, CSR_THEAD, CSR_TH, CSR_TD, CSR_TD_TOP_POPOVER, COL_6_ADMIN, COL_7_CLOSED, COL_7_SCHEDULE_ADMIN } from "@/app/csr/components/shared/csrTableStyles";
+import ResizableTable from "@/app/csr/components/shared/ResizableTable";
 import { FilterableTh, textColumnMatch, useColumnFilters } from "@/app/components/table/columnFilters";
 import CapsuleTabs, { type CapsuleTabItem } from "@/app/components/CapsuleTabs";
 import toast, { Toaster } from "react-hot-toast";
@@ -517,7 +518,6 @@ function ClientsPageContent() {
 
   const isScheduleView = effectiveView === "schedule";
   const isClosedView   = effectiveView === "closed";
-  const tableMinWidth  = isScheduleView || isClosedView ? "1200px" : "1100px";
   const tableColWidths = isScheduleView ? COL_7_SCHEDULE_ADMIN : isClosedView ? COL_7_CLOSED : COL_6_ADMIN;
 
   const tableTitle =
@@ -844,8 +844,7 @@ function ClientsPageContent() {
               </div>
 
               <div className="overflow-x-auto">
-                <table className={CSR_TABLE_CLASS} style={{ minWidth: tableMinWidth }}>
-                  <CsrColGroup widths={tableColWidths} />
+                <ResizableTable tableId={`admin-leads-${tableColWidths.length}`} defaultWidths={tableColWidths} className={CSR_TABLE_CLASS}>
                   <thead className={CSR_THEAD}>
                     <tr>
                       {tableHeaders.map((h, i) => {
@@ -1254,7 +1253,7 @@ function ClientsPageContent() {
                       ))
                     )}
                   </tbody>
-                </table>
+                </ResizableTable>
               </div>
               {totalPagesClients > 1 && (
                 <div className="flex items-center justify-between px-4 sm:px-6 py-4 border-t border-gray-100">

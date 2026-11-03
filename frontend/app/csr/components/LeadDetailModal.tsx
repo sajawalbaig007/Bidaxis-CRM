@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import {
   X, Phone, Mail, Building2, Pencil, Check,
-  Briefcase, CalendarDays, Globe, User2, MapPin, Plus, Trash2, Users, Link2, Hash, FileText,
+  Briefcase, CalendarDays, Globe, User2, MapPin, Plus, Trash2, Users, Link2, Hash, FileText, Hammer,
 } from "lucide-react";
 import API, { apiErrorMessage } from "@/lib/api";
 import toast from "react-hot-toast";
@@ -13,6 +13,7 @@ import { collectLeadEmails } from "../utils/parseEmails";
 import EmailWithExtraCell from "./shared/EmailWithExtraCell";
 import { useZoomDialer } from "./dialer/ZoomDialerProvider";
 import { consumeLeadDial, requireLeadDial } from "./dialer/dialUnlock";
+import { leadTradeAndSubtradeNames } from "../constants/masterFormatTrades";
 
 export type DetailLead = {
   id: string;
@@ -32,6 +33,8 @@ export type DetailLead = {
   noteHistory?: NoteEntry[];
   subContacts?: SubContact[];
   clientCode?: string | null;
+  trade?: string;
+  subTrades?: string;
   isOldClient?: boolean;
   csr?: string;
   csrCode?: string | null;
@@ -48,6 +51,8 @@ export type DetailLeadUpdates = Partial<{
   followUpNotes: string;
   interestedService: string;
   clientCode: string;
+  trade: string;
+  subTrades: string;
   nextSchedule: string;
   nextTime: string;
   timezone: string;
@@ -221,6 +226,7 @@ export default function LeadDetailModal({ lead, onClose, onSaved, onNoteAdded, o
   const [state, setState] = useState(lead.state ?? "");
   const [interestedService, setInterestedService] = useState(lead.interestedService ?? "");
   const [clientCode, setClientCode] = useState(lead.clientCode ?? "");
+  const [tradesText, setTradesText] = useState(() => leadTradeAndSubtradeNames(lead.trade, lead.subTrades).join(", "));
   const [nextSchedule, setNextSchedule] = useState(lead.nextSchedule ?? "");
   const [nextTime, setNextTime] = useState(lead.nextTime ?? "");
   const [timezone, setTimezone] = useState(lead.timezone ?? "");
@@ -263,6 +269,7 @@ export default function LeadDetailModal({ lead, onClose, onSaved, onNoteAdded, o
     setState(lead.state ?? "");
     setInterestedService(lead.interestedService ?? "");
     setClientCode(lead.clientCode ?? "");
+    setTradesText(leadTradeAndSubtradeNames(lead.trade, lead.subTrades).join(", "));
     setNextSchedule(lead.nextSchedule ?? "");
     setNextTime(lead.nextTime && lead.nextTime !== "N/A" ? lead.nextTime : "");
     setTimezone(lead.timezone && lead.timezone !== "N/A" ? lead.timezone : "");
@@ -278,13 +285,16 @@ export default function LeadDetailModal({ lead, onClose, onSaved, onNoteAdded, o
       const websiteTrim = website.trim();
       const scopeTrim = interestedService.trim();
       const codeTrim = clientCode.trim();
+      const tradesTrim = tradesText.trim();
       const payload: Record<string, unknown> = {
         name, company, phone, email, website: websiteTrim, state, interestedService: scopeTrim,
+        clientCode: codeTrim || null,
+        trade: tradesTrim,
+        subTrades: "",
       };
       const statusChanged = isAdmin && status !== (lead.status ?? "pending");
       if (statusChanged && !requireLeadDial(lead.id)) return;
       if (isAdmin) {
-        payload.clientCode = codeTrim || null;
         payload.nextSchedule = nextSchedule.trim() || null;
         payload.nextTime = nextTime.trim() || null;
         payload.timezone = timezone.trim() || null;
@@ -307,6 +317,9 @@ export default function LeadDetailModal({ lead, onClose, onSaved, onNoteAdded, o
       }
       onSaved?.(lead.id, {
         name, company, phone, email, website: websiteTrim, state, interestedService: scopeTrim,
+        clientCode: codeTrim,
+        trade: tradesTrim,
+        subTrades: "",
         followUpNotes: trimmedNote,
         ...(isAdmin
           ? {
@@ -432,6 +445,12 @@ export default function LeadDetailModal({ lead, onClose, onSaved, onNoteAdded, o
   } else {
     infoItems.push({ label: "Interested In", value: "N/A", Icon: Briefcase });
   }
+  const tradeNames = leadTradeAndSubtradeNames(lead.trade, lead.subTrades);
+  infoItems.push({
+    label: "Trades",
+    value: tradeNames.length > 0 ? tradeNames.join(", ") : "N/A",
+    Icon: Hammer,
+  });
   if (isAdmin) {
     infoItems.push({
       label: "Client Type",
@@ -543,7 +562,7 @@ export default function LeadDetailModal({ lead, onClose, onSaved, onNoteAdded, o
                           {value}
                         </a>
                       ) : (
-                        <p className="text-[#0F172A] text-[13px] font-semibold truncate">{value}</p>
+                        <p className={`text-[#0F172A] text-[13px] font-semibold ${label === "Trades" || label === "Interested In" ? "whitespace-normal break-words" : "truncate"}`}>{value}</p>
                       )}
                     </div>
                   ))}
@@ -551,62 +570,58 @@ export default function LeadDetailModal({ lead, onClose, onSaved, onNoteAdded, o
               </>
             ) : (
               <>
-                {/* CLIENT NAME + COMPANY */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className={`${labelClass} mb-2`}><User2 size={11} className="text-[#B8112D]"/>Client Name</label>
+                    <label className={`${labelClass} mb-2`}><Hash size={11} className="text-[#B8112D]"/>Client Code</label>
+                    <input type="text" value={clientCode} onChange={e => setClientCode(e.target.value)}
+                      placeholder="Client Code" className={inputClass}/>
+                  </div>
+                  <div>
+                    <label className={`${labelClass} mb-2`}><User2 size={11} className="text-[#B8112D]"/>Contact Person</label>
                     <input type="text" value={name} onChange={e => setName(e.target.value)}
-                      placeholder="e.g. John Smith" className={inputClass}/>
+                      placeholder="Contact Person" className={inputClass}/>
                   </div>
                   <div>
-                    <label className={`${labelClass} mb-2`}><Building2 size={11} className="text-[#B8112D]"/>Company Name</label>
+                    <label className={`${labelClass} mb-2`}><Building2 size={11} className="text-[#B8112D]"/>Company</label>
                     <input type="text" value={company} onChange={e => setCompany(e.target.value)}
-                      placeholder="Company name" className={inputClass}/>
+                      placeholder="Company" className={inputClass}/>
                   </div>
-                </div>
-
-                {/* PHONE + EMAIL */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className={`${labelClass} mb-2`}><Phone size={18} className="text-[#B8112D]"/>Phone Number</label>
+                    <label className={`${labelClass} mb-2`}><Phone size={11} className="text-[#B8112D]"/>Phone</label>
                     <input type="text" value={phone} onChange={e => setPhone(e.target.value)}
-                      placeholder="+1 234 567 890" className={inputClass}/>
+                      placeholder="Phone" className={inputClass}/>
                   </div>
                   <div>
                     <label className={`${labelClass} mb-2`}><Mail size={11} className="text-[#B8112D]"/>Email</label>
                     <input type="email" value={email} onChange={e => setEmail(e.target.value)}
-                      placeholder="name@email.com" className={inputClass}/>
+                      placeholder="Email" className={inputClass}/>
                   </div>
-                </div>
-
-                {/* LOCATION + WEBSITE */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className={`${labelClass} mb-2`}><Link2 size={11} className="text-[#B8112D]"/>Website</label>
+                    <input type="url" value={website} onChange={e => setWebsite(e.target.value)}
+                      placeholder="Website" className={inputClass}/>
+                  </div>
                   <div>
                     <label className={`${labelClass} mb-2`}><MapPin size={11} className="text-[#B8112D]"/>Location</label>
                     <input type="text" value={state} onChange={e => setState(e.target.value)}
-                      placeholder="e.g. Texas, USA" className={inputClass}/>
+                      placeholder="Location" className={inputClass}/>
                   </div>
                   <div>
-                    <label className={`${labelClass} mb-2`}><Link2 size={11} className="text-[#B8112D]"/>Website Link</label>
-                    <input type="url" value={website} onChange={e => setWebsite(e.target.value)}
-                      placeholder="https://example.com" className={inputClass}/>
+                    <label className={`${labelClass} mb-2`}><Briefcase size={11} className="text-[#B8112D]"/>Interested In</label>
+                    <input type="text" value={interestedService} onChange={e => setInterestedService(e.target.value)}
+                      placeholder="Interested In" className={inputClass}/>
                   </div>
                 </div>
 
                 <div>
-                  <label className={`${labelClass} mb-2`}><Briefcase size={11} className="text-[#B8112D]"/>Scope / Interested In</label>
-                  <textarea rows={2} value={interestedService} onChange={e => setInterestedService(e.target.value)}
-                    placeholder="Scope of work" className={textareaClass}/>
+                  <label className={`${labelClass} mb-2`}><Hammer size={11} className="text-[#B8112D]"/>Trades</label>
+                  <textarea rows={2} value={tradesText} onChange={e => setTradesText(e.target.value)}
+                    placeholder="Trades" className={textareaClass}/>
                 </div>
 
                 {isAdmin && (
                   <>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div>
-                        <label className={`${labelClass} mb-2`}><Hash size={11} className="text-[#B8112D]"/>Client Code</label>
-                        <input type="text" value={clientCode} onChange={e => setClientCode(e.target.value)}
-                          placeholder="e.g. 1097" className={inputClass}/>
-                      </div>
                       <div>
                         <label className={`${labelClass} mb-2`}>Status</label>
                         <select value={status} onChange={e => setStatus(e.target.value)} className={inputClass}>

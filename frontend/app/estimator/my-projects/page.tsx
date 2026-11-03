@@ -15,9 +15,9 @@ import { STAFF_PAGE_PAD, BENTO_CARD } from "@/lib/staffPageLayout";
 import CommentCell from "@/app/csr/components/shared/CommentCell";
 import { NoteEntry } from "@/app/csr/hooks/useLeadsData";
 import {
-  CsrColGroup,
   CSR_THEAD,
 } from "@/app/csr/components/shared/csrTableStyles";
+import ResizableTable from "@/app/csr/components/shared/ResizableTable";
 import {
   ProjectDetailCell,
   PROJECT_TABLE_CARD,
@@ -851,8 +851,7 @@ export default function EstimatorMyProjectsPage() {
 
         <div className={`hidden lg:block ${PROJECT_TABLE_CARD}`}>
           <div className="overflow-x-auto">
-            <table className="w-full table-fixed border-collapse" style={{ minWidth: "1280px" }}>
-              <CsrColGroup widths={["16%", "13%", "8%", "8%", "11%", "11%", "10%", "6%", "17%"] as const} />
+            <ResizableTable tableId="estimator-projects" defaultWidths={["16%", "13%", "8%", "8%", "11%", "11%", "10%", "6%", "17%"]} className="w-full table-fixed border-collapse">
               <thead className={CSR_THEAD}>
                 <tr className="text-left">
                   {headers.map((h, i) => (
@@ -951,7 +950,7 @@ export default function EstimatorMyProjectsPage() {
                   </tr>
                 )}
               </tbody>
-            </table>
+            </ResizableTable>
           </div>
           {totalPages > 1 && (
             <div className="flex items-center justify-between px-6 py-4 border-t border-gray-100">

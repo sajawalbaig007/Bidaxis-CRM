@@ -22,7 +22,8 @@ import PhoneAreaCodeFilterInput from "@/app/csr/components/shared/PhoneAreaCodeF
 import { matchesStateLocationFilter, matchesPhoneAreaCodeFilter } from "@/lib/stateLocationFilter";
 import { NoteEntry } from "@/app/csr/hooks/useLeadsData";
 import { buildNoteHistory } from "@/app/csr/utils/noteHistory";
-import { ADMIN_PROJECT_COLS, ADMIN_TECH_VIEW_COLS, CsrColGroup } from "@/app/csr/components/shared/csrTableStyles";
+import { ADMIN_PROJECT_COLS, ADMIN_TECH_VIEW_COLS } from "@/app/csr/components/shared/csrTableStyles";
+import ResizableTable from "@/app/csr/components/shared/ResizableTable";
 import { parseTechnicalNotes, parseTechnicalNotesBundle } from "@/lib/technicalAssignments";
 import { peekAuthMe } from "@/lib/authMeCache";
 import API from "@/lib/api";
@@ -555,8 +556,7 @@ function ProjectsSection({
 
       <div className={`hidden xl:block ${PROJECT_TABLE_CARD}`}>
         <div className="overflow-x-hidden">
-          <table className="w-full table-fixed border-collapse">
-            <CsrColGroup widths={colWidths} />
+          <ResizableTable tableId={`admin-projects-${colWidths.length}`} defaultWidths={colWidths} className="w-full table-fixed border-collapse">
             <thead className={PROJECT_DB_THEAD}>
               <tr>
                 {headers.map((h) => (
@@ -710,7 +710,7 @@ function ProjectsSection({
                 </tr>
               )}
             </tbody>
-          </table>
+          </ResizableTable>
         </div>
         {totalPages > 1 && (
           <div className="flex items-center justify-between px-5 py-3.5 border-t border-slate-100 bg-slate-50/70">

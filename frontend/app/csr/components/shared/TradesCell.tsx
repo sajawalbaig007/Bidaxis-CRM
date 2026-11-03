@@ -6,6 +6,7 @@ import { Hammer, Pencil, Plus, Search, Trash2, X, Check } from "lucide-react";
 import { useFixedPopover } from "../../hooks/useFixedPopover";
 import {
   MASTER_FORMAT_TRADES,
+  canonicalTradeName,
   leadTradeAndSubtradeNames,
   parseSubTradeList,
   parseTradeList,
@@ -19,6 +20,8 @@ interface TradesCellProps {
   subTrades?: string;
   tradeNotes?: string;
   onSave?: (next: { trade: string; subTrades: string; tradeNotes: string }) => Promise<void> | void;
+  /** When a trade filter is on, the cell shows only that trade. */
+  onlyTrade?: string;
   className?: string;
 }
 
@@ -27,10 +30,13 @@ export default function TradesCell({
   subTrades = "",
   tradeNotes = "",
   onSave,
+  onlyTrade = "",
   className = "",
 }: TradesCellProps) {
-  const trades = leadTradeAndSubtradeNames(trade, subTrades);
-  const catalog = pickerCatalog(trades);
+  const allTrades = leadTradeAndSubtradeNames(trade, subTrades);
+  const want = onlyTrade.trim() ? canonicalTradeName(onlyTrade).toLowerCase() : "";
+  const trades = want ? allTrades.filter(name => name.toLowerCase() === want) : allTrades;
+  const catalog = pickerCatalog(allTrades);
   const { open, toggle, setOpen, anchorRef, panelRef, style } = useFixedPopover(340, 420);
 
   const [draftTrades, setDraftTrades] = useState<string[]>(trades);
@@ -96,11 +102,11 @@ export default function TradesCell({
         {trades.map(name => (
           <span
             key={name}
-            className="inline-flex items-center gap-1 bg-[#FFF1F3] text-[#B8112D] font-semibold px-2 py-0.5 rounded-lg text-[10px] sm:text-xs max-w-[160px]"
+            className="inline-flex items-start gap-1 bg-[#FFF1F3] text-[#B8112D] font-semibold px-2 py-0.5 rounded-lg text-[10px] sm:text-xs max-w-full"
             title={name}
           >
-            <Hammer size={9} className="shrink-0" />
-            <span className="truncate">{name}</span>
+            <Hammer size={9} className="shrink-0 mt-0.5" />
+            <span className="whitespace-normal break-words text-left">{name}</span>
           </span>
         ))}
         {onSave && <Pencil size={10} className="shrink-0 text-[#B8112D] opacity-70" />}

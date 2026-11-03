@@ -12,7 +12,10 @@ import TopNavbar from "../components/navigation/TopNavbar";
 import ServicePicker from "../components/shared/ServicePicker";
 import StackedHorizontalBarChart, { StackedBarRow } from "../components/shared/StackedHorizontalBarChart";
 import Pagination from "../components/shared/Pagination";
-import { PROJECT_GRID_HEAD, CRM_GRID_HEAD_ROW, PROJECT_GRID_ROW, CSR_PAGE_MAIN, matchesLeadSearch } from "../components/shared/csrTableStyles";
+import { CRM_GRID_HEAD_ROW, CSR_PAGE_MAIN, matchesLeadSearch } from "../components/shared/csrTableStyles";
+import { useResizableColumns } from "../components/shared/ResizableTable";
+
+const PROJECT_COL_DEFAULTS = [220, 220, 110, 170, 160, 180, 96];
 import { PROJECT_TABLE_HEAD } from "@/app/components/projects/ProjectTableCells";
 import PaymentStatusCircle from "../components/shared/PaymentStatusCircle";
 import CommentCell from "../components/shared/CommentCell";
@@ -124,6 +127,7 @@ function DeadlineStatus({ deadline }: { deadline: string }) {
 
 export default function CSRProjectsPage() {
   const dialer = useZoomDialer();
+  const projectCols = useResizableColumns("csr-projects", PROJECT_COL_DEFAULTS);
   const [page, setPage] = useState(1);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo,   setDateTo]   = useState("");
@@ -598,9 +602,21 @@ export default function CSRProjectsPage() {
             {/* ── DESKTOP TABLE (lg+) ── */}
             <div className="hidden lg:block overflow-x-auto">
               <div className="min-w-[1180px]">
-                <div className={`grid gap-x-4 px-5 xl:px-6 py-3 xl:py-4 ${CRM_GRID_HEAD_ROW} ${PROJECT_GRID_HEAD}`}>
-                  {["Client Detail", "Project Detail", "Quoted", "Payment Detail", "Client Deadline", "Bid Instruction", "Actions"].map(h => (
-                    <span key={h} className={PROJECT_TABLE_HEAD}>{h}</span>
+                <div
+                  className={`grid gap-x-4 px-5 xl:px-6 py-3 xl:py-4 ${CRM_GRID_HEAD_ROW}`}
+                  style={{ gridTemplateColumns: projectCols.template, minWidth: "max-content" }}
+                >
+                  {["Client Detail", "Project Detail", "Quoted", "Payment Detail", "Client Deadline", "Bid Instruction", "Actions"].map((h, i) => (
+                    <span key={h} className={`${PROJECT_TABLE_HEAD} relative pr-2`}>
+                      {h}
+                      <span
+                        role="separator"
+                        aria-orientation="vertical"
+                        title="Drag to resize"
+                        className="absolute right-0 top-0 h-full w-2 cursor-col-resize hover:bg-white/40"
+                        onMouseDown={e => { e.preventDefault(); e.stopPropagation(); projectCols.startResize(i, e.clientX); }}
+                      />
+                    </span>
                   ))}
                 </div>
 
@@ -608,7 +624,8 @@ export default function CSRProjectsPage() {
                   {paginated.map(project => (
                     <div
                       key={project.id}
-                      className={`grid gap-x-4 px-5 xl:px-6 py-3 xl:py-4 items-start hover:bg-[#FAFAFA] transition-colors ${PROJECT_GRID_ROW}`}
+                      className="grid gap-x-4 px-5 xl:px-6 py-3 xl:py-4 items-start hover:bg-[#FAFAFA] transition-colors"
+                      style={{ gridTemplateColumns: projectCols.template }}
                     >
                       <div className="min-w-0"><ClientDetailCell p={projectAsRow(project)} /></div>
                       <div className="min-w-0"><ProjectDetailCell p={projectAsRow(project)} /></div>

@@ -22,7 +22,8 @@ import { collectLeadPhones } from "../utils/parsePhones";
 import StackedHorizontalBarChart, { StackedBarRow } from "../components/shared/StackedHorizontalBarChart";
 import TriesBar from "../components/shared/TriesBar";
 import Pagination from "../components/shared/Pagination";
-import { CsrColGroup, CSR_TABLE_CLASS, CSR_THEAD, CSR_TH, CSR_TD, CSR_TD_TOP, CSR_TD_POPOVER, COL_8_FOLLOWUP, CSR_TABLE_CARD, CSR_TABLE_WRAP, CSR_PAGE_MAIN } from "../components/shared/csrTableStyles";
+import { CSR_TABLE_CLASS, CSR_THEAD, CSR_TH, CSR_TD, CSR_TD_TOP, CSR_TD_POPOVER, COL_8_FOLLOWUP, CSR_TABLE_CARD, CSR_TABLE_WRAP, CSR_PAGE_MAIN } from "../components/shared/csrTableStyles";
+import ResizableTable from "../components/shared/ResizableTable";
 import StateFilterDropdown from "../components/shared/StateFilterDropdown";
 import PhoneAreaCodeFilterInput from "../components/shared/PhoneAreaCodeFilterInput";
 import { bumpToFront } from "@/lib/bumpToFront";
@@ -490,8 +491,7 @@ export default function NotInterestedPage() {
 
           {/* Table */}
           <div className={CSR_TABLE_WRAP}>
-            <table className={CSR_TABLE_CLASS}>
-              <CsrColGroup widths={COL_8_FOLLOWUP} />
+            <ResizableTable tableId="csr-followup" defaultWidths={COL_8_FOLLOWUP} className={CSR_TABLE_CLASS}>
               <thead className={CSR_THEAD}>
                 <tr>
                   <th className={CSR_TH}>Client Name</th>
@@ -730,7 +730,7 @@ export default function NotInterestedPage() {
                   </tr>
                 )}
               </tbody>
-            </table>
+            </ResizableTable>
 
             <Pagination
               page={page}
@@ -907,6 +907,9 @@ export default function NotInterestedPage() {
               interestedService: viewingLead.interestedService,
               followUpNotes:     viewingLead.followUpNotes,
               subContacts:       viewingLead.subContacts,
+              trade:             viewingLead.trade,
+              subTrades:         viewingLead.subTrades,
+              clientCode:        viewingLead.clientCode || undefined,
             }}
             onClose={() => setViewingLead(null)}
             onSaved={(id, updates) => {
@@ -917,6 +920,8 @@ export default function NotInterestedPage() {
               if (updates.email         !== undefined) merged.email  = updates.email.trim();
               if (updates.website       !== undefined) merged.website = updates.website.trim();
               if (updates.state         !== undefined) merged.state  = updates.state.trim();
+              if (updates.trade         !== undefined) merged.trade = updates.trade;
+              if (updates.subTrades     !== undefined) merged.subTrades = updates.subTrades;
               if (updates.followUpNotes !== undefined) merged.followUpNotes = updates.followUpNotes;
               setLeads(prev => prev.map(l => l.id === id ? { ...l, ...merged } : l));
               setViewingLead(prev => prev ? { ...prev, ...merged } : prev);

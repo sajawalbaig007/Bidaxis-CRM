@@ -30,9 +30,9 @@ import {
   TECHNICAL_ASSIGNED_COLS,
   TECHNICAL_FINAL_COLS,
   TECHNICAL_PRICING_COLS,
-  CsrColGroup,
   CSR_THEAD,
 } from "@/app/csr/components/shared/csrTableStyles";
+import ResizableTable from "@/app/csr/components/shared/ResizableTable";
 import {
   ProjectDetailCell,
   DeadlineTimingBadge,
@@ -2104,8 +2104,7 @@ export function TechnicalActiveProjectsPageInner({
         {/* Desktop table */}
         <div className={`hidden lg:block ${PROJECT_TABLE_CARD} min-w-0`}>
           <div className="min-w-0 w-full overflow-x-hidden">
-            <table className="w-full table-fixed border-collapse">
-              <CsrColGroup widths={colWidths} />
+            <ResizableTable tableId={`technical-projects-${colWidths.join("-")}`} defaultWidths={colWidths} className="w-full table-fixed border-collapse">
               <thead className={CSR_THEAD}>
                 <tr className="text-left">
                   {headers.map((h, i) => (
@@ -2459,7 +2458,7 @@ export function TechnicalActiveProjectsPageInner({
                   </tr>
                 )}
               </tbody>
-            </table>
+            </ResizableTable>
           </div>
           {totalPages > 1 && (
             <div className="flex items-center justify-between px-6 py-4 border-t border-gray-100">
