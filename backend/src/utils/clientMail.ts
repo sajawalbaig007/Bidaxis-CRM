@@ -373,12 +373,14 @@ export async function sendClientMail(opts: {
       service: "gmail",
       auth: { user: relayUser, pass: relayPass },
     });
+    const aliasFrom = `"${opts.sender.name.replace(/"/g, "")}" <${opts.sender.email}>`;
     await transporter.sendMail({
       ...mail,
-      from: `"${opts.sender.name.replace(/"/g, "")}" <${relayUser}>`,
-      replyTo: `"${opts.sender.name.replace(/"/g, "")}" <${opts.sender.email}>`,
+      from: aliasFrom,
+      replyTo: aliasFrom,
+      envelope: { from: relayUser, to: opts.to.trim() },
     });
-    console.info(`[mail/send] smtp=gmail-relay from=${relayUser} replyTo=${opts.sender.email}`);
+    console.info(`[mail/send] smtp=gmail-alias from=${opts.sender.email} via=${relayUser}`);
     return;
   }
 

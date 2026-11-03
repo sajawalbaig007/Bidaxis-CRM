@@ -280,12 +280,22 @@ const DEFAULT_SUBJECT = "Need Estimating Support for Upcoming Bids?";
 const DEFAULT_BODY =
   "Hi {{name}},\n\nDoes your team need extra support with quantity takeoffs or cost estimates for upcoming construction bids?\nBidAxis LLC is here to help you manage your estimating workload efficiently.\nWe provide detailed quantity takeoffs and cost estimates for residential, commercial, industrial, and other construction projects.\nOur team can assist with single projects or multiple bids with tight deadlines.\nIf you'd like to review our estimating work, we'd be happy to share sample takeoffs and estimates.\nDo you have an upcoming project we could help you with?\nBest regards,";
 
-async function loadSavedTemplate(): Promise<{ subject: string; body: string }> {
+function normalizeFromEmail(raw: unknown): string {
+  const email = String(raw ?? "").trim().toLowerCase();
+  if (email === "sales@bidaxis.co") return email;
+  return "info@bidaxis.co";
+}
+
+async function loadSavedTemplate(): Promise<{ subject: string; body: string; fromEmail: string }> {
   const row = await prisma.mailCampaignTemplate.findUnique({ where: { id: "default" } });
   if (row?.subject.trim() && row.body.trim()) {
-    return { subject: row.subject, body: row.body };
+    return {
+      subject: row.subject,
+      body: row.body,
+      fromEmail: normalizeFromEmail((row as { fromEmail?: string }).fromEmail),
+    };
   }
-  return { subject: DEFAULT_SUBJECT, body: DEFAULT_BODY };
+  return { subject: DEFAULT_SUBJECT, body: DEFAULT_BODY, fromEmail: "info@bidaxis.co" };
 }
 
 router.get("/template", async (_req, res) => {
@@ -297,16 +307,22 @@ router.get("/template", async (_req, res) => {
 router.put("/template", async (req, res) => {
   const subject = String(req.body?.subject ?? "").trim();
   const body = String(req.body?.body ?? "").trim();
+  const fromEmail = normalizeFromEmail(req.body?.fromEmail);
   if (!subject || !body) {
     return res.status(400).json({ success: false, message: "Subject and message are required." });
   }
   const saved = await prisma.mailCampaignTemplate.upsert({
     where: { id: "default" },
-    create: { id: "default", subject, body },
-    update: { subject, body },
+    create: { id: "default", subject, body, fromEmail },
+    update: { subject, body, fromEmail },
   });
   noStore(res);
-  return res.json({ success: true, subject: saved.subject, body: saved.body });
+  return res.json({
+    success: true,
+    subject: saved.subject,
+    body: saved.body,
+    fromEmail: normalizeFromEmail(saved.fromEmail),
+  });
 });
 
 router.get("/status", (_req, res) => {
@@ -368,7 +384,7 @@ router.post("/send-one", async (req: AuthRequest, res) => {
     subject: String(req.body?.subject ?? "").trim() || saved.subject,
     body: String(req.body?.body ?? "").trim() || saved.body,
     senderId: String(req.body?.senderId ?? ""),
-    senderEmail: String(req.body?.senderEmail ?? ""),
+    senderEmail: String(req.body?.senderEmail ?? saved.fromEmail),
   });
   if (!result.ok) {
     return res.status(400).json({ success: false, message: result.message });

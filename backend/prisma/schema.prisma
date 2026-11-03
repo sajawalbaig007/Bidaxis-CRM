@@ -807,6 +807,7 @@ model MailCampaignTemplate {
   id        String   @id @default("default") @map("_id")
   subject   String
   body      String
+  fromEmail String   @default("info@bidaxis.co")
   updatedAt DateTime @updatedAt
 
   @@map("mail_campaign_templates")

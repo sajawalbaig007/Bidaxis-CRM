@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import toast, { Toaster } from "react-hot-toast";
-import { Mail, Play, Plus, Send, Square, Trash2, Upload } from "lucide-react";
+import { Mail, Plus, Send, Trash2, Upload } from "lucide-react";
 import DashboardSidebar from "../components/layout/Sidebar";
 import DashboardNavbar from "../components/layout/Navbar";
 import API, { apiErrorMessage } from "@/lib/api";
@@ -10,24 +10,15 @@ import API, { apiErrorMessage } from "@/lib/api";
 type Sender = { id: string; email: string; name: string; defaultFooter?: string; linked?: boolean };
 type MailFile = { id: string; fileName: string; createdAt: string; count: number };
 type Recipient = { id: string; fileId: string; name: string; email: string; company: string; manual: boolean; selected: boolean };
-type LogRow = { email: string; name: string; from: string; ok: boolean; error?: string; at: string };
-type Status = {
-  running: boolean;
-  status: "idle" | "running" | "stopped" | "done";
-  total: number;
-  sent: number;
-  failed: number;
-  current: string | null;
-  nextInSec: number | null;
-  log: LogRow[];
-  removed?: string[];
-};
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/i;
+const FROM_ACCOUNTS: Sender[] = [
+  { id: "1", email: "info@bidaxis.co", name: "Daniel Parker" },
+  { id: "2", email: "sales@bidaxis.co", name: "Emma Collins" },
+];
 
 export default function AdminMailPage() {
-  const [senders, setSenders] = useState<Sender[]>([]);
-  const [picked, setPicked] = useState<Record<string, boolean>>({});
+  const [fromEmail, setFromEmail] = useState("info@bidaxis.co");
   const [subject, setSubject] = useState("Need Estimating Support for Upcoming Bids?");
   const [body, setBody] = useState(
     "Hi {{name}},\n\nDoes your team need extra support with quantity takeoffs or cost estimates for upcoming construction bids?\nBidAxis LLC is here to help you manage your estimating workload efficiently.\nWe provide detailed quantity takeoffs and cost estimates for residential, commercial, industrial, and other construction projects.\nOur team can assist with single projects or multiple bids with tight deadlines.\nIf you'd like to review our estimating work, we'd be happy to share sample takeoffs and estimates.\nDo you have an upcoming project we could help you with?\nBest regards,",
@@ -36,51 +27,11 @@ export default function AdminMailPage() {
   const [recipients, setRecipients] = useState<Recipient[]>([]);
   const [manualName, setManualName] = useState("");
   const [manualEmail, setManualEmail] = useState("");
-  const [minDelay, setMinDelay] = useState(45);
-  const [maxDelay, setMaxDelay] = useState(90);
-  const [status, setStatus] = useState<Status | null>(null);
-  const [starting, setStarting] = useState(false);
   const [sendingId, setSendingId] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
   const live = { headers: { "Cache-Control": "no-cache", Pragma: "no-cache" } };
-  const sendersTick = useRef(0);
   const libraryTick = useRef(0);
-  const seenLog = useRef(new Set<string>());
   const templateReady = useRef(false);
-
-  function readSenderList(data: unknown): Sender[] {
-    if (!data || typeof data !== "object") return [];
-    const o = data as { senders?: unknown; data?: { senders?: unknown } };
-    const raw = Array.isArray(o.senders) ? o.senders : Array.isArray(o.data?.senders) ? o.data.senders : [];
-    const seen = new Set<string>();
-    return raw.flatMap((item) => {
-      if (!item || typeof item !== "object") return [];
-      const row = item as Sender;
-      const email = String(row.email ?? "").trim().toLowerCase();
-      const id = String(row.id ?? email).trim();
-      if (!email || !id || seen.has(email)) return [];
-      seen.add(email);
-      return [{
-        id,
-        email: String(row.email).trim(),
-        name: String(row.name || email.split("@")[0]),
-        defaultFooter: row.defaultFooter,
-        linked: !!row.linked,
-      }];
-    });
-  }
-
-  function applySenders(list: Sender[]) {
-    if (!list.length) return;
-    setSenders(list);
-    setPicked((prev) => {
-      const next: Record<string, boolean> = {};
-      for (const s of list) {
-        next[s.id] = s.id in prev ? prev[s.id] : true;
-      }
-      return next;
-    });
-  }
 
   function applyLibrary(data: { files?: MailFile[]; recipients?: Array<Partial<Recipient> & { _id?: string }> } | undefined) {
     const incoming = Array.isArray(data?.recipients) ? data.recipients : [];
@@ -104,33 +55,6 @@ export default function AdminMailPage() {
     });
   }
 
-  async function loadSenders() {
-    const tick = ++sendersTick.current;
-    let list: Sender[] = [];
-    try {
-      const res = await API.get("/mail-campaign/senders", { ...live, params: { _: Date.now() } });
-      list = readSenderList(res.data);
-    } catch {
-      /* try company from-accounts next */
-    }
-    if (!list.length) {
-      try {
-        const res = await API.get("/mail/from-accounts", { ...live, params: { _: Date.now() } });
-        list = readSenderList(res.data);
-      } catch {
-        /* hardcoded company emails below */
-      }
-    }
-    if (tick !== sendersTick.current) return;
-    if (!list.length) {
-      list = [
-        { id: "1", email: "info@bidaxis.co", name: "Daniel Parker" },
-        { id: "2", email: "sales@bidaxis.co", name: "Emma Collins" },
-      ];
-    }
-    applySenders(list);
-  }
-
   async function loadLibrary() {
     const tick = ++libraryTick.current;
     const res = await API.get("/mail-campaign/files", { ...live, params: { _: Date.now() } });
@@ -145,6 +69,8 @@ export default function AdminMailPage() {
       const nextBody = String(res.data?.body ?? "").trim();
       if (nextSubject) setSubject(nextSubject);
       if (nextBody) setBody(nextBody);
+      const nextFrom = String(res.data?.fromEmail ?? "").trim().toLowerCase();
+      if (nextFrom === "sales@bidaxis.co" || nextFrom === "info@bidaxis.co") setFromEmail(nextFrom);
     } catch {
       /* keep the default template until the server has one */
     } finally {
@@ -153,11 +79,9 @@ export default function AdminMailPage() {
   }
 
   useEffect(() => {
-    void loadSenders();
     void loadTemplate();
     void loadLibrary().catch(() => undefined);
     const onFocus = () => {
-      void loadSenders();
       void loadLibrary().catch(() => undefined);
     };
     window.addEventListener("focus", onFocus);
@@ -165,58 +89,17 @@ export default function AdminMailPage() {
   }, []);
 
   useEffect(() => {
-    let timer: ReturnType<typeof setTimeout> | null = null;
-    let stop = false;
-    const pull = async () => {
-      try {
-        const res = await API.get("/mail-campaign/status");
-        if (!stop) setStatus(res.data as Status);
-      } catch {
-        /* status poll should not toast on every tick */
-      }
-      if (!stop) timer = setTimeout(pull, 2000);
-    };
-    void pull();
-    return () => {
-      stop = true;
-      if (timer) clearTimeout(timer);
-    };
-  }, []);
-
-  useEffect(() => {
     if (!templateReady.current) return;
     const timer = setTimeout(() => {
-      void API.put("/mail-campaign/template", { subject, body }).catch(() => undefined);
+      void API.put("/mail-campaign/template", { subject, body, fromEmail }).catch(() => undefined);
     }, 800);
     return () => clearTimeout(timer);
-  }, [subject, body]);
-
-  useEffect(() => {
-    const gone = new Set(
-      [
-        ...(status?.removed ?? []),
-        ...(status?.log ?? []).filter((row) => row.ok).map((row) => row.email),
-      ].map((email) => email.trim().toLowerCase()),
-    );
-    if (gone.size) {
-      setRecipients((rows) => {
-        const next = rows.filter((row) => !gone.has(row.email.toLowerCase()));
-        return next.length === rows.length ? rows : next;
-      });
-    }
-    for (const row of status?.log ?? []) {
-      const key = `${row.at}-${row.email}`;
-      if (seenLog.current.has(key)) continue;
-      seenLog.current.add(key);
-      if (!row.ok) {
-        toast.error(`Not sent: ${row.email}`, { id: `mail-fail-${row.email}` });
-      }
-    }
-  }, [status]);
+  }, [subject, body, fromEmail]);
 
   const selected = useMemo(() => recipients.filter((r) => r.selected), [recipients]);
-  const running = status?.running === true;
-  const preview = selected[0];
+  const running = !!sendingId;
+  const fromAccount = FROM_ACCOUNTS.find((s) => s.email === fromEmail) ?? FROM_ACCOUNTS[0];
+  const preview = selected[0] ?? recipients[0];
   const previewName = preview?.name || "Client";
   const previewFirst = previewName.split(/\s+/)[0] || previewName;
 
@@ -289,43 +172,11 @@ export default function AdminMailPage() {
     }
   }
 
-  async function start() {
-    const chosen = senders.filter((s) => picked[s.id]);
-    const ready = chosen.length ? chosen : senders;
-    if (!ready.length) {
-      toast.error("Select at least one company email.");
-      return;
-    }
-    if (!selected.length) {
-      toast.error("Select at least one client.");
-      return;
-    }
-    setStarting(true);
-    try {
-      await API.put("/mail-campaign/template", { subject, body }).catch(() => undefined);
-      const res = await API.post("/mail-campaign/start", {
-        subject,
-        body,
-        minDelaySec: minDelay,
-        maxDelaySec: maxDelay,
-        recipientIds: selected.map((r) => r.id),
-        senders: ready.map((s) => ({ id: s.id, email: s.email })),
-      });
-      setStatus(res.data as Status);
-      toast.success("First email is going out now. Sent addresses drop off this list. Failed stays with the error.");
-    } catch (err) {
-      toast.error(apiErrorMessage(err, "Could not start."), { id: "mail-start" });
-    } finally {
-      setStarting(false);
-    }
-  }
-
   async function sendOne(row: Recipient) {
-    const chosen = senders.filter((s) => picked[s.id]);
-    const from = chosen[0] ?? senders[0];
+    const from = FROM_ACCOUNTS.find((s) => s.email === fromEmail) ?? FROM_ACCOUNTS[0];
     setSendingId(row.id);
     try {
-      await API.put("/mail-campaign/template", { subject, body }).catch(() => undefined);
+      await API.put("/mail-campaign/template", { subject, body, fromEmail: from.email }).catch(() => undefined);
       const res = await API.post(
         "/mail-campaign/send-one",
         {
@@ -334,38 +185,18 @@ export default function AdminMailPage() {
           name: row.name,
           subject,
           body,
-          senderId: from?.id ?? "",
-          senderEmail: from?.email ?? "",
+          senderId: from.id,
+          senderEmail: from.email,
         },
         { timeout: 40_000 },
       );
       libraryTick.current += 1;
       applyLibrary(res.data);
-      toast.success(`Sent to ${row.name || row.email}`);
+      toast.success(`Sent to ${row.name || row.email} from ${from.email}`);
     } catch (err) {
       toast.error(apiErrorMessage(err, `Could not send to ${row.email}.`));
     } finally {
       setSendingId("");
-    }
-  }
-
-  async function unlinkGmail(id: string) {
-    try {
-      const res = await API.delete(`/mail-campaign/gmail/${encodeURIComponent(id)}`);
-      sendersTick.current += 1;
-      applySenders(readSenderList(res.data));
-    } catch (err) {
-      toast.error(apiErrorMessage(err, "Could not remove Gmail."));
-    }
-  }
-
-  async function stop() {
-    try {
-      const res = await API.post("/mail-campaign/stop");
-      setStatus(res.data as Status);
-      toast.success("Stopping after the current email.");
-    } catch (err) {
-      toast.error(apiErrorMessage(err, "Could not stop."));
     }
   }
 
@@ -379,7 +210,7 @@ export default function AdminMailPage() {
           <div>
             <h1 className="text-2xl font-semibold text-gray-800">Mail</h1>
             <p className="text-sm text-gray-500 mt-1">
-              Upload a list or add an email. Send on each row uses this template, that client&apos;s name, and the BidAxis footer.
+              Pick info@ or sales@ as the default From, upload clients, then Send on each row.
             </p>
           </div>
           <Mail className="text-[#1B6FE8] shrink-0" />
@@ -414,70 +245,37 @@ export default function AdminMailPage() {
           </section>
 
           <section className="bg-white rounded-3xl border border-gray-100 shadow-sm p-5">
-            <h2 className="font-semibold text-gray-800">From emails</h2>
+            <h2 className="font-semibold text-gray-800">Send from</h2>
             <p className="text-xs text-gray-400 mt-1 mb-3">
-              Company mailboxes are already connected. Tick which ones to send from. Footer stays attached.
+              Default From for every Send. Change it anytime — next Send uses the new one. Footer follows the selected address.
             </p>
-            {!senders.length && (
-              <p className="text-sm text-amber-700 bg-amber-50 rounded-xl p-3">
-                Company emails are still loading. Refresh once.
-              </p>
-            )}
             <div className="space-y-3">
-              {senders.map((s) => (
-                <div key={s.id} className="rounded-2xl border border-gray-100 p-3">
-                  <label className="flex items-center gap-2 text-sm font-medium text-gray-800">
+              {FROM_ACCOUNTS.map((s) => {
+                const active = fromEmail === s.email;
+                return (
+                  <label
+                    key={s.email}
+                    className={`flex items-start gap-3 rounded-2xl border p-3 cursor-pointer ${
+                      active ? "border-[#1B6FE8] bg-[#1B6FE80D]" : "border-gray-100"
+                    }`}
+                  >
                     <input
-                      type="checkbox"
-                      checked={!!picked[s.id]}
+                      type="radio"
+                      name="fromEmail"
+                      checked={active}
                       disabled={running}
-                      onChange={(e) => setPicked((p) => ({ ...p, [s.id]: e.target.checked }))}
+                      onChange={() => setFromEmail(s.email)}
+                      className="mt-1"
                     />
-                    {s.name} · {s.email}
+                    <span>
+                      <span className="block text-sm font-medium text-gray-800">{s.name} · {s.email}</span>
+                      <span className="block text-xs text-gray-400 mt-1">
+                        {active ? "Default — Send buttons use this address." : "Select to make this the default."}
+                      </span>
+                    </span>
                   </label>
-                  {s.defaultFooter ? (
-                    <p className="mt-2 text-xs text-[#1B6FE8]">Fixed signature is attached.</p>
-                  ) : (
-                    <p className="mt-2 text-xs text-gray-400">Template only. No signature on this mailbox.</p>
-                  )}
-                  {s.linked ? (
-                    <button
-                      type="button"
-                      disabled={running}
-                      onClick={() => void unlinkGmail(s.id)}
-                      className="mt-2 text-xs text-gray-500 underline"
-                    >
-                      Remove
-                    </button>
-                  ) : null}
-                </div>
-              ))}
-            </div>
-            <div className="mt-4 grid grid-cols-2 gap-3">
-              <label className="text-xs text-gray-500">
-                Min delay (seconds)
-                <input
-                  type="number"
-                  min={25}
-                  max={180}
-                  value={minDelay}
-                  disabled={running}
-                  onChange={(e) => setMinDelay(Number(e.target.value))}
-                  className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-800"
-                />
-              </label>
-              <label className="text-xs text-gray-500">
-                Max delay (seconds)
-                <input
-                  type="number"
-                  min={25}
-                  max={180}
-                  value={maxDelay}
-                  disabled={running}
-                  onChange={(e) => setMaxDelay(Number(e.target.value))}
-                  className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-800"
-                />
-              </label>
+                );
+              })}
             </div>
           </section>
         </div>
@@ -517,34 +315,11 @@ export default function AdminMailPage() {
               >
                 <Upload size={14} /> Upload list
               </button>
-              <button
-                type="button"
-                disabled={running || starting}
-                onClick={() => void start()}
-                className="inline-flex items-center gap-2 rounded-full bg-[#1B6FE8] text-white px-4 py-2 text-sm disabled:opacity-50"
-              >
-                <Play size={14} /> Start
-              </button>
-              <button
-                type="button"
-                disabled={!running}
-                onClick={() => void stop()}
-                className="inline-flex items-center gap-2 rounded-full border border-gray-200 px-4 py-2 text-sm disabled:opacity-40"
-              >
-                <Square size={14} /> Stop
-              </button>
             </div>
           </div>
-
-          {status && status.status !== "idle" && (
-            <p className="text-sm text-gray-600 mb-3">
-              {status.status === "running" ? "Sending" : status.status === "done" ? "Finished" : "Stopped"}
-              {" · "}
-              {status.sent} sent, {status.failed} failed, {status.total} total
-              {status.current ? ` · now ${status.current}` : ""}
-              {status.nextInSec != null ? ` · next in ${status.nextInSec}s` : ""}
-            </p>
-          )}
+          <p className="text-xs text-[#1B6FE8] mb-3">
+            Sending as {fromAccount.name} · {fromAccount.email}
+          </p>
 
           <div className="mb-4 rounded-2xl border border-gray-100">
             <div className="flex items-center justify-between px-3 py-2 text-xs font-medium text-gray-500">
@@ -613,14 +388,6 @@ export default function AdminMailPage() {
             <table className="w-full text-sm">
               <thead className="bg-gray-50 text-left text-xs text-gray-500">
                 <tr>
-                  <th className="p-2 w-10">
-                    <input
-                      type="checkbox"
-                      disabled={running || !recipients.length}
-                      checked={recipients.length > 0 && recipients.every((r) => r.selected)}
-                      onChange={(e) => setRecipients((rows) => rows.map((r) => ({ ...r, selected: e.target.checked })))}
-                    />
-                  </th>
                   <th className="p-2">Name</th>
                   <th className="p-2">Company</th>
                   <th className="p-2">Email</th>
@@ -631,18 +398,6 @@ export default function AdminMailPage() {
               <tbody>
                 {recipients.map((r) => (
                   <tr key={r.id} className="border-t border-gray-50">
-                    <td className="p-2">
-                      <input
-                        type="checkbox"
-                        disabled={running}
-                        checked={r.selected}
-                        onChange={(e) =>
-                          setRecipients((rows) =>
-                            rows.map((row) => (row.id === r.id ? { ...row, selected: e.target.checked } : row)),
-                          )
-                        }
-                      />
-                    </td>
                     <td className="p-2">{r.name}</td>
                     <td className="p-2 text-gray-500">{r.company}</td>
                     <td className="p-2 text-gray-500">{r.email}</td>
@@ -675,7 +430,7 @@ export default function AdminMailPage() {
                 ))}
                 {!recipients.length && (
                   <tr>
-                    <td colSpan={6} className="p-6 text-center text-gray-400">
+                    <td colSpan={5} className="p-6 text-center text-gray-400">
                       Upload a file from this PC, or add an email by hand.
                     </td>
                   </tr>
@@ -683,17 +438,6 @@ export default function AdminMailPage() {
               </tbody>
             </table>
           </div>
-
-          {!!status?.log?.length && (
-            <ul className="mt-4 space-y-1 text-xs text-gray-600">
-              {status.log.slice().reverse().map((row) => (
-                <li key={`${row.at}-${row.email}`}>
-                  {row.ok ? "Sent" : "Failed"} {row.name} &lt;{row.email}&gt; from {row.from}
-                  {row.error ? ` — ${row.error}` : ""}
-                </li>
-              ))}
-            </ul>
-          )}
         </section>
       </main>
     </div>
