@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { csrBinApi } from "@/lib/csrApiCache";
+import API from "@/lib/api";
 import { useOnCsrDataReset } from "./useOnCsrDataReset";
 import type { SubContact } from "./useLeadsData";
 
@@ -63,26 +63,62 @@ function mapBinLead(l: RawLead): BinLead {
   };
 }
 
-export function useBinData() {
+export type BinCounts = {
+  all: number;
+  notpicked: number;
+  notinterested: number;
+  deleted: number;
+  inhouse: number;
+  noowner: number;
+  notinservice: number;
+};
+
+export type BinListFilters = {
+  q?: string;
+  state?: string;
+  phone?: string;
+  source?: string;
+  status?: string;
+};
+
+export function useBinData(tab = "all", page = 1, pageSize = 30, filters: BinListFilters = {}) {
   const [leads, setLeads] = useState<BinLead[]>([]);
+  const [total, setTotal] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+  const [counts, setCounts] = useState<BinCounts>({
+    all: 0, notpicked: 0, notinterested: 0, deleted: 0, inhouse: 0, noowner: 0, notinservice: 0,
+  });
+  const [sources, setSources] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const refetch = useCallback(async (force = false) => {
+  const refetch = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await csrBinApi.get(force);
-      setLeads((res.leads as RawLead[] ?? []).map((l) => mapBinLead(l)));
+      const params = new URLSearchParams({
+        tab, page: String(page), pageSize: String(pageSize),
+      });
+      if (filters.q) params.set("q", filters.q);
+      if (filters.state) params.set("state", filters.state);
+      if (filters.phone) params.set("phone", filters.phone);
+      if (filters.source && filters.source !== "all") params.set("source", filters.source);
+      if (filters.status && filters.status !== "all") params.set("status", filters.status);
+      const res = await API.get(`/csr/bin?${params.toString()}`, { timeout: 30_000 });
+      setLeads((res.data?.leads as RawLead[] ?? []).map((l) => mapBinLead(l)));
+      setTotal(res.data?.total ?? 0);
+      setTotalPages(res.data?.totalPages ?? 1);
+      if (res.data?.counts) setCounts(res.data.counts as BinCounts);
+      if (Array.isArray(res.data?.sources)) setSources(res.data.sources as string[]);
     } catch (err) {
       console.log(err);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [tab, page, pageSize, filters.q, filters.state, filters.phone, filters.source, filters.status]);
 
   useEffect(() => { void (async () => { await Promise.resolve(); refetch(); })(); }, [refetch]);
-  useOnCsrDataReset(() => { void refetch(true); });
+  useOnCsrDataReset(() => { void refetch(); });
 
-  return { leads, setLeads, loading, refetch };
+  return { leads, setLeads, total, totalPages, counts, sources, loading, refetch };
 }
 
 export function binCategory(reason: string | null | undefined, status?: string | null, binPreviousStatus?: string | null): "notpicked" | "notinterested" | "deleted" | "inhouse" | "noowner" | "notinservice" | "notuseful" {

@@ -80,6 +80,7 @@ export type CsrTableFilterParams = {
   phone?: string;
   source?: string;
   trade?: string;
+  schedule?: string;
 };
 
 function appendTableFilters(params: URLSearchParams, filters?: CsrTableFilterParams) {
@@ -90,11 +91,12 @@ function appendTableFilters(params: URLSearchParams, filters?: CsrTableFilterPar
   if (filters.phone?.trim()) params.set("phone", filters.phone.trim());
   if (filters.source?.trim()) params.set("source", filters.source.trim());
   if (filters.trade?.trim()) params.set("trade", filters.trade.trim());
+  if (filters.schedule?.trim()) params.set("schedule", filters.schedule.trim());
 }
 
 function filterCacheKey(filters?: CsrTableFilterParams): string {
   if (!filters) return "";
-  return [filters.q, filters.state, filters.tz, filters.phone, filters.source, filters.trade]
+  return [filters.q, filters.state, filters.tz, filters.phone, filters.source, filters.trade, filters.schedule]
     .map(v => v?.trim() ?? "")
     .join("|");
 }

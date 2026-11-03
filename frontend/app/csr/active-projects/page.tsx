@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useCallback } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import {
   FolderKanban, CalendarDays, DollarSign,
   Search, Filter, Phone, AlignLeft, Briefcase,
@@ -33,6 +33,7 @@ import StateFilterDropdown from "../components/shared/StateFilterDropdown";
 import PhoneAreaCodeFilterInput from "../components/shared/PhoneAreaCodeFilterInput";
 import { matchesStateLocationFilter, matchesPhoneAreaCodeFilter } from "@/lib/stateLocationFilter";
 import { useProjectsData, Project, parseBudget, isDeadlinePast } from "../hooks/useProjectsData";
+import { useVisibleLeadNotes } from "../hooks/useVisibleLeadNotes";
 import { NoteEntry } from "../hooks/useLeadsData";
 import { useClientPhoneLookup } from "../hooks/useClientPhoneLookup";
 import API from "@/lib/api";
@@ -123,16 +124,27 @@ function DeadlineStatus({ deadline }: { deadline: string }) {
 
 export default function CSRProjectsPage() {
   const dialer = useZoomDialer();
-  const { projects, setProjects, loading } = useProjectsData();
-
+  const [page, setPage] = useState(1);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo,   setDateTo]   = useState("");
   const [search,       setSearch]       = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [stateFilter,  setStateFilter]  = useState("");
   const [phoneFilter,  setPhoneFilter]  = useState("");
-  const [page,         setPage]         = useState(1);
+  const { projects, setProjects, total, totalPages, summary, loading } = useProjectsData(page, 30, {
+    q: debouncedSearch,
+    state: stateFilter,
+    phone: phoneFilter,
+    dateFrom,
+    dateTo,
+  });
   const [sortBy,       setSortBy]       = useState<ClientListSortBy>("oldestNote");
   const [sortDir,      setSortDir]      = useState<SortDir>("asc");
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search.trim()), 300);
+    return () => clearTimeout(timer);
+  }, [search]);
 
   const [viewingProject,  setViewingProject]  = useState<Project | null>(null);
   const [workbenchSaving, setWorkbenchSaving] = useState(false);
@@ -199,13 +211,12 @@ export default function CSRProjectsPage() {
     return sortClientRows(mapped, sortBy, sortDir);
   }, [dateFrom, dateTo, search, stateFilter, phoneFilter, projects, sortBy, sortDir]);
 
-  const totalPages     = Math.max(1, Math.ceil(filteredProjects.length / PAGE_SIZE));
-  const paginated      = filteredProjects.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
-  const allTimeSales   = useMemo(() => projects.reduce((s, p) => s + p.budgetNum, 0), [projects]);
-  const todayStr       = estNowYmd();
-  const todaySales     = useMemo(() => projects.filter(p => p.closedAt === todayStr).reduce((s, p) => s + p.budgetNum, 0), [projects, todayStr]);
-  const inProgressCnt  = useMemo(() => projects.filter(p => p.status === "In Progress").length, [projects]);
-  const completedCnt   = useMemo(() => projects.filter(p => p.status === "Completed").length,   [projects]);
+  const paginated      = filteredProjects;
+  useVisibleLeadNotes(paginated, setProjects);
+  const allTimeSales   = summary.budgetTotal;
+  const todaySales     = summary.todayBudget;
+  const inProgressCnt  = summary.inProgress;
+  const completedCnt   = summary.completed;
 
   const chartRows = useMemo<StackedBarRow[]>(() => [
     {
@@ -623,7 +634,7 @@ export default function CSRProjectsPage() {
               <Pagination
                 page={page}
                 totalPages={totalPages}
-                total={filteredProjects.length}
+                total={total}
                 pageSize={PAGE_SIZE}
                 onPage={setPage}
               />

@@ -21,4 +21,6 @@ export function invalidateCsrLeadCaches(csrId: string, ...extra: string[]): void
   );
   invalidatePattern(`csr:tab:${csrId}:`);
   invalidatePattern(`csr:stats:${csrId}`);
+  invalidatePattern(`csr:projects:${csrId}:`);
+  invalidatePattern(`csr:bin:${csrId}:`);
 }

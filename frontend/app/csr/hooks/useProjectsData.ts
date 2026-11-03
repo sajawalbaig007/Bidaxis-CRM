@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { csrProjectsApi } from "@/lib/csrApiCache";
+import API from "@/lib/api";
 import { estNowYmd } from "@/lib/estTime";
 import { useOnCsrDataReset } from "./useOnCsrDataReset";
 import { parsePayments, paidTotal, paymentPercent } from "@/lib/projectFields";
@@ -181,24 +181,51 @@ function mapProject(lead: RawLead): Project {
   };
 }
 
-export function useProjectsData() {
+export type ProjectSummary = {
+  budgetTotal: number;
+  todayBudget: number;
+  inProgress: number;
+  completed: number;
+};
+
+export type ProjectListFilters = {
+  q?: string;
+  state?: string;
+  phone?: string;
+  dateFrom?: string;
+  dateTo?: string;
+};
+
+export function useProjectsData(page = 1, pageSize = 30, filters: ProjectListFilters = {}) {
   const [projects, setProjects] = useState<Project[]>([]);
+  const [total, setTotal] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+  const [summary, setSummary] = useState<ProjectSummary>({ budgetTotal: 0, todayBudget: 0, inProgress: 0, completed: 0 });
   const [loading,  setLoading]  = useState(true);
 
-  const refetch = useCallback(async (force = false) => {
+  const refetch = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await csrProjectsApi.get(force);
-      setProjects((res.leads as RawLead[] ?? []).map((l) => mapProject(l)));
+      const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
+      if (filters.q) params.set("q", filters.q);
+      if (filters.state) params.set("state", filters.state);
+      if (filters.phone) params.set("phone", filters.phone);
+      if (filters.dateFrom) params.set("dateFrom", filters.dateFrom);
+      if (filters.dateTo) params.set("dateTo", filters.dateTo);
+      const res = await API.get(`/csr/projects?${params.toString()}`, { timeout: 30_000 });
+      setProjects((res.data?.leads as RawLead[] ?? []).map((l) => mapProject(l)));
+      setTotal(res.data?.total ?? 0);
+      setTotalPages(res.data?.totalPages ?? 1);
+      if (res.data?.summary) setSummary(res.data.summary as ProjectSummary);
     } catch (err) {
       console.log(err);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [page, pageSize, filters.q, filters.state, filters.phone, filters.dateFrom, filters.dateTo]);
 
   useEffect(() => { void (async () => { await Promise.resolve(); refetch(); })(); }, [refetch]);
-  useOnCsrDataReset(() => { void refetch(true); });
+  useOnCsrDataReset(() => { void refetch(); });
 
-  return { projects, setProjects, loading, refetch };
+  return { projects, setProjects, total, totalPages, summary, loading, refetch };
 }

@@ -30,6 +30,11 @@ export const CSR_DASHBOARD_LEAD_SELECT = {
   _count:             { select: { notes: true } },
 } as const;
 
+/** Full-list pages. Note text is loaded for the visible page only. */
+const { _count: _listNoteCount, ...CSR_LEAD_LIST_LITE } = CSR_DASHBOARD_LEAD_SELECT;
+export { CSR_LEAD_LIST_LITE };
+void _listNoteCount;
+
 /** Won clients list — lean payload; full notes on /csr/lead/:id */
 export const CSR_CLIENT_LIST_SELECT = {
   id:                 true,
@@ -37,6 +42,7 @@ export const CSR_CLIENT_LIST_SELECT = {
   company:            true,
   phone:              true,
   email:              true,
+  website:            true,
   status:             true,
   nextSchedule:       true,
   nextTime:           true,
@@ -64,10 +70,8 @@ export const CSR_CLIENT_LIST_SELECT = {
   projectBudget:      true,
   paidAmount:         true,
   projectPayments:    true,
-    notes: {
-    orderBy: { createdAt: "desc" as const },
-    take: 20,
-    select: { id: true, text: true, createdAt: true, parentId: true },
+  subContacts: {
+    select: { id: true, name: true, designation: true, phone: true, email: true, createdAt: true },
   },
 } as const;
 

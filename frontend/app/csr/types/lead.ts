@@ -29,6 +29,8 @@ export interface BackendLead {
   noteCount?: number;
   latestNote?: { id: string; text: string; createdAt: string; parentId?: string | null } | null;
   subContacts?: { id: string; name: string; designation?: string; phone?: string; email?: string; createdAt?: string; }[];
+  notInterestedCount?: number;
+  notPickedCount?: number;
   createdAt?: string;
   trade?: string | null;
   subTrades?: string | null;
@@ -60,6 +62,8 @@ export type Lead = {
   noteCount: number;
   noteHistory: NoteEntry[];
   subContacts: SubContact[];
+  notInterestedCount: number;
+  notPickedCount: number;
   trade: string;
   subTrades: string;
   tradeNotes: string;
@@ -101,6 +105,8 @@ export const mapBackendLead = (lead: BackendLead): Lead => {
     statusUpdatedAt: lead.updatedAt ?? lead.createdAt ?? "",
     noteCount,
     noteHistory,
+    notInterestedCount: lead.notInterestedCount ?? 0,
+    notPickedCount:     lead.notPickedCount ?? 0,
     subContacts: (lead.subContacts ?? []).map(s => ({
       id:          s.id,
       name:        s.name,

@@ -9,6 +9,7 @@ import {
 import { wonClientStatusWhere } from "./projectLeads";
 import { NOT_INTERESTED_LIMIT, NOT_PICKED_LIMIT, activeCsrLeadWhere, mainPipelineWhere, pendingLeadWhere, statusEquals, statusOneOf } from "./binLeads";
 import { CSR_DASHBOARD_LEAD_SELECT } from "./csrLeadSelect";
+import { estDateYmd } from "./estTime";
 import {
   isPotentialClientLead,
 } from "./potentialClientBuckets";
@@ -35,7 +36,9 @@ export type CsrTabKey =
   | "noowner"
   | "notinservice"
   | "inhouse"
-  | "notuseful";
+  | "notuseful"
+  | "followup"
+  | "potential";
 
 export function buildCsrTabWhere(csrId: string, tab: CsrTabKey): Prisma.LeadWhereInput {
   const base = activeCsrLeadWhere(csrId);
@@ -72,6 +75,17 @@ export function buildCsrTabWhere(csrId: string, tab: CsrTabKey): Prisma.LeadWher
       return { ...base, ...statusEquals("in house") };
     case "notuseful":
       return { ...base, ...statusEquals("Not useful") };
+    case "followup":
+      return {
+        OR: (
+          ["notinterested", "notpicked", "noowner", "notinservice", "inhouse", "notuseful"] as const
+        ).map(name => buildCsrTabWhere(csrId, name)),
+      };
+    case "potential":
+      return {
+        ...base,
+        OR: [importantOnlyWhere(), scheduledCallWhere(), isInterestedStatusWhere()],
+      };
     default:
       return base;
   }
@@ -145,6 +159,9 @@ function bucketFilteredStats(rows: {
   let noOwnerCount = 0;
   let notInServiceCount = 0;
   let inHouseCount = 0;
+  let notUsefulCount = 0;
+  let nearNotInterestedCount = 0;
+  let nearNotPickedCount = 0;
   let mainPipelineCount = 0;
   const wonRows: { id: string; name: string | null; phone: string | null; company: string | null }[] = [];
 
@@ -159,12 +176,15 @@ function bucketFilteredStats(rows: {
       wonRows.push({ id: row.id, name: row.name, phone: row.phone, company: row.company });
     } else if (status === "not interested" && (row.notInterestedCount ?? 0) < NOT_INTERESTED_LIMIT) {
       notInterestedCount += 1;
+      if ((row.notInterestedCount ?? 0) >= NOT_INTERESTED_LIMIT - 1) nearNotInterestedCount += 1;
     } else if (
       (status === "not picked" || status === "not completed") &&
       (row.notPickedCount ?? 0) < NOT_PICKED_LIMIT
     ) {
       notPickedCount += 1;
-    } else if (status === "no owner available") noOwnerCount += 1;
+      if ((row.notPickedCount ?? 0) >= NOT_PICKED_LIMIT - 1) nearNotPickedCount += 1;
+    } else if (status === "not useful") notUsefulCount += 1;
+    else if (status === "no owner available") noOwnerCount += 1;
     else if (status === "not in service") notInServiceCount += 1;
     else if (status === "in house") inHouseCount += 1;
   }
@@ -180,6 +200,11 @@ function bucketFilteredStats(rows: {
     noOwnerCount,
     notInServiceCount,
     inHouseCount,
+    notUsefulCount,
+    nearNotInterestedCount,
+    nearNotPickedCount,
+    scheduledTodayCount: 0,
+    interestedWithServiceCount: 0,
     totalAssigned: rows.length,
     mainPipelineCount,
     totalLeads: rows.length,
@@ -215,6 +240,11 @@ export async function getCsrLeadStats(
     noOwnerCount,
     notInServiceCount,
     inHouseCount,
+    notUsefulCount,
+    nearNotInterestedCount,
+    nearNotPickedCount,
+    scheduledTodayCount,
+    interestedWithServiceCount,
     totalAssigned,
     mainPipelineCount,
   ] = await Promise.all([
@@ -231,6 +261,33 @@ export async function getCsrLeadStats(
     prisma.lead.count({ where: range(buildCsrTabWhere(csrId, "noowner")) }),
     prisma.lead.count({ where: range(buildCsrTabWhere(csrId, "notinservice")) }),
     prisma.lead.count({ where: range(buildCsrTabWhere(csrId, "inhouse")) }),
+    prisma.lead.count({ where: range(buildCsrTabWhere(csrId, "notuseful")) }),
+    prisma.lead.count({
+      where: range({
+        ...buildCsrTabWhere(csrId, "notinterested"),
+        notInterestedCount: { gte: NOT_INTERESTED_LIMIT - 1, lt: NOT_INTERESTED_LIMIT },
+      }),
+    }),
+    prisma.lead.count({
+      where: range({
+        ...buildCsrTabWhere(csrId, "notpicked"),
+        notPickedCount: { gte: NOT_PICKED_LIMIT - 1, lt: NOT_PICKED_LIMIT },
+      }),
+    }),
+    prisma.lead.count({
+      where: range({
+        ...base,
+        ...scheduledCallWhere(),
+        nextSchedule: estDateYmd(),
+      }),
+    }),
+    prisma.lead.count({
+      where: range({
+        ...base,
+        ...isInterestedStatusWhere(),
+        NOT: { OR: [{ interestedService: null }, { interestedService: "" }] },
+      }),
+    }),
     prisma.lead.count({ where: range(base) }),
     prisma.lead.count({ where: range(mainPipelineWhere(csrId)) }),
   ]);
@@ -248,6 +305,11 @@ export async function getCsrLeadStats(
     noOwnerCount,
     notInServiceCount,
     inHouseCount,
+    notUsefulCount,
+    nearNotInterestedCount,
+    nearNotPickedCount,
+    scheduledTodayCount,
+    interestedWithServiceCount,
     totalAssigned,
     mainPipelineCount,
     /** All assigned leads (non-bin) — use for dashboard totals; no row cap. */
@@ -256,7 +318,7 @@ export async function getCsrLeadStats(
 }
 
 export function mapDashboardLead<T extends {
-  _count: { notes: number };
+  _count?: { notes: number };
   notes?: { id: string; text: string; createdAt: Date }[];
   comments?: string | null;
   followUpNotes?: string | null;
@@ -273,7 +335,7 @@ export function mapDashboardLead<T extends {
     createdAt,
     updatedAt,
     notes: tableNotes,
-    noteCount: _count.notes,
+    noteCount: _count?.notes ?? tableNotes.length,
     latestNote: latest
       ? { id: latest.id, text: latest.text, createdAt: latest.createdAt }
       : null,
@@ -321,6 +383,7 @@ export async function fetchCsrTabLeads(opts: {
     if (to)   createdAt.lte = new Date(`${to}T23:59:59.999Z`);
     where.createdAt = createdAt;
   }
+  if (filters?.schedule?.trim()) where.nextSchedule = filters.schedule.trim();
 
   if (!hasCsrTableFilters(filters)) {
     const skip = (page - 1) * pageSize;
@@ -373,10 +436,11 @@ export async function fetchPotentialLeads(csrId: string) {
     ...activeCsrLeadWhere(csrId),
     OR: [isImportantStatusWhere(), isInterestedStatusWhere()],
   };
+  const { notes: _notes, _count: _noteCount, ...potentialSelect } = LEAD_LIST_SELECT;
   const rawLeads = await prisma.lead.findMany({
     where,
     orderBy: { createdAt: "asc" },
-    select: LEAD_LIST_SELECT,
+    select: potentialSelect,
   });
 
   const ordered = rawLeads.filter(isPotentialClientLead);

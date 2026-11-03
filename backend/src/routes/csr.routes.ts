@@ -41,7 +41,7 @@ import {
   statusOneOf,
 } from "../utils/binLeads";
 import { CSR_UPLOAD_FILE_SELECT } from "../utils/uploadSourceSelect";
-import { CSR_CLIENT_LIST_SELECT, CSR_DASHBOARD_LEAD_SELECT, CSR_LIST_NOTES_SELECT } from "../utils/csrLeadSelect";
+import { CSR_CLIENT_LIST_SELECT, CSR_DASHBOARD_LEAD_SELECT, CSR_LEAD_LIST_LITE } from "../utils/csrLeadSelect";
 import {
   fetchCsrTabLeads,
   fetchPotentialLeads,
@@ -49,7 +49,7 @@ import {
   mapDashboardLead,
   type CsrTabKey,
 } from "../utils/csrDashboardQueries";
-import { csrTableFilterKey, type CsrTableFilters } from "../utils/csrLeadTableFilters";
+import { csrTableFilterKey, leadMatchesTableFilters, type CsrTableFilters } from "../utils/csrLeadTableFilters";
 import { ensureMasterFormatTrades } from "../utils/masterFormatTrades";
 import { allocateNextProjectCode } from "../utils/nextProjectCode";
 import { lateDeductionSummary } from "../utils/dailyLateReport";
@@ -67,6 +67,7 @@ function readCsrTableFilters(req: { query: Record<string, unknown> }): CsrTableF
     phone: pick("phone"),
     source: pick("source"),
     trade: pick("trade"),
+    schedule: pick("schedule"),
   };
 }
 
@@ -307,7 +308,7 @@ router.get("/tab-leads", verifyToken, allowRoles("csr"), async (req: any, res) =
 
     const validTabs: CsrTabKey[] = [
       "today", "pending", "important", "schedule", "interested", "projectwon",
-      "notinterested", "notpicked", "noowner", "notinservice", "inhouse", "notuseful",
+      "notinterested", "notpicked", "noowner", "notinservice", "inhouse", "notuseful", "followup", "potential",
     ];
     if (!validTabs.includes(tab)) {
       return res.status(400).json({ success: false, message: "Invalid tab." });
@@ -368,14 +369,7 @@ router.get("/dashboard", verifyToken, allowRoles("csr"), async (req: any, res) =
     const rawLeads = await prisma.lead.findMany({
       where: dashWhere,
       orderBy: { createdAt: "asc" },
-      select: {
-        ...CSR_DASHBOARD_LEAD_SELECT,
-        notes: {
-          orderBy: { createdAt: "desc" },
-          take: 5,
-          select: { id: true, text: true, createdAt: true, parentId: true },
-        },
-      },
+      select: CSR_LEAD_LIST_LITE,
     });
 
     const leads = filterActiveLeads(rawLeads).map(mapDashboardLead);
@@ -402,14 +396,7 @@ router.get("/not-interested", verifyToken, allowRoles("csr"), async (req: any, r
     const rawLeads = await prisma.lead.findMany({
       where: niWhere,
       orderBy: { createdAt: "asc" },
-      select: {
-        ...CSR_DASHBOARD_LEAD_SELECT,
-        notes: {
-          orderBy: { createdAt: "desc" as const },
-          take: 5,
-          select: { id: true, text: true, createdAt: true, parentId: true },
-        },
-      },
+      select: CSR_LEAD_LIST_LITE,
     });
 
     const leads = filterActiveLeads(rawLeads);
@@ -420,6 +407,41 @@ router.get("/not-interested", verifyToken, allowRoles("csr"), async (req: any, r
   } catch (error) {
     console.log(error);
     return res.status(500).json({ success: false, message: "Failed to fetch leads" });
+  }
+});
+
+/** Notes for the rows on screen. The list itself does not join every lead's notes. */
+router.get("/page-notes", verifyToken, allowRoles("csr"), async (req: any, res) => {
+  try {
+    const csrId = req.user.id;
+    const ids = String(req.query.ids ?? "")
+      .split(",")
+      .map((id: string) => id.trim())
+      .filter(Boolean)
+      .slice(0, 40);
+    if (ids.length === 0) return res.json({ success: true, byId: {} });
+
+    const rows = await prisma.lead.findMany({
+      where: { id: { in: ids }, assignedTo: csrId },
+      select: {
+        id: true,
+        _count: { select: { notes: true } },
+        notes: {
+          orderBy: { createdAt: "desc" as const },
+          take: 5,
+          select: { id: true, text: true, createdAt: true, parentId: true },
+        },
+      },
+    });
+
+    const byId: Record<string, { noteCount: number; notes: typeof rows[number]["notes"] }> = {};
+    for (const row of rows) {
+      byId[row.id] = { noteCount: row._count.notes, notes: row.notes };
+    }
+    return res.json({ success: true, byId });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({ success: false, message: "Failed to fetch notes" });
   }
 });
 
@@ -1139,8 +1161,6 @@ router.get("/clients", verifyToken, allowRoles("csr"), async (req: any, res) => 
     const cached   = getCache<object>(cacheKey);
     if (cached) return res.json(cached);
 
-    await reconcileClientOldFlagsForCsr(csrId);
-
     const clientWhere = {
       ...activeCsrLeadWhere(csrId),
       ...wonClientStatusWhere(),
@@ -1170,7 +1190,11 @@ router.get("/clients", verifyToken, allowRoles("csr"), async (req: any, res) => 
       stats: { importantCount, interestedCount, pendingCount, totalAssigned },
     };
     setCache(cacheKey, payload, 45_000);
-    return res.json(payload);
+    res.json(payload);
+    setImmediate(() => {
+      void reconcileClientOldFlagsForCsr(csrId).catch(err => console.log("[csr] client flags", err));
+    });
+    return;
   } catch (error) {
     console.log(error);
     return res.status(500).json({ success: false, message: "Failed to fetch clients" });
@@ -1211,36 +1235,115 @@ router.get("/leads", verifyToken, allowRoles("csr"), async (req: any, res) => {
   }
 });
 
+function deadlineInRange(deadline: string | null | undefined, from: string, to: string): boolean {
+  if (!from && !to) return true;
+  const day = (deadline ?? "").split("T")[0];
+  if (!day || day === "N/A") return false;
+  if (from && day < from) return false;
+  if (to && day > to) return false;
+  return true;
+}
+
+function textHit(q: string, values: Array<string | null | undefined>): boolean {
+  const query = q.trim().toLowerCase();
+  if (!query) return true;
+  if (values.some(v => (v ?? "").toLowerCase().includes(query))) return true;
+  const digits = query.replace(/\D/g, "");
+  return digits.length >= 3 && values.some(v => (v ?? "").replace(/\D/g, "").includes(digits));
+}
+
 /* ================= CSR PROJECTS ================= */
 
 router.get("/projects", verifyToken, allowRoles("csr"), async (req: any, res) => {
   try {
     const csrId   = req.user.id;
-    const cacheKey = `csr:projects:${csrId}`;
+    const page = Math.max(1, Number(req.query.page) || 1);
+    const pageSize = Math.min(50, Math.max(10, Number(req.query.pageSize) || 30));
+    const q = String(req.query.q ?? "");
+    const state = String(req.query.state ?? "");
+    const phone = String(req.query.phone ?? "");
+    const dateFrom = String(req.query.dateFrom ?? "");
+    const dateTo = String(req.query.dateTo ?? "");
+    const cacheKey = `csr:projects:${csrId}:${page}:${pageSize}:${[q, state, phone, dateFrom, dateTo].map(v => v.trim()).join("|")}`;
     const cached   = getCache<object>(cacheKey);
     if (cached) return res.json(cached);
 
     const projectWhere = buildProjectLeadWhere(csrId);
-    const rawLeads = await prisma.lead.findMany({
+    const slim = await prisma.lead.findMany({
       where: projectWhere,
       orderBy: { createdAt: "asc" },
       select: {
-        ...CSR_DASHBOARD_LEAD_SELECT,
-        projectTitle: true,
-        projectCode: true,
-        projectDeadline: true,
-        projectBudget: true,
-        projectNotes: true,
+        id: true,
+        inBin: true,
+        status: true,
+        name: true,
+        company: true,
+        phone: true,
+        email: true,
+        state: true,
+        interestedService: true,
         clientCode: true,
-        isOldClient: true,
-        projectPayments: true,
-        notes: CSR_LIST_NOTES_SELECT,
+        projectCode: true,
+        projectTitle: true,
+        projectBudget: true,
+        projectDeadline: true,
+        updatedAt: true,
       },
     });
+    const displayable = slim.filter(isDisplayableProjectLead);
+    const today = estDateYmd();
+    let budgetTotal = 0;
+    let todayBudget = 0;
+    let inProgress = 0;
+    let completed = 0;
+    for (const row of displayable) {
+      const amount = parseFloat(String(row.projectBudget ?? "").replace(/[^0-9.]/g, ""));
+      const budget = Number.isFinite(amount) ? amount : 0;
+      budgetTotal += budget;
+      const closedDay = row.updatedAt.toISOString().slice(0, 10);
+      if (closedDay === today) todayBudget += budget;
+      const deadline = row.projectDeadline ?? "";
+      const done = (row.status ?? "").toLowerCase() === "completed" || (deadline !== "" && deadline < today);
+      if (done) completed += 1;
+      else inProgress += 1;
+    }
+    const matched = displayable.filter(row => {
+      if (!deadlineInRange(row.projectDeadline, dateFrom.trim(), dateTo.trim())) return false;
+      if (!leadMatchesTableFilters(row, { state, phone })) return false;
+      return textHit(q, [
+        row.name, row.company, row.phone, row.email, row.interestedService, row.state,
+        row.projectTitle, row.clientCode, row.projectCode,
+      ]);
+    });
+    const pageIds = matched.slice((page - 1) * pageSize, page * pageSize).map(row => row.id);
+    const rawLeads = pageIds.length
+      ? await prisma.lead.findMany({
+          where: { id: { in: pageIds } },
+          select: {
+            ...CSR_LEAD_LIST_LITE,
+            projectTitle: true,
+            projectCode: true,
+            projectDeadline: true,
+            projectBudget: true,
+            projectNotes: true,
+            clientCode: true,
+            isOldClient: true,
+            projectPayments: true,
+          },
+        })
+      : [];
+    const byId = new Map(rawLeads.map(lead => [lead.id, lead]));
+    const leads = pageIds.map(id => byId.get(id)).filter((lead): lead is NonNullable<typeof lead> => !!lead);
 
-    const leads = rawLeads.filter(isDisplayableProjectLead);
-
-    const payload = { success: true, leads };
+    const payload = {
+      success: true,
+      leads,
+      total: matched.length,
+      page,
+      pageSize,
+      totalPages: Math.max(1, Math.ceil(matched.length / pageSize)),
+      summary: { budgetTotal, todayBudget, inProgress, completed },
+    };
     setCache(cacheKey, payload, 30_000);
     return res.json(payload);
   } catch (error) {
@@ -1313,25 +1416,103 @@ router.put("/lead/:id/assign", verifyToken, allowRoles("csr"), async (req: any, 
 router.get("/bin", verifyToken, allowRoles("csr"), async (req: any, res) => {
   try {
     const csrId    = req.user.id;
-    const cacheKey = `csr:bin:${csrId}`;
+    const page = Math.max(1, Number(req.query.page) || 1);
+    const pageSize = Math.min(50, Math.max(10, Number(req.query.pageSize) || 30));
+    const tab = typeof req.query.tab === "string" ? req.query.tab : "all";
+    const q = String(req.query.q ?? "");
+    const state = String(req.query.state ?? "");
+    const phone = String(req.query.phone ?? "");
+    const source = String(req.query.source ?? "");
+    const status = String(req.query.status ?? "");
+    const cacheKey = `csr:bin:${csrId}:${tab}:${page}:${pageSize}:${[q, state, phone, source, status].map(v => v.trim()).join("|")}`;
     const cached   = getCache<object>(cacheKey);
     if (cached) return res.json(cached);
 
     const binWhere = buildBinWhere(csrId);
-    const rawLeads = await prisma.lead.findMany({
+    const slim = await prisma.lead.findMany({
       where: binWhere,
       orderBy: { createdAt: "asc" },
       select: {
-        ...CSR_DASHBOARD_LEAD_SELECT,
+        id: true,
+        name: true,
+        company: true,
+        phone: true,
+        state: true,
+        status: true,
         binReason: true,
         binPreviousStatus: true,
-        notes: CSR_LIST_NOTES_SELECT,
+        uploadFile: { select: { source: { select: { sudoName: true } } } },
       },
     });
+    const categoryOf = (row: { status: string | null; binReason: string | null; binPreviousStatus: string | null }) => {
+      if ((row.status || "").trim().toLowerCase() === "not useful") return "notuseful";
+      const prev = (row.binPreviousStatus || row.status || "").toLowerCase();
+      if (prev === "in house") return "inhouse";
+      if (prev === "no owner available") return "noowner";
+      if (prev === "not in service") return "notinservice";
+      const reason = row.binReason || "";
+      if (reason === "limit-not-picked" || reason === "deleted-pending" || reason === "deleted-other") return "notpicked";
+      if (reason === "limit-not-interested") return "notinterested";
+      if (reason.startsWith("deleted-") || reason) return "deleted";
+      return "notpicked";
+    };
+    const visible = slim.filter(row => categoryOf(row) !== "notuseful");
+    const counts = {
+      all: visible.length,
+      notpicked: 0,
+      notinterested: 0,
+      deleted: 0,
+      inhouse: 0,
+      noowner: 0,
+      notinservice: 0,
+    };
+    for (const row of visible) {
+      const key = categoryOf(row) as keyof typeof counts;
+      if (key in counts && key !== "all") counts[key] += 1;
+    }
+    const tabRows = tab === "all" ? visible : visible.filter(row => categoryOf(row) === tab);
+    const wantSource = source.trim().toLowerCase();
+    const wantStatus = status.trim().toLowerCase();
+    const matched = tabRows.filter(row => {
+      if (wantStatus && wantStatus !== "all" && categoryOf(row) !== wantStatus) return false;
+      const sudo = row.uploadFile?.source?.sudoName?.trim() ?? "";
+      if (wantSource && wantSource !== "all" && sudo.toLowerCase() !== wantSource) return false;
+      if (!leadMatchesTableFilters(row, { state, phone })) return false;
+      const reason = row.binReason ?? "";
+      const reasonLabel =
+        reason === "limit-not-picked" ? "Not Picked — limit reached"
+        : reason === "limit-not-interested" ? "Not Interested — limit reached"
+        : reason === "deleted-important" ? "Deleted (Important)"
+        : reason === "deleted-interested" ? "Deleted (Interested)"
+        : reason === "deleted-pending" ? "Deleted (Pending)"
+        : reason ? `Deleted (${reason})` : "Bin";
+      return textHit(q, [row.name, row.company, row.phone, sudo || "—", reason, reasonLabel]);
+    });
+    const sources = [...new Set(visible.map(row => row.uploadFile?.source?.sudoName?.trim()).filter((name): name is string => !!name))].sort();
+    const pageIds = matched.slice((page - 1) * pageSize, page * pageSize).map(row => row.id);
+    const rawLeads = pageIds.length
+      ? await prisma.lead.findMany({
+          where: { id: { in: pageIds } },
+          select: {
+            ...CSR_LEAD_LIST_LITE,
+            binReason: true,
+            binPreviousStatus: true,
+          },
+        })
+      : [];
+    const byId = new Map(rawLeads.map(lead => [lead.id, lead]));
+    const leads = pageIds.map(id => byId.get(id)).filter((lead): lead is NonNullable<typeof lead> => !!lead);
 
-    const leads = rawLeads;
-
-    const payload = { success: true, leads };
+    const payload = {
+      success: true,
+      leads,
+      total: matched.length,
+      page,
+      pageSize,
+      totalPages: Math.max(1, Math.ceil(matched.length / pageSize)),
+      counts,
+      sources,
+    };
     setCache(cacheKey, payload, 30_000);
     return res.json(payload);
   } catch (error) {

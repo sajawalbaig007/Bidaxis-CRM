@@ -467,41 +467,6 @@ router.get("/clients", verifyToken, allowRoles("admin", "manager", "technical_ma
     const { unique, extraProjectCountById, extraProjectsById } = dedupeAdminLeads(viewRows, preferClientCode);
     const codeKey = (code: string | null | undefined) => (code || "").trim();
 
-    const latestNoteMs = new Map<string, number>();
-    if (sortBy === "notes" && viewRows.length) {
-      const noteIds = [...new Set(viewRows.map(l => l.id))];
-      for (let i = 0; i < noteIds.length; i += 800) {
-        const chunk = noteIds.slice(i, i + 800);
-        const grouped = await prisma.leadNote.groupBy({
-          by: ["leadId"],
-          where: { leadId: { in: chunk } },
-          _max: { createdAt: true },
-        }).catch(async () => {
-          const notes = await prisma.leadNote.findMany({
-            where: { leadId: { in: chunk } },
-            select: { leadId: true, createdAt: true },
-          });
-          return notes.map(n => ({
-            leadId: n.leadId,
-            _max: { createdAt: n.createdAt },
-          }));
-        });
-        for (const row of grouped) {
-          const t = row._max.createdAt?.getTime() ?? 0;
-          if (t > (latestNoteMs.get(row.leadId) ?? 0)) latestNoteMs.set(row.leadId, t);
-        }
-      }
-    }
-
-    const groupNoteMs = new Map<string, number>();
-    if (sortBy === "notes") {
-      for (const row of viewRows) {
-        const key = adminLeadIdentityKey(row, preferClientCode);
-        const t = latestNoteMs.get(row.id) ?? 0;
-        groupNoteMs.set(key, Math.max(groupNoteMs.get(key) ?? 0, t));
-      }
-    }
-
     const uniqueRows = unique.sort((a, b) => {
       if (sortBy === "clientCode") {
         const sa = codeKey(a.clientCode);
@@ -511,13 +476,6 @@ router.get("/clients", verifyToken, allowRoles("admin", "manager", "technical_ma
         if (!sb) return -1;
         const cmp = sa.localeCompare(sb, undefined, { numeric: true, sensitivity: "base" });
         return sortDir === "asc" ? cmp : -cmp;
-      }
-      const ka = adminLeadIdentityKey(a, preferClientCode);
-      const kb = adminLeadIdentityKey(b, preferClientCode);
-      const na = groupNoteMs.get(ka) || a.updatedAt.getTime();
-      const nb = groupNoteMs.get(kb) || b.updatedAt.getTime();
-      if (na !== nb) {
-        return sortDir === "asc" ? na - nb : nb - na;
       }
       return sortDir === "asc"
         ? a.updatedAt.getTime() - b.updatedAt.getTime()

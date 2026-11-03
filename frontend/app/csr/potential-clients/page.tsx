@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   PhoneCall, CalendarDays, CircleAlert, Eye, Pencil, Search, Plus, Layers,
 } from "lucide-react";
@@ -33,7 +33,7 @@ import {
 } from "../utils/parseInterestedServices";
 import toast from "react-hot-toast";
 
-import { useCsrStats, usePotentialLeads } from "../hooks/useCsrTabPage";
+import { useCsrStats, useCsrTabLeads, type CsrTabKey } from "../hooks/useCsrTabPage";
 import { useLeadActions } from "../hooks/useLeadActions";
 import { useOpenLeadFromQuery } from "../hooks/useOpenLeadFromQuery";
 import { useQueryTab } from "../hooks/useQueryTab";
@@ -78,19 +78,39 @@ function potentialRowMeta(lead: Lead): { subtitle: string; label: string; badge:
 }
 
 export default function ImportantCallsPage() {
-  const { stats: serverStats, refetch: refetchStats } = useCsrStats();
-  const { leads, setLeads, loading, refetch } = usePotentialLeads();
-  const { updateLead, addNote, onNoteUpdated, onNoteDeleted } = useLeadActions(setLeads);
-
   const [activeTab, setActiveTab] = useState<PotentialTab>("important");
   const [page, setPage] = useState(1);
   const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [filterDate,  setFilterDate]  = useState("");
   const [stateFilter, setStateFilter] = useState("");
   const [phoneFilter, setPhoneFilter] = useState("");
   const [monthFrom, setMonthFrom] = useState("");
   const [monthTo, setMonthTo] = useState("");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(searchQuery.trim()), 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  const tableFilters = useMemo(() => ({
+    q: debouncedSearch || undefined,
+    state: stateFilter || undefined,
+    phone: phoneFilter || undefined,
+    schedule: activeTab === "schedule" && filterDate ? filterDate : undefined,
+  }), [debouncedSearch, stateFilter, phoneFilter, activeTab, filterDate]);
+
+  const serverTab: CsrTabKey = activeTab === "all" ? "potential" : activeTab;
+  const { stats: serverStats, loading: statsLoading, refetch: refetchStats } = useCsrStats();
+  const { leads, setLeads, total, totalPages, loading, refetch } = useCsrTabLeads(
+    serverTab,
+    page,
+    monthFrom || undefined,
+    monthTo || undefined,
+    tableFilters,
+  );
+  const { updateLead, addNote, onNoteUpdated, onNoteDeleted } = useLeadActions(setLeads);
 
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingLead,   setEditingLead]   = useState<Lead | null>(null);
@@ -119,28 +139,15 @@ export default function ImportantCallsPage() {
   const [scopeSubtypes, setScopeSubtypes] = useState<Record<string, string>>({});
   const [pendingImportantId, setPendingImportantId] = useState<string | null>(null);
 
-  /* ── Derived (unique-by-phone so pills match the table) ── */
-  const uniqueImportant  = useMemo(() => uniqueLeadsByPhone(leads.filter(l => isImportantOnly(l))), [leads]);
-  const uniqueScheduled  = useMemo(() => uniqueLeadsByPhone(leads.filter(l => isScheduledCall(l))), [leads]);
-  const uniqueInterested = useMemo(() => uniqueLeadsByPhone(leads.filter(l => isInterestedLead(l))), [leads]);
-  const uniqueAll        = useMemo(
-    () => uniqueLeadsByPhone([...uniqueImportant, ...uniqueScheduled, ...uniqueInterested]),
-    [uniqueImportant, uniqueScheduled, uniqueInterested],
-  );
-
-  const stats = useMemo(() => ({
-    allCount:           uniqueAll.length,
-    importantOnlyCount: uniqueImportant.length,
-    scheduledCount:     uniqueScheduled.length,
-    interestedCount:    uniqueInterested.length,
-    projectWonCount:    serverStats?.projectWonCount    ?? leads.filter(l => isWonClientStatus(l.status)).length,
-    callsTodayCount:    uniqueScheduled.filter(l => l.nextSchedule === TODAY_STR).length,
-  }), [leads, serverStats, uniqueAll, uniqueImportant, uniqueScheduled, uniqueInterested]);
-
-  const interestedWithService = useMemo(
-    () => uniqueInterested.filter(l => l.interestedService).length,
-    [uniqueInterested],
-  );
+  const stats = {
+    allCount: (serverStats?.importantOnlyCount ?? 0) + (serverStats?.scheduledCount ?? 0) + (serverStats?.interestedCount ?? 0),
+    importantOnlyCount: serverStats?.importantOnlyCount ?? 0,
+    scheduledCount: serverStats?.scheduledCount ?? 0,
+    interestedCount: serverStats?.interestedCount ?? 0,
+    projectWonCount: serverStats?.projectWonCount ?? 0,
+    callsTodayCount: serverStats?.scheduledTodayCount ?? 0,
+  };
+  const interestedWithService = serverStats?.interestedWithServiceCount ?? 0;
 
   const chartRows = useMemo<StackedBarRow[]>(() => [
     {
@@ -172,40 +179,10 @@ export default function ImportantCallsPage() {
   ], [stats, interestedWithService]);
 
   const filteredCalls = useMemo(() => {
-    const inMonth = (iso: string) => {
-      if (!monthFrom && !monthTo) return true;
-      const d = iso.slice(0, 7);
-      if (monthFrom && d < monthFrom) return false;
-      if (monthTo && d > monthTo) return false;
-      return true;
-    };
-    const source =
-      activeTab === "all"        ? uniqueAll
-      : activeTab === "important"  ? uniqueImportant
-      : activeTab === "schedule"   ? uniqueScheduled
-      : uniqueInterested;
-    const list = source.filter(lead => {
-        const matchesTab    = matchesPotentialTab(lead, activeTab);
-        const matchesSearch = matchesLeadSearch(searchQuery, {
-          name: lead.client,
-          company: [clientCompany(lead), ourCompany(lead), lead.rawCompany].filter(Boolean).join(" "),
-          phone: lead.phone,
-          email: lead.email,
-          service: lead.interestedService,
-          state: lead.state,
-        });
-        const matchesState  = matchesStateLocationFilter(lead.state, lead.phone, stateFilter);
-        const matchesPhone  = matchesPhoneAreaCodeFilter(lead.phone, phoneFilter);
-        const matchesDate   = activeTab !== "schedule" || !filterDate || lead.nextSchedule === filterDate;
-        const matchesMonth  = inMonth(lead.statusUpdatedAt || "");
-        return matchesTab && matchesSearch && matchesState && matchesPhone && matchesDate && matchesMonth;
-      });
-    const sorted = sortByOldestNote(list);
+    const sorted = sortByOldestNote(leads);
     return sortDir === "desc" ? [...sorted].reverse() : sorted;
-  }, [uniqueAll, uniqueImportant, uniqueScheduled, uniqueInterested, activeTab, searchQuery, filterDate, monthFrom, monthTo, stateFilter, phoneFilter, sortDir]);
-
-  const totalPages = Math.max(1, Math.ceil(filteredCalls.length / PAGE_SIZE));
-  const paginated  = filteredCalls.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  }, [leads, sortDir]);
+  const paginated = filteredCalls;
 
   /* ── Edit modal helpers ── */
   const openEditModal = (lead: Lead) => {
@@ -410,7 +387,7 @@ export default function ImportantCallsPage() {
             title="Pipeline by stage and type"
             subtitle="Schedule calls (today vs later), important-only clients, interested clients, and closed deals."
             rows={chartRows}
-            loading={loading}
+            loading={statsLoading && !serverStats}
           />
         </div>
 
@@ -421,10 +398,10 @@ export default function ImportantCallsPage() {
           activeKey={activeTab}
           onChange={key => { setActiveTab(key as PotentialTab); setSearchQuery(""); setFilterDate(""); setPage(1); }}
           tabs={[
-            { key: "all",        label: "All",                count: activeTab === "all"        ? filteredCalls.length : stats.allCount,           icon: Layers       },
-            { key: "important",  label: "Important Calls",    count: activeTab === "important"  ? filteredCalls.length : stats.importantOnlyCount, icon: CircleAlert  },
-            { key: "schedule",   label: "Schedule Call",      count: activeTab === "schedule"   ? filteredCalls.length : stats.scheduledCount,     icon: CalendarDays },
-            { key: "interested", label: "Interested Clients", count: activeTab === "interested" ? filteredCalls.length : stats.interestedCount,    icon: PhoneCall    },
+            { key: "all",        label: "All",                count: activeTab === "all"        ? total : stats.allCount,           icon: Layers       },
+            { key: "important",  label: "Important Calls",    count: activeTab === "important"  ? total : stats.importantOnlyCount, icon: CircleAlert  },
+            { key: "schedule",   label: "Schedule Call",      count: activeTab === "schedule"   ? total : stats.scheduledCount,     icon: CalendarDays },
+            { key: "interested", label: "Interested Clients", count: activeTab === "interested" ? total : stats.interestedCount,    icon: PhoneCall    },
           ]}
         />
 
@@ -467,7 +444,7 @@ export default function ImportantCallsPage() {
                     />
                   </div>
                   <div className="bg-[#FFF1F3] text-[#B8112D] text-[11px] sm:text-sm font-semibold px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl sm:rounded-2xl whitespace-nowrap">
-                    {filteredCalls.length} Leads
+                    {total} Leads
                   </div>
                 </div>
               </div>
@@ -559,7 +536,7 @@ export default function ImportantCallsPage() {
                   )}
                 </tbody>
               </table>
-              <Pagination page={page} totalPages={totalPages} total={filteredCalls.length} pageSize={PAGE_SIZE} onPage={setPage} />
+              <Pagination page={page} totalPages={totalPages} total={total} pageSize={PAGE_SIZE} onPage={setPage} />
             </div>
           </div>
         )}
@@ -595,7 +572,7 @@ export default function ImportantCallsPage() {
                     </button>
                   )}
                   <div className="bg-[#FFF1F3] text-[#B8112D] text-[11px] sm:text-sm font-semibold px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl sm:rounded-2xl whitespace-nowrap">
-                    {filteredCalls.length} Leads
+                    {total} Leads
                   </div>
                 </div>
               </div>
@@ -704,7 +681,7 @@ export default function ImportantCallsPage() {
               <Pagination
                 page={page}
                 totalPages={totalPages}
-                total={filteredCalls.length}
+                total={total}
                 pageSize={PAGE_SIZE}
                 onPage={setPage}
               />
@@ -741,7 +718,7 @@ export default function ImportantCallsPage() {
                     </button>
                   )}
                   <div className="bg-[#FFF1F3] text-[#B8112D] text-[11px] sm:text-sm font-semibold px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl sm:rounded-2xl whitespace-nowrap">
-                    {filteredCalls.length} Leads
+                    {total} Leads
                   </div>
                 </div>
               </div>
@@ -841,7 +818,7 @@ export default function ImportantCallsPage() {
               <Pagination
                 page={page}
                 totalPages={totalPages}
-                total={filteredCalls.length}
+                total={total}
                 pageSize={PAGE_SIZE}
                 onPage={setPage}
               />

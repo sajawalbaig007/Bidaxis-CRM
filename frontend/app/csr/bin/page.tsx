@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Search, RefreshCw, Phone, Briefcase,
   Trash2, ArrowUpCircle, Star, ThumbsDown, PhoneOff,
@@ -28,26 +28,34 @@ type TabKey = "all" | "notpicked" | "notinterested" | "deleted" | "inhouse" | "n
 
 export default function CSRBinPage() {
   const dialer = useZoomDialer();
-  const { leads: rawLeads, setLeads, loading, refetch } = useBinData();
+  const [page, setPage] = useState(1);
+  const [tab, setTab] = useState<TabKey>("all");
+  const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [stateFilter, setStateFilter] = useState("");
+  const [phoneFilter, setPhoneFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [sourceFilter, setSourceFilter] = useState("all");
+  const { leads: rawLeads, setLeads, total, totalPages, counts, sources, loading, refetch } = useBinData(tab, page, 30, {
+    q: debouncedSearch,
+    state: stateFilter,
+    phone: phoneFilter,
+    source: sourceFilter,
+    status: statusFilter,
+  });
   const leads = useMemo(
     () => rawLeads.filter(l => binCategory(l.binReason, l.status, l.binPreviousStatus) !== "notuseful"),
     [rawLeads],
   );
 
-  const [search, setSearch] = useState("");
-  const [stateFilter, setStateFilter] = useState("");
-  const [phoneFilter, setPhoneFilter] = useState("");
-  const [page,   setPage]   = useState(1);
-  const [tab,    setTab]    = useState<TabKey>("all");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [sourceFilter, setSourceFilter] = useState("all");
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search.trim()), 300);
+    return () => clearTimeout(timer);
+  }, [search]);
 
   const [restoringId, setRestoringId] = useState<string | null>(null);
 
-  const sourceOptions = useMemo(() => {
-    const set = new Set(leads.map(l => l.source).filter(s => s && s !== "—"));
-    return [...set].sort();
-  }, [leads]);
+  const sourceOptions = sources.length > 0 ? sources : leads.map(l => l.source).filter(s => s && s !== "—");
 
   const cat = (l: typeof leads[0]) => binCategory(l.binReason, l.status, l.binPreviousStatus);
 
@@ -77,16 +85,15 @@ export default function CSRBinPage() {
     });
   }, [currentList, search, statusFilter, sourceFilter, stateFilter, phoneFilter, leads]);
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const paginated  = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const paginated  = filtered;
 
   const chartRows = useMemo<StackedBarRow[]>(() => [
     {
       label: "Bin",
       segments: [
-        { label: "Not Picked",     value: byTab.notpicked.length,     color: "#F59E0B" },
-        { label: "Not Interested", value: byTab.notinterested.length, color: "#B8112D" },
-        { label: "Deleted",        value: byTab.deleted.length,       color: "#6366F1" },
+        { label: "Not Picked",     value: counts.notpicked,     color: "#F59E0B" },
+        { label: "Not Interested", value: counts.notinterested, color: "#B8112D" },
+        { label: "Deleted",        value: counts.deleted,       color: "#6366F1" },
       ],
     },
   ], [byTab]);
@@ -102,13 +109,13 @@ export default function CSRBinPage() {
   };
 
   const tabs: CapsuleTabItem<TabKey>[] = [
-    { key: "all",           label: "All",            count: leads.length,               icon: Trash2     },
-    { key: "notpicked",     label: "Not Picked",     count: byTab.notpicked.length,     icon: PhoneOff   },
-    { key: "notinterested", label: "Not Interested", count: byTab.notinterested.length, icon: ThumbsDown },
-    { key: "inhouse",       label: "In House",       count: byTab.inhouse.length,       icon: Briefcase  },
-    { key: "noowner",       label: "No Owner",       count: byTab.noowner.length,       icon: PhoneOff   },
-    { key: "notinservice",  label: "Not In Service", count: byTab.notinservice.length,  icon: ThumbsDown },
-    { key: "deleted",       label: "Deleted",        count: byTab.deleted.length,       icon: Star       },
+    { key: "all",           label: "All",            count: counts.all,           icon: Trash2     },
+    { key: "notpicked",     label: "Not Picked",     count: counts.notpicked,     icon: PhoneOff   },
+    { key: "notinterested", label: "Not Interested", count: counts.notinterested, icon: ThumbsDown },
+    { key: "inhouse",       label: "In House",       count: counts.inhouse,       icon: Briefcase  },
+    { key: "noowner",       label: "No Owner",       count: counts.noowner,       icon: PhoneOff   },
+    { key: "notinservice",  label: "Not In Service", count: counts.notinservice,  icon: ThumbsDown },
+    { key: "deleted",       label: "Deleted",        count: counts.deleted,       icon: Star       },
   ];
 
   return (
@@ -173,13 +180,13 @@ export default function CSRBinPage() {
                     className="w-full h-9 sm:h-[40px] rounded-xl border border-gray-200 dark:border-crm-border bg-[#FAFAFA] dark:bg-crm-input pl-8 pr-3 text-xs outline-none focus:border-[#B8112D] dark:text-crm-text"
                   />
                 </div>
-                <button onClick={() => void refetch(true)}
+                <button onClick={() => void refetch()}
                   className="h-9 sm:h-[40px] w-full sm:w-10 rounded-xl border border-gray-200 dark:border-crm-border bg-[#FAFAFA] dark:bg-crm-input flex items-center justify-center hover:border-[#B8112D] hover:text-[#B8112D] text-gray-500 transition-colors"
                   title="Refresh">
                   <RefreshCw size={13} />
                 </button>
                 <span className="text-xs font-semibold px-3 py-1.5 rounded-xl bg-[#FFF7E6] text-[#B54708] whitespace-nowrap inline-flex items-center justify-center">
-                  {filtered.length} Leads
+                  {total} Leads
                 </span>
                 <StateFilterDropdown fullWidth value={stateFilter} onChange={v => { setStateFilter(v); setPage(1); }} />
                 <PhoneAreaCodeFilterInput fullWidth value={phoneFilter} onChange={v => { setPhoneFilter(v); setPage(1); }} />
@@ -291,7 +298,7 @@ export default function CSRBinPage() {
               </tbody>
             </table>
 
-            <Pagination page={page} totalPages={totalPages} total={filtered.length} pageSize={PAGE_SIZE} onPage={setPage} />
+            <Pagination page={page} totalPages={totalPages} total={total} pageSize={PAGE_SIZE} onPage={setPage} />
           </div>
         </div>
       </main>

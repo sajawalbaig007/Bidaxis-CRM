@@ -40,6 +40,16 @@ export type CsrStats = {
 
   inHouseCount: number;
 
+  notUsefulCount: number;
+
+  nearNotInterestedCount: number;
+
+  nearNotPickedCount: number;
+
+  scheduledTodayCount: number;
+
+  interestedWithServiceCount: number;
+
   totalAssigned: number;
 
   totalLeads: number;
@@ -52,7 +62,7 @@ export type CsrTabKey =
 
   | "today" | "pending" | "important" | "schedule" | "interested" | "projectwon"
 
-  | "notinterested" | "notpicked" | "noowner" | "notinservice" | "inhouse";
+  | "notinterested" | "notpicked" | "noowner" | "notinservice" | "inhouse" | "notuseful" | "followup" | "potential";
 
 
 
@@ -80,7 +90,7 @@ function monthEnd(ym: string): string {
 
 function filterKey(filters?: CsrTableFilterParams): string {
   if (!filters) return "";
-  return [filters.q, filters.state, filters.tz, filters.phone, filters.source, filters.trade]
+  return [filters.q, filters.state, filters.tz, filters.phone, filters.source, filters.trade, filters.schedule]
     .map(v => v?.trim() ?? "")
     .join("|");
 }

@@ -7,6 +7,8 @@ export type CsrTableFilters = {
   phone?: string;
   source?: string;
   trade?: string;
+  /** Exact nextSchedule day (YYYY-MM-DD). Applied in the database, not the in-memory scan. */
+  schedule?: string;
 };
 
 export type FilterableLead = {
@@ -33,10 +35,10 @@ export function hasCsrTableFilters(f?: CsrTableFilters | null): boolean {
 }
 
 export function csrTableFilterKey(f?: CsrTableFilters | null): string {
-  if (!hasCsrTableFilters(f)) return "";
-  return [f!.q, f!.state, f!.tz, f!.phone, f!.source, f!.trade]
-    .map(v => (v ?? "").trim())
-    .join("|");
+  const parts = [f?.q, f?.state, f?.tz, f?.phone, f?.source, f?.trade, f?.schedule]
+    .map(v => (v ?? "").trim());
+  if (parts.every(part => !part)) return "";
+  return parts.join("|");
 }
 
 const US_STATES: { code: string; name: string }[] = [

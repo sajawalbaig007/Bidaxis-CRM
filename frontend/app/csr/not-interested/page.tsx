@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, Fragment } from "react";
+import { useEffect, useMemo, useState, Fragment } from "react";
 import {
   ThumbsDown, PhoneOff, Search,
   X, RefreshCw,
@@ -22,17 +22,16 @@ import { collectLeadPhones } from "../utils/parsePhones";
 import StackedHorizontalBarChart, { StackedBarRow } from "../components/shared/StackedHorizontalBarChart";
 import TriesBar from "../components/shared/TriesBar";
 import Pagination from "../components/shared/Pagination";
-import { CsrColGroup, CSR_TABLE_CLASS, CSR_THEAD, CSR_TH, CSR_TD, CSR_TD_TOP, CSR_TD_POPOVER, COL_8_FOLLOWUP, CSR_TABLE_CARD, CSR_TABLE_WRAP, CSR_PAGE_MAIN, matchesLeadSearch } from "../components/shared/csrTableStyles";
+import { CsrColGroup, CSR_TABLE_CLASS, CSR_THEAD, CSR_TH, CSR_TD, CSR_TD_TOP, CSR_TD_POPOVER, COL_8_FOLLOWUP, CSR_TABLE_CARD, CSR_TABLE_WRAP, CSR_PAGE_MAIN } from "../components/shared/csrTableStyles";
 import StateFilterDropdown from "../components/shared/StateFilterDropdown";
 import PhoneAreaCodeFilterInput from "../components/shared/PhoneAreaCodeFilterInput";
-import { matchesStateLocationFilter, matchesPhoneAreaCodeFilter } from "@/lib/stateLocationFilter";
 import { bumpToFront } from "@/lib/bumpToFront";
 import ProjectDetailsForm from "../components/shared/ProjectDetailsForm";
 import EmailField from "../components/shared/EmailField";
 import CapsuleTabs from "@/app/components/CapsuleTabs";
 
-import { useNotInterested, NiLead } from "../hooks/useNotInterested";
-import { useCsrMiscStatusLeads } from "../hooks/useCsrMiscStatusLeads";
+import type { NiLead } from "../hooks/useNotInterested";
+import { useCsrStats, useCsrTabLeads, type CsrTabKey } from "../hooks/useCsrTabPage";
 import { useOpenLeadFromQuery } from "../hooks/useOpenLeadFromQuery";
 import API from "@/lib/api";
 import { invalidateAllCsrListCaches } from "@/lib/csrApiCache";
@@ -49,7 +48,6 @@ import {
   statusDisplayLabel,
 } from "../constants/leadStatuses";
 import type { Lead } from "../types/lead";
-import { uniqueLeadsByPhone } from "../utils/uniqueLeadsByPhone";
 import { sortByOldestNote } from "../utils/sortByOldestNote";
 
 const NOT_INTERESTED_LIMIT = 3;
@@ -61,8 +59,8 @@ type FollowUpTab = "all" | "notinterested" | "notpicked" | "noowner" | "notinser
 function leadToNiLead(l: Lead): NiLead {
   return {
     ...l,
-    notInterestedCount: 0,
-    notPickedCount: 0,
+    notInterestedCount: l.notInterestedCount ?? 0,
+    notPickedCount: l.notPickedCount ?? 0,
   };
 }
 
@@ -79,14 +77,33 @@ function followUpRetryMeta(lead: Pick<NiLead, "status" | "notInterestedCount" | 
 }
 
 export default function NotInterestedPage() {
-  const { leads, setLeads, loading, refetch } = useNotInterested();
-  const { leads: dashboardLeads, loading: dashLoading, refetch: refetchMisc } = useCsrMiscStatusLeads();
-
   const [activeTab, setActiveTab] = useState<FollowUpTab>("notinterested");
   const [search,       setSearch]       = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [stateFilter,  setStateFilter]  = useState("");
   const [phoneFilter,  setPhoneFilter]  = useState("");
   const [page,      setPage]      = useState(1);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search.trim()), 300);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  const tableFilters = useMemo(() => ({
+    q: debouncedSearch || undefined,
+    state: stateFilter || undefined,
+    phone: phoneFilter || undefined,
+  }), [debouncedSearch, stateFilter, phoneFilter]);
+
+  const serverTab: CsrTabKey = activeTab === "all" ? "followup" : activeTab;
+  const { stats, loading: statsLoading, refetch: refetchStats } = useCsrStats();
+  const { leads, setLeads, total, totalPages, loading, refetch } = useCsrTabLeads(
+    serverTab,
+    page,
+    undefined,
+    undefined,
+    tableFilters,
+  );
 
   const [expandedRow,  setExpandedRow]  = useState<string | null>(null);
   const [editingNote,  setEditingNote]  = useState<{ leadId: string; index: number; value: string } | null>(null);
@@ -123,79 +140,59 @@ export default function NotInterestedPage() {
   const [paidAmount,          setPaidAmount]          = useState("");
   const [email,               setEmail]               = useState("");
 
-  /* ── Derived lists (unique-by-phone so pills match the table) ── */
-  const notInterested = useMemo(() => uniqueLeadsByPhone(leads.filter(l => isNotInterestedStatus(l.status))), [leads]);
-  const notPicked     = useMemo(() => uniqueLeadsByPhone(leads.filter(l => isNotPickedStatus(l.status))), [leads]);
-  const noOwner       = useMemo(() => uniqueLeadsByPhone(dashboardLeads.filter(l => l.status === STATUS_NO_OWNER).map(leadToNiLead)), [dashboardLeads]);
-  const notInService  = useMemo(() => uniqueLeadsByPhone(dashboardLeads.filter(l => l.status === STATUS_NOT_IN_SERVICE).map(leadToNiLead)), [dashboardLeads]);
-  const inHouse       = useMemo(() => uniqueLeadsByPhone(dashboardLeads.filter(l => l.status === STATUS_IN_HOUSE).map(leadToNiLead)), [dashboardLeads]);
-  const notUseful     = useMemo(() => uniqueLeadsByPhone(dashboardLeads.filter(l => isNotUsefulStatus(l.status)).map(leadToNiLead)), [dashboardLeads]);
-  const allFollowUp   = useMemo(
-    () => uniqueLeadsByPhone([...notInterested, ...notPicked, ...noOwner, ...notInService, ...inHouse, ...notUseful]),
-    [notInterested, notPicked, noOwner, notInService, inHouse, notUseful],
+  const pageLeads = useMemo(
+    () => sortByOldestNote(leads.map(leadToNiLead)),
+    [leads],
   );
+  const pageLoading = loading;
 
-  const currentList = activeTab === "all" ? allFollowUp
-    : activeTab === "notinterested" ? notInterested
-    : activeTab === "notpicked" ? notPicked
-    : activeTab === "noowner" ? noOwner
-    : activeTab === "notinservice" ? notInService
-    : activeTab === "notuseful" ? notUseful
-    : inHouse;
-  const pageLoading = activeTab === "all" ? (loading || dashLoading)
-    : (activeTab === "notinterested" || activeTab === "notpicked") ? loading
-    : dashLoading;
-
-  const searchFiltered = useMemo(() => {
-    const list = currentList.filter(l =>
-      matchesLeadSearch(search, {
-        name: l.client,
-        company: l.company,
-        phone: l.phone,
-        service: l.interestedService,
-        state: l.state,
-      }) &&
-      matchesStateLocationFilter(l.state, l.phone, stateFilter) &&
-      matchesPhoneAreaCodeFilter(l.phone, phoneFilter)
-    );
-    return sortByOldestNote(list);
-  }, [currentList, search, stateFilter, phoneFilter]);
-
-  const totalPages = Math.max(1, Math.ceil(searchFiltered.length / PAGE_SIZE));
-  const paginated  = searchFiltered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const pillCount = {
+    all: (stats?.notInterestedCount ?? 0) + (stats?.notPickedCount ?? 0) + (stats?.notUsefulCount ?? 0)
+      + (stats?.noOwnerCount ?? 0) + (stats?.notInServiceCount ?? 0) + (stats?.inHouseCount ?? 0),
+    notinterested: stats?.notInterestedCount ?? 0,
+    notuseful: stats?.notUsefulCount ?? 0,
+    notpicked: stats?.notPickedCount ?? 0,
+    noowner: stats?.noOwnerCount ?? 0,
+    notinservice: stats?.notInServiceCount ?? 0,
+    inhouse: stats?.inHouseCount ?? 0,
+  };
+  const shownCount = (key: FollowUpTab) => (activeTab === key ? total : pillCount[key]);
 
   /* ── Chart rows ── */
   const chartRows = useMemo<StackedBarRow[]>(() => {
-    const nearNI = notInterested.filter(l => l.notInterestedCount >= NOT_INTERESTED_LIMIT - 1).length;
-    const nearNP = notPicked.filter(l => l.notPickedCount     >= NOT_PICKED_LIMIT     - 1).length;
+    const ni = stats?.notInterestedCount ?? 0;
+    const np = stats?.notPickedCount ?? 0;
+    const nearNI = Math.min(stats?.nearNotInterestedCount ?? 0, ni);
+    const nearNP = Math.min(stats?.nearNotPickedCount ?? 0, np);
     return [
       {
         label: "Not Interested",
         segments: [
-          { label: "Near Limit",  value: nearNI,                         color: "#EF4444" },
-          { label: "Active NI",   value: notInterested.length - nearNI,  color: "#B8112D" },
+          { label: "Near Limit",  value: nearNI,        color: "#EF4444" },
+          { label: "Active NI",   value: ni - nearNI,   color: "#B8112D" },
         ],
       },
       {
         label: "Not Picked",
         segments: [
-          { label: "Near Limit",  value: nearNP,                   color: "#F97316" },
-          { label: "Safe NP",     value: notPicked.length - nearNP, color: "#15803D" },
+          { label: "Near Limit",  value: nearNP,        color: "#F97316" },
+          { label: "Safe NP",     value: np - nearNP,   color: "#15803D" },
         ],
       },
       {
         label: "Not useful",
         segments: [
-          { label: "Not useful", value: notUseful.length, color: "#7C3AED" },
+          { label: "Not useful", value: stats?.notUsefulCount ?? 0, color: "#7C3AED" },
         ],
       },
     ];
-  }, [notInterested, notPicked, notUseful]);
+  }, [stats]);
 
   /* ── Handlers ── */
   const bustCaches = () => {
     invalidateCsrTabCaches();
     invalidateAllCsrListCaches();
+    void refetchStats({ force: true, silent: true });
   };
 
   const handleRetry = async (lead: NiLead) => {
@@ -293,8 +290,8 @@ export default function NotInterestedPage() {
       const res = await API.put(`/csr/lead/${lead.id}`, { status });
       consumeLeadDial(lead.id);
       bustCaches();
-      void refetch();
-      void refetchMisc();
+      void refetch(true);
+      void refetchStats({ force: true, silent: true });
       const staysOnPage = activeTab === "all" && (
         isNotInterestedStatus(status) ||
         isNotPickedStatus(status) ||
@@ -416,7 +413,7 @@ export default function NotInterestedPage() {
             title="Pipeline by stage and try count"
             subtitle="Breakdown of not-interested and not-picked leads — near-limit segments highlighted."
             rows={chartRows}
-            loading={loading}
+            loading={statsLoading && !stats}
           />
         </div>
 
@@ -427,13 +424,13 @@ export default function NotInterestedPage() {
           activeKey={activeTab}
           onChange={key => { setActiveTab(key); setSearch(""); setPage(1); }}
           tabs={[
-            { key: "all",           label: "All",            count: activeTab === "all"           ? searchFiltered.length : allFollowUp.length,     icon: Layers     },
-            { key: "notinterested", label: "Not Interested", count: activeTab === "notinterested" ? searchFiltered.length : notInterested.length,  icon: ThumbsDown },
-            { key: "notuseful",     label: "Not useful",     count: activeTab === "notuseful"     ? searchFiltered.length : notUseful.length,      icon: CircleOff  },
-            { key: "notpicked",     label: "Not Picked",     count: activeTab === "notpicked"     ? searchFiltered.length : notPicked.length,      icon: PhoneOff   },
-            { key: "noowner",       label: "No Owner",       count: activeTab === "noowner"       ? searchFiltered.length : noOwner.length,        icon: UserX      },
-            { key: "notinservice",  label: "Not In Service", count: activeTab === "notinservice"  ? searchFiltered.length : notInService.length,   icon: Ban        },
-            { key: "inhouse",       label: "In House",       count: activeTab === "inhouse"       ? searchFiltered.length : inHouse.length,        icon: Home       },
+            { key: "all",           label: "All",            count: shownCount("all"),           icon: Layers     },
+            { key: "notinterested", label: "Not Interested", count: shownCount("notinterested"), icon: ThumbsDown },
+            { key: "notuseful",     label: "Not useful",     count: shownCount("notuseful"),     icon: CircleOff  },
+            { key: "notpicked",     label: "Not Picked",     count: shownCount("notpicked"),     icon: PhoneOff   },
+            { key: "noowner",       label: "No Owner",       count: shownCount("noowner"),       icon: UserX      },
+            { key: "notinservice",  label: "Not In Service", count: shownCount("notinservice"),  icon: Ban        },
+            { key: "inhouse",       label: "In House",       count: shownCount("inhouse"),       icon: Home       },
           ]}
         />
 
@@ -476,7 +473,7 @@ export default function NotInterestedPage() {
                 <StateFilterDropdown fullWidth value={stateFilter} onChange={v => { setStateFilter(v); setPage(1); }} />
                 <PhoneAreaCodeFilterInput fullWidth value={phoneFilter} onChange={v => { setPhoneFilter(v); setPage(1); }} />
                 <button
-                  onClick={() => void refetch()}
+                  onClick={() => { void refetch(true); void refetchStats({ force: true }); }}
                   className="h-9 sm:h-[40px] w-full sm:w-10 rounded-xl sm:rounded-2xl border border-gray-200 dark:border-crm-border bg-[#FAFAFA] dark:bg-crm-input flex items-center justify-center hover:border-[#B8112D] hover:text-[#B8112D] transition-colors text-gray-500"
                   title="Refresh"
                 >
@@ -485,7 +482,7 @@ export default function NotInterestedPage() {
                 <div className={`text-[11px] sm:text-sm font-semibold px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl sm:rounded-2xl whitespace-nowrap inline-flex items-center justify-center ${
                   activeTab === "notpicked" ? "bg-[#FFF7E6] text-[#B54708]" : "bg-[#FFF1F3] text-[#B8112D]"
                 }`}>
-                  {searchFiltered.length} Leads
+                  {total} Leads
                 </div>
               </div>
             </div>
@@ -516,7 +513,7 @@ export default function NotInterestedPage() {
                       ))}
                     </tr>
                   ))
-                ) : searchFiltered.length > 0 ? paginated.map(lead => {
+                ) : pageLeads.length > 0 ? pageLeads.map(lead => {
                   const retry       = followUpRetryMeta(lead);
                   const tries       = retry.tries;
                   const limit       = retry.limit;
@@ -738,7 +735,7 @@ export default function NotInterestedPage() {
             <Pagination
               page={page}
               totalPages={totalPages}
-              total={searchFiltered.length}
+              total={total}
               pageSize={PAGE_SIZE}
               onPage={setPage}
             />
