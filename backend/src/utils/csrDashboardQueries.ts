@@ -487,6 +487,24 @@ export async function fetchCsrTabLeads(opts: {
   };
 }
 
+/** Upload source sudo names on this CSR's active leads — for the Source filter dropdown */
+export async function listCsrUploadSudoNames(csrId: string): Promise<string[]> {
+  const cacheKey = `csr:sources:${csrId}`;
+  const cached = getCache<string[]>(cacheKey);
+  if (cached) return cached;
+
+  const rows = await prisma.lead.findMany({
+    where: { ...activeCsrLeadWhere(csrId), uploadedFileId: { not: null } },
+    distinct: ["uploadedFileId"],
+    select: { uploadFile: { select: { source: { select: { sudoName: true } } } } },
+  });
+  const names = [...new Set(
+    rows.map(row => row.uploadFile?.source?.sudoName?.trim()).filter((name): name is string => !!name),
+  )].sort();
+  setCache(cacheKey, names, 60_000);
+  return names;
+}
+
 /** Potential clients — important / schedule / interested only */
 export async function fetchPotentialLeads(csrId: string) {
   const where: Prisma.LeadWhereInput = {

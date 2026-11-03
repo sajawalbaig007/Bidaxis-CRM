@@ -4264,6 +4264,7 @@ router.patch("/upload-sources/:sourceId", verifyToken, allowRoles("admin", "mana
       },
     });
 
+    await invalidateCsrCachesForSource(sourceId);
     return res.json({ success: true, source });
   } catch (error) {
     console.log(error);

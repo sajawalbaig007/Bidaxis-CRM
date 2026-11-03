@@ -319,8 +319,11 @@ router.get("/tab-leads", verifyToken, allowRoles("csr"), async (req: any, res) =
     const cached   = getCache<object>(cacheKey);
     if (cached) return res.json(cached);
 
-    const result = await fetchCsrTabLeads({ csrId, tab, page, pageSize, from, to, filters });
-    const payload = { success: true, ...result };
+    const [result, sources] = await Promise.all([
+      fetchCsrTabLeads({ csrId, tab, page, pageSize, from, to, filters }),
+      listCsrUploadSudoNames(csrId),
+    ]);
+    const payload = { success: true, ...result, sources };
     setCache(cacheKey, payload, 20_000);
     res.json(payload);
     if (tab === "pending" || tab === "today") {
