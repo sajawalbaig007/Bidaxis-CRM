@@ -434,6 +434,17 @@ async function punchShift(input: {
       });
       if (open?.checkIn) {
         if (!open.checkOut) return { ok: true as const, row: toPublic(open) };
+        /* Checked out, now back: first check-in stays, and the time away counts as a break, not work. */
+        const outDay = open.checkOut < open.checkIn ? addCalendarDays(open.day, 1) : open.day;
+        const awayFrom = new Date(`${outDay}T${open.checkOut}:00+05:00`);
+        const pauses = readShiftPauses(open.pauses);
+        if (!Number.isNaN(awayFrom.getTime()) && awayFrom.getTime() < Date.now()) {
+          pauses.push({ startAt: awayFrom.toISOString(), endAt: new Date().toISOString() });
+          await prisma.staffDayAttendance.update({
+            where: { id: open.id },
+            data: { pauses: pauses as unknown as Prisma.InputJsonValue },
+          });
+        }
         return saveAttendance({
           personKey: input.personKey,
           personName: input.personName,

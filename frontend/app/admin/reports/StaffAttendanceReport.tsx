@@ -291,7 +291,8 @@ function durationLabel(day: string, checkIn: string | null, checkOut: string | n
   const start = pktInstant(day, checkIn);
   const end = pktInstant(shiftOutDay(day, checkIn, checkOut), checkOut);
   if (!start || !end || end <= start) return "—";
-  const mins = Math.round((end.getTime() - start.getTime()) / 60000);
+  /* First check-in to last check-out, minus Pause / Resume breaks (Chief Estimator). */
+  const mins = Math.max(0, Math.round((end.getTime() - start.getTime()) / 60000) - (row?.pausedMinutes ?? 0));
   const h = Math.floor(mins / 60);
   const m = mins % 60;
   return h > 0 ? `${h}h ${m}m` : `${m}m`;
