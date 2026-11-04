@@ -52,10 +52,6 @@ type Row = {
 
 type Person = { department: string; personKey: string; personName: string };
 
-function pauseClock(iso: string): string {
-  return new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Karachi", hour: "numeric", minute: "2-digit" }).format(new Date(iso));
-}
-
 function calendarYmd(timeZone: string): string {
   return new Intl.DateTimeFormat("en-CA", {
     timeZone,
@@ -127,47 +123,6 @@ function ChiefOvertimeForm({ onSaved }: { onSaved: () => void }) {
       <button type="button" disabled={busy} onClick={() => void save()} className="h-10 px-4 rounded-xl bg-[#B8112D] text-white text-sm font-semibold disabled:opacity-50">
         {busy ? "Sending…" : "Send to CEO"}
       </button>
-    </div>
-  );
-}
-
-/**
- * Chief Estimator's punches for the day — Check in, each Pause / Resume, Check out.
- * Latest on top; earlier ones behind "+n". The total break is not worked time.
- */
-function ShiftTimeline({ row }: { row: Row }) {
-  const [open, setOpen] = useState(false);
-  const events: { at: number; label: string; time: string }[] = [];
-  const checkInAt = row.checkIn ? pktInstant(row.day, row.checkIn) : null;
-  if (checkInAt && row.checkIn) events.push({ at: checkInAt.getTime(), label: "Check in", time: pauseClock(checkInAt.toISOString()) });
-  for (const pause of row.pauses ?? []) {
-    events.push({ at: Date.parse(pause.startAt), label: "Pause", time: pauseClock(pause.startAt) });
-    if (pause.endAt) events.push({ at: Date.parse(pause.endAt), label: "Resume", time: pauseClock(pause.endAt) });
-  }
-  if (row.checkOut) {
-    const outDay = row.overnight || (row.checkIn && row.checkOut < row.checkIn) ? addDays(row.day, 1) : row.day;
-    const checkOutAt = pktInstant(outDay, row.checkOut);
-    if (checkOutAt) events.push({ at: checkOutAt.getTime(), label: "Check out", time: pauseClock(checkOutAt.toISOString()) });
-  }
-  const latestFirst = events.sort((a, b) => b.at - a.at);
-  const shown = open ? latestFirst : latestFirst.slice(0, 1);
-  const hidden = latestFirst.length - 1;
-  const minutes = row.pausedMinutes ?? 0;
-  return (
-    <div className="mt-1 space-y-0.5 text-[10px] font-semibold text-amber-800">
-      {shown.map((event) => (
-        <p key={`${event.label}-${event.at}`}>
-          <span className="inline-block w-16 text-gray-500">{event.label}</span>{event.time}
-        </p>
-      ))}
-      <div className="flex items-center gap-1.5">
-        {hidden > 0 ? (
-          <button type="button" onClick={() => setOpen((v) => !v)} className="h-5 rounded bg-gray-100 px-1.5 text-[10px] font-bold text-gray-700">
-            {open ? "Hide" : `+${hidden}`}
-          </button>
-        ) : null}
-        <span>{row.paused ? "Paused now · " : ""}Break {Math.floor(minutes / 60)}h {String(minutes % 60).padStart(2, "0")}m</span>
-      </div>
     </div>
   );
 }
@@ -281,7 +236,7 @@ function rowCheckOut(row: Row, tz: string): { text: string; nextDay: boolean } {
 function durationLabel(day: string, checkIn: string | null, checkOut: string | null, row?: Row): string {
   if (row?.checkInAt) {
     if (!row.checkOutAt) return "Still in";
-    const mins = Math.round((new Date(row.checkOutAt).getTime() - new Date(row.checkInAt).getTime()) / 60000);
+    const mins = Math.round((new Date(row.checkOutAt).getTime() - new Date(row.checkInAt).getTime()) / 60000) - (row.pausedMinutes ?? 0);
     if (mins <= 0) return "—";
     const h = Math.floor(mins / 60);
     const m = mins % 60;
@@ -756,9 +711,7 @@ function DeptCard({
                         <LogOut size={12} className={absent ? "text-gray-300" : row.checkOut || row.checkOutAt ? "text-gray-400" : "text-amber-500"} />
                         {absent ? "—" : rowCheckOut(row, clock.tz).text}
                         {!absent && rowCheckOut(row, clock.tz).nextDay ? <span className="ml-1 text-[10px] font-bold text-[#B8112D]">next day</span> : null}
-                      </span>
-                      {row.pauses?.length ? <ShiftTimeline row={row} /> : null}
-                    </td>
+                      </span>                    </td>
                     {showShiftOt ? (
                       <td className="px-3 py-3">
                         <OvertimeShiftCell
