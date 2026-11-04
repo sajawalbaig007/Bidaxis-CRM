@@ -1,5 +1,6 @@
+import type { Prisma } from "@prisma/client";
 import prisma from "../config/db";
-import { addCalendarDays, pktShiftDay, staffCheckInInstant } from "./staffAttendance";
+import { addCalendarDays, pktNow, pktShiftDay, staffCheckInInstant } from "./staffAttendance";
 
 const NINE_HOURS_MS = 9 * 60 * 60 * 1000;
 
@@ -200,7 +201,8 @@ export async function overtimeGate(userId: string, role: string) {
   const weekend = isWeekend(new Date(), timeZone);
   const shift = estimator ? await estimatorShiftMs(userId) : await chiefShiftMs(userId);
   return {
-    allowed: weekend || shift.ms >= NINE_HOURS_MS,
+    /* The Chief Estimator can start overtime at any time; estimators after a 9 hour weekday shift. */
+    allowed: !estimator || weekend || shift.ms >= NINE_HOURS_MS,
     weekend,
     shiftMs: shift.ms,
     open: shift.open,
@@ -337,6 +339,187 @@ export async function chiefSetEstimatorOvertime(input: {
   return { ok: true as const, note };
 }
 
+export type OvertimeSession = { startAt: string; endAt: string | null; reason: string; manual?: boolean };
+
+/** Stored sessions, oldest first. Bad rows are skipped. */
+export function readOvertimeSessions(value: unknown): OvertimeSession[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item) => {
+    const row = item && typeof item === "object" ? (item as Record<string, unknown>) : null;
+    const startAt = typeof row?.startAt === "string" ? row.startAt : "";
+    if (!startAt || Number.isNaN(Date.parse(startAt))) return [];
+    const endAt = typeof row?.endAt === "string" && !Number.isNaN(Date.parse(row.endAt)) ? row.endAt : null;
+    return [{ startAt, endAt, reason: String(row?.reason ?? "").trim().slice(0, 300), ...(row?.manual ? { manual: true } : {}) }];
+  });
+}
+
+function sessionMinutes(session: OvertimeSession): number {
+  if (!session.endAt) return 0;
+  return Math.max(0, Math.round((Date.parse(session.endAt) - Date.parse(session.startAt)) / 60_000));
+}
+
+function pktClock(iso: string): string {
+  return pktNow(new Date(iso)).time.slice(0, 5);
+}
+
+/** An overtime window applied the old way (In / Out clocks) becomes the first session of the day. */
+function legacySession(note: { day: string; checkIn?: string | null; checkOut?: string | null; comment: string }): OvertimeSession | null {
+  if (!note.checkIn || !note.checkOut) return null;
+  const minutes = overtimeMinutesFromClocks(note.checkIn, note.checkOut);
+  if (minutes == null) return null;
+  const start = new Date(`${note.day}T${note.checkIn}:00+05:00`);
+  if (Number.isNaN(start.getTime())) return null;
+  return {
+    startAt: start.toISOString(),
+    endAt: new Date(start.getTime() + minutes * 60_000).toISOString(),
+    reason: note.comment.split("\n").slice(1).join(" ").trim().slice(0, 300),
+  };
+}
+
+/** Comment line 1 is the day's total ("2h 05m"); the next lines are the reasons, latest first. */
+function sessionFields(sessions: OvertimeSession[]) {
+  const minutes = sessions.reduce((sum, session) => sum + sessionMinutes(session), 0);
+  const reasons = [...sessions].reverse().map((session) => session.reason).filter(Boolean);
+  const last = sessions[sessions.length - 1];
+  return {
+    sessions: sessions as unknown as Prisma.InputJsonValue,
+    comment: [formatOvertimeMinutes(minutes), ...reasons].join("\n").slice(0, 500),
+    checkIn: sessions.length ? pktClock(sessions[0].startAt) : null,
+    checkOut: last?.endAt ? pktClock(last.endAt) : null,
+  };
+}
+
+/** Total minutes on an overtime note — the "2h 05m" first line written by every overtime flow. */
+export function overtimeNoteMinutes(comment: string): number {
+  const match = /^(\d+)h\s+(\d{1,2})m\b/.exec(comment.trim());
+  return match ? Number(match[1]) * 60 + Number(match[2]) : 0;
+}
+
+function overtimeDepartmentFor(role: string): "estimator" | "chief_estimator" | null {
+  if (role === "estimator") return "estimator";
+  if (role === "technical_manager") return "chief_estimator";
+  return null;
+}
+
+async function findOpenOvertime(personKey: string, department: string) {
+  const recent = await prisma.overtimeRequest.findMany({
+    where: { personKey, department },
+    orderBy: { updatedAt: "desc" },
+    take: 5,
+  });
+  return recent.find((note) => readOvertimeSessions(note.sessions).some((session) => !session.endAt)) ?? null;
+}
+
+/** This person's overtime today: every session plus the one still running, if any. */
+export async function myOvertimeSessions(userId: string, role: string) {
+  const department = overtimeDepartmentFor(role);
+  if (!department) return { running: null, sessions: [] as OvertimeSession[], status: null as string | null, minutes: 0 };
+  const open = await findOpenOvertime(userId, department);
+  const day = pktShiftDay(new Date(), department, userId);
+  const note = open ?? await prisma.overtimeRequest.findUnique({
+    where: { personKey_day_department: { personKey: userId, day, department } },
+  });
+  const sessions = readOvertimeSessions(note?.sessions);
+  return {
+    running: sessions.find((session) => !session.endAt) ?? null,
+    sessions: [...sessions].reverse(),
+    status: note?.status ?? null,
+    minutes: note ? overtimeNoteMinutes(note.comment) : 0,
+  };
+}
+
+/** Start overtime. A reason is required; a second start on the same day adds another session. */
+export async function startOvertimeSession(input: { userId: string; role: string; name: string; reason: string }) {
+  const department = overtimeDepartmentFor(input.role);
+  if (!department) return { ok: false as const, message: "Overtime is only for estimators and the Chief Estimator." };
+  const reason = input.reason.trim().slice(0, 300);
+  if (!reason) return { ok: false as const, message: "Write the reason for overtime first." };
+  if (await findOpenOvertime(input.userId, department)) {
+    return { ok: false as const, message: "Overtime is already running. Stop it first." };
+  }
+  const gate = await overtimeGate(input.userId, input.role);
+  if (!gate.allowed) {
+    return { ok: false as const, message: "Overtime opens on Saturday and Sunday, or after a 9 hour weekday shift." };
+  }
+  const day = pktShiftDay(new Date(), department, input.userId);
+  const where = { personKey_day_department: { personKey: input.userId, day, department } };
+  const existing = await prisma.overtimeRequest.findUnique({ where });
+  let sessions = readOvertimeSessions(existing?.sessions);
+  if (existing && !sessions.length) {
+    const legacy = legacySession(existing);
+    if (legacy) sessions = [legacy];
+  }
+  sessions.push({ startAt: new Date().toISOString(), endAt: null, reason });
+  const data = { ...sessionFields(sessions), personName: input.name, status: "pending", editedBy: null };
+  const note = existing
+    ? await prisma.overtimeRequest.update({ where: { id: existing.id }, data })
+    : await prisma.overtimeRequest.create({ data: { ...data, personKey: input.userId, department, day } });
+  return { ok: true as const, note };
+}
+
+/**
+ * Overtime typed in by hand (date, In, Out, reason). It is added as one more session on that day,
+ * so it sums with Start / Stop sessions, and goes for approval like them.
+ */
+export async function addManualOvertimeSession(input: {
+  userId: string;
+  role: string;
+  name: string;
+  day: string;
+  checkIn: string;
+  checkOut: string;
+  reason: string;
+}) {
+  const department = overtimeDepartmentFor(input.role);
+  if (!department) return { ok: false as const, message: "Overtime is only for estimators and the Chief Estimator." };
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(input.day)) return { ok: false as const, message: "Pick a date." };
+  if (input.day > pktNow().day) return { ok: false as const, message: "Overtime cannot be added for a future date." };
+  const reason = input.reason.trim().slice(0, 300);
+  if (!reason) return { ok: false as const, message: "Write the reason for overtime." };
+  const window = appliedWindow(input);
+  if (!window.ok) return window;
+  const start = new Date(`${input.day}T${window.checkIn}:00+05:00`);
+  const added: OvertimeSession = {
+    startAt: start.toISOString(),
+    endAt: new Date(start.getTime() + window.minutes * 60_000).toISOString(),
+    reason,
+    manual: true,
+  };
+  const where = { personKey_day_department: { personKey: input.userId, day: input.day, department } };
+  const existing = await prisma.overtimeRequest.findUnique({ where });
+  let sessions = readOvertimeSessions(existing?.sessions);
+  if (existing && !sessions.length) {
+    const legacy = legacySession(existing);
+    if (legacy) sessions = [legacy];
+  }
+  const overlaps = sessions.some((session) => {
+    const end = session.endAt ? Date.parse(session.endAt) : Date.now();
+    return Date.parse(added.startAt) < end && Date.parse(added.endAt!) > Date.parse(session.startAt);
+  });
+  if (overlaps) return { ok: false as const, message: "This time overlaps overtime already on that day." };
+  sessions = [...sessions, added].sort((a, b) => a.startAt.localeCompare(b.startAt));
+  const data = { ...sessionFields(sessions), personName: input.name, status: "pending", editedBy: null };
+  const note = existing
+    ? await prisma.overtimeRequest.update({ where: { id: existing.id }, data })
+    : await prisma.overtimeRequest.create({ data: { ...data, personKey: input.userId, department, day: input.day } });
+  return { ok: true as const, note };
+}
+
+/** Stop the running overtime session. The day's total is the sum of all its sessions. */
+export async function stopOvertimeSession(input: { userId: string; role: string }) {
+  const department = overtimeDepartmentFor(input.role);
+  if (!department) return { ok: false as const, message: "Overtime is only for estimators and the Chief Estimator." };
+  const open = await findOpenOvertime(input.userId, department);
+  if (!open) return { ok: false as const, message: "No overtime is running." };
+  const now = new Date().toISOString();
+  const sessions = readOvertimeSessions(open.sessions).map((session) => (session.endAt ? session : { ...session, endAt: now }));
+  const note = await prisma.overtimeRequest.update({
+    where: { id: open.id },
+    data: { ...sessionFields(sessions), status: "pending", editedBy: null },
+  });
+  return { ok: true as const, note };
+}
+
 export function overtimePublic(note: {
   id: string;
   comment: string;
@@ -344,6 +527,7 @@ export function overtimePublic(note: {
   editedBy: string | null;
   checkIn?: string | null;
   checkOut?: string | null;
+  sessions?: unknown;
 } | null | undefined) {
   return {
     overtimeId: note?.id ?? null,
@@ -352,6 +536,7 @@ export function overtimePublic(note: {
     overtimeCheckOut: note?.checkOut ?? null,
     overtimeStatus: note?.status ?? null,
     overtimeEditedBy: note?.editedBy ?? null,
+    overtimeSessions: readOvertimeSessions(note?.sessions),
   };
 }
 

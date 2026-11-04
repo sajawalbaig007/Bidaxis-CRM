@@ -586,6 +586,10 @@ model StaffEmployee {
   payrollHead    String?
   /** YYYY-MM — appear on Income Statement from this month until unassigned / removed */
   payrollStartMonth String?
+  /** YYYY-MM-DD — first payroll day inside the start month. Set when this person took over someone's dashboard account. */
+  payrollStartDate  String?
+  /** YYYY-MM-DD — last payroll day. Set when a new person takes over this person's dashboard account. */
+  payrollEndDate    String?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
@@ -688,6 +692,8 @@ model StaffDayAttendance {
   checkOut   String?
   /** Optional note from the attendance page. Shown on the CEO report. */
   comment    String?
+  /** Breaks inside the shift (Pause / Resume): [{ startAt, endAt }]. Not counted as worked time. */
+  pauses     Json?
   userId     String?
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
@@ -709,6 +715,8 @@ model OvertimeRequest {
   /** Overtime window the employee applied. Empty until they submit both times. */
   checkIn    String?
   checkOut   String?
+  /** Start / Stop sessions for the day: [{ startAt, endAt, reason }]. The total is their sum. */
+  sessions   Json?
   status     String   @default("pending")
   editedBy   String?
   createdAt  DateTime @default(now())

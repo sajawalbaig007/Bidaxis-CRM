@@ -1,5 +1,5 @@
 import { Router } from "express";
-import type { Role } from "@prisma/client";
+import type { Prisma, Role } from "@prisma/client";
 import prisma from "../config/db";
 import { verifyToken, AuthRequest } from "../middleware/auth.middleware";
 import { allowRoles } from "../middleware/role.middleware";
@@ -25,9 +25,10 @@ import {
   RosterDept,
   saveAttendance,
   timeOrderOk,
+  readShiftPauses,
   toPublic,
 } from "../utils/staffAttendance";
-import { chiefSetEstimatorOvertime, listEstimatorShiftRows, overtimeGate, overtimePublic, reviewOvertime, saveOvertimeComment, submitChiefOvertime, submitShiftOvertime } from "../utils/overtimeRequest";
+import { addManualOvertimeSession, chiefSetEstimatorOvertime, listEstimatorShiftRows, myOvertimeSessions, overtimeGate, overtimePublic, readOvertimeSessions, reviewOvertime, saveOvertimeComment, startOvertimeSession, stopOvertimeSession, submitShiftOvertime } from "../utils/overtimeRequest";
 import { applyApprovedRequest, listRequestHistory, parseRequestDraft, toPublicRequest } from "../utils/staffRequest";
 import { SHIFT_DEPARTMENTS, clearShiftSchedule, listShiftSchedules, saveShiftSchedule } from "../utils/shiftSchedule";
 import { SEED_USER_EMAILS } from "../constants/seedUsers";
@@ -367,6 +368,55 @@ function dayClock(department: string, personKey = "") {
   return { day: pktShiftDay(new Date(), department, personKey), time: now.time };
 }
 
+/** The shift still open (checked in, not out): today, or yesterday when it runs past midnight. */
+async function openShiftRow(personKey: string, department: string) {
+  const day = dayClock(department, personKey).day;
+  const today = await prisma.staffDayAttendance.findUnique({ where: { personKey_day: { personKey, day } } });
+  if (today?.checkIn && !today.checkOut) return today;
+  const prev = await prisma.staffDayAttendance.findUnique({
+    where: { personKey_day: { personKey, day: addCalendarDays(day, -1) } },
+  });
+  return prev?.checkIn && !prev.checkOut ? prev : null;
+}
+
+/**
+ * Pause / Resume inside the open shift — e.g. leave the office, finish the duty from home.
+ * Break time is not worked time. Checking out while paused ends the break at checkout.
+ */
+async function pauseShift(personKey: string, department: string, action: "pause" | "resume") {
+  const row = await openShiftRow(personKey, department);
+  if (!row) return { ok: false as const, message: "Check in first." };
+  const pauses = readShiftPauses(row.pauses);
+  const open = pauses.find((pause) => !pause.endAt);
+  const now = new Date().toISOString();
+  if (action === "pause") {
+    if (open) return { ok: false as const, message: "Already paused. Resume first." };
+    pauses.push({ startAt: now, endAt: null });
+  } else {
+    if (!open) return { ok: false as const, message: "The shift is not paused." };
+    open.endAt = now;
+  }
+  const saved = await prisma.staffDayAttendance.update({
+    where: { id: row.id },
+    data: { pauses: pauses as unknown as Prisma.InputJsonValue },
+  });
+  return { ok: true as const, row: toPublic(saved) };
+}
+
+/** Checkout ends a running break at the same moment. */
+async function closeOpenPause(personKey: string, department: string) {
+  const row = await openShiftRow(personKey, department);
+  if (!row) return;
+  const pauses = readShiftPauses(row.pauses);
+  const open = pauses.find((pause) => !pause.endAt);
+  if (!open) return;
+  open.endAt = new Date().toISOString();
+  await prisma.staffDayAttendance.update({
+    where: { id: row.id },
+    data: { pauses: pauses as unknown as Prisma.InputJsonValue },
+  });
+}
+
 /** Checkout the open shift: today, or yesterday when the shift runs past midnight. */
 async function punchShift(input: {
   personKey: string;
@@ -680,11 +730,20 @@ router.get("/mine", verifyToken, allowRoles("technical_manager", "admin", "manag
 router.post("/mine/punch", verifyToken, allowRoles("technical_manager", "admin", "manager", "accounts"), async (req: AuthRequest, res) => {
   try {
     const action = String(req.body?.action ?? "");
-    if (action !== "in" && action !== "out") {
+    if (action !== "in" && action !== "out" && action !== "pause" && action !== "resume") {
       return res.status(400).json({ success: false, message: "Choose check-in or check-out." });
     }
     const department = mineDepartment(req.user!.role, wantsChiefDashboard(req.body?.dashboard));
     if (!department) return res.status(403).json({ success: false, message: "Access denied" });
+    if (action === "pause" || action === "resume") {
+      if (department !== "chief_estimator") {
+        return res.status(403).json({ success: false, message: "Pause is only for the Chief Estimator." });
+      }
+      const paused = await pauseShift(req.user!.id, department, action);
+      if (!paused.ok) return res.status(400).json({ success: false, message: paused.message });
+      return res.json({ success: true, message: action === "pause" ? "Paused." : "Resumed.", row: paused.row });
+    }
+    if (action === "out" && department === "chief_estimator") await closeOpenPause(req.user!.id, department);
     if (department === "admin") {
       const blocked = await officeNetworkMessage(req);
       if (blocked) {
@@ -842,19 +901,66 @@ router.post("/overtime", verifyToken, allowRoles("estimator", "technical_manager
   }
 });
 
-router.post("/overtime/manual", verifyToken, allowRoles("technical_manager"), async (req: AuthRequest, res) => {
+router.get("/overtime/mine", verifyToken, allowRoles("estimator", "technical_manager", "admin"), async (req: AuthRequest, res) => {
+  try {
+    const role = req.user!.role === "admin" ? "technical_manager" : req.user!.role;
+    return res.json({ success: true, ...(await myOvertimeSessions(req.user!.id, role)) });
+  } catch (error) {
+    console.error("[attendance/overtime/mine]", error);
+    return res.status(500).json({ success: false, message: "Could not load overtime." });
+  }
+});
+
+router.post("/overtime/start", verifyToken, allowRoles("estimator", "technical_manager", "admin"), async (req: AuthRequest, res) => {
   try {
     const user = await prisma.user.findUnique({ where: { id: req.user!.id }, select: { name: true } });
-    const result = await submitChiefOvertime({
+    const role = req.user!.role === "admin" ? "technical_manager" : req.user!.role;
+    const result = await startOvertimeSession({
       userId: req.user!.id,
-      name: user?.name || "Chief Estimator",
+      role,
+      name: user?.name || "Staff",
+      reason: String(req.body?.reason ?? ""),
+    });
+    if (!result.ok) return res.status(400).json({ success: false, message: result.message });
+    return res.json({ success: true, message: "Overtime started.", ...(await myOvertimeSessions(req.user!.id, role)) });
+  } catch (error) {
+    console.error("[attendance/overtime/start]", error);
+    return res.status(500).json({ success: false, message: "Could not start overtime." });
+  }
+});
+
+router.post("/overtime/stop", verifyToken, allowRoles("estimator", "technical_manager", "admin"), async (req: AuthRequest, res) => {
+  try {
+    const role = req.user!.role === "admin" ? "technical_manager" : req.user!.role;
+    const result = await stopOvertimeSession({ userId: req.user!.id, role });
+    if (!result.ok) return res.status(400).json({ success: false, message: result.message });
+    return res.json({ success: true, message: "Overtime stopped and sent for approval.", ...(await myOvertimeSessions(req.user!.id, role)) });
+  } catch (error) {
+    console.error("[attendance/overtime/stop]", error);
+    return res.status(500).json({ success: false, message: "Could not stop overtime." });
+  }
+});
+
+router.post("/overtime/manual", verifyToken, allowRoles("estimator", "technical_manager", "admin"), async (req: AuthRequest, res) => {
+  try {
+    const user = await prisma.user.findUnique({ where: { id: req.user!.id }, select: { name: true } });
+    const role = req.user!.role === "admin" ? "technical_manager" : req.user!.role;
+    const result = await addManualOvertimeSession({
+      userId: req.user!.id,
+      role,
+      name: user?.name || "Staff",
       day: String(req.body?.day ?? ""),
       checkIn: String(req.body?.checkIn ?? ""),
       checkOut: String(req.body?.checkOut ?? ""),
-      note: String(req.body?.note ?? ""),
+      reason: String(req.body?.reason ?? req.body?.note ?? ""),
     });
     if (!result.ok) return res.status(400).json({ success: false, message: result.message });
-    return res.json({ success: true, message: "Overtime sent to the CEO.", ...overtimePublic(result.note) });
+    return res.json({
+      success: true,
+      message: role === "estimator" ? "Overtime sent to the Chief Estimator." : "Overtime sent to the CEO.",
+      ...overtimePublic(result.note),
+      ...(await myOvertimeSessions(req.user!.id, role)),
+    });
   } catch (error) {
     console.error("[attendance/overtime manual]", error);
     return res.status(500).json({ success: false, message: "Could not save overtime." });
@@ -897,6 +1003,7 @@ router.get("/overtime", verifyToken, allowRoles("admin", "manager", "technical_m
         comment: row.comment,
         checkIn: row.checkIn,
         checkOut: row.checkOut,
+        sessions: readOvertimeSessions(row.sessions),
         status: row.status,
         editedBy: row.editedBy,
       })),

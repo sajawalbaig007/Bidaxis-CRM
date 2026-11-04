@@ -13,6 +13,7 @@ import { recordAccessHistory } from "../utils/accessHistory";
 import { getClientIp, getUserAgent } from "../utils/requestMeta";
 import { clearActiveSession, userBrowserMap } from "../utils/sessions";
 import { sanitizeIpList } from "../utils/networkAccess";
+import { handOverUserAccounts, handoverSnapshot } from "../utils/accountHandover";
 
 function parseTemporaryHours(raw: unknown): 9 | 10 | null {
   if (raw === undefined || raw === null || raw === "") return null;
@@ -106,6 +107,10 @@ export const updateUser = async (req: Request, res: Response) => {
       return res.status(400).json({ message: "No fields to update" });
     }
 
+    /* New person on this login: keep the old person's Accounts history, start fresh payroll this month. */
+    const previous = req.body?.handover === true && typeof name === "string" ? await handoverSnapshot(id) : null;
+    const handover = !!previous && previous.name.trim() !== name.trim();
+
     const user = await prisma.user.update({
       where:  { id },
       data,
@@ -117,11 +122,12 @@ export const updateUser = async (req: Request, res: Response) => {
         chatEnabled: true, chatAllowedUserIds: true, chatVisibleToUserIds: true,
       },
     });
+    const handedOver = handover && previous ? await handOverUserAccounts(id, previous) : 0;
     invalidateCache("users:list", "users:list:admin", "users:list:csr", "users:list:manager", "admin:csrs", `auth:me:${id}`);
     if (chatEnabled !== undefined || chatAllowedUserIds !== undefined || chatVisibleToUserIds !== undefined) {
       invalidatePattern("chat:convs:");
     }
-    return res.json(user);
+    return res.json({ ...user, handedOver });
   } catch (err) {
     console.error("[users] updateUser", err);
     return res.status(500).json({ message: "Update failed" });

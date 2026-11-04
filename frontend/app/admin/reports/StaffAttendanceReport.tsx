@@ -40,6 +40,10 @@ type Row = {
   checkOutAt?: string | null;
   comment?: string | null;
   overnight?: boolean;
+  /** Chief Estimator Pause / Resume breaks. */
+  pauses?: { startAt: string; endAt: string | null }[];
+  paused?: boolean;
+  pausedMinutes?: number;
   overtimeId?: string | null;
   overtimeComment?: string | null;
   overtimeStatus?: string | null;
@@ -47,6 +51,10 @@ type Row = {
 };
 
 type Person = { department: string; personKey: string; personName: string };
+
+function pauseClock(iso: string): string {
+  return new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Karachi", hour: "numeric", minute: "2-digit" }).format(new Date(iso));
+}
 
 function calendarYmd(timeZone: string): string {
   return new Intl.DateTimeFormat("en-CA", {
@@ -695,6 +703,14 @@ function DeptCard({
                         {absent ? "—" : rowCheckOut(row, clock.tz).text}
                         {!absent && rowCheckOut(row, clock.tz).nextDay ? <span className="ml-1 text-[10px] font-bold text-[#B8112D]">next day</span> : null}
                       </span>
+                      {row.pauses?.length ? (
+                        <span className="block text-[10px] font-semibold text-amber-700" title={row.pauses.map((p) => `${pauseClock(p.startAt)} – ${p.endAt ? pauseClock(p.endAt) : "now"}`).join("\n")}>
+                          {row.paused ? "Paused now · " : ""}Break {Math.floor((row.pausedMinutes ?? 0) / 60)}h {String((row.pausedMinutes ?? 0) % 60).padStart(2, "0")}m
+                          {row.pauses.map((p) => (
+                            <span key={p.startAt} className="block font-normal">{pauseClock(p.startAt)} – {p.endAt ? pauseClock(p.endAt) : "now"}</span>
+                          ))}
+                        </span>
+                      ) : null}
                     </td>
                     {showShiftOt ? (
                       <td className="px-3 py-3">

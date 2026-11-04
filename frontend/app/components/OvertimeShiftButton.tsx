@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Clock } from "lucide-react";
+import { Play, Plus, Square } from "lucide-react";
 import toast from "react-hot-toast";
 import API, { apiErrorMessage } from "@/lib/api";
 
@@ -19,6 +19,10 @@ function pktClock(date = new Date()): string {
   return `${hour}:${minute}`;
 }
 
+function pktToday(): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Karachi", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+}
+
 export function formatOtClock(time: string | null | undefined): string {
   if (!time) return "—";
   const match = /^(\d{2}):(\d{2})$/.exec(time);
@@ -29,6 +33,8 @@ export function formatOtClock(time: string | null | undefined): string {
   return `${hour12}:${match[2]} ${suffix}`;
 }
 
+export type OvertimeSession = { startAt: string; endAt: string | null; reason: string; manual?: boolean };
+
 export type ShiftOvertimeItem = {
   id: string;
   personKey: string;
@@ -38,9 +44,52 @@ export type ShiftOvertimeItem = {
   comment: string;
   checkIn?: string | null;
   checkOut?: string | null;
+  /** Start / Stop sessions, oldest first. */
+  sessions?: OvertimeSession[];
   status: string;
   editedBy: string | null;
 };
+
+function sessionClock(iso: string | null): string {
+  return iso ? formatOtClock(pktClock(new Date(iso))) : "running";
+}
+
+function sessionLength(session: OvertimeSession, now = Date.now()): string {
+  const end = session.endAt ? Date.parse(session.endAt) : now;
+  const total = Math.max(0, Math.round((end - Date.parse(session.startAt)) / 60_000));
+  return `${Math.floor(total / 60)}h ${String(total % 60).padStart(2, "0")}m`;
+}
+
+/** Each Start / Stop with its reason — latest on top, earlier ones behind "+n". The total is the day's sum. */
+export function OvertimeSessionList({ sessions, total }: { sessions: OvertimeSession[]; total?: string }) {
+  const [open, setOpen] = useState(false);
+  if (!sessions.length) return null;
+  const latestFirst = [...sessions].reverse();
+  const shown = open ? latestFirst : latestFirst.slice(0, 1);
+  const hidden = latestFirst.length - 1;
+  return (
+    <div className="space-y-1">
+      {shown.map((session) => (
+        <div key={session.startAt} className="rounded-lg bg-amber-50 px-2 py-1 text-[11px] leading-4 text-[#111827]">
+          <p className="font-semibold">
+            {sessionClock(session.startAt)} – {sessionClock(session.endAt)}
+            <span className="ml-1 font-normal text-gray-500">({sessionLength(session)})</span>
+            {session.manual ? <span className="ml-1 rounded bg-white px-1 text-[9px] font-bold uppercase text-amber-700">Added by hand</span> : null}
+          </p>
+          {session.reason ? <p className="text-gray-600 whitespace-pre-wrap">{session.reason}</p> : null}
+        </div>
+      ))}
+      <div className="flex items-center gap-2">
+        {hidden > 0 ? (
+          <button type="button" onClick={() => setOpen((v) => !v)} className="h-6 rounded-md bg-gray-100 px-2 text-[10px] font-bold text-gray-700">
+            {open ? "Hide" : `+${hidden}`}
+          </button>
+        ) : null}
+        {total ? <span className="text-[11px] font-bold text-[#92400E]">Total {total}</span> : null}
+      </div>
+    </div>
+  );
+}
 
 export function overtimeWindowText(item: Pick<ShiftOvertimeItem, "checkIn" | "checkOut" | "comment" | "status" | "editedBy"> | null): string {
   if (!item) return "—";
@@ -52,13 +101,21 @@ export function overtimeWindowText(item: Pick<ShiftOvertimeItem, "checkIn" | "ch
   return [clocks, item.comment, status, edited].filter(Boolean).join(" · ") || "No overtime";
 }
 
+type MineState = { running: OvertimeSession | null; sessions: OvertimeSession[]; status: string | null };
+
 export default function OvertimeShiftButton({ compact = false, since }: { compact?: boolean; since?: string }) {
   const [gate, setGate] = useState({ allowed: false, weekend: false, shiftMs: 0, open: false, at: Date.now() });
   const [now, setNow] = useState(Date.now());
   const [form, setForm] = useState(false);
-  const [checkIn, setCheckIn] = useState("");
-  const [checkOut, setCheckOut] = useState("");
+  const [reason, setReason] = useState("");
+  const [mine, setMine] = useState<MineState>({ running: null, sessions: [], status: null });
   const [busy, setBusy] = useState(false);
+  /** Overtime typed in by hand: date, In, Out and the reason. */
+  const [manual, setManual] = useState<{ day: string; checkIn: string; checkOut: string; reason: string } | null>(null);
+
+  const applyMine = (data: Partial<MineState> | undefined) => {
+    setMine({ running: data?.running ?? null, sessions: data?.sessions ?? [], status: data?.status ?? null });
+  };
 
   useEffect(() => {
     let stop = false;
@@ -74,6 +131,9 @@ export default function OvertimeShiftButton({ compact = false, since }: { compac
             at: Date.now(),
           });
         })
+        .catch(() => {});
+      API.get("/attendance/overtime/mine")
+        .then((res) => { if (!stop) applyMine(res.data); })
         .catch(() => {});
     };
     load();
@@ -98,43 +158,134 @@ export default function OvertimeShiftButton({ compact = false, since }: { compac
   })();
   const btn = compact ? "h-9 px-2.5 text-xs" : "h-10 px-3 text-sm";
 
-  const openForm = () => {
-    setCheckIn(pktClock());
-    setCheckOut("");
-    setForm(true);
-  };
-
-  const apply = async () => {
+  const start = async () => {
     if (busy) return;
-    if (!/^\d{2}:\d{2}$/.test(checkIn) || !/^\d{2}:\d{2}$/.test(checkOut)) {
-      toast.error("Enter overtime check-in and check-out.");
+    if (!reason.trim()) {
+      toast.error("Write the reason for overtime first.");
       return;
     }
     setBusy(true);
     try {
-      await API.post("/attendance/overtime", { checkIn, checkOut });
+      const res = await API.post("/attendance/overtime/start", { reason: reason.trim() });
+      applyMine(res.data);
       setForm(false);
-      toast.success("Overtime sent.");
+      setReason("");
+      toast.success("Overtime started.");
     } catch (err) {
-      toast.error(apiErrorMessage(err, "Could not send overtime."));
+      toast.error(apiErrorMessage(err, "Could not start overtime."));
     } finally {
       setBusy(false);
     }
   };
 
+  const stopOvertime = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const res = await API.post("/attendance/overtime/stop");
+      applyMine(res.data);
+      toast.success("Overtime stopped and sent for approval.");
+    } catch (err) {
+      toast.error(apiErrorMessage(err, "Could not stop overtime."));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const saveManual = async () => {
+    if (busy || !manual) return;
+    if (!manual.day || !/^d{2}:d{2}$/.test(manual.checkIn) || !/^d{2}:d{2}$/.test(manual.checkOut)) {
+      toast.error("Pick the date, In and Out time.");
+      return;
+    }
+    if (!manual.reason.trim()) {
+      toast.error("Write the reason for overtime.");
+      return;
+    }
+    setBusy(true);
+    try {
+      const res = await API.post("/attendance/overtime/manual", { ...manual, reason: manual.reason.trim() });
+      applyMine(res.data);
+      setManual(null);
+      toast.success(res.data?.message || "Overtime sent for approval.");
+    } catch (err) {
+      toast.error(apiErrorMessage(err, "Could not add overtime."));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (manual) {
+    const input = "h-9 rounded-lg border border-amber-200 bg-white px-2 text-xs text-[#111827]";
+    return (
+      <span className="inline-flex flex-wrap items-center gap-1">
+        <input type="date" value={manual.day} max={pktToday()} onChange={(e) => setManual({ ...manual, day: e.target.value })} className={input} />
+        <label className="text-[10px] font-bold text-[#92400E]">
+          In <input type="time" value={manual.checkIn} onChange={(e) => setManual({ ...manual, checkIn: e.target.value })} className={input} />
+        </label>
+        <label className="text-[10px] font-bold text-[#92400E]">
+          Out <input type="time" value={manual.checkOut} onChange={(e) => setManual({ ...manual, checkOut: e.target.value })} className={input} />
+        </label>
+        <input
+          value={manual.reason}
+          onChange={(e) => setManual({ ...manual, reason: e.target.value })}
+          maxLength={300}
+          placeholder="Reason for overtime"
+          className={`${input} w-44`}
+        />
+        <button type="button" onClick={() => void saveManual()} disabled={busy} className={`${btn} rounded-xl bg-[#0F172A] text-white font-semibold disabled:opacity-40`}>
+          {busy ? "Sending…" : "Send"}
+        </button>
+        <button type="button" onClick={() => setManual(null)} disabled={busy} className={`${btn} rounded-xl bg-gray-100 text-gray-600 font-semibold`}>
+          Cancel
+        </button>
+      </span>
+    );
+  }
+
+  const addButton = (
+    <button
+      type="button"
+      onClick={() => setManual({ day: pktToday(), checkIn: "", checkOut: "", reason: "" })}
+      title="Add overtime by hand — date, In, Out and the reason"
+      className={`${btn} rounded-xl font-semibold inline-flex items-center gap-1 touch-manipulation border border-amber-200 bg-white text-[#92400E]`}
+    >
+      <Plus size={compact ? 13 : 14} /> Add OT
+    </button>
+  );
+
+  if (mine.running) {
+    return (
+      <span className="inline-flex flex-wrap items-center gap-1">
+      <button
+        type="button"
+        onClick={() => void stopOvertime()}
+        disabled={busy}
+        title={`Overtime started ${sessionClock(mine.running.startAt)} — ${mine.running.reason}`}
+        className={`${btn} rounded-xl font-semibold inline-flex items-center gap-1 disabled:opacity-40 touch-manipulation bg-[#B8112D] text-white`}
+      >
+        <Square size={compact ? 12 : 13} fill="currentColor" />
+        {busy ? "Stopping…" : `Stop OT · ${sessionLength(mine.running, now)}`}
+      </button>
+      {addButton}
+      </span>
+    );
+  }
+
   if (form) {
     return (
       <span className="inline-flex flex-wrap items-center gap-1">
-        <label className="text-[10px] font-bold text-[#92400E]">
-          In
-          <input type="time" value={checkIn} onChange={(e) => setCheckIn(e.target.value)} className="ml-1 h-9 rounded-lg border border-amber-200 bg-white px-2 text-xs text-[#111827]" />
-        </label>
-        <label className="text-[10px] font-bold text-[#92400E]">
-          Out
-          <input type="time" value={checkOut} onChange={(e) => setCheckOut(e.target.value)} className="ml-1 h-9 rounded-lg border border-amber-200 bg-white px-2 text-xs text-[#111827]" />
-        </label>
-        <button type="button" onClick={() => void apply()} disabled={busy} className={`${btn} rounded-xl bg-[#0F172A] text-white font-semibold disabled:opacity-40`}>
-          {busy ? "Sending…" : "Apply"}
+        <input
+          autoFocus
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") void start(); }}
+          maxLength={300}
+          placeholder="Reason for overtime"
+          className="h-9 w-48 rounded-lg border border-amber-200 bg-white px-2 text-xs text-[#111827]"
+        />
+        <button type="button" onClick={() => void start()} disabled={busy || !reason.trim()} className={`${btn} rounded-xl bg-[#0F172A] text-white font-semibold disabled:opacity-40`}>
+          {busy ? "Starting…" : "Start"}
         </button>
         <button type="button" onClick={() => setForm(false)} disabled={busy} className={`${btn} rounded-xl bg-gray-100 text-gray-600 font-semibold`}>
           Cancel
@@ -143,17 +294,23 @@ export default function OvertimeShiftButton({ compact = false, since }: { compac
     );
   }
 
+  const done = mine.sessions.filter((session) => session.endAt).length;
   return (
+    <span className="inline-flex flex-wrap items-center gap-1">
     <button
       type="button"
       disabled={!ready}
-      title={ready ? "Apply overtime with check-in and check-out" : `Weekday overtime opens after a 9 hour shift. This shift is ${shiftLabel}.`}
-      onClick={openForm}
+      title={ready
+        ? done ? `Start another overtime. ${done} already today (${mine.status ?? "pending"}).` : "Start overtime — you will be asked for the reason"
+        : `Weekday overtime opens after a 9 hour shift. This shift is ${shiftLabel}.`}
+      onClick={() => setForm(true)}
       className={`${btn} rounded-xl font-semibold inline-flex items-center gap-1 disabled:opacity-40 touch-manipulation bg-[#FEF3C7] text-[#92400E]`}
     >
-      <Clock size={compact ? 14 : 15} />
-      Apply
+      <Play size={compact ? 13 : 14} fill="currentColor" />
+      Start OT{done ? ` (${done})` : ""}
     </button>
+    {addButton}
+    </span>
   );
 }
 
@@ -218,10 +375,14 @@ export function OvertimeShiftCell({
   };
 
   const note = item?.comment?.split("\n").slice(1).join("\n").trim();
+  /* A reviewer's time edit replaces the session total, so then the edited In / Out is shown instead. */
+  const sessions = item && !item.editedBy ? item.sessions ?? [] : [];
 
   return (
     <div className="min-w-[168px]">
-      {item?.checkIn || item?.checkOut ? (
+      {sessions.length ? (
+        <OvertimeSessionList sessions={sessions} total={item?.comment.split("\n")[0]} />
+      ) : item?.checkIn || item?.checkOut ? (
         <div className="text-xs font-semibold text-[#111827] leading-5">
           <p>In {formatOtClock(item.checkIn)}</p>
           <p>Out {formatOtClock(item.checkOut)}</p>
@@ -229,10 +390,10 @@ export function OvertimeShiftCell({
       ) : (
         <p className="text-xs font-semibold text-[#111827] whitespace-pre-wrap">{item?.comment || "No overtime"}</p>
       )}
-      {item?.checkIn || item?.checkOut ? (
-        <p className="text-[11px] text-gray-500">{item.comment.split("\n")[0]}</p>
+      {!sessions.length && (item?.checkIn || item?.checkOut) ? (
+        <p className="text-[11px] text-gray-500">{item?.comment.split("\n")[0]}</p>
       ) : null}
-      {note ? <p className="text-[11px] text-gray-500 whitespace-pre-wrap">{note}</p> : null}
+      {note && !sessions.length ? <p className="text-[11px] text-gray-500 whitespace-pre-wrap">{note}</p> : null}
       {item ? (
         <p className={`text-[10px] font-bold uppercase tracking-wide ${
           item.status === "approved" ? "text-green-700" : item.status === "declined" ? "text-red-600" : "text-amber-600"

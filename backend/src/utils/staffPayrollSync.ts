@@ -37,6 +37,17 @@ export function payrollMonthReached(recordDate: string, startMonth: string): boo
   return ym >= sm;
 }
 
+/**
+ * Day-exact payroll window for a handed-over account: the old person up to endDate,
+ * the new person from startDate (both YYYY-MM-DD, inclusive). Empty means no limit.
+ */
+export function payrollDayInRange(recordDate: string, startDate: string | null | undefined, endDate: string | null | undefined): boolean {
+  const day = String(recordDate || "").slice(0, 10);
+  if (startDate && day < startDate) return false;
+  if (endDate && day > endDate) return false;
+  return true;
+}
+
 type SubHead = {
   id?: string;
   label?: string;
@@ -66,6 +77,11 @@ export type StaffPayrollPerson = {
   cnic: string | null;
   payrollHead: string;
   payrollStartMonth: string;
+  /** First payroll day (YYYY-MM-DD) — set when this person took over someone's dashboard account. */
+  payrollStartDate?: string | null;
+  /** Last payroll day (YYYY-MM-DD) — set when someone new took over this dashboard account. */
+  payrollEndDate?: string | null;
+  userId?: string | null;
 };
 
 function newTeamId(): string {
@@ -242,6 +258,7 @@ export function mergeStaffPayrollIntoIncomeStatement(
     p =>
       isAccountsPayrollHead(p.payrollHead) &&
       payrollMonthReached(recordDate, p.payrollStartMonth) &&
+      payrollDayInRange(recordDate, p.payrollStartDate, p.payrollEndDate) &&
       !!String(p.name || "").trim(),
   );
 

@@ -313,6 +313,27 @@ export async function saveAttendance(input: SaveInput) {
   return { ok: true as const, row: toPublic(row) };
 }
 
+export type ShiftPause = { startAt: string; endAt: string | null };
+
+/** Pause / Resume breaks on a shift, oldest first. Bad rows are skipped. */
+export function readShiftPauses(value: unknown): ShiftPause[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item) => {
+    const row = item && typeof item === "object" ? (item as Record<string, unknown>) : null;
+    const startAt = typeof row?.startAt === "string" && !Number.isNaN(Date.parse(row.startAt)) ? row.startAt : "";
+    if (!startAt) return [];
+    const endAt = typeof row?.endAt === "string" && !Number.isNaN(Date.parse(row.endAt)) ? row.endAt : null;
+    return [{ startAt, endAt }];
+  });
+}
+
+/** Finished break minutes. A break still running is not counted yet. */
+export function pausedMinutes(pauses: ShiftPause[]): number {
+  return pauses.reduce((sum, pause) => (
+    pause.endAt ? sum + Math.max(0, Math.round((Date.parse(pause.endAt) - Date.parse(pause.startAt)) / 60_000)) : sum
+  ), 0);
+}
+
 export function toPublic(row: {
   id: string;
   personKey: string;
@@ -322,7 +343,9 @@ export function toPublic(row: {
   checkIn: string | null;
   checkOut: string | null;
   comment?: string | null;
+  pauses?: unknown;
 }) {
+  const pauses = readShiftPauses(row.pauses);
   return {
     id: row.id,
     personKey: row.personKey,
@@ -333,5 +356,8 @@ export function toPublic(row: {
     checkOut: row.checkOut,
     comment: row.comment ?? null,
     overnight: isOvernightShift(row.checkIn, row.checkOut),
+    pauses,
+    paused: pauses.some((pause) => !pause.endAt),
+    pausedMinutes: pausedMinutes(pauses),
   };
 }

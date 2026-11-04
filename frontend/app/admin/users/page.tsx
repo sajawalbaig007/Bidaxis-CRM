@@ -430,6 +430,8 @@ export default function UsersPage() {
   const [savingChat, setSavingChat] = useState(false);
 
   const [form, setForm] = useState({ ...EMPTY_USER_FORM });
+  /** Renamed account is a new person: old person keeps their Accounts history, new person starts fresh. */
+  const [newPerson, setNewPerson] = useState(true);
   const [uploadingPic, setUploadingPic] = useState(false);
   const [uploadingCnic, setUploadingCnic] = useState(false);
   const [resetUser, setResetUser] = useState<User | null>(null);
@@ -706,7 +708,8 @@ export default function UsersPage() {
         temporaryAccessMac: null,
         temporaryAccessHours: Number(form.temporaryAccessHours || "9"),
       };
-      const body = editingUser ? shared : { ...shared, password: form.password };
+      const renamed = !!editingUser && form.name.trim() !== editingUser.name.trim();
+      const body = editingUser ? { ...shared, handover: renamed && newPerson } : { ...shared, password: form.password };
 
       const res  = await fetch(url, {
         method, credentials: "include",
@@ -717,6 +720,9 @@ export default function UsersPage() {
       if (!res.ok) { toast.error(data.message || "Operation failed."); return; }
 
       toast.success(editingUser ? "User updated." : "User created.");
+      if (Number(data.handedOver) > 0) {
+        toast.success(`${editingUser?.name} keeps their Accounts history. ${form.name} starts fresh payroll from today and gets all leads.`, { duration: 6000 });
+      }
       invalidateAuthMeCache();
 
       const savedId = editingUser?.id ?? (data.user?.id as string | undefined) ?? (data.id as string | undefined);
@@ -1038,6 +1044,7 @@ export default function UsersPage() {
 
   const openEditUser = useCallback((u: User) => {
     setEditingUser(u);
+    setNewPerson(true);
     setForm({
       ...EMPTY_USER_FORM,
       name: u.name,
@@ -1742,6 +1749,17 @@ export default function UsersPage() {
                       className="w-full border border-gray-200 rounded-2xl px-4 py-3 outline-none focus:border-[#B8112D] text-sm"/>
                   </div>
                 ))}
+                {editingUser && form.name.trim() && form.name.trim() !== editingUser.name.trim() && (
+                  <label className="flex items-start gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs text-amber-900 cursor-pointer">
+                    <input type="checkbox" checked={newPerson} onChange={e => setNewPerson(e.target.checked)} className="mt-0.5 accent-[#B8112D]" />
+                    <span>
+                      <span className="font-bold">New person replacing {editingUser.name}</span>
+                      <span className="block text-amber-800/80">
+                        {editingUser.name}&apos;s Accounts stay with them until yesterday. {form.name.trim()} starts fresh payroll from today and gets all of this account&apos;s leads. Untick if you are only fixing the spelling.
+                      </span>
+                    </span>
+                  </label>
+                )}
                 {!editingUser && (
                   <div>
                     <label className="text-sm text-gray-500 block mb-2">Password<RequiredMark /></label>

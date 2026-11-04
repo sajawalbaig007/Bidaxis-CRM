@@ -5,6 +5,7 @@ import { allowRoles } from "../middleware/role.middleware";
 import { sanitizeIpList } from "../utils/networkAccess";
 import { isAccountsPayrollHead } from "../utils/staffPayrollSync";
 import { invalidatePattern } from "../utils/cache";
+import { handOverUserAccounts, handoverSnapshot } from "../utils/accountHandover";
 import {
   listPreviousEmployeeRows,
   mergePreviousByName,
@@ -56,10 +57,12 @@ function normalizeStartMonth(v: unknown): string | null {
   return null;
 }
 
-function payrollFields(r: { payrollHead?: string | null; payrollStartMonth?: string | null }) {
+function payrollFields(r: { payrollHead?: string | null; payrollStartMonth?: string | null; payrollStartDate?: string | null; payrollEndDate?: string | null }) {
   return {
     payrollHead: r.payrollHead ?? null,
     payrollStartMonth: r.payrollStartMonth ?? null,
+    payrollStartDate: r.payrollStartDate ?? null,
+    payrollEndDate: r.payrollEndDate ?? null,
   };
 }
 
@@ -436,6 +439,8 @@ router.put("/:id", async (req: AuthRequest, res) => {
     // Linked dashboard rows: update User profile + roster notes
     if (existing.userId) {
       if (!name) return res.status(400).json({ success: false, message: "Name is required." });
+      /* New person on this login: keep the old person's Accounts history, start fresh payroll this month. */
+      const previous = req.body?.handover === true ? await handoverSnapshot(existing.userId) : null;
       await prisma.user.update({
         where: { id: existing.userId },
         data: {
@@ -467,9 +472,12 @@ router.put("/:id", async (req: AuthRequest, res) => {
           ...payrollPatch,
         },
       });
+      const handedOver = previous && previous.name.trim() !== name.trim()
+        ? await handOverUserAccounts(existing.userId, previous)
+        : 0;
       invalidatePattern("users:list:");
       const employees = await listEnriched();
-      return res.json({ success: true, employees });
+      return res.json({ success: true, employees, handedOver });
     }
 
     const manualRole = strOrNull(req.body?.manualRole);

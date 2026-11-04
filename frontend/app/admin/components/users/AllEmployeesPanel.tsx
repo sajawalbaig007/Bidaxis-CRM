@@ -53,6 +53,10 @@ export type StaffEmployeeRow = {
   allowedIps: string[];
   payrollHead: string | null;
   payrollStartMonth: string | null;
+  /** First payroll day — set when this person took over someone's dashboard account. */
+  payrollStartDate?: string | null;
+  /** Last payroll day — set when a new person took over this person's dashboard account. */
+  payrollEndDate?: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -114,6 +118,8 @@ export default function AllEmployeesPanel({ dashboardUsers }: AllEmployeesPanelP
   const [pickOpen, setPickOpen] = useState(false);
   const [manualOpen, setManualOpen] = useState(false);
   const [editing, setEditing] = useState<StaffEmployeeRow | null>(null);
+  /** Renamed dashboard account is a new person: old person keeps their Accounts history, new person starts fresh. */
+  const [newPerson, setNewPerson] = useState(true);
   const [detail, setDetail] = useState<StaffEmployeeRow | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [pickSearch, setPickSearch] = useState("");
@@ -213,6 +219,7 @@ export default function AllEmployeesPanel({ dashboardUsers }: AllEmployeesPanelP
   };
 
   const openEdit = (row?: StaffEmployeeRow) => {
+    setNewPerson(true);
     if (row) {
       setEditing(row);
       setManualForm({
@@ -303,12 +310,16 @@ export default function AllEmployeesPanel({ dashboardUsers }: AllEmployeesPanelP
         payrollStartMonth: manualForm.payrollHead
           ? manualForm.payrollStartMonth || null
           : null,
+        handover: !!editing?.userId && manualForm.name.trim() !== editing.name.trim() && newPerson,
       };
       const res = editing
         ? await API.put(`/admin/staff-employees/${editing.id}`, payload)
         : await API.post("/admin/staff-employees", payload);
       setEmployees((res.data?.employees as StaffEmployeeRow[]) ?? []);
       toast.success(editing ? "Employee updated" : "Employee added");
+      if (Number(res.data?.handedOver) > 0) {
+        toast.success(`${editing?.name} keeps their Accounts history. ${manualForm.name.trim()} starts fresh payroll from today and gets all leads.`, { duration: 6000 });
+      }
       setManualOpen(false);
       setEditing(null);
       setManualForm(EMPTY_MANUAL);
@@ -482,7 +493,8 @@ export default function AllEmployeesPanel({ dashboardUsers }: AllEmployeesPanelP
                       )}
                     </td>
                     <td className="px-4 py-3.5 text-xs font-mono text-gray-600 whitespace-nowrap">
-                      {e.payrollStartMonth || "—"}
+                      {e.payrollStartDate || e.payrollStartMonth || "—"}
+                      {e.payrollEndDate ? <span className="block text-[10px] font-sans font-semibold text-red-600">Left · till {e.payrollEndDate}</span> : null}
                     </td>
                     <td className="px-4 py-3.5 text-xs font-mono text-gray-700 whitespace-nowrap">
                       {e.cnic || "—"}
@@ -664,6 +676,17 @@ export default function AllEmployeesPanel({ dashboardUsers }: AllEmployeesPanelP
                   className="mt-1 h-10 w-full rounded-xl border border-gray-200 px-3 text-sm outline-none focus:ring-2 focus:ring-[#B8112D]/20"
                 />
               </label>
+              {editing?.userId && manualForm.name.trim() && manualForm.name.trim() !== editing.name.trim() && (
+                <label className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs text-amber-900 cursor-pointer">
+                  <input type="checkbox" checked={newPerson} onChange={(e) => setNewPerson(e.target.checked)} className="mt-0.5 accent-[#B8112D]" />
+                  <span>
+                    <span className="font-bold">New person replacing {editing.name}</span>
+                    <span className="block text-amber-800/80">
+                      {editing.name}&apos;s Accounts stay with them until yesterday. {manualForm.name.trim()} starts fresh payroll from today and gets all of this account&apos;s leads. Untick if you are only fixing the spelling.
+                    </span>
+                  </span>
+                </label>
+              )}
               {(!editing || editing.source === "manual") && (
                 <label className="block text-xs font-semibold text-gray-600">
                   Role <RequiredMark />
