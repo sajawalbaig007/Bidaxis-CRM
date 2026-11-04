@@ -33,7 +33,7 @@ export function formatOtClock(time: string | null | undefined): string {
   return `${hour12}:${match[2]} ${suffix}`;
 }
 
-export type OvertimeSession = { startAt: string; endAt: string | null; reason: string; manual?: boolean };
+export type OvertimeSession = { startAt: string; endAt: string | null; reason: string; manual?: boolean; hoursOnly?: boolean; fromRequest?: boolean };
 
 export type ShiftOvertimeItem = {
   id: string;
@@ -72,9 +72,11 @@ export function OvertimeSessionList({ sessions, total }: { sessions: OvertimeSes
       {shown.map((session) => (
         <div key={session.startAt} className="rounded-lg bg-amber-50 px-2 py-1 text-[11px] leading-4 text-[#111827]">
           <p className="font-semibold">
-            {sessionClock(session.startAt)} – {sessionClock(session.endAt)}
-            <span className="ml-1 font-normal text-gray-500">({sessionLength(session)})</span>
-            {session.manual ? <span className="ml-1 rounded bg-white px-1 text-[9px] font-bold uppercase text-amber-700">Added by hand</span> : null}
+            {session.hoursOnly
+              ? <>{sessionLength(session)} <span className="font-normal text-gray-500">(hours)</span></>
+              : <>{sessionClock(session.startAt)} – {sessionClock(session.endAt)}
+                <span className="ml-1 font-normal text-gray-500">({sessionLength(session)})</span></>}
+            {session.manual ? <span className="ml-1 rounded bg-white px-1 text-[9px] font-bold uppercase text-amber-700">{session.fromRequest ? "Request approved" : "Added by hand"}</span> : null}
           </p>
           {session.reason ? <p className="text-gray-600 whitespace-pre-wrap">{session.reason}</p> : null}
         </div>
@@ -110,8 +112,8 @@ export default function OvertimeShiftButton({ compact = false, since }: { compac
   const [reason, setReason] = useState("");
   const [mine, setMine] = useState<MineState>({ running: null, sessions: [], status: null });
   const [busy, setBusy] = useState(false);
-  /** Overtime typed in by hand: date, In, Out and the reason. */
-  const [manual, setManual] = useState<{ day: string; checkIn: string; checkOut: string; reason: string } | null>(null);
+  /** Overtime typed in by hand: date, then hours or In / Out, and the reason. */
+  const [manual, setManual] = useState<{ day: string; hours: string; checkIn: string; checkOut: string; reason: string } | null>(null);
 
   const applyMine = (data: Partial<MineState> | undefined) => {
     setMine({ running: data?.running ?? null, sessions: data?.sessions ?? [], status: data?.status ?? null });
@@ -194,8 +196,9 @@ export default function OvertimeShiftButton({ compact = false, since }: { compac
 
   const saveManual = async () => {
     if (busy || !manual) return;
-    if (!manual.day || !/^d{2}:d{2}$/.test(manual.checkIn) || !/^d{2}:d{2}$/.test(manual.checkOut)) {
-      toast.error("Pick the date, In and Out time.");
+    const byHours = manual.hours.trim() !== "";
+    if (!manual.day || (!byHours && (!/^d{2}:d{2}$/.test(manual.checkIn) || !/^d{2}:d{2}$/.test(manual.checkOut)))) {
+      toast.error("Pick the date, then enter the hours or the In and Out time.");
       return;
     }
     if (!manual.reason.trim()) {
@@ -204,7 +207,11 @@ export default function OvertimeShiftButton({ compact = false, since }: { compac
     }
     setBusy(true);
     try {
-      const res = await API.post("/attendance/overtime/manual", { ...manual, reason: manual.reason.trim() });
+      const res = await API.post("/attendance/overtime/manual", {
+        day: manual.day,
+        reason: manual.reason.trim(),
+        ...(byHours ? { hours: manual.hours.trim() } : { checkIn: manual.checkIn, checkOut: manual.checkOut }),
+      });
       applyMine(res.data);
       setManual(null);
       toast.success(res.data?.message || "Overtime sent for approval.");
@@ -220,6 +227,10 @@ export default function OvertimeShiftButton({ compact = false, since }: { compac
     return (
       <span className="inline-flex flex-wrap items-center gap-1">
         <input type="date" value={manual.day} max={pktToday()} onChange={(e) => setManual({ ...manual, day: e.target.value })} className={input} />
+        <label className="text-[10px] font-bold text-[#92400E]">
+          Hours <input type="number" min="0.1" max="16" step="0.25" inputMode="decimal" value={manual.hours} placeholder="2.5" onChange={(e) => setManual({ ...manual, hours: e.target.value })} className={`${input} w-16`} />
+        </label>
+        <span className="text-[10px] font-bold text-gray-400">or</span>
         <label className="text-[10px] font-bold text-[#92400E]">
           In <input type="time" value={manual.checkIn} onChange={(e) => setManual({ ...manual, checkIn: e.target.value })} className={input} />
         </label>
@@ -246,7 +257,7 @@ export default function OvertimeShiftButton({ compact = false, since }: { compac
   const addButton = (
     <button
       type="button"
-      onClick={() => setManual({ day: pktToday(), checkIn: "", checkOut: "", reason: "" })}
+      onClick={() => setManual({ day: pktToday(), hours: "", checkIn: "", checkOut: "", reason: "" })}
       title="Add overtime by hand — date, In, Out and the reason"
       className={`${btn} rounded-xl font-semibold inline-flex items-center gap-1 touch-manipulation border border-amber-200 bg-white text-[#92400E]`}
     >

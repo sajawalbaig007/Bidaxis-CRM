@@ -29,6 +29,7 @@ const KINDS = [
   { key: "wfh", label: "Work From Home" },
   { key: "asset", label: "Asset Issue" },
   { key: "custom", label: "Custom Request" },
+  { key: "overtime", label: "Overtime" },
 ] as const;
 
 type Kind = (typeof KINDS)[number]["key"];
@@ -99,6 +100,7 @@ export default function StaffRequestButton({
   const [checkIn, setCheckIn] = useState("");
   const [checkOut, setCheckOut] = useState("");
   const [amount, setAmount] = useState("");
+  const [hours, setHours] = useState("");
   const [title, setTitle] = useState("");
   const [detail, setDetail] = useState("");
   const [busy, setBusy] = useState(false);
@@ -114,6 +116,7 @@ export default function StaffRequestButton({
     setCheckIn("");
     setCheckOut("");
     setAmount("");
+    setHours("");
     setTitle("");
     setDetail("");
   };
@@ -133,6 +136,11 @@ export default function StaffRequestButton({
       if (!endDay) return "Enter an end date.";
       if (endDay < day) return "End date cannot be before the start date.";
       if (!detail.trim()) return "Add a short reason.";
+    }
+    if (kind === "overtime") {
+      const value = Number(hours);
+      if (!hours.trim() || !Number.isFinite(value) || value <= 0 || value > 16) return "Enter the overtime hours (up to 16).";
+      if (!detail.trim()) return "Add the reason.";
     }
     if (kind === "reimbursement") {
       if (!amount.trim()) return "Enter an amount.";
@@ -160,6 +168,7 @@ export default function StaffRequestButton({
         checkIn: checkIn || undefined,
         checkOut: checkOut || undefined,
         amount: amount || undefined,
+        hours: kind === "overtime" ? hours : undefined,
         title: title || undefined,
         detail,
         ...(publicPunch ? { department, personKey, personName } : {}),
@@ -260,6 +269,11 @@ export default function StaffRequestButton({
                       <input type="date" required min={day} value={endDay} onChange={(e) => setEndDay(e.target.value)} className={inputClass} />
                     </Field>
                   ) : null}
+                  {kind === "overtime" ? (
+                    <Field label="Hours *">
+                      <input required type="number" min="0.1" max="16" step="0.25" inputMode="decimal" value={hours} onChange={(e) => setHours(e.target.value)} placeholder="2.5" className={inputClass} />
+                    </Field>
+                  ) : null}
                   {kind === "reimbursement" ? (
                     <Field label="Amount *">
                       <input required value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="1500" className={inputClass} />
@@ -270,13 +284,15 @@ export default function StaffRequestButton({
                       <input required value={title} onChange={(e) => setTitle(e.target.value)} className={inputClass} />
                     </Field>
                   ) : null}
-                  <Field label={kind === "attendance_correction" ? "Note *" : kind === "leave" || kind === "wfh" ? "Reason *" : "Details *"}>
+                  <Field label={kind === "attendance_correction" ? "Note *" : kind === "leave" || kind === "wfh" || kind === "overtime" ? "Reason *" : "Details *"}>
                     <textarea required value={detail} onChange={(e) => setDetail(e.target.value)} rows={3} className={`${inputClass} h-auto py-2`} />
                   </Field>
                   <p className="text-[11px] text-gray-400">
                     {kind === "attendance_correction"
                       ? "Check-in and the note are required. Check-out can be left blank."
-                      : "Every field is required before this request can be sent."}
+                      : kind === "overtime"
+                        ? "Goes to the CEO. Once approved, these hours are added to your overtime."
+                        : "Every field is required before this request can be sent."}
                   </p>
                   <div className="flex gap-2">
                     <button type="button" onClick={() => setKind("")} className="flex-1 h-11 rounded-xl bg-gray-100 text-gray-600 font-semibold text-sm">Back</button>

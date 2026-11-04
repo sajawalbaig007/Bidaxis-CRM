@@ -76,16 +76,23 @@ function ChiefOvertimeForm({ onSaved }: { onSaved: () => void }) {
   const [day, setDay] = useState(() => calendarYmd("Asia/Karachi"));
   const [checkIn, setCheckIn] = useState("");
   const [checkOut, setCheckOut] = useState("");
+  /** Hours worked — fill this or check-in / check-out. */
+  const [hours, setHours] = useState("");
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const save = async () => {
-    if (!day || !/^\d{2}:\d{2}$/.test(checkIn) || !/^\d{2}:\d{2}$/.test(checkOut)) {
-      toast.error("Pick a date and enter overtime check-in and check-out.");
+    const byHours = hours.trim() !== "";
+    if (!day || (!byHours && (!/^\d{2}:\d{2}$/.test(checkIn) || !/^\d{2}:\d{2}$/.test(checkOut)))) {
+      toast.error("Pick a date, then enter the hours or the overtime check-in and check-out.");
+      return;
+    }
+    if (!note.trim()) {
+      toast.error("Write the reason for overtime.");
       return;
     }
     setBusy(true);
     try {
-      await API.post("/attendance/overtime/manual", { day, checkIn, checkOut, note });
+      await API.post("/attendance/overtime/manual", byHours ? { day, hours: hours.trim(), note } : { day, checkIn, checkOut, note });
       toast.success("Overtime sent to the CEO.");
       onSaved();
     } catch (err) {
@@ -101,6 +108,11 @@ function ChiefOvertimeForm({ onSaved }: { onSaved: () => void }) {
         <input type="date" value={day} max={calendarYmd("Asia/Karachi")} onChange={(e) => setDay(e.target.value)} className="h-10 rounded-xl border border-amber-200 bg-white px-3 text-sm" />
       </div>
       <label className="text-[11px] font-semibold text-amber-900">
+        Hours
+        <input type="number" min="0.1" max="16" step="0.25" inputMode="decimal" value={hours} onChange={(e) => setHours(e.target.value)} placeholder="2.5" className="mt-1 block h-10 w-20 rounded-xl border border-amber-200 bg-white px-2 text-sm" />
+      </label>
+      <span className="pb-2.5 text-[11px] font-bold text-amber-700">or</span>
+      <label className="text-[11px] font-semibold text-amber-900">
         Check in
         <input type="time" value={checkIn} onChange={(e) => setCheckIn(e.target.value)} className="mt-1 block h-10 rounded-xl border border-amber-200 bg-white px-2 text-sm" />
       </label>
@@ -109,12 +121,53 @@ function ChiefOvertimeForm({ onSaved }: { onSaved: () => void }) {
         <input type="time" value={checkOut} onChange={(e) => setCheckOut(e.target.value)} className="mt-1 block h-10 rounded-xl border border-amber-200 bg-white px-2 text-sm" />
       </label>
       <label className="text-[11px] font-semibold text-amber-900 min-w-[180px] flex-1">
-        Note
+        Reason
         <input value={note} onChange={(e) => setNote(e.target.value)} maxLength={300} placeholder="Why this overtime" className="mt-1 block w-full h-10 rounded-xl border border-amber-200 bg-white px-3 text-sm" />
       </label>
       <button type="button" disabled={busy} onClick={() => void save()} className="h-10 px-4 rounded-xl bg-[#B8112D] text-white text-sm font-semibold disabled:opacity-50">
         {busy ? "Sending…" : "Send to CEO"}
       </button>
+    </div>
+  );
+}
+
+/**
+ * Chief Estimator's punches for the day — Check in, each Pause / Resume, Check out.
+ * Latest on top; earlier ones behind "+n". The total break is not worked time.
+ */
+function ShiftTimeline({ row }: { row: Row }) {
+  const [open, setOpen] = useState(false);
+  const events: { at: number; label: string; time: string }[] = [];
+  const checkInAt = row.checkIn ? pktInstant(row.day, row.checkIn) : null;
+  if (checkInAt && row.checkIn) events.push({ at: checkInAt.getTime(), label: "Check in", time: pauseClock(checkInAt.toISOString()) });
+  for (const pause of row.pauses ?? []) {
+    events.push({ at: Date.parse(pause.startAt), label: "Pause", time: pauseClock(pause.startAt) });
+    if (pause.endAt) events.push({ at: Date.parse(pause.endAt), label: "Resume", time: pauseClock(pause.endAt) });
+  }
+  if (row.checkOut) {
+    const outDay = row.overnight || (row.checkIn && row.checkOut < row.checkIn) ? addDays(row.day, 1) : row.day;
+    const checkOutAt = pktInstant(outDay, row.checkOut);
+    if (checkOutAt) events.push({ at: checkOutAt.getTime(), label: "Check out", time: pauseClock(checkOutAt.toISOString()) });
+  }
+  const latestFirst = events.sort((a, b) => b.at - a.at);
+  const shown = open ? latestFirst : latestFirst.slice(0, 1);
+  const hidden = latestFirst.length - 1;
+  const minutes = row.pausedMinutes ?? 0;
+  return (
+    <div className="mt-1 space-y-0.5 text-[10px] font-semibold text-amber-800">
+      {shown.map((event) => (
+        <p key={`${event.label}-${event.at}`}>
+          <span className="inline-block w-16 text-gray-500">{event.label}</span>{event.time}
+        </p>
+      ))}
+      <div className="flex items-center gap-1.5">
+        {hidden > 0 ? (
+          <button type="button" onClick={() => setOpen((v) => !v)} className="h-5 rounded bg-gray-100 px-1.5 text-[10px] font-bold text-gray-700">
+            {open ? "Hide" : `+${hidden}`}
+          </button>
+        ) : null}
+        <span>{row.paused ? "Paused now · " : ""}Break {Math.floor(minutes / 60)}h {String(minutes % 60).padStart(2, "0")}m</span>
+      </div>
     </div>
   );
 }
@@ -703,14 +756,7 @@ function DeptCard({
                         {absent ? "—" : rowCheckOut(row, clock.tz).text}
                         {!absent && rowCheckOut(row, clock.tz).nextDay ? <span className="ml-1 text-[10px] font-bold text-[#B8112D]">next day</span> : null}
                       </span>
-                      {row.pauses?.length ? (
-                        <span className="block text-[10px] font-semibold text-amber-700" title={row.pauses.map((p) => `${pauseClock(p.startAt)} – ${p.endAt ? pauseClock(p.endAt) : "now"}`).join("\n")}>
-                          {row.paused ? "Paused now · " : ""}Break {Math.floor((row.pausedMinutes ?? 0) / 60)}h {String((row.pausedMinutes ?? 0) % 60).padStart(2, "0")}m
-                          {row.pauses.map((p) => (
-                            <span key={p.startAt} className="block font-normal">{pauseClock(p.startAt)} – {p.endAt ? pauseClock(p.endAt) : "now"}</span>
-                          ))}
-                        </span>
-                      ) : null}
+                      {row.pauses?.length ? <ShiftTimeline row={row} /> : null}
                     </td>
                     {showShiftOt ? (
                       <td className="px-3 py-3">

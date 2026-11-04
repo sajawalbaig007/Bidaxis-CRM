@@ -952,6 +952,7 @@ router.post("/overtime/manual", verifyToken, allowRoles("estimator", "technical_
       day: String(req.body?.day ?? ""),
       checkIn: String(req.body?.checkIn ?? ""),
       checkOut: String(req.body?.checkOut ?? ""),
+      hours: req.body?.hours,
       reason: String(req.body?.reason ?? req.body?.note ?? ""),
     });
     if (!result.ok) return res.status(400).json({ success: false, message: result.message });

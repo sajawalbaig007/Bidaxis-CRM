@@ -82,7 +82,7 @@ function isWeekendDay(day: string): boolean {
 }
 
 /**
- * Approved estimator / Chief Estimator overtime → Weekday OT and Weekend OT hours
+ * Approved overtime (Start / Stop, typed in, or an approved overtime request) → Weekday OT and Weekend OT hours
  * on that person's salary row for the month. Only people with approved overtime that month change.
  */
 async function applyApprovedOvertimeHours(
@@ -100,7 +100,6 @@ async function applyApprovedOvertimeHours(
   const approved = await prisma.overtimeRequest.findMany({
     where: {
       status: "approved",
-      department: { in: ["estimator", "chief_estimator"] },
       personKey: { in: [...new Set(userByStaff.values())] },
       day: { gte: `${month}-01`, lte: `${month}-31` },
     },

@@ -1,4 +1,5 @@
 import prisma from "../config/db";
+import { addRequestedOvertime, formatOvertimeMinutes, overtimeHoursToMinutes, overtimeNoteMinutes } from "./overtimeRequest";
 import { ceoSetPortalShiftDay } from "./csrSessionTracking";
 import { grantApprovedPaidLeave } from "./paidLeave";
 import {
@@ -15,6 +16,7 @@ export const REQUEST_KINDS = [
   "wfh",
   "asset",
   "custom",
+  "overtime",
 ] as const;
 
 export type RequestKind = (typeof REQUEST_KINDS)[number];
@@ -26,6 +28,7 @@ const LABELS: Record<RequestKind, string> = {
   wfh: "Work From Home",
   asset: "Asset Issue",
   custom: "Custom Request",
+  overtime: "Overtime",
 };
 
 export function isRequestKind(value: string): value is RequestKind {
@@ -89,6 +92,16 @@ export function parseRequestDraft(body: Record<string, unknown>): { ok: true; dr
     if (!detail) return { ok: false, message: "Add a short reason." };
     const end = endDay !== day ? ` – ${endDay}` : "";
     return { ok: true, draft: { kind, day, summary: `${day}${end}`, detail, checkIn: null, checkOut: null } };
+  }
+
+  if (kind === "overtime") {
+    const minutes = overtimeHoursToMinutes(body.hours);
+    if (minutes == null) return { ok: false, message: "Enter the overtime hours (up to 16)." };
+    if (!detail) return { ok: false, message: "Add the reason." };
+    return {
+      ok: true,
+      draft: { kind, day, summary: `${formatOvertimeMinutes(minutes)} overtime · ${day}`, detail, checkIn: null, checkOut: null },
+    };
   }
 
   if (kind === "reimbursement") {
@@ -210,9 +223,23 @@ export async function applyApprovedRequest(row: {
   personName: string;
   day: string;
   summary: string;
+  detail?: string;
   checkIn: string | null;
   checkOut: string | null;
 }, overrides: ApprovalOverrides = {}) {
+  /* Overtime request: the hours go into that day's overtime, and from there into payroll. */
+  if (row.kind === "overtime") {
+    const added = await addRequestedOvertime({
+      personKey: row.personKey,
+      personName: row.personName,
+      department: row.department,
+      day: overrides.day && isValidDay(overrides.day) ? overrides.day : row.day,
+      minutes: overtimeNoteMinutes(row.summary),
+      reason: row.detail ?? "",
+    });
+    return added.ok ? { ok: true as const } : added;
+  }
+
   if (row.kind === "leave" || row.kind === "wfh") {
     const fromDay = overrides.fromDay || row.day;
     const toDay = overrides.toDay || endDayFromSummary(row.summary) || fromDay;

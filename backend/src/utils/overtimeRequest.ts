@@ -339,7 +339,15 @@ export async function chiefSetEstimatorOvertime(input: {
   return { ok: true as const, note };
 }
 
-export type OvertimeSession = { startAt: string; endAt: string | null; reason: string; manual?: boolean };
+/** hoursOnly: entered as a number of hours (no clock times). fromRequest: approved from the Request page. */
+export type OvertimeSession = {
+  startAt: string;
+  endAt: string | null;
+  reason: string;
+  manual?: boolean;
+  hoursOnly?: boolean;
+  fromRequest?: boolean;
+};
 
 /** Stored sessions, oldest first. Bad rows are skipped. */
 export function readOvertimeSessions(value: unknown): OvertimeSession[] {
@@ -349,7 +357,14 @@ export function readOvertimeSessions(value: unknown): OvertimeSession[] {
     const startAt = typeof row?.startAt === "string" ? row.startAt : "";
     if (!startAt || Number.isNaN(Date.parse(startAt))) return [];
     const endAt = typeof row?.endAt === "string" && !Number.isNaN(Date.parse(row.endAt)) ? row.endAt : null;
-    return [{ startAt, endAt, reason: String(row?.reason ?? "").trim().slice(0, 300), ...(row?.manual ? { manual: true } : {}) }];
+    return [{
+      startAt,
+      endAt,
+      reason: String(row?.reason ?? "").trim().slice(0, 300),
+      ...(row?.manual ? { manual: true } : {}),
+      ...(row?.hoursOnly ? { hoursOnly: true } : {}),
+      ...(row?.fromRequest ? { fromRequest: true } : {}),
+    }];
   });
 }
 
@@ -380,13 +395,71 @@ function legacySession(note: { day: string; checkIn?: string | null; checkOut?: 
 function sessionFields(sessions: OvertimeSession[]) {
   const minutes = sessions.reduce((sum, session) => sum + sessionMinutes(session), 0);
   const reasons = [...sessions].reverse().map((session) => session.reason).filter(Boolean);
-  const last = sessions[sessions.length - 1];
+  /* Hours-only entries have no real clock, so In / Out come from the timed sessions only. */
+  const timed = sessions.filter((session) => !session.hoursOnly);
+  const last = timed[timed.length - 1];
   return {
     sessions: sessions as unknown as Prisma.InputJsonValue,
     comment: [formatOvertimeMinutes(minutes), ...reasons].join("\n").slice(0, 500),
-    checkIn: sessions.length ? pktClock(sessions[0].startAt) : null,
+    checkIn: timed.length ? pktClock(timed[0].startAt) : null,
     checkOut: last?.endAt ? pktClock(last.endAt) : null,
   };
+}
+
+/** An overtime entry given as hours only. It is placed at the start of the day; only its length counts. */
+function hoursSession(day: string, minutes: number, reason: string, extra: Partial<OvertimeSession> = {}): OvertimeSession {
+  const start = new Date(`${day}T00:00:00+05:00`);
+  return {
+    startAt: start.toISOString(),
+    endAt: new Date(start.getTime() + minutes * 60_000).toISOString(),
+    reason,
+    manual: true,
+    hoursOnly: true,
+    ...extra,
+  };
+}
+
+/** "2.5" hours → 150 minutes. Anything from 1 minute up to 16 hours. */
+export function overtimeHoursToMinutes(value: unknown): number | null {
+  const hours = Number(value);
+  if (!Number.isFinite(hours) || hours <= 0 || hours > 16) return null;
+  const minutes = Math.round(hours * 60);
+  return minutes >= 1 ? minutes : null;
+}
+
+async function daySessions(personKey: string, day: string, department: string) {
+  const where = { personKey_day_department: { personKey, day, department } };
+  const existing = await prisma.overtimeRequest.findUnique({ where });
+  let sessions = readOvertimeSessions(existing?.sessions);
+  if (existing && !sessions.length) {
+    const legacy = legacySession(existing);
+    if (legacy) sessions = [legacy];
+  }
+  return { existing, sessions };
+}
+
+/**
+ * Overtime request approved by the CEO (Request page: hours + reason).
+ * The hours are added to that day's overtime. The day stays approved unless it still has
+ * other overtime waiting for review, then it stays pending until that is reviewed.
+ */
+export async function addRequestedOvertime(input: {
+  personKey: string;
+  personName: string;
+  department: string;
+  day: string;
+  minutes: number;
+  reason: string;
+}) {
+  if (!input.minutes) return { ok: false as const, message: "This overtime request has no hours." };
+  const { existing, sessions } = await daySessions(input.personKey, input.day, input.department);
+  const next = [...sessions, hoursSession(input.day, input.minutes, input.reason.trim().slice(0, 300), { fromRequest: true })];
+  const status = !existing || existing.status === "approved" ? "approved" : "pending";
+  const data = { ...sessionFields(next), personName: input.personName, status };
+  const note = existing
+    ? await prisma.overtimeRequest.update({ where: { id: existing.id }, data })
+    : await prisma.overtimeRequest.create({ data: { ...data, personKey: input.personKey, department: input.department, day: input.day } });
+  return { ok: true as const, note };
 }
 
 /** Total minutes on an overtime note — the "2h 05m" first line written by every overtime flow. */
@@ -468,6 +541,8 @@ export async function addManualOvertimeSession(input: {
   day: string;
   checkIn: string;
   checkOut: string;
+  /** Hours worked, instead of In / Out. */
+  hours?: unknown;
   reason: string;
 }) {
   const department = overtimeDepartmentFor(input.role);
@@ -476,23 +551,27 @@ export async function addManualOvertimeSession(input: {
   if (input.day > pktNow().day) return { ok: false as const, message: "Overtime cannot be added for a future date." };
   const reason = input.reason.trim().slice(0, 300);
   if (!reason) return { ok: false as const, message: "Write the reason for overtime." };
-  const window = appliedWindow(input);
-  if (!window.ok) return window;
-  const start = new Date(`${input.day}T${window.checkIn}:00+05:00`);
-  const added: OvertimeSession = {
-    startAt: start.toISOString(),
-    endAt: new Date(start.getTime() + window.minutes * 60_000).toISOString(),
-    reason,
-    manual: true,
-  };
-  const where = { personKey_day_department: { personKey: input.userId, day: input.day, department } };
-  const existing = await prisma.overtimeRequest.findUnique({ where });
-  let sessions = readOvertimeSessions(existing?.sessions);
-  if (existing && !sessions.length) {
-    const legacy = legacySession(existing);
-    if (legacy) sessions = [legacy];
+  let added: OvertimeSession;
+  const hasHours = input.hours !== undefined && input.hours !== null && String(input.hours).trim() !== "";
+  if (hasHours) {
+    const minutes = overtimeHoursToMinutes(input.hours);
+    if (minutes == null) return { ok: false as const, message: "Enter hours from 0.1 up to 16." };
+    added = hoursSession(input.day, minutes, reason);
+  } else {
+    const window = appliedWindow(input);
+    if (!window.ok) return { ok: false as const, message: "Enter the hours, or the check-in and check-out time." };
+    const start = new Date(`${input.day}T${window.checkIn}:00+05:00`);
+    added = {
+      startAt: start.toISOString(),
+      endAt: new Date(start.getTime() + window.minutes * 60_000).toISOString(),
+      reason,
+      manual: true,
+    };
   }
-  const overlaps = sessions.some((session) => {
+  const { existing, sessions: current } = await daySessions(input.userId, input.day, department);
+  let sessions = current;
+  const overlaps = !added.hoursOnly && sessions.some((session) => {
+    if (session.hoursOnly) return false;
     const end = session.endAt ? Date.parse(session.endAt) : Date.now();
     return Date.parse(added.startAt) < end && Date.parse(added.endAt!) > Date.parse(session.startAt);
   });
