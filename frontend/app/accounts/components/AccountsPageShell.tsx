@@ -57,7 +57,7 @@ type AccountsPageShellProps = {
 };
 
 const inputCls =
-  "mt-1 h-10 w-full rounded-xl border border-crm-border bg-crm-input px-3 text-sm text-crm-text outline-none transition-shadow focus:ring-2 focus:ring-[#B8112D]/20 focus:border-[#B8112D]/40";
+  "mt-1 h-10 w-full rounded-xl border border-crm-border bg-crm-input px-3 text-sm text-crm-text outline-none transition-shadow focus:ring-2 focus:ring-[#0F398A]/20 focus:border-[#0F398A]/40";
 
 function formatSavedDay(iso: string): string {
   const [year, month, day] = iso.split("-").map(Number);
@@ -112,7 +112,7 @@ export default function AccountsPageShell({
     ready: !loading,
     rootRef: exportRef,
     fileName: `Accounts-${slug}-${monthKey}.pdf`,
-    footer: `BEM Solutions CRM · ${title} · ${periodSummary || monthKey}`,
+    footer: `BidAxis CRM · ${title} · ${periodSummary || monthKey}`,
   });
   const sortedSavedDays = [...savedDates].sort().reverse();
   const recentSavedDays = sortedSavedDays.slice(0, 7);
@@ -125,7 +125,7 @@ export default function AccountsPageShell({
       <button
         type="button"
         onClick={() => setFilterOpen(true)}
-        className="w-10 h-10 rounded-xl bg-[#FFF1F3] text-[#B8112D] inline-flex items-center justify-center hover:bg-[#FFE4E8] transition-colors shrink-0"
+        className="w-10 h-10 rounded-xl bg-[#EFF6FF] text-[#0F398A] inline-flex items-center justify-center hover:bg-[#DBEAFE] transition-colors shrink-0"
         title={periodSummary || "Open period filter"}
       >
         <Filter size={16} />
@@ -139,7 +139,7 @@ export default function AccountsPageShell({
       <button
         type="button"
         onClick={() => setFilterOpen(true)}
-        className={`${periodInHeader ? "inline-flex" : "hidden sm:inline-flex"} text-[11px] font-semibold text-[#B8112D] bg-[#FFF1F3] px-2.5 py-1 rounded-full shrink-0`}
+        className={`${periodInHeader ? "inline-flex" : "hidden sm:inline-flex"} text-[11px] font-semibold text-[#0F398A] bg-[#EFF6FF] px-2.5 py-1 rounded-full shrink-0`}
       >
         {PERIOD_PRESET_LABELS[activePreset]}
       </button>
@@ -154,13 +154,13 @@ export default function AccountsPageShell({
           <div className="min-w-0">
             {inlineTitle ? (
               <h1 className="text-xl sm:text-2xl font-extrabold text-crm-text tracking-tight">
-                <span className="text-[#B8112D]">Accounts</span>
+                <span className="text-[#0F398A]">Accounts</span>
                 <span className="text-crm-text-faint font-semibold mx-2">·</span>
                 {title}
               </h1>
             ) : (
               <>
-                <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#B8112D] mb-0.5">Accounts</p>
+                <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#0F398A] mb-0.5">Accounts</p>
                 <h1 className="text-xl sm:text-2xl font-extrabold text-crm-text tracking-tight">{title}</h1>
               </>
             )}
@@ -200,7 +200,7 @@ export default function AccountsPageShell({
                     type="button"
                     onClick={onSave}
                     disabled={saving || loading}
-                    className="h-9 px-3 rounded-xl bg-[#B8112D] text-white text-sm font-semibold inline-flex items-center gap-2 disabled:opacity-50"
+                    className="h-9 px-3 rounded-xl bg-[#0F398A] text-white text-sm font-semibold inline-flex items-center gap-2 disabled:opacity-50"
                   >
                     {saving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
                     Save{dirty ? " *" : ""}
@@ -257,8 +257,8 @@ export default function AccountsPageShell({
                     onClick={() => onPeriodPresetChange(key)}
                     className={`h-10 rounded-xl text-xs font-semibold border transition-colors ${
                       activePreset === key
-                        ? "bg-[#B8112D] text-white border-[#B8112D]"
-                        : "bg-crm-muted text-crm-text-secondary border-transparent hover:border-[#B8112D]/30"
+                        ? "bg-[#0F398A] text-white border-[#0F398A]"
+                        : "bg-crm-muted text-crm-text-secondary border-transparent hover:border-[#0F398A]/30"
                     }`}
                   >
                     {PERIOD_PRESET_LABELS[key]}
@@ -285,7 +285,7 @@ export default function AccountsPageShell({
                           type="button"
                           onClick={() => onRecordDateChange(d)}
                           className={`h-7 px-2.5 rounded-lg text-[11px] font-semibold ${
-                            d === recordDate ? "bg-[#B8112D] text-white" : "bg-crm-muted text-crm-text-secondary"
+                            d === recordDate ? "bg-[#0F398A] text-white" : "bg-crm-muted text-crm-text-secondary"
                           }`}
                         >
                           {d}
@@ -354,8 +354,8 @@ export default function AccountsPageShell({
                           }}
                           className={`flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left text-sm border-b border-crm-border-subtle last:border-b-0 ${
                             selected
-                              ? "bg-[#B8112D] text-white"
-                              : "text-crm-text hover:bg-[#FFF1F3] dark:hover:bg-crm-brand-soft"
+                              ? "bg-[#0F398A] text-white"
+                              : "text-crm-text hover:bg-[#EFF6FF] dark:hover:bg-crm-brand-soft"
                           }`}
                         >
                           <span className="font-semibold">{formatSavedDay(d)}</span>
@@ -370,7 +370,7 @@ export default function AccountsPageShell({
               <button
                 type="button"
                 onClick={() => setFilterOpen(false)}
-                className="w-full h-10 rounded-xl bg-[#B8112D] text-white text-sm font-semibold"
+                className="w-full h-10 rounded-xl bg-[#0F398A] text-white text-sm font-semibold"
               >
                 Done
               </button>
@@ -413,7 +413,7 @@ export default function AccountsPageShell({
 
       {loading ? (
         <div className="rounded-2xl border border-crm-border-subtle bg-crm-surface p-14 flex flex-col items-center justify-center gap-3">
-          <Loader2 size={28} className="animate-spin text-[#B8112D]" />
+          <Loader2 size={28} className="animate-spin text-[#0F398A]" />
           <p className="text-xs font-semibold text-crm-text-faint">Loading record...</p>
         </div>
       ) : (

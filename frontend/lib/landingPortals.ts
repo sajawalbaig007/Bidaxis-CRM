@@ -22,7 +22,7 @@ export const LANDING_PORTALS: LandingPortal[] = [
     label: "CEO",
     hint: "Users, leads, uploads & company reports",
     icon: LayoutDashboard,
-    accent: "#B8112D",
+    accent: "#0F398A",
   },
   {
     value: "manager",

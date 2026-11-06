@@ -85,7 +85,7 @@ function MultiSelect({
         onClick={() => setOpen((value) => !value)}
         className={`h-10 min-w-[10rem] rounded-2xl border px-3 text-left text-xs font-semibold ${
           selected.length
-            ? "border-[#B8112D] bg-[#FFF1F3] text-[#B8112D]"
+            ? "border-[#0F398A] bg-[#EFF6FF] text-[#0F398A]"
             : "border-gray-200 bg-white text-[#0F172A] dark:border-crm-border dark:bg-transparent dark:text-white"
         }`}
       >
@@ -97,10 +97,10 @@ function MultiSelect({
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder={`Search ${label.toLowerCase()}`}
-            className="h-10 w-full rounded-2xl border border-gray-200 bg-white px-3 text-sm text-[#0F172A] outline-none focus:border-[#B8112D] dark:border-crm-border dark:bg-[#0B1220] dark:text-white"
+            className="h-10 w-full rounded-2xl border border-gray-200 bg-white px-3 text-sm text-[#0F172A] outline-none focus:border-[#0F398A] dark:border-crm-border dark:bg-[#0B1220] dark:text-white"
           />
           <div className="mt-2 flex items-center justify-between px-1">
-            <button type="button" onClick={() => onChange(options.map((option) => option.id))} className="text-[11px] font-semibold text-[#B8112D]">
+            <button type="button" onClick={() => onChange(options.map((option) => option.id))} className="text-[11px] font-semibold text-[#0F398A]">
               Select all
             </button>
             <button type="button" onClick={() => onChange([])} className="text-[11px] font-semibold text-gray-500">
@@ -274,7 +274,7 @@ export default function DailyLateCard() {
     <section className="rounded-[1.5rem] sm:rounded-[1.75rem] border border-gray-100/90 dark:border-crm-border bg-white dark:bg-crm-surface shadow-[0_10px_40px_-24px_rgba(15,23,42,0.35)] p-4 sm:p-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="text-[11px] font-bold uppercase tracking-wider text-[#B8112D]/80">Deductions</p>
+          <p className="text-[11px] font-bold uppercase tracking-wider text-[#0F398A]/80">Deductions</p>
           <h2 className="mt-1 font-bold text-[#0F172A] dark:text-white text-base sm:text-lg tracking-tight">Late time deduction</h2>
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
             Per day is the checked salary parts divided by 30. A late check-in multiplies that day by the number you set, so 0.2 on Rs 1,500 is Rs 300. Saturday, Sunday, and approved paid leave are not deducted. The date range column totals only those days. Employee and department filters apply together. Send to accounts copies the month total into each person’s late deduction cell.
@@ -293,7 +293,7 @@ export default function DailyLateCard() {
             type="button"
             disabled={sending || !report}
             onClick={() => void sendToAccounts()}
-            className="h-10 rounded-2xl bg-[#B8112D] px-4 text-xs font-semibold text-white shadow-sm disabled:opacity-50"
+            className="h-10 rounded-2xl bg-[#0F398A] px-4 text-xs font-semibold text-white shadow-sm disabled:opacity-50"
           >
             {sending ? "Sending…" : "Send to accounts"}
           </button>
@@ -310,7 +310,7 @@ export default function DailyLateCard() {
             value={date}
             max={today}
             onChange={(e) => setDate(e.target.value)}
-            className="mt-1 block h-10 rounded-2xl border border-gray-200 bg-white px-3 text-sm font-medium normal-case tracking-normal text-[#0F172A] outline-none focus:border-[#B8112D] dark:border-crm-border dark:bg-[#0B1220] dark:text-white"
+            className="mt-1 block h-10 rounded-2xl border border-gray-200 bg-white px-3 text-sm font-medium normal-case tracking-normal text-[#0F172A] outline-none focus:border-[#0F398A] dark:border-crm-border dark:bg-[#0B1220] dark:text-white"
           />
         </label>
         <label className="text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
@@ -320,7 +320,7 @@ export default function DailyLateCard() {
             value={rangeFrom}
             max={rangeTo || today}
             onChange={(e) => setRangeFrom(e.target.value)}
-            className="mt-1 block h-10 rounded-2xl border border-gray-200 bg-white px-3 text-sm font-medium normal-case tracking-normal text-[#0F172A] outline-none focus:border-[#B8112D] dark:border-crm-border dark:bg-[#0B1220] dark:text-white"
+            className="mt-1 block h-10 rounded-2xl border border-gray-200 bg-white px-3 text-sm font-medium normal-case tracking-normal text-[#0F172A] outline-none focus:border-[#0F398A] dark:border-crm-border dark:bg-[#0B1220] dark:text-white"
           />
         </label>
         <label className="text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
@@ -331,7 +331,7 @@ export default function DailyLateCard() {
             min={rangeFrom}
             max={today}
             onChange={(e) => setRangeTo(e.target.value)}
-            className="mt-1 block h-10 rounded-2xl border border-gray-200 bg-white px-3 text-sm font-medium normal-case tracking-normal text-[#0F172A] outline-none focus:border-[#B8112D] dark:border-crm-border dark:bg-[#0B1220] dark:text-white"
+            className="mt-1 block h-10 rounded-2xl border border-gray-200 bg-white px-3 text-sm font-medium normal-case tracking-normal text-[#0F172A] outline-none focus:border-[#0F398A] dark:border-crm-border dark:bg-[#0B1220] dark:text-white"
           />
         </label>
         {filtersOn ? (
@@ -354,7 +354,7 @@ export default function DailyLateCard() {
               key={personId(person)}
               type="button"
               onClick={() => setPickedPeople((current) => current.filter((id) => id !== personId(person)))}
-              className="rounded-full bg-[#FFF1F3] px-2.5 py-1 text-[11px] font-semibold text-[#B8112D]"
+              className="rounded-full bg-[#EFF6FF] px-2.5 py-1 text-[11px] font-semibold text-[#0F398A]"
             >
               {person.name} ×
             </button>
@@ -373,7 +373,7 @@ export default function DailyLateCard() {
               <select
                 value={leaveName}
                 onChange={(e) => setLeaveName(e.target.value)}
-                className="mt-1 block h-10 rounded-2xl border border-gray-200 bg-white px-3 text-sm text-[#0F172A] outline-none focus:border-[#B8112D] dark:border-crm-border dark:bg-transparent dark:text-white"
+                className="mt-1 block h-10 rounded-2xl border border-gray-200 bg-white px-3 text-sm text-[#0F172A] outline-none focus:border-[#0F398A] dark:border-crm-border dark:bg-transparent dark:text-white"
               >
                 <option value="">Select</option>
                 {people.map((person) => (
@@ -387,7 +387,7 @@ export default function DailyLateCard() {
                 type="date"
                 value={leaveFrom}
                 onChange={(e) => setLeaveFrom(e.target.value)}
-                className="mt-1 block h-10 rounded-2xl border border-gray-200 bg-white px-3 text-sm text-[#0F172A] outline-none focus:border-[#B8112D] dark:border-crm-border dark:bg-transparent dark:text-white"
+                className="mt-1 block h-10 rounded-2xl border border-gray-200 bg-white px-3 text-sm text-[#0F172A] outline-none focus:border-[#0F398A] dark:border-crm-border dark:bg-transparent dark:text-white"
               />
             </label>
             <label className="text-[11px] text-gray-500 dark:text-gray-400">
@@ -396,14 +396,14 @@ export default function DailyLateCard() {
                 type="date"
                 value={leaveTo}
                 onChange={(e) => setLeaveTo(e.target.value)}
-                className="mt-1 block h-10 rounded-2xl border border-gray-200 bg-white px-3 text-sm text-[#0F172A] outline-none focus:border-[#B8112D] dark:border-crm-border dark:bg-transparent dark:text-white"
+                className="mt-1 block h-10 rounded-2xl border border-gray-200 bg-white px-3 text-sm text-[#0F172A] outline-none focus:border-[#0F398A] dark:border-crm-border dark:bg-transparent dark:text-white"
               />
             </label>
             <button
               type="button"
               disabled={leaveBusy === "add"}
               onClick={() => void addLeave()}
-              className="h-10 rounded-2xl bg-[#B8112D] px-4 text-xs font-semibold text-white shadow-sm disabled:opacity-50"
+              className="h-10 rounded-2xl bg-[#0F398A] px-4 text-xs font-semibold text-white shadow-sm disabled:opacity-50"
             >
               {leaveBusy === "add" ? "Saving…" : "Add leave"}
             </button>
@@ -443,7 +443,7 @@ export default function DailyLateCard() {
         <div className="mt-4 overflow-hidden rounded-2xl sm:rounded-[28px] border border-slate-200/80 shadow-[0_12px_40px_rgba(15,23,42,0.06)] dark:border-crm-border">
           <div className="overflow-x-auto">
           <table className="w-full min-w-[46rem] border-collapse text-sm">
-            <thead className="bg-[#B8112D]">
+            <thead className="bg-[#0F398A]">
               <tr>
                 <th className="px-4 py-3 text-left text-[10px] font-bold uppercase tracking-wider text-white/90">Employee</th>
                 <th className="px-4 py-3 text-right text-[10px] font-bold uppercase tracking-wider text-white/90">Per day</th>
@@ -464,11 +464,11 @@ export default function DailyLateCard() {
               {visible.map((person) => (
                 <tr
                   key={`${person.department}:${person.name}`}
-                  className="border-b border-slate-100/90 last:border-0 even:bg-slate-50/50 hover:bg-[#F8FBFF] hover:shadow-[inset_3px_0_0_#B8112D] transition-colors dark:border-white/5 dark:even:bg-white/[0.02] dark:hover:bg-white/[0.04]"
+                  className="border-b border-slate-100/90 last:border-0 even:bg-slate-50/50 hover:bg-[#F8FBFF] hover:shadow-[inset_3px_0_0_#0F398A] transition-colors dark:border-white/5 dark:even:bg-white/[0.02] dark:hover:bg-white/[0.04]"
                 >
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-3 min-w-0">
-                      <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#FFF1F3] text-[11px] font-bold text-[#B8112D]">
+                      <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#EFF6FF] text-[11px] font-bold text-[#0F398A]">
                         {initials(person.name)}
                       </span>
                       <div className="min-w-0">
@@ -479,12 +479,12 @@ export default function DailyLateCard() {
                   </td>
                   <td className="px-4 py-3 text-right tabular-nums text-[#0F172A] dark:text-white">{money(person.perDay ?? 0)}</td>
                   <td className="px-4 py-3 text-right">
-                    <span className={`inline-flex min-w-[4.5rem] justify-end tabular-nums font-semibold ${person.day > 0 ? "text-[#B8112D]" : "text-slate-400"}`}>
+                    <span className={`inline-flex min-w-[4.5rem] justify-end tabular-nums font-semibold ${person.day > 0 ? "text-[#0F398A]" : "text-slate-400"}`}>
                       {money(person.day)}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-right">
-                    <span className={`inline-flex min-w-[4.5rem] justify-end tabular-nums font-semibold ${(person.range ?? 0) > 0 ? "text-[#B8112D]" : "text-slate-400"}`}>
+                    <span className={`inline-flex min-w-[4.5rem] justify-end tabular-nums font-semibold ${(person.range ?? 0) > 0 ? "text-[#0F398A]" : "text-slate-400"}`}>
                       {money(person.range ?? 0)}
                     </span>
                   </td>

@@ -122,7 +122,7 @@ export default function CompanyPortalAccessCard({ company }: { company: PortalCo
               type="button"
               onClick={() => void remove()}
               disabled={saving}
-              className="inline-flex items-center gap-1.5 h-9 px-3 rounded-xl border border-red-100 text-xs font-semibold text-[#B8112D] hover:bg-red-50 disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 h-9 px-3 rounded-xl border border-red-100 text-xs font-semibold text-[#0F398A] hover:bg-red-50 disabled:opacity-50"
             >
               <Trash2 size={13} /> Delete
             </button>
@@ -155,7 +155,7 @@ export default function CompanyPortalAccessCard({ company }: { company: PortalCo
             value={username}
             onChange={e => setUsername(e.target.value)}
             placeholder="Username"
-            className="h-11 rounded-2xl border border-gray-200 px-3.5 text-sm outline-none focus:border-[#B8112D]"
+            className="h-11 rounded-2xl border border-gray-200 px-3.5 text-sm outline-none focus:border-[#0F398A]"
           />
           <div className="relative">
             <input
@@ -163,7 +163,7 @@ export default function CompanyPortalAccessCard({ company }: { company: PortalCo
               value={password}
               onChange={e => setPassword(e.target.value)}
               placeholder={row ? "New password (optional)" : "Password"}
-              className="w-full h-11 rounded-2xl border border-gray-200 px-3.5 pr-11 text-sm outline-none focus:border-[#B8112D]"
+              className="w-full h-11 rounded-2xl border border-gray-200 px-3.5 pr-11 text-sm outline-none focus:border-[#0F398A]"
             />
             <button
               type="button"

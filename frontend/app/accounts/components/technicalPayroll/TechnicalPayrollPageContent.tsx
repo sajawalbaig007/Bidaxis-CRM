@@ -89,9 +89,9 @@ export default function TechnicalPayrollPageContent() {
           <p className="text-[10px] font-bold uppercase text-blue-700 opacity-80">Headcount</p>
           <p className="text-xl font-extrabold text-blue-800 mt-1">{data.employees.length}</p>
         </div>
-        <div className="rounded-2xl border border-[#B8112D]/20 bg-gradient-to-br from-[#FFF1F3] to-white p-4">
-          <p className="text-[10px] font-bold uppercase text-[#B8112D] opacity-80">Total Net (computed)</p>
-          <p className="text-xl font-extrabold text-[#B8112D] mt-1 tabular-nums">{currency(totalNet)}</p>
+        <div className="rounded-2xl border border-[#0F398A]/20 bg-gradient-to-br from-[#EFF6FF] to-white p-4">
+          <p className="text-[10px] font-bold uppercase text-[#0F398A] opacity-80">Total Net (computed)</p>
+          <p className="text-xl font-extrabold text-[#0F398A] mt-1 tabular-nums">{currency(totalNet)}</p>
         </div>
         <div className="rounded-2xl border border-teal-200 bg-gradient-to-br from-[#F0FDFA] to-white p-4 col-span-2 lg:col-span-1 flex items-center justify-between gap-2">
           <div>
@@ -124,9 +124,9 @@ export default function TechnicalPayrollPageContent() {
                 <input
                   value={emp.name}
                   onChange={e => updateEmployee(emp.id, { ...emp, name: e.target.value })}
-                  className="flex-1 min-w-0 h-9 rounded-lg border border-transparent hover:border-crm-border focus:border-[#B8112D] px-2 text-sm font-extrabold text-crm-text outline-none"
+                  className="flex-1 min-w-0 h-9 rounded-lg border border-transparent hover:border-crm-border focus:border-[#0F398A] px-2 text-sm font-extrabold text-crm-text outline-none"
                 />
-                <span className="text-sm font-extrabold tabular-nums text-[#B8112D] whitespace-nowrap">{currency(net)}</span>
+                <span className="text-sm font-extrabold tabular-nums text-[#0F398A] whitespace-nowrap">{currency(net)}</span>
                 <button
                   type="button"
                   onClick={() => confirmDelete(`Remove ${emp.name || "this employee"}?`, () => removeEmployee(emp.id))}

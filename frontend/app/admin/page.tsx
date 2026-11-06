@@ -119,7 +119,7 @@ export default function DashboardPage() {
   const tiles = useMemo(() => {
     const t = stats?.totalLeads ?? 0;
     return [
-      { label: "Total Leads", value: t, accent: "#B8112D", icon: <PhoneCall size={15} />, bar: 100 },
+      { label: "Total Leads", value: t, accent: "#0F398A", icon: <PhoneCall size={15} />, bar: 100 },
       { label: "Today Completed Calls", value: stats?.todayCompletedCalls ?? 0, accent: "#059669", icon: <CheckCircle2 size={15} />, bar: sharePct(stats?.todayCompletedCalls ?? 0, Math.max(t, 1)) },
       { label: "Pending", value: stats?.pending ?? 0, accent: "#D97706", icon: <Clock3 size={15} />, bar: sharePct(stats?.pending ?? 0, t) },
       { label: "Total Completed", value: stats?.completed ?? 0, accent: "#DC2626", icon: <CheckCircle2 size={15} />, bar: sharePct(stats?.completed ?? 0, t) },
@@ -151,7 +151,7 @@ export default function DashboardPage() {
 
           <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <div className="min-w-0">
-              <p className="text-[11px] font-bold uppercase tracking-wider text-[#B8112D]/80 mb-1">Admin · Overview</p>
+              <p className="text-[11px] font-bold uppercase tracking-wider text-[#0F398A]/80 mb-1">Admin · Overview</p>
               <h1 className="text-2xl sm:text-3xl font-bold text-[#0F172A] dark:text-crm-text tracking-tight">
                 Dashboard
               </h1>
@@ -186,7 +186,7 @@ export default function DashboardPage() {
                 type="button"
                 onClick={() => void loadOverview(true)}
                 disabled={loadingOverview}
-                className="h-11 px-5 rounded-2xl border border-gray-200 dark:border-crm-border bg-white dark:bg-crm-surface text-sm font-semibold text-gray-700 dark:text-crm-text-secondary inline-flex items-center justify-center gap-2 hover:border-[#B8112D]/40 hover:text-[#B8112D] hover:bg-[#FFF6F7] dark:hover:bg-crm-muted disabled:opacity-60 shadow-sm w-full sm:w-auto shrink-0"
+                className="h-11 px-5 rounded-2xl border border-gray-200 dark:border-crm-border bg-white dark:bg-crm-surface text-sm font-semibold text-gray-700 dark:text-crm-text-secondary inline-flex items-center justify-center gap-2 hover:border-[#0F398A]/40 hover:text-[#0F398A] hover:bg-[#FFF6F7] dark:hover:bg-crm-muted disabled:opacity-60 shadow-sm w-full sm:w-auto shrink-0"
               >
                 <RefreshCw size={15} className={loadingOverview ? "animate-spin" : ""} />
                 {loadingOverview ? "Refreshing…" : "Refresh stats"}
@@ -234,7 +234,7 @@ export default function DashboardPage() {
                   key={tile.label}
                   type="button"
                   onClick={() => router.push(tile.href!)}
-                  className={`${cls} text-left hover:border-[#B8112D]/30 active:scale-[0.99] transition-all cursor-pointer`}
+                  className={`${cls} text-left hover:border-[#0F398A]/30 active:scale-[0.99] transition-all cursor-pointer`}
                 >
                   {inner}
                 </button>
@@ -350,7 +350,7 @@ const DateRangePicker = ({ selected, onChange }: { selected: string; onChange: (
         onClick={() => onChange(r.key)}
         className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all whitespace-nowrap ${
           selected === r.key
-            ? "bg-[#B8112D] text-white shadow-sm"
+            ? "bg-[#0F398A] text-white shadow-sm"
             : "bg-gray-100 dark:bg-crm-muted text-gray-600 dark:text-crm-text-secondary hover:bg-gray-200 dark:hover:bg-crm-surface-raised"
         }`}
       >

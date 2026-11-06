@@ -122,7 +122,7 @@ export default function CashFlowTable({
                       </th>
                     ))}
                     <th className="px-2 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider text-crm-text-muted min-w-[160px]">Notes</th>
-                    <th className="px-3 py-2.5 text-right text-[10px] font-bold uppercase tracking-wider text-[#B8112D] w-[96px]">Net</th>
+                    <th className="px-3 py-2.5 text-right text-[10px] font-bold uppercase tracking-wider text-[#0F398A] w-[96px]">Net</th>
                     <th className="w-14 px-1 py-2.5 text-center text-[10px] font-bold uppercase text-crm-text-faint">Edit</th>
                   </tr>
                 </thead>
@@ -165,7 +165,7 @@ export default function CashFlowTable({
                           <AccountsNotesCell notes={row.notes} fallbackDate={row.date} />
                         </td>
                         <td className="px-2 py-2 text-right">
-                          <span className="text-sm font-bold text-[#B8112D] tabular-nums">{currency(net)}</span>
+                          <span className="text-sm font-bold text-[#0F398A] tabular-nums">{currency(net)}</span>
                           {isAutoNet && <span className="block text-[9px] text-crm-text-faint font-semibold">auto</span>}
                         </td>
                         <td className="px-2 py-2 text-center">
@@ -192,7 +192,7 @@ export default function CashFlowTable({
                     <td colSpan={footerColSpan} className="px-4 py-3 text-right text-sm font-bold text-crm-text">
                       Section Total
                     </td>
-                    <td className="px-3 py-3 text-right font-extrabold text-[#B8112D] tabular-nums">{currency(sectionTotal)}</td>
+                    <td className="px-3 py-3 text-right font-extrabold text-[#0F398A] tabular-nums">{currency(sectionTotal)}</td>
                     <td />
                   </tr>
                 </tfoot>

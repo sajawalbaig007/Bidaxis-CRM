@@ -66,7 +66,7 @@ export default function ChatListResizeHandle({
       aria-orientation="vertical"
       aria-label="Resize conversation list"
       onPointerDown={onPointerDown}
-      className={`${className} w-1.5 shrink-0 cursor-col-resize items-stretch relative z-10 hover:bg-[#B8112D]/15 active:bg-[#B8112D]/25`}
+      className={`${className} w-1.5 shrink-0 cursor-col-resize items-stretch relative z-10 hover:bg-[#0F398A]/15 active:bg-[#0F398A]/25`}
     >
       <span className="pointer-events-none absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-gray-200 dark:bg-crm-border" />
     </div>

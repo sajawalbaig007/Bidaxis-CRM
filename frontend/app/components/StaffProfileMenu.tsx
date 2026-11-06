@@ -36,7 +36,7 @@ export function ProfileAvatar({
   const dim = size === "md" ? "w-12 h-12 text-lg rounded-xl" : "w-8 h-8 text-xs rounded-[11px]";
   const src = user?.profilePic?.trim() || "";
   return (
-    <div className={`${dim} bg-[#B8112D] text-white flex items-center justify-center font-bold shrink-0 overflow-hidden`}>
+    <div className={`${dim} bg-[#0F398A] text-white flex items-center justify-center font-bold shrink-0 overflow-hidden`}>
       {src ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img src={src} alt={user?.name ?? "Profile"} className="w-full h-full object-cover" />
@@ -64,7 +64,7 @@ function InfoRow({
       <span
         className={`text-right truncate max-w-[140px] ${
           mono
-            ? "font-mono text-[#B8112D] text-[11px] font-bold"
+            ? "font-mono text-[#0F398A] text-[11px] font-bold"
             : small
               ? "text-[10px] text-[#0F172A] dark:text-crm-text"
               : "text-[11px] font-semibold text-[#0F172A] dark:text-crm-text"

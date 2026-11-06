@@ -22,7 +22,7 @@ export function adminLeadStatusBadgeClass(rawStatus: string, nextFollowup?: stri
   if (s === "important") {
     return hasSchedule(nextFollowup)
       ? "bg-[#FFF7E6] text-[#B54708]"
-      : "bg-[#FFF1F3] text-[#B8112D]";
+      : "bg-[#EFF6FF] text-[#0F398A]";
   }
   if (s === "interested") return "bg-[#FFF4E5] text-[#D97706]";
   if (s === "not interested") return "bg-[#F1F5F9] text-[#475569]";

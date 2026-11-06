@@ -59,7 +59,7 @@ type Props = {
 };
 
 const inputCls =
-  "w-full h-10 sm:h-11 rounded-xl sm:rounded-2xl border-2 border-gray-200 dark:border-crm-border bg-[#FAFAFA] dark:bg-crm-input px-3 sm:px-4 text-sm text-crm-text outline-none focus:border-[#B8112D] focus:bg-white dark:focus:bg-crm-surface transition-colors";
+  "w-full h-10 sm:h-11 rounded-xl sm:rounded-2xl border-2 border-gray-200 dark:border-crm-border bg-[#FAFAFA] dark:bg-crm-input px-3 sm:px-4 text-sm text-crm-text outline-none focus:border-[#0F398A] focus:bg-white dark:focus:bg-crm-surface transition-colors";
 const labelCls =
   "text-[10px] sm:text-[11px] font-semibold text-gray-500 dark:text-crm-text-muted uppercase tracking-wider mb-1.5 sm:mb-2 block";
 
@@ -78,28 +78,28 @@ function Section({
 }) {
   return (
     <div className={`rounded-2xl overflow-hidden border-2 transition-all ${
-      open ? "border-[#B8112D]/30 shadow-sm shadow-[#B8112D]/5" : "border-gray-100 dark:border-crm-border-subtle"
+      open ? "border-[#0F398A]/30 shadow-sm shadow-[#0F398A]/5" : "border-gray-100 dark:border-crm-border-subtle"
     }`}>
       <button
         type="button"
         onClick={onToggle}
         className={`w-full flex items-center justify-between px-4 py-3.5 transition-colors ${
           open
-            ? "bg-gradient-to-r from-[#FFF1F3] to-white dark:from-crm-muted dark:to-crm-surface-raised"
+            ? "bg-gradient-to-r from-[#EFF6FF] to-white dark:from-crm-muted dark:to-crm-surface-raised"
             : "bg-[#FAFAFA] hover:bg-gray-50 dark:bg-crm-muted dark:hover:bg-crm-surface-raised"
         }`}
       >
         <span className="flex items-center gap-2.5 text-sm font-bold text-[#0F172A] dark:text-crm-text">
           <span className={`w-8 h-8 rounded-xl flex items-center justify-center ${
-            open ? "bg-[#B8112D] text-white" : "bg-[#FFF1F3] text-[#B8112D] dark:bg-crm-surface-raised"
+            open ? "bg-[#0F398A] text-white" : "bg-[#EFF6FF] text-[#0F398A] dark:bg-crm-surface-raised"
           }`}>
             <Icon size={15} />
           </span>
           {title}
         </span>
-        <ChevronDown size={16} className={`transition-transform ${open ? "rotate-180 text-[#B8112D]" : "text-gray-400 dark:text-crm-text-muted"}`} />
+        <ChevronDown size={16} className={`transition-transform ${open ? "rotate-180 text-[#0F398A]" : "text-gray-400 dark:text-crm-text-muted"}`} />
       </button>
-      {open && <div className="p-4 sm:p-5 space-y-3 border-t border-[#B8112D]/10 dark:border-crm-border-subtle bg-white dark:bg-crm-surface">{children}</div>}
+      {open && <div className="p-4 sm:p-5 space-y-3 border-t border-[#0F398A]/10 dark:border-crm-border-subtle bg-white dark:bg-crm-surface">{children}</div>}
     </div>
   );
 }
@@ -338,7 +338,7 @@ export default function ProjectWorkbenchModal({
   return (
     <div className="fixed inset-0 z-[140] bg-black/50 backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-4">
       <div className="bg-white dark:bg-crm-surface w-full sm:max-w-2xl rounded-t-[24px] sm:rounded-[28px] shadow-2xl max-h-[92vh] flex flex-col overflow-hidden">
-        <div className="relative bg-gradient-to-br from-[#B8112D] to-[#8b0d22] px-4 sm:px-6 pt-5 pb-5 shrink-0 overflow-hidden">
+        <div className="relative bg-gradient-to-br from-[#0F398A] to-[#8b0d22] px-4 sm:px-6 pt-5 pb-5 shrink-0 overflow-hidden">
           <div className="absolute -top-6 -right-6 w-32 h-32 rounded-full bg-white/5 pointer-events-none" />
           <button
             type="button"
@@ -417,7 +417,7 @@ export default function ProjectWorkbenchModal({
                     onPaste={createMode ? onPhonePaste : undefined}
                   />
                   {createMode && phoneLookupLoading && (
-                    <Loader2 size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#B8112D] animate-spin" />
+                    <Loader2 size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#0F398A] animate-spin" />
                   )}
                 </div>
               </div>
@@ -566,7 +566,7 @@ export default function ProjectWorkbenchModal({
                           active
                             ? opt.value === "morning"
                               ? "bg-amber-500 text-white border-amber-500"
-                              : "bg-[#B8112D] text-white border-[#B8112D]"
+                              : "bg-[#0F398A] text-white border-[#0F398A]"
                             : "bg-white text-gray-600 border-gray-200 hover:border-gray-300"
                         }`}
                       >
@@ -605,11 +605,11 @@ export default function ProjectWorkbenchModal({
                     <p className="text-[9px] text-emerald-600 font-medium uppercase">Paid</p>
                     <p className="text-sm font-bold text-emerald-700">${paidNum.toLocaleString()}</p>
                   </div>
-                  <div className="bg-[#FFF1F3] rounded-xl px-2 py-2.5 text-center border border-[#f5c5ce]">
-                    <p className="text-[9px] text-[#B8112D] font-medium uppercase">Quote</p>
-                    <p className="text-sm font-bold text-[#B8112D]">${budgetNum.toLocaleString()}</p>
+                  <div className="bg-[#EFF6FF] rounded-xl px-2 py-2.5 text-center border border-[#f5c5ce]">
+                    <p className="text-[9px] text-[#0F398A] font-medium uppercase">Quote</p>
+                    <p className="text-sm font-bold text-[#0F398A]">${budgetNum.toLocaleString()}</p>
                     {quotedOn && (
-                      <p className="text-[9px] text-[#B8112D]/70 mt-0.5 leading-tight">on {quotedOn}</p>
+                      <p className="text-[9px] text-[#0F398A]/70 mt-0.5 leading-tight">on {quotedOn}</p>
                     )}
                   </div>
                   <div className="bg-gray-50 rounded-xl px-2 py-2.5 text-center border border-gray-100">
@@ -728,8 +728,8 @@ export default function ProjectWorkbenchModal({
                     </div>
                   </div>
                   {mode !== "csr" && (
-                    <div className="rounded-xl border border-[#F3D7DC] bg-[#FFF8F9] p-2.5 space-y-2">
-                      <p className="text-[10px] font-bold text-[#B8112D] uppercase tracking-wide">
+                    <div className="rounded-xl border border-[#F3D7DC] bg-[#F8FAFF] p-2.5 space-y-2">
+                      <p className="text-[10px] font-bold text-[#0F398A] uppercase tracking-wide">
                         Accounts · channel / currency
                       </p>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -785,7 +785,7 @@ export default function ProjectWorkbenchModal({
                           Payment link
                         </span>
                         <div className="flex items-center gap-2">
-                          <Link2 size={14} className="text-[#B8112D] shrink-0" />
+                          <Link2 size={14} className="text-[#0F398A] shrink-0" />
                           <input
                             className={inputCls}
                             placeholder="Payment slip / invoice / receipt URL"
@@ -832,7 +832,7 @@ export default function ProjectWorkbenchModal({
             <button
               type="button"
               onClick={addPayment}
-              className="w-full h-10 rounded-xl border-2 border-dashed border-[#B8112D]/30 text-[#B8112D] text-xs font-bold flex items-center justify-center gap-1.5 hover:bg-[#FFF1F3] transition-colors"
+              className="w-full h-10 rounded-xl border-2 border-dashed border-[#0F398A]/30 text-[#0F398A] text-xs font-bold flex items-center justify-center gap-1.5 hover:bg-[#EFF6FF] transition-colors"
             >
               <Plus size={14} /> Add payment entry
             </button>
@@ -844,8 +844,8 @@ export default function ProjectWorkbenchModal({
               {(createMode || noteHistory) && (
                 <div className="bg-white rounded-2xl border-2 border-gray-100 p-4">
                   <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                    <StickyNote size={12} className="text-[#B8112D]" /> Bid Instruction
-                    {createMode && <span className="text-[#B8112D] normal-case">*</span>}
+                    <StickyNote size={12} className="text-[#0F398A]" /> Bid Instruction
+                    {createMode && <span className="text-[#0F398A] normal-case">*</span>}
                   </p>
                   {createMode ? (
                     <textarea
@@ -964,7 +964,7 @@ export default function ProjectWorkbenchModal({
             type="button"
             disabled={saving}
             onClick={() => void validateAndSave()}
-            className="flex-1 h-11 sm:h-12 rounded-xl sm:rounded-2xl bg-gradient-to-r from-[#B8112D] to-[#d4173a] text-white font-semibold text-sm flex items-center justify-center gap-2 disabled:opacity-50 shadow-md shadow-red-200"
+            className="flex-1 h-11 sm:h-12 rounded-xl sm:rounded-2xl bg-gradient-to-r from-[#0F398A] to-[#d4173a] text-white font-semibold text-sm flex items-center justify-center gap-2 disabled:opacity-50 shadow-md shadow-red-200"
           >
             {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
             {saving ? (createMode ? "Adding…" : "Saving…") : (createMode ? "Add Project" : "Save Changes")}

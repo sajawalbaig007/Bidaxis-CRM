@@ -154,7 +154,7 @@ export default function BalanceSheetTable({
                                   setSavingId(item.id);
                                   onSaveRow(section.id, item.id);
                                 }}
-                                className="h-7 px-2.5 rounded-lg bg-[#B8112D] text-white text-[10px] font-bold disabled:opacity-50"
+                                className="h-7 px-2.5 rounded-lg bg-[#0F398A] text-white text-[10px] font-bold disabled:opacity-50"
                               >
                                 {saving && savingId === item.id ? "Saving…" : "Save"}
                               </button>

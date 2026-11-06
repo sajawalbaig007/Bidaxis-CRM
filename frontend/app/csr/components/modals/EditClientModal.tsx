@@ -12,7 +12,7 @@ import type { NoteEntry } from "../../hooks/useLeadsData";
 export type EditAction = "reschedule" | "closeclient" | "deleteclient" | null;
 
 const MOVE_OPTIONS = [
-  { status: "important",      Icon: AlertTriangle, iconBg: "bg-[#FFF1F3] text-[#B42318]", title: "Move to Important",    sub: "Mark as important (no schedule)" },
+  { status: "important",      Icon: AlertTriangle, iconBg: "bg-[#EFF6FF] text-[#B42318]", title: "Move to Important",    sub: "Mark as important (no schedule)" },
   { status: "schedule call",  Icon: CalendarDays,  iconBg: "bg-[#EAF5FF] text-[#0B84F3]", title: "Move to Schedule Call", sub: "Pick date, time & timezone" },
   { status: "interested",     Icon: Users,         iconBg: "bg-[#FFF4E5] text-[#D97706]", title: "Move to Interested",   sub: "Client showed interest" },
   { status: "pending",        Icon: Clock,         iconBg: "bg-[#F1F5F9] text-[#475569]", title: "Move to Pending",      sub: "Back to pending queue" },
@@ -91,7 +91,7 @@ export default function EditClientModal({
         className="w-full sm:max-w-[520px] lg:max-w-[540px] bg-white dark:bg-gray-900 rounded-t-[24px] sm:rounded-[28px] shadow-2xl flex flex-col overflow-hidden"
         style={{ maxHeight: "92vh" }}
       >
-        <div className="relative bg-gradient-to-br from-[#B8112D] to-[#8b0d22] px-4 sm:px-5 lg:px-6 pt-4 sm:pt-5 pb-4 sm:pb-5 shrink-0 overflow-hidden">
+        <div className="relative bg-gradient-to-br from-[#0F398A] to-[#8b0d22] px-4 sm:px-5 lg:px-6 pt-4 sm:pt-5 pb-4 sm:pb-5 shrink-0 overflow-hidden">
           <div className="absolute -top-6 -right-6 w-32 h-32 rounded-full bg-white/5 pointer-events-none" />
           <button onClick={onClose}
             className="absolute top-3 sm:top-4 right-3 sm:right-4 w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-white/20 hover:bg-white/30 flex items-center justify-center text-white transition-colors z-10">
@@ -160,7 +160,7 @@ export default function EditClientModal({
                     key={opt.status}
                     type="button"
                     onClick={() => handleMove(opt.status)}
-                    className="w-full flex items-center gap-3 p-3 sm:p-3.5 rounded-xl sm:rounded-2xl border-2 border-gray-100 bg-[#FAFAFA] dark:bg-gray-800 dark:border-gray-700 hover:border-[#B8112D] hover:bg-[#FFF1F3] transition-all text-left"
+                    className="w-full flex items-center gap-3 p-3 sm:p-3.5 rounded-xl sm:rounded-2xl border-2 border-gray-100 bg-[#FAFAFA] dark:bg-gray-800 dark:border-gray-700 hover:border-[#0F398A] hover:bg-[#EFF6FF] transition-all text-left"
                   >
                     <div className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl ${opt.iconBg} flex items-center justify-center shrink-0`}>
                       <opt.Icon size={16} />
@@ -177,13 +177,13 @@ export default function EditClientModal({
                 </p>
                 {[
                   { action: "reschedule" as EditAction,  Icon: CalendarClock, iconBg: "bg-[#EAF5FF] text-[#0B84F3]", title: "Reschedule",    sub: "Pick a new date, time & timezone" },
-                  { action: "deleteclient" as EditAction,Icon: UserX,         iconBg: "bg-[#FFF1F3] text-[#B42318]", title: "Delete Client",  sub: "Move this client to Bin" },
+                  { action: "deleteclient" as EditAction,Icon: UserX,         iconBg: "bg-[#EFF6FF] text-[#B42318]", title: "Delete Client",  sub: "Move this client to Bin" },
                 ].map(opt => (
                   <button
                     key={String(opt.action)}
                     type="button"
                     onClick={() => onSelectAction(opt.action)}
-                    className="w-full flex items-center gap-3 p-3 sm:p-3.5 rounded-xl sm:rounded-2xl border-2 border-gray-100 bg-[#FAFAFA] dark:bg-gray-800 dark:border-gray-700 hover:border-[#B8112D] hover:bg-[#FFF1F3] transition-all text-left"
+                    className="w-full flex items-center gap-3 p-3 sm:p-3.5 rounded-xl sm:rounded-2xl border-2 border-gray-100 bg-[#FAFAFA] dark:bg-gray-800 dark:border-gray-700 hover:border-[#0F398A] hover:bg-[#EFF6FF] transition-all text-left"
                   >
                     <div className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl ${opt.iconBg} flex items-center justify-center shrink-0`}>
                       <opt.Icon size={16} />
@@ -208,7 +208,7 @@ export default function EditClientModal({
                 {scheduleDate && scheduleTime && (
                   <div className="bg-[#F8F9FC] rounded-xl p-3">
                     <div className="flex items-center gap-1.5 mb-1">
-                      <Clock3 size={11} className="text-[#B8112D]" />
+                      <Clock3 size={11} className="text-[#0F398A]" />
                       <p className="text-gray-400 text-[10px]">New Schedule Preview</p>
                     </div>
                     <h4 className="font-semibold text-[#0F172A] text-xs">
@@ -219,7 +219,7 @@ export default function EditClientModal({
                 <div className="flex gap-2 sm:gap-3 pb-1">
                   <button type="button" onClick={() => onSelectAction(null)} className="flex-1 h-10 sm:h-12 rounded-xl bg-[#F5F6FA] text-gray-600 font-semibold text-sm">Back</button>
                   <button type="button" onClick={onSaveReschedule} disabled={!scheduleDate || !scheduleTime}
-                    className={`flex-1 h-10 sm:h-12 rounded-xl font-semibold text-sm text-white ${scheduleDate && scheduleTime ? "bg-[#B8112D]" : "bg-gray-200 cursor-not-allowed text-gray-400"}`}>
+                    className={`flex-1 h-10 sm:h-12 rounded-xl font-semibold text-sm text-white ${scheduleDate && scheduleTime ? "bg-[#0F398A]" : "bg-gray-200 cursor-not-allowed text-gray-400"}`}>
                     Save Schedule
                   </button>
                 </div>
@@ -249,7 +249,7 @@ export default function EditClientModal({
                 <div className="flex gap-2 sm:gap-3 pb-1">
                   <button type="button" onClick={() => onSelectAction(null)} className="flex-1 h-10 sm:h-12 rounded-xl bg-[#F5F6FA] text-gray-600 font-semibold text-sm">Back</button>
                   <button type="button" onClick={onSaveProjectWon} disabled={!projectWonValid}
-                    className={`flex-1 h-10 sm:h-12 rounded-xl font-semibold text-sm text-white ${projectWonValid ? "bg-[#B8112D]" : "bg-gray-200 cursor-not-allowed text-gray-400"}`}>
+                    className={`flex-1 h-10 sm:h-12 rounded-xl font-semibold text-sm text-white ${projectWonValid ? "bg-[#0F398A]" : "bg-gray-200 cursor-not-allowed text-gray-400"}`}>
                     Confirm &amp; Move
                   </button>
                 </div>
@@ -258,7 +258,7 @@ export default function EditClientModal({
 
             {editAction === "deleteclient" && (
               <>
-                <div className="bg-[#FFF1F3] rounded-xl p-3 flex items-center gap-2.5">
+                <div className="bg-[#EFF6FF] rounded-xl p-3 flex items-center gap-2.5">
                   <div className="w-9 h-9 rounded-xl bg-white text-[#B42318] flex items-center justify-center shrink-0 shadow-sm">
                     <UserX size={16} />
                   </div>

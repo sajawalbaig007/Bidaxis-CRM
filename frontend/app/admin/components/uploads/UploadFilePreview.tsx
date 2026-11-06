@@ -106,7 +106,7 @@ export default function UploadFilePreview({
                 onClick={() => onFilterChange(f.key)}
                 className={`px-2 py-0.5 rounded-md text-[10px] font-semibold transition-all ${
                   filter === f.key
-                    ? "bg-[#B8112D] text-white"
+                    ? "bg-[#0F398A] text-white"
                     : "bg-gray-100 text-gray-600 hover:bg-gray-200"
                 }`}
               >

@@ -58,7 +58,7 @@ function Num({
       <AmountInput
         value={Number.isFinite(value) ? value : 0}
         onChange={onChange}
-        className="mt-1 h-9 w-full min-w-0 rounded-lg border border-crm-border bg-crm-surface px-2 text-sm tabular-nums outline-none focus:border-[#B8112D]"
+        className="mt-1 h-9 w-full min-w-0 rounded-lg border border-crm-border bg-crm-surface px-2 text-sm tabular-nums outline-none focus:border-[#0F398A]"
       />
       {hint && <span className="block mt-0.5 text-[9px] font-normal normal-case text-crm-text-faint">{hint}</span>}
     </label>
@@ -183,7 +183,7 @@ export default function SalesPayrollEmployeeEditor({
         </div>
         <div className="text-right shrink-0 hidden sm:block">
           <p className="text-[10px] font-bold uppercase text-crm-text-faint">Net Salary</p>
-          <p className="text-base font-extrabold text-[#B8112D] tabular-nums">{currency(breakdown.netSalary)}</p>
+          <p className="text-base font-extrabold text-[#0F398A] tabular-nums">{currency(breakdown.netSalary)}</p>
         </div>
       </button>
       )}
@@ -293,7 +293,7 @@ export default function SalesPayrollEmployeeEditor({
                         <AmountInput
                           value={Number.isFinite(fx) ? fx : 0}
                           onChange={v => patch({ fxRate: v })}
-                          className="mt-1 h-9 w-full min-w-0 rounded-lg border border-crm-border bg-crm-surface px-2 text-sm tabular-nums outline-none focus:border-[#B8112D]"
+                          className="mt-1 h-9 w-full min-w-0 rounded-lg border border-crm-border bg-crm-surface px-2 text-sm tabular-nums outline-none focus:border-[#0F398A]"
                         />
                         {liveFx > 0 && (
                           <span className="block mt-0.5 text-[9px] font-normal normal-case text-crm-text-faint">
@@ -531,7 +531,7 @@ export default function SalesPayrollEmployeeEditor({
                 onClick={() => set("loanPaymentMode", "salary")}
                 className={`h-8 px-3 rounded-lg text-[11px] font-bold border ${
                   (employee.loanPaymentMode ?? "salary") === "salary"
-                    ? "bg-[#B8112D] text-white border-[#B8112D]"
+                    ? "bg-[#0F398A] text-white border-[#0F398A]"
                     : "bg-crm-surface text-crm-text-secondary border-crm-border"
                 }`}
               >
@@ -552,7 +552,7 @@ export default function SalesPayrollEmployeeEditor({
             {(employee.loanPaymentMode ?? "salary") === "salary" && (Number(employee.loanThisMonth) || 0) > 0 ? (
               <div className="grid grid-cols-2 gap-2">
                 <Read label="Net before loan" value={currency(breakdown.netBeforeLoan)} />
-                <Read label="Net after loan deduction" value={currency(breakdown.netSalary)} accent="text-[#B8112D]" />
+                <Read label="Net after loan deduction" value={currency(breakdown.netSalary)} accent="text-[#0F398A]" />
               </div>
             ) : employee.loanPaymentMode === "cash" && (Number(employee.loanThisMonth) || 0) > 0 ? (
               <p className="text-[10px] font-semibold text-amber-800">
@@ -613,7 +613,7 @@ export default function SalesPayrollEmployeeEditor({
                   value={employee.occasionalRemark ?? ""}
                   onChange={e => set("occasionalRemark", e.target.value)}
                   placeholder="e.g. Eid bonus, wedding gift…"
-                  className="mt-1 h-9 w-full rounded-lg border border-crm-border bg-crm-surface px-2 text-sm outline-none focus:border-[#B8112D]"
+                  className="mt-1 h-9 w-full rounded-lg border border-crm-border bg-crm-surface px-2 text-sm outline-none focus:border-[#0F398A]"
                 />
               </label>
             </div>
@@ -626,7 +626,7 @@ export default function SalesPayrollEmployeeEditor({
               <Read label="Total Deduction" value={currency(breakdown.totalDeduction)} accent="text-red-600" />
             </div>
             <Read label="Occasional" value={currency(breakdown.occasionalAmount ?? 0)} accent="text-sky-700" />
-            <Read label="Net Total Salary" value={currency(breakdown.netSalary)} accent="text-[#B8112D]" />
+            <Read label="Net Total Salary" value={currency(breakdown.netSalary)} accent="text-[#0F398A]" />
           </div>
 
           <label className="block text-[10px] font-bold uppercase text-crm-text-muted">
@@ -635,7 +635,7 @@ export default function SalesPayrollEmployeeEditor({
               value={employee.remarks}
               onChange={e => set("remarks", e.target.value)}
               rows={2}
-              className="mt-1 w-full rounded-lg border border-crm-border px-2 py-1.5 text-sm resize-none focus:border-[#B8112D]"
+              className="mt-1 w-full rounded-lg border border-crm-border px-2 py-1.5 text-sm resize-none focus:border-[#0F398A]"
             />
           </label>
         </div>

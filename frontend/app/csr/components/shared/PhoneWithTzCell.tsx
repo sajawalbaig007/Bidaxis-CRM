@@ -37,7 +37,7 @@ function CopyPhoneButton({ value, leadId }: { value: string; leadId?: string }) 
           window.setTimeout(() => setCopied(false), 1200);
         }).catch(() => {});
       }}
-      className="inline-flex items-center justify-center w-5 h-5 rounded-md text-gray-400 hover:text-[#B8112D] hover:bg-[#FFF6F7] shrink-0"
+      className="inline-flex items-center justify-center w-5 h-5 rounded-md text-gray-400 hover:text-[#0F398A] hover:bg-[#FFF6F7] shrink-0"
     >
       {copied ? <Check size={11} /> : <Copy size={11} />}
     </button>
@@ -72,7 +72,7 @@ export default function PhoneWithTzCell({
   const numberClass = extras > 0 ? "truncate min-w-0 max-w-[72px] sm:max-w-[96px]" : "truncate min-w-0";
   const chip = (
     <>
-      <Phone size={18} className="text-[#B8112D] shrink-0" aria-hidden />
+      <Phone size={18} className="text-[#0F398A] shrink-0" aria-hidden />
       <span className={canDial ? `${numberClass} underline-offset-[3px] decoration-current group-hover:underline` : numberClass}>
         {primary}
       </span>
@@ -85,7 +85,7 @@ export default function PhoneWithTzCell({
         </span>
       )}
       {extras > 0 && (
-        <span className="bg-[#B8112D] text-white text-[9px] font-bold px-1.5 py-0.5 rounded-md shrink-0">
+        <span className="bg-[#0F398A] text-white text-[9px] font-bold px-1.5 py-0.5 rounded-md shrink-0">
           +{extras}
         </span>
       )}
@@ -94,7 +94,7 @@ export default function PhoneWithTzCell({
 
   const shellClass =
     variant === "pill"
-      ? `inline-flex items-center gap-1 flex-nowrap bg-[#FFF6F7] text-[#B8112D] px-2.5 sm:px-3 py-1.5 rounded-xl text-xs sm:text-sm font-medium min-w-0 max-w-full overflow-visible ${className}`
+      ? `inline-flex items-center gap-1 flex-nowrap bg-[#FFF6F7] text-[#0F398A] px-2.5 sm:px-3 py-1.5 rounded-xl text-xs sm:text-sm font-medium min-w-0 max-w-full overflow-visible ${className}`
       : `inline-flex items-center gap-1.5 flex-nowrap min-w-0 max-w-full overflow-visible ${className}`;
 
   const popup =
@@ -124,7 +124,7 @@ export default function PhoneWithTzCell({
           );
           if (!canDial) {
             return (
-              <div key={`${ph}-${idx}`} className="flex items-center gap-2 px-3 py-2 text-xs text-[#B8112D] font-medium">
+              <div key={`${ph}-${idx}`} className="flex items-center gap-2 px-3 py-2 text-xs text-[#0F398A] font-medium">
                 {row}
               </div>
             );
@@ -134,7 +134,7 @@ export default function PhoneWithTzCell({
               key={`${ph}-${idx}`}
               type="button"
               onClick={() => startCall(ph)}
-              className="group flex w-full items-center gap-2 px-3 py-2 text-xs text-[#B8112D] font-medium hover:bg-[#FFF6F7] text-left cursor-pointer"
+              className="group flex w-full items-center gap-2 px-3 py-2 text-xs text-[#0F398A] font-medium hover:bg-[#FFF6F7] text-left cursor-pointer"
             >
               {row}
             </button>

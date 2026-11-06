@@ -284,7 +284,7 @@ function buildInsights(report: MonthlyReport) {
 type CashChannel = "AH" | "SN" | "QHM" | "HM";
 
 const PIE_COLORS: Record<CashChannel, string> = {
-  AH: "#B8112D",
+  AH: "#0F398A",
   SN: "#0B84F3",
   QHM: "#0B1220",
   HM: "#334155",
@@ -298,7 +298,7 @@ const PIE_LEGEND: { key: CashChannel; name: string }[] = [
 ];
 
 const CF_CARDS: { key: CashChannel; label: string; hint: string; bg: string }[] = [
-  { key: "AH", label: "AH", hint: "Ahmed Hamza · received", bg: "bg-[#B8112D]" },
+  { key: "AH", label: "AH", hint: "Ahmed Hamza · received", bg: "bg-[#0F398A]" },
   { key: "SN", label: "SN", hint: "Sharjeel Nasir · received", bg: "bg-[#0B84F3]" },
   { key: "QHM", label: "Qasim Habib Metro", hint: "Qasim Habib Metro · received", bg: "bg-[#0B1220]" },
   { key: "HM", label: "Habib Metro", hint: "CO. Habib Metro · received", bg: "bg-[#334155]" },
@@ -420,7 +420,7 @@ function TrendArrow({ v, goodWhenUp }: { v: number | null; goodWhenUp: boolean }
   const good = goodWhenUp ? up : !up;
   const Icon = up ? ArrowUpRight : ArrowDownRight;
   return (
-    <span className={`inline-flex items-center gap-0.5 text-[9px] font-bold ${good ? "text-[#0B84F3]" : "text-[#B8112D]"}`}>
+    <span className={`inline-flex items-center gap-0.5 text-[9px] font-bold ${good ? "text-[#0B84F3]" : "text-[#0F398A]"}`}>
       <Icon size={10} className="shrink-0" />
       {signed(v)}
     </span>
@@ -467,7 +467,7 @@ function SectionCard({
       className={shell}
     >
       <div className="px-4 sm:px-5 pt-4 pb-2">
-        <h2 className="font-extrabold text-[#0B1220] dark:text-crm-text text-sm tracking-tight border-b-2 border-[#B8112D] pb-2">
+        <h2 className="font-extrabold text-[#0B1220] dark:text-crm-text text-sm tracking-tight border-b-2 border-[#0F398A] pb-2">
           {title}
         </h2>
       </div>
@@ -496,7 +496,7 @@ function HistoryPerformanceHalf({
   return (
     <div>
       <div className="px-4 sm:px-5 pt-3 pb-1">
-        <h3 className="text-[11px] font-extrabold uppercase tracking-wider text-[#B8112D]">{title}</h3>
+        <h3 className="text-[11px] font-extrabold uppercase tracking-wider text-[#0F398A]">{title}</h3>
       </div>
       <div className={`overflow-x-auto ${NO_SCROLL}`}>
         <table className="w-full text-sm">
@@ -528,7 +528,7 @@ function HistoryPerformanceHalf({
                     <td className={`${tdCls} font-bold text-crm-text`}>
                       {monthShort(h.month)}
                       {h.month === currentMonth && (
-                        <span className="ml-2 text-[9px] font-bold text-[#B8112D] uppercase">This report</span>
+                        <span className="ml-2 text-[9px] font-bold text-[#0F398A] uppercase">This report</span>
                       )}
                     </td>
                     <td className={`${tdCls} text-right tabular-nums`}>
@@ -543,13 +543,13 @@ function HistoryPerformanceHalf({
                         <TrendArrow v={prev ? h.cost - prev.cost : null} goodWhenUp={false} />
                       </div>
                     </td>
-                    <td className={`${tdCls} text-right font-bold tabular-nums ${h.net >= 0 ? "text-[#0B84F3]" : "text-[#B8112D]"}`}>
+                    <td className={`${tdCls} text-right font-bold tabular-nums ${h.net >= 0 ? "text-[#0B84F3]" : "text-[#0F398A]"}`}>
                       {signed(h.net)}
                     </td>
                     <td className={`${tdCls} text-center`}>
                       <span
                         className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                          h.net >= 0 ? "bg-[#EFF6FF] text-[#0B84F3]" : "bg-[#FFF1F3] text-[#B8112D]"
+                          h.net >= 0 ? "bg-[#EFF6FF] text-[#0B84F3]" : "bg-[#EFF6FF] text-[#0F398A]"
                         }`}
                       >
                         {h.net >= 0 ? "Profit" : "Loss"}
@@ -566,13 +566,13 @@ function HistoryPerformanceHalf({
                 <td className="px-3 py-2.5 font-extrabold text-crm-text text-xs">TOTAL</td>
                 <td className="px-3 py-2.5 text-right font-extrabold tabular-nums text-xs">{currency(totals.revenue)}</td>
                 <td className="px-3 py-2.5 text-right font-extrabold tabular-nums text-xs">{currency(totals.cost)}</td>
-                <td className={`px-3 py-2.5 text-right font-extrabold tabular-nums text-xs ${totals.net >= 0 ? "text-[#0B84F3]" : "text-[#B8112D]"}`}>
+                <td className={`px-3 py-2.5 text-right font-extrabold tabular-nums text-xs ${totals.net >= 0 ? "text-[#0B84F3]" : "text-[#0F398A]"}`}>
                   {signed(totals.net)}
                 </td>
                 <td className="px-3 py-2.5 text-center">
                   <span
                     className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                      totals.net >= 0 ? "bg-[#EFF6FF] text-[#0B84F3]" : "bg-[#FFF1F3] text-[#B8112D]"
+                      totals.net >= 0 ? "bg-[#EFF6FF] text-[#0B84F3]" : "bg-[#EFF6FF] text-[#0F398A]"
                     }`}
                   >
                     {totals.net >= 0 ? "Profit" : "Loss"}
@@ -603,7 +603,7 @@ function HistoryPerformanceHalf({
               <Bar dataKey="profit" name="Profit" fill="#0B84F3" radius={[6, 6, 0, 0]} maxBarSize={28}>
                 <LabelList dataKey="profit" position="top" content={props => <BarEndLabel {...props} layout="horizontal" />} />
               </Bar>
-              <Bar dataKey="loss" name="Loss" fill="#B8112D" radius={[0, 0, 6, 6]} maxBarSize={28}>
+              <Bar dataKey="loss" name="Loss" fill="#0F398A" radius={[0, 0, 6, 6]} maxBarSize={28}>
                 <LabelList dataKey="loss" position="bottom" content={props => <BarEndLabel {...props} layout="horizontal" />} />
               </Bar>
             </BarChart>
@@ -702,7 +702,7 @@ function SalaryFieldTableView({ table }: { table: SalaryFieldTable }) {
                 {r.cells.map((c, i) => (
                   <td
                     key={`${r.employee}-${table.columns[i] ?? i}`}
-                    className={`${tdCls} ${i === 0 ? "font-semibold text-crm-text" : "text-right tabular-nums"} ${i === r.cells.length - 1 ? "font-bold text-[#B8112D]" : ""}`}
+                    className={`${tdCls} ${i === 0 ? "font-semibold text-crm-text" : "text-right tabular-nums"} ${i === r.cells.length - 1 ? "font-bold text-[#0F398A]" : ""}`}
                   >
                     {formatSalaryCell(table.columns[i] ?? "", c)}
                   </td>
@@ -712,9 +712,9 @@ function SalaryFieldTableView({ table }: { table: SalaryFieldTable }) {
           )}
         </tbody>
         <tfoot>
-          <tr className="border-t-2 border-[#B8112D]/20 bg-[#B8112D]/5">
+          <tr className="border-t-2 border-[#0F398A]/20 bg-[#0F398A]/5">
             <td className="px-3 py-2.5 font-extrabold text-crm-text text-xs">TOTAL</td>
-            <td className="px-3 py-2.5 text-right font-extrabold tabular-nums text-[#B8112D] text-xs" colSpan={Math.max(table.columns.length - 1, 1)}>
+            <td className="px-3 py-2.5 text-right font-extrabold tabular-nums text-[#0F398A] text-xs" colSpan={Math.max(table.columns.length - 1, 1)}>
               {currency(table.total)}
             </td>
           </tr>
@@ -762,9 +762,9 @@ function OpexFieldTableView({ tables, total }: { tables: OpexFieldTable[]; total
           )}
         </tbody>
         <tfoot>
-          <tr className="bg-[#FFF1F3]">
+          <tr className="bg-[#EFF6FF]">
             <td className="px-3 py-2.5 font-extrabold text-crm-text text-xs border border-[#E2E8F0]" colSpan={4}>TOTAL</td>
-            <td className="px-3 py-2.5 text-right font-extrabold tabular-nums text-[#B8112D] text-xs border border-[#E2E8F0]">{currency(total)}</td>
+            <td className="px-3 py-2.5 text-right font-extrabold tabular-nums text-[#0F398A] text-xs border border-[#E2E8F0]">{currency(total)}</td>
           </tr>
         </tfoot>
       </table>
@@ -791,7 +791,7 @@ function BudgetComparePanel({
           { label: "Planned revenue", value: data.totals.budgetRevenue, note: "IS budget", cls: "text-[#0B1220]" },
           { label: "Actual revenue", value: data.totals.actualRevenue, note: "Collections", cls: "text-[#0B84F3]" },
           { label: "Planned expense", value: data.totals.budgetExpense, note: "Payroll + OPEX plan", cls: "text-[#0B1220]" },
-          { label: "Actual expense", value: data.totals.actualExpense, note: `Vs plan ${signed(data.totals.variance)}`, cls: data.totals.variance > 0 ? "text-[#B8112D]" : "text-[#0B84F3]" },
+          { label: "Actual expense", value: data.totals.actualExpense, note: `Vs plan ${signed(data.totals.variance)}`, cls: data.totals.variance > 0 ? "text-[#0F398A]" : "text-[#0B84F3]" },
         ].map(c => (
           <div key={c.label} className="rounded-xl border border-crm-border-subtle bg-[#FAFBFC] px-3 py-2.5">
             <p className="text-[9px] font-bold uppercase tracking-wider text-crm-text-faint">{c.label}</p>
@@ -827,12 +827,12 @@ function BudgetComparePanel({
                     <td className={`${tdCls} font-bold text-crm-text`}>{r.name}</td>
                     <td className={`${tdCls} text-right tabular-nums`}>{currency(r.budget)}</td>
                     <td className={`${tdCls} text-right tabular-nums`}>{currency(r.actual)}</td>
-                    <td className={`${tdCls} text-right font-bold tabular-nums ${over ? "text-[#B8112D]" : "text-[#0B84F3]"}`}>
+                    <td className={`${tdCls} text-right font-bold tabular-nums ${over ? "text-[#0F398A]" : "text-[#0B84F3]"}`}>
                       {signed(r.variance)}
                     </td>
                     <td className={`${tdCls} text-center`}>
                       <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                        over ? "bg-[#FFF1F3] text-[#B8112D]" : r.variance < 0 ? "bg-[#EFF6FF] text-[#0B84F3]" : "bg-[#F8FAFC] text-[#0B1220]"
+                        over ? "bg-[#EFF6FF] text-[#0F398A]" : r.variance < 0 ? "bg-[#EFF6FF] text-[#0B84F3]" : "bg-[#F8FAFC] text-[#0B1220]"
                       }`}>
                         {over ? "Over" : r.variance < 0 ? "Under" : "On plan"}
                       </span>
@@ -848,12 +848,12 @@ function BudgetComparePanel({
                 <td className="px-3 py-2.5 font-extrabold text-crm-text text-xs">EXPENSE TOTAL</td>
                 <td className="px-3 py-2.5 text-right font-extrabold tabular-nums text-xs">{currency(data.totals.budgetExpense)}</td>
                 <td className="px-3 py-2.5 text-right font-extrabold tabular-nums text-xs">{currency(data.totals.actualExpense)}</td>
-                <td className={`px-3 py-2.5 text-right font-extrabold tabular-nums text-xs ${data.totals.variance > 0 ? "text-[#B8112D]" : "text-[#0B84F3]"}`}>
+                <td className={`px-3 py-2.5 text-right font-extrabold tabular-nums text-xs ${data.totals.variance > 0 ? "text-[#0F398A]" : "text-[#0B84F3]"}`}>
                   {signed(data.totals.variance)}
                 </td>
                 <td className="px-3 py-2.5 text-center">
                   <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                    data.totals.variance > 0 ? "bg-[#FFF1F3] text-[#B8112D]" : "bg-[#EFF6FF] text-[#0B84F3]"
+                    data.totals.variance > 0 ? "bg-[#EFF6FF] text-[#0F398A]" : "bg-[#EFF6FF] text-[#0B84F3]"
                   }`}>
                     {data.totals.variance > 0 ? "Over" : data.totals.variance < 0 ? "Under" : "On plan"}
                   </span>
@@ -915,7 +915,7 @@ export default function AccountsReportsPage() {
       if (!root) throw new Error("Report is not on screen.");
       toast.loading("Capturing this page for PDF…", { id: toastId });
       const blob = await captureReportVisualPdf(root, {
-        footer: `BEM Solutions CRM · Accounts Report · ${monthLabel(report.month)}`,
+        footer: `BidAxis CRM · Accounts Report · ${monthLabel(report.month)}`,
         onProgress: (done, total) => {
           toast.loading(`Capturing report ${done}/${total}…`, { id: toastId });
         },
@@ -944,7 +944,7 @@ export default function AccountsReportsPage() {
     ready: !!report && !loading,
     rootRef: exportRootRef,
     fileName: `Accounts-Report-${month}.pdf`,
-    footer: `BEM Solutions CRM · Accounts Report · ${monthLabel(month)}`,
+    footer: `BidAxis CRM · Accounts Report · ${monthLabel(month)}`,
     exportFn: () => exportFnRef.current(),
   });
 
@@ -1004,18 +1004,18 @@ export default function AccountsReportsPage() {
           <ReportBlock>
             <div className={`${BENTO_CARD} px-4 sm:px-5 py-4 sm:py-5 flex flex-col sm:flex-row sm:items-end gap-3`}>
               <div className="min-w-0 flex-1">
-                <h1 className="font-bold text-[#B8112D] text-xl sm:text-2xl tracking-tight leading-none">
+                <h1 className="font-bold text-[#0F398A] text-xl sm:text-2xl tracking-tight leading-none">
                   Executive Summary
                 </h1>
                 <p className="text-[11px] sm:text-xs text-[#64748B] mt-2">
                   Accounts Team · {label}
                   {report?.daysRecorded != null ? ` · ${report.daysRecorded} day(s) recorded` : ""}
-                  {report?.sourceDate ? ` · last ${report.sourceDate}` : ""} · BEM Solutions CRM
+                  {report?.sourceDate ? ` · last ${report.sourceDate}` : ""}                   · BidAxis CRM
                 </p>
               </div>
               <div data-export-hide className="flex items-center gap-2 shrink-0">
                 <label className="inline-flex items-center gap-2 h-10 px-3 rounded-xl border border-crm-border bg-[#F8FAFC] text-xs font-bold text-crm-text-secondary">
-                  <CalendarDays size={14} className="text-[#B8112D]" />
+                  <CalendarDays size={14} className="text-[#0F398A]" />
                   <input
                     type="month"
                     value={month}
@@ -1028,7 +1028,7 @@ export default function AccountsReportsPage() {
                   type="button"
                   disabled={!report || loading || exporting}
                   onClick={() => void handleExport()}
-                  className="h-10 px-4 rounded-xl bg-[#B8112D] text-white text-xs font-bold inline-flex items-center gap-2 hover:bg-[#9a0e26] disabled:opacity-50 transition-colors shadow-md shadow-[#B8112D]/25"
+                  className="h-10 px-4 rounded-xl bg-[#0F398A] text-white text-xs font-bold inline-flex items-center gap-2 hover:bg-[#9a0e26] disabled:opacity-50 transition-colors shadow-md shadow-[#0F398A]/25"
                   title="Download PDF – exact visual of this report page, including charts"
                 >
                   {exporting ? <Loader2 size={15} className="animate-spin" /> : <FileDown size={15} />}
@@ -1040,7 +1040,7 @@ export default function AccountsReportsPage() {
 
           {loading ? (
             <div className="bg-crm-surface rounded-2xl border border-crm-border-subtle/90 py-24 flex flex-col items-center justify-center gap-3 text-crm-text-faint">
-              <Loader2 size={28} className="animate-spin text-[#B8112D]" />
+              <Loader2 size={28} className="animate-spin text-[#0F398A]" />
               <p className="text-sm font-semibold">Building {label} report…</p>
             </div>
           ) : !report ? (
@@ -1053,7 +1053,7 @@ export default function AccountsReportsPage() {
               <section className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-3.5">
                 {kpis.map(k => (
                   <div key={k.label} className={`${BENTO_CARD} h-full p-3.5 sm:p-4`}>
-                    <p className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-[#B8112D] leading-snug">{k.label}</p>
+                    <p className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-[#0F398A] leading-snug">{k.label}</p>
                     <p className="text-lg sm:text-xl font-extrabold mt-1.5 tabular-nums tracking-tight text-[#0B1220]">{k.value}</p>
                     <p className="text-[9px] sm:text-[10px] text-[#64748B] mt-1 font-medium leading-snug">{k.note}</p>
                   </div>
@@ -1070,7 +1070,7 @@ export default function AccountsReportsPage() {
                   className="min-w-0 h-full"
                   title="Company Balance"
                   subtitle="Cash flow received – AH · SN · Qasim Habib Metro · Habib Metro"
-                  accent="#B8112D"
+                  accent="#0F398A"
                   icon={<PieIcon size={16} />}
                 >
                   <div className="h-full min-h-[16rem] grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-3 items-center min-w-0">
@@ -1147,7 +1147,7 @@ export default function AccountsReportsPage() {
                   currentMonth={report.month}
                   chartId="report-chart-net3"
                 />
-                <div className="border-t-2 border-[#B8112D]/15">
+                <div className="border-t-2 border-[#0F398A]/15">
                   <HistoryPerformanceHalf
                     title="Last 6 months"
                     rows={report.history}
@@ -1163,7 +1163,7 @@ export default function AccountsReportsPage() {
                 <div className="flex items-start gap-3">
                   <span
                     className={`w-9 h-9 rounded-xl inline-flex items-center justify-center text-white shrink-0 ${
-                      report.totals.netProfit >= 0 ? "bg-[#0B84F3]" : "bg-[#B8112D]"
+                      report.totals.netProfit >= 0 ? "bg-[#0B84F3]" : "bg-[#0F398A]"
                     }`}
                   >
                     <Sparkles size={16} />
@@ -1236,7 +1236,7 @@ export default function AccountsReportsPage() {
               <SectionCard title={`Cash flow statement${report.cash.asOf ? ` – as of ${report.cash.asOf}` : ""}`}>
                 <div className="p-4">
                   <section className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-3.5">
-                    <div className="rounded-2xl p-3.5 text-white bg-[#B8112D] min-w-0 h-full">
+                    <div className="rounded-2xl p-3.5 text-white bg-[#0F398A] min-w-0 h-full">
                       <div className="flex items-center gap-1.5">
                         <Wallet size={14} className="text-white/80 shrink-0" />
                         <p className="text-[10px] font-bold uppercase tracking-wider text-white/75 truncate">Net Cash Flow</p>

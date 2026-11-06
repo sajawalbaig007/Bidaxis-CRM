@@ -269,7 +269,7 @@ function PricingProjectDetailCell({
       ) : null}
       {code ? (
         <p className="text-[10px] text-gray-600">
-          Code: <span className="font-bold text-[#B8112D]">{code}</span>
+          Code: <span className="font-bold text-[#0F398A]">{code}</span>
         </p>
       ) : null}
 
@@ -372,7 +372,7 @@ function EstimatorEvalForm({
             }
             onSave(n, remarks.trim());
           }}
-          className="h-6 px-2 rounded-md bg-[#B8112D] text-white text-[9px] font-bold"
+          className="h-6 px-2 rounded-md bg-[#0F398A] text-white text-[9px] font-bold"
         >
           Save
         </button>
@@ -475,7 +475,7 @@ function AssignedToCell({
       <button
         type="button"
         onClick={onAssign}
-        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-[#B8112D] text-white text-[11px] font-semibold hover:bg-[#a30f27] transition-colors shadow-sm shadow-red-100"
+        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-[#0F398A] text-white text-[11px] font-semibold hover:bg-[#a30f27] transition-colors shadow-sm shadow-red-100"
       >
         <UserPlus size={12} />
         Assign
@@ -521,7 +521,7 @@ function AssignedToCell({
               className="flex flex-col gap-1 min-w-0 px-2.5 py-2 border-b border-gray-50 last:border-0"
             >
               <div className="flex items-start gap-2 min-w-0">
-                <div className="w-7 h-7 rounded-full bg-[#B8112D] text-white flex items-center justify-center text-[11px] font-bold shrink-0">
+                <div className="w-7 h-7 rounded-full bg-[#0F398A] text-white flex items-center justify-center text-[11px] font-bold shrink-0">
                   {a.estimatorName.charAt(0)}
                 </div>
                 <div className="min-w-0 flex-1 space-y-1">
@@ -609,7 +609,7 @@ function AssignedToCell({
           <button
             type="button"
             onClick={() => onAssign()}
-            className="w-full h-8 rounded-lg bg-[#B8112D] text-white text-[11px] font-bold hover:bg-[#a30f27] inline-flex items-center justify-center gap-1.5"
+            className="w-full h-8 rounded-lg bg-[#0F398A] text-white text-[11px] font-bold hover:bg-[#a30f27] inline-flex items-center justify-center gap-1.5"
           >
             <UserPlus size={12} />
             Reassign
@@ -629,14 +629,14 @@ function AssignedToCell({
             e.stopPropagation();
             toggle();
           }}
-          className="flex flex-col gap-1 min-w-0 flex-1 w-full rounded-lg bg-[#F8F9FC] border border-gray-200 px-1.5 py-1 hover:border-[#B8112D]/40 transition-colors text-left"
+          className="flex flex-col gap-1 min-w-0 flex-1 w-full rounded-lg bg-[#F8F9FC] border border-gray-200 px-1.5 py-1 hover:border-[#0F398A]/40 transition-colors text-left"
           title="View all estimators"
         >
           {visible.map((a) => {
             const running = !!a.timerStartedAt && !a.takeoffDone;
             return (
               <div key={a.estimatorId} className="flex items-center gap-1.5 min-w-0">
-                <div className="w-5 h-5 rounded-full bg-[#B8112D] text-white flex items-center justify-center text-[9px] font-bold shrink-0">
+                <div className="w-5 h-5 rounded-full bg-[#0F398A] text-white flex items-center justify-center text-[9px] font-bold shrink-0">
                   {a.estimatorName.charAt(0)}
                 </div>
                 <div className="min-w-0 flex-1">
@@ -677,7 +677,7 @@ function AssignedToCell({
         <button
           type="button"
           onClick={onAssign}
-          className="h-6 px-1.5 rounded-md bg-[#B8112D] text-white flex items-center justify-center shrink-0 hover:bg-[#a30f27] text-[9px] font-bold gap-0.5"
+          className="h-6 px-1.5 rounded-md bg-[#0F398A] text-white flex items-center justify-center shrink-0 hover:bg-[#a30f27] text-[9px] font-bold gap-0.5"
           title="Reassign"
         >
           <UserPlus size={11} />
@@ -732,7 +732,7 @@ function AssignmentTrackButton({
           setDraft(value);
           setOpen(true);
         }}
-        className="inline-flex h-5 w-5 items-center justify-center rounded-md text-gray-400 hover:bg-gray-100 hover:text-[#B8112D]"
+        className="inline-flex h-5 w-5 items-center justify-center rounded-md text-gray-400 hover:bg-gray-100 hover:text-[#0F398A]"
       >
         <Pencil size={11} />
       </button>
@@ -745,9 +745,9 @@ function AssignmentTrackButton({
         type={field === "deadline" ? "date" : "text"}
         value={draft}
         onChange={(event) => setDraft(event.target.value)}
-        className="h-7 w-28 rounded-md border border-gray-200 px-2 text-[11px] outline-none focus:border-[#B8112D]"
+        className="h-7 w-28 rounded-md border border-gray-200 px-2 text-[11px] outline-none focus:border-[#0F398A]"
       />
-      <button type="button" disabled={saving} onClick={() => void save()} className="text-[10px] font-bold text-[#B8112D]">
+      <button type="button" disabled={saving} onClick={() => void save()} className="text-[10px] font-bold text-[#0F398A]">
         {saving ? "…" : "Save"}
       </button>
     </span>
@@ -824,7 +824,7 @@ function AssignmentHoursCell({
       >
         {first.manHours ? `${first.manHours}h` : "—"}
         {extra > 0 && (
-          <span className="text-[9px] font-bold text-[#B8112D] bg-[#FFF1F3] px-1 rounded">
+          <span className="text-[9px] font-bold text-[#0F398A] bg-[#EFF6FF] px-1 rounded">
             +{extra}
           </span>
         )}
@@ -909,10 +909,10 @@ function AssignmentDeadlineCell({
         }`}
         title={extra > 0 ? "View all deadlines" : undefined}
       >
-        <Calendar size={10} className="text-[#B8112D] shrink-0" />
+        <Calendar size={10} className="text-[#0F398A] shrink-0" />
         {formatDate(first.deadline)}
         {extra > 0 && (
-          <span className="text-[9px] font-bold text-[#B8112D] bg-[#FFF1F3] px-1 rounded">
+          <span className="text-[9px] font-bold text-[#0F398A] bg-[#EFF6FF] px-1 rounded">
             +{extra}
           </span>
         )}
@@ -1609,7 +1609,7 @@ export function TechnicalActiveProjectsPageInner({
     const onTrack = Math.max(0, baseFiltered.length - overdue - finalN);
     return [
       { name: "On track", value: onTrack, color: "#D97706" },
-      { name: "Overdue", value: overdue, color: "#B8112D" },
+      { name: "Overdue", value: overdue, color: "#0F398A" },
       { name: "Final / Done", value: finalN, color: "#059669" },
     ].filter((d) => d.value > 0);
   }, [baseFiltered, tabCounts.final_submission]);
@@ -1701,7 +1701,7 @@ export function TechnicalActiveProjectsPageInner({
                 type="button"
                 onClick={() => void fetchProjects()}
                 disabled={loading}
-                className="h-9 sm:h-10 px-3 sm:px-4 rounded-xl border border-gray-200 bg-white text-xs sm:text-sm font-semibold text-gray-700 inline-flex items-center justify-center gap-2 hover:border-[#B8112D]/40 hover:text-[#B8112D] hover:bg-[#FFF6F7] disabled:opacity-60 shadow-sm"
+                className="h-9 sm:h-10 px-3 sm:px-4 rounded-xl border border-gray-200 bg-white text-xs sm:text-sm font-semibold text-gray-700 inline-flex items-center justify-center gap-2 hover:border-[#0F398A]/40 hover:text-[#0F398A] hover:bg-[#FFF6F7] disabled:opacity-60 shadow-sm"
                 title="Refresh"
               >
                 <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
@@ -1771,7 +1771,7 @@ export function TechnicalActiveProjectsPageInner({
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
                       <XAxis dataKey="name" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
                       <YAxis allowDecimals={false} tick={{ fontSize: 10 }} axisLine={false} tickLine={false} width={24} />
-                      <Tooltip contentStyle={{ borderRadius: 12, border: "1px solid #e5e7eb", fontSize: 12 }} cursor={{ fill: "#FFF1F3" }} />
+                      <Tooltip contentStyle={{ borderRadius: 12, border: "1px solid #e5e7eb", fontSize: 12 }} cursor={{ fill: "#EFF6FF" }} />
                       <Bar dataKey="count" radius={[6, 6, 0, 0]}>
                         {stageBar.map((d) => (
                           <Cell key={d.name} fill={d.fill} />
@@ -1851,7 +1851,7 @@ export function TechnicalActiveProjectsPageInner({
                   setSearch(e.target.value);
                   setPage(1);
                 }}
-                className="w-full h-10 sm:h-[42px] bg-white border border-gray-200 rounded-xl sm:rounded-2xl pl-9 pr-3 text-sm outline-none focus:border-[#B8112D]"
+                className="w-full h-10 sm:h-[42px] bg-white border border-gray-200 rounded-xl sm:rounded-2xl pl-9 pr-3 text-sm outline-none focus:border-[#0F398A]"
               />
             </div>
             <div className="shrink-0 w-full sm:w-auto">
@@ -1883,7 +1883,7 @@ export function TechnicalActiveProjectsPageInner({
                 setDateFrom(e.target.value);
                 setPage(1);
               }}
-              className="h-10 sm:h-[42px] flex-1 min-w-[130px] max-w-[160px] bg-white border border-gray-200 rounded-xl px-2 text-xs sm:text-sm outline-none focus:border-[#B8112D]"
+              className="h-10 sm:h-[42px] flex-1 min-w-[130px] max-w-[160px] bg-white border border-gray-200 rounded-xl px-2 text-xs sm:text-sm outline-none focus:border-[#0F398A]"
             />
             <span className="text-[11px] text-gray-400 shrink-0">to</span>
             <input
@@ -1893,7 +1893,7 @@ export function TechnicalActiveProjectsPageInner({
                 setDateTo(e.target.value);
                 setPage(1);
               }}
-              className="h-10 sm:h-[42px] flex-1 min-w-[130px] max-w-[160px] bg-white border border-gray-200 rounded-xl px-2 text-xs sm:text-sm outline-none focus:border-[#B8112D]"
+              className="h-10 sm:h-[42px] flex-1 min-w-[130px] max-w-[160px] bg-white border border-gray-200 rounded-xl px-2 text-xs sm:text-sm outline-none focus:border-[#0F398A]"
             />
             {(dateFrom || dateTo) && (
               <button
@@ -1912,7 +1912,7 @@ export function TechnicalActiveProjectsPageInner({
               type="button"
               onClick={() => void fetchProjects()}
               disabled={loading}
-              className="h-10 sm:h-[42px] px-3 rounded-xl border border-gray-200 bg-white text-xs font-semibold text-gray-700 inline-flex items-center gap-1.5 hover:border-[#B8112D]/40 hover:text-[#B8112D] disabled:opacity-60 shrink-0 ml-auto"
+              className="h-10 sm:h-[42px] px-3 rounded-xl border border-gray-200 bg-white text-xs font-semibold text-gray-700 inline-flex items-center gap-1.5 hover:border-[#0F398A]/40 hover:text-[#0F398A] disabled:opacity-60 shrink-0 ml-auto"
               title="Refresh"
             >
               <RefreshCw size={13} className={loading ? "animate-spin" : ""} />
@@ -1939,7 +1939,7 @@ export function TechnicalActiveProjectsPageInner({
                   data-project-row={p.id}
                   className={`bg-white rounded-2xl border p-4 shadow-sm space-y-3 ${
                     highlightId === p.id
-                      ? "border-[#B8112D] ring-2 ring-[#B8112D]/20"
+                      ? "border-[#0F398A] ring-2 ring-[#0F398A]/20"
                       : "border-gray-100"
                   }`}
                 >
@@ -2139,7 +2139,7 @@ export function TechnicalActiveProjectsPageInner({
                         key={p.id}
                         data-project-row={p.id}
                         className={`border-b border-[#F3F3F3] hover:bg-[#FAFAFA] transition-all align-top ${
-                          highlightId === p.id ? "bg-[#FFF1F3] ring-2 ring-inset ring-[#B8112D]/30" : ""
+                          highlightId === p.id ? "bg-[#EFF6FF] ring-2 ring-inset ring-[#0F398A]/30" : ""
                         }`}
                       >
                         <td className="px-2 xl:px-3 py-3 xl:py-4 min-w-0 overflow-hidden">
@@ -2242,7 +2242,7 @@ export function TechnicalActiveProjectsPageInner({
                           <>
                             <td className="px-2 xl:px-3 py-3 xl:py-4 min-w-0">
                               <p className="text-[10px] xl:text-xs font-semibold text-gray-700 flex items-center gap-1">
-                                <Calendar size={10} className="text-[#B8112D] shrink-0" />
+                                <Calendar size={10} className="text-[#0F398A] shrink-0" />
                                 {formatDate(pricingReceiveDate(p))}
                               </p>
                             </td>
@@ -2313,7 +2313,7 @@ export function TechnicalActiveProjectsPageInner({
                           <>
                             <td className="px-2 xl:px-3 py-3 xl:py-4 min-w-0">
                               <p className="text-[10px] xl:text-xs font-semibold text-gray-700 flex items-center gap-1">
-                                <Calendar size={10} className="text-[#B8112D] shrink-0" />
+                                <Calendar size={10} className="text-[#0F398A] shrink-0" />
                                 {formatDate(projectReceiveDate(p))}
                               </p>
                             </td>
@@ -2375,7 +2375,7 @@ export function TechnicalActiveProjectsPageInner({
                           <>
                             <td className="px-2 xl:px-3 py-3 xl:py-4 min-w-0">
                               <p className="text-[10px] xl:text-xs font-semibold text-gray-700 flex items-center gap-1">
-                                <Calendar size={10} className="text-[#B8112D] shrink-0" />
+                                <Calendar size={10} className="text-[#0F398A] shrink-0" />
                                 {formatDate(projectReceiveDate(p))}
                               </p>
                             </td>

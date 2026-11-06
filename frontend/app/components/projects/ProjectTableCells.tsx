@@ -101,12 +101,12 @@ export function ClientDetailCell({ p }: { p: ProjectTableRow }) {
 
   return (
     <div className="min-w-0 flex items-start gap-2">
-      <span className="mt-0.5 w-8 h-8 rounded-xl bg-[#B8112D] text-white text-[11px] font-extrabold inline-flex items-center justify-center shrink-0">
+      <span className="mt-0.5 w-8 h-8 rounded-xl bg-[#0F398A] text-white text-[11px] font-extrabold inline-flex items-center justify-center shrink-0">
         {initial}
       </span>
       <div className="min-w-0 space-y-0.5">
         {company && (
-          <DetailLine icon={<Building2 size={9} className="text-[#B8112D] shrink-0" />} className="font-bold text-[#0F172A]">
+          <DetailLine icon={<Building2 size={9} className="text-[#0F398A] shrink-0" />} className="font-bold text-[#0F172A]">
             {company}
           </DetailLine>
         )}
@@ -137,7 +137,7 @@ export function ClientDetailCell({ p }: { p: ProjectTableRow }) {
           </div>
         )}
         {addedOn && (
-          <DetailLine icon={<Calendar size={9} className="text-[#B8112D] shrink-0" />} className="text-slate-500">
+          <DetailLine icon={<Calendar size={9} className="text-[#0F398A] shrink-0" />} className="text-slate-500">
             Added {addedOn}
           </DetailLine>
         )}
@@ -150,7 +150,7 @@ function ProjectMetaLine({ label, value, accent = false }: { label: string; valu
   return (
     <p className="flex items-baseline gap-1.5 min-w-0 text-[11px] leading-snug">
       <span className="shrink-0 text-[10px] font-semibold text-slate-400 w-[52px]">{label}</span>
-      <span className={`truncate font-bold ${accent ? "text-[#B8112D]" : "text-[#0F172A] dark:text-crm-text"}`}>
+      <span className={`truncate font-bold ${accent ? "text-[#0F398A]" : "text-[#0F172A] dark:text-crm-text"}`}>
         {value}
       </span>
     </p>
@@ -168,7 +168,7 @@ export function ProjectDetailCell({ p }: { p: ProjectTableRow }) {
     <div className="min-w-0 rounded-xl bg-slate-50 dark:bg-crm-muted border border-slate-100 dark:border-crm-border-subtle px-2 py-1.5 space-y-0.5">
       {title && (
         <p className="text-xs font-extrabold text-[#0F172A] dark:text-crm-text truncate flex items-center gap-1.5">
-          <Briefcase size={11} className="text-[#B8112D] shrink-0" />
+          <Briefcase size={11} className="text-[#0F398A] shrink-0" />
           {title}
         </p>
       )}
@@ -188,7 +188,7 @@ export function QuotedAmountCell({ p }: { p: ProjectTableRow }) {
   return (
     <div className="min-w-0">
       {amount > 0 ? (
-        <span className="inline-flex items-center bg-[#FFF1F3] text-[#B8112D] text-xs font-extrabold tabular-nums px-2.5 py-1 rounded-lg border border-[#f5c5ce] whitespace-nowrap shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]">
+        <span className="inline-flex items-center bg-[#EFF6FF] text-[#0F398A] text-xs font-extrabold tabular-nums px-2.5 py-1 rounded-lg border border-[#f5c5ce] whitespace-nowrap shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]">
           {formatQuotedAmount(p.projectBudget)}
         </span>
       ) : (
@@ -322,7 +322,7 @@ export function FulfillmentCell({
       )}
       {deadlineLabel ? (
         <p className="text-[11px] xl:text-xs text-[#0F172A] font-extrabold tabular-nums flex items-center gap-1.5">
-          <span className="w-6 h-6 rounded-lg bg-[#FFF1F3] text-[#B8112D] inline-flex items-center justify-center shrink-0">
+          <span className="w-6 h-6 rounded-lg bg-[#EFF6FF] text-[#0F398A] inline-flex items-center justify-center shrink-0">
             <Calendar size={12} />
           </span>
           {deadlineLabel}
@@ -349,7 +349,7 @@ export function FulfillmentCell({
                   active
                     ? opt.value === "morning"
                       ? "bg-amber-500 text-white border-amber-500"
-                      : "bg-[#B8112D] text-white border-[#B8112D]"
+                      : "bg-[#0F398A] text-white border-[#0F398A]"
                     : "bg-white text-gray-600 border-gray-200 hover:border-gray-300"
                 }`}
                 title={
@@ -379,7 +379,7 @@ export const PROJECT_TABLE_CARD =
   "crm-table-card rounded-2xl sm:rounded-[28px] border border-slate-200/80 shadow-[0_12px_40px_rgba(15,23,42,0.06)] overflow-hidden";
 
 export const PROJECT_DB_THEAD =
-  "sticky top-0 z-20 bg-[#B8112D]";
+  "sticky top-0 z-20 bg-[#0F398A]";
 
 export const PROJECT_DB_TH =
   "px-1.5 py-2 text-left text-[9px] font-bold text-white/85 uppercase tracking-wide leading-tight overflow-hidden";
@@ -388,7 +388,7 @@ export const PROJECT_DB_TD =
   "px-2 py-2.5 align-top min-w-0 overflow-hidden";
 
 export const PROJECT_DB_ROW =
-  "group border-b border-slate-100/90 last:border-0 even:bg-slate-50/50 hover:bg-[#F8FBFF] dark:even:bg-white/[0.02] dark:hover:bg-white/[0.04] hover:shadow-[inset_3px_0_0_#B8112D] transition-colors align-top";
+  "group border-b border-slate-100/90 last:border-0 even:bg-slate-50/50 hover:bg-[#F8FBFF] dark:even:bg-white/[0.02] dark:hover:bg-white/[0.04] hover:shadow-[inset_3px_0_0_#0F398A] transition-colors align-top";
 
 export function DeadlineTimingBadge({ timing }: { timing?: string | null }) {
   const t = normalizeDeadlineTiming(timing);
@@ -399,7 +399,7 @@ export function DeadlineTimingBadge({ timing }: { timing?: string | null }) {
       className={`inline-flex items-center px-1.5 py-0.5 rounded-md text-[9px] font-extrabold uppercase tracking-wide ${
         isMorning
           ? "bg-amber-100 text-amber-800 border border-amber-200"
-          : "bg-[#FFF1F3] text-[#B8112D] border border-[#FECACA]"
+          : "bg-[#EFF6FF] text-[#0F398A] border border-[#FECACA]"
       }`}
       title={isMorning ? "Submit by morning" : "Submit by close of business"}
     >
@@ -531,7 +531,7 @@ export function TechnicalWorkflowStatusBadge({
               className="flex items-center justify-between gap-2 px-2.5 py-2 border-b border-gray-50 last:border-0 min-w-0"
             >
               <div className="min-w-0 flex items-center gap-2">
-                <div className="w-6 h-6 rounded-full bg-[#B8112D] text-white flex items-center justify-center text-[10px] font-bold shrink-0">
+                <div className="w-6 h-6 rounded-full bg-[#0F398A] text-white flex items-center justify-center text-[10px] font-bold shrink-0">
                   {a.estimatorName.charAt(0)}
                 </div>
                 <div className="min-w-0">

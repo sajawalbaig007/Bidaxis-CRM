@@ -88,7 +88,7 @@ export default function CashFlowRowModal({
                 type="date"
                 value={value.date?.slice(0, 10) ?? ""}
                 onChange={e => setField("date", e.target.value)}
-                className="mt-1 h-10 w-full rounded-xl border border-crm-border px-3 text-sm outline-none focus:ring-2 focus:ring-[#B8112D]/30"
+                className="mt-1 h-10 w-full rounded-xl border border-crm-border px-3 text-sm outline-none focus:ring-2 focus:ring-[#0F398A]/30"
               />
             </label>
             <label className="text-xs font-semibold text-crm-text-secondary block">
@@ -104,7 +104,7 @@ export default function CashFlowRowModal({
                 <AmountInput
                   value={Number(net) || 0}
                   onChange={n => setField("netAmount", n)}
-                  className="mt-1 h-10 w-full rounded-xl border border-crm-border px-3 text-sm outline-none focus:ring-2 focus:ring-[#B8112D]/30"
+                  className="mt-1 h-10 w-full rounded-xl border border-crm-border px-3 text-sm outline-none focus:ring-2 focus:ring-[#0F398A]/30"
                 />
               )}
             </label>
@@ -115,7 +115,7 @@ export default function CashFlowRowModal({
             <input
               value={value.description}
               onChange={e => setField("description", e.target.value)}
-              className="mt-1 h-10 w-full rounded-xl border border-crm-border px-3 text-sm outline-none focus:ring-2 focus:ring-[#B8112D]/30"
+              className="mt-1 h-10 w-full rounded-xl border border-crm-border px-3 text-sm outline-none focus:ring-2 focus:ring-[#0F398A]/30"
             />
           </label>
 
@@ -221,7 +221,7 @@ export default function CashFlowRowModal({
           <button
             type="button"
             onClick={onClose}
-            className="h-9 px-4 rounded-xl text-xs font-bold bg-[#B8112D] text-white hover:bg-[#9a0e26]"
+            className="h-9 px-4 rounded-xl text-xs font-bold bg-[#0F398A] text-white hover:bg-[#9a0e26]"
           >
             Done
           </button>

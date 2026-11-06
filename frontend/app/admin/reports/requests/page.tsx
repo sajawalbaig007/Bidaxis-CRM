@@ -70,7 +70,7 @@ function RequestMessage({ text }: { text: string }) {
             event.stopPropagation();
             setOpen((value) => !value);
           }}
-          className="mt-0.5 text-[11px] font-semibold text-[#B8112D] hover:underline"
+          className="mt-0.5 text-[11px] font-semibold text-[#0F398A] hover:underline"
         >
           {open ? "View less" : "View more"}
         </button>
@@ -176,7 +176,7 @@ export default function EmployeeRequestsPage() {
         {[
           { label: "Pending", value: pending, accent: "#D97706" },
           { label: "Approved", value: approved, accent: "#059669" },
-          { label: "Rejected", value: rejected, accent: "#B8112D" },
+          { label: "Rejected", value: rejected, accent: "#0F398A" },
         ].map((tile) => (
           <div key={tile.label} className={`${CARD} relative p-3 sm:p-4`}>
             <div className="absolute left-0 top-3 bottom-3 w-[3px] rounded-full" style={{ background: tile.accent }} />
@@ -195,7 +195,7 @@ export default function EmployeeRequestsPage() {
             onClick={() => setFilter(key)}
             className={`h-10 px-4 rounded-2xl text-xs font-semibold ${
               filter === key
-                ? "bg-[#B8112D] text-white shadow-sm"
+                ? "bg-[#0F398A] text-white shadow-sm"
                 : "bg-white text-gray-600 border border-gray-200 dark:bg-transparent dark:text-gray-300 dark:border-crm-border"
             }`}
           >
@@ -209,7 +209,7 @@ export default function EmployeeRequestsPage() {
           <Loader2 size={14} className="animate-spin" /> Loading requests…
         </p>
       ) : error ? (
-        <p className="mx-3 mb-3 rounded-2xl border border-red-100 bg-[#FFF1F3] px-4 py-3 text-sm text-[#B8112D] sm:mx-4">{error}</p>
+        <p className="mx-3 mb-3 rounded-2xl border border-red-100 bg-[#EFF6FF] px-4 py-3 text-sm text-[#0F398A] sm:mx-4">{error}</p>
       ) : visible.length === 0 ? (
         <p className="mx-3 mb-3 rounded-2xl border border-dashed border-gray-200 bg-[#F8FAFC] px-4 py-8 text-center text-sm text-gray-400 dark:bg-[#0B1220] dark:border-crm-border sm:mx-4">
           {filter === "all" ? "No requests yet." : `No ${FILTER_LABEL[filter].toLowerCase()} requests.`}
@@ -217,7 +217,7 @@ export default function EmployeeRequestsPage() {
       ) : (
         <div className="overflow-x-auto border-t border-slate-100 dark:border-white/5">
           <table className="w-full min-w-[46rem] border-collapse text-sm">
-            <thead className="bg-[#B8112D]">
+            <thead className="bg-[#0F398A]">
               <tr>
                 {["Employee", "Department", "Request", "Date", "Detail", "Status"].map((label) => (
                   <th key={label} className="px-4 py-3 text-left text-[10px] font-bold uppercase tracking-wider text-white/90">
@@ -241,11 +241,11 @@ export default function EmployeeRequestsPage() {
                     seen.current.add(row.id);
                     setActive(row);
                   }}
-                  className="cursor-pointer border-b border-slate-100/90 last:border-0 even:bg-slate-50/50 hover:bg-[#F8FBFF] hover:shadow-[inset_3px_0_0_#B8112D] transition-colors dark:border-white/5 dark:even:bg-white/[0.02] dark:hover:bg-white/[0.04]"
+                  className="cursor-pointer border-b border-slate-100/90 last:border-0 even:bg-slate-50/50 hover:bg-[#F8FBFF] hover:shadow-[inset_3px_0_0_#0F398A] transition-colors dark:border-white/5 dark:even:bg-white/[0.02] dark:hover:bg-white/[0.04]"
                 >
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-3 min-w-0">
-                      <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#FFF1F3] text-[11px] font-bold text-[#B8112D]">
+                      <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#EFF6FF] text-[11px] font-bold text-[#0F398A]">
                         {initials(row.personName)}
                       </span>
                       <p className="font-semibold text-[#0F172A] dark:text-white truncate">{row.personName}</p>
@@ -273,7 +273,7 @@ export default function EmployeeRequestsPage() {
                           row.status === "approved"
                             ? "border-emerald-200 bg-emerald-50 text-emerald-700"
                             : row.status === "declined"
-                              ? "border-[#FECACA] bg-[#FFF1F3] text-[#B8112D]"
+                              ? "border-[#FECACA] bg-[#EFF6FF] text-[#0F398A]"
                               : "border-amber-200 bg-amber-50 text-amber-800"
                         }`}
                       >
@@ -286,7 +286,7 @@ export default function EmployeeRequestsPage() {
                         row.status === "approved"
                           ? "border border-emerald-200 bg-emerald-50 text-emerald-700"
                           : row.status === "declined"
-                            ? "border border-[#FECACA] bg-[#FFF1F3] text-[#B8112D]"
+                            ? "border border-[#FECACA] bg-[#EFF6FF] text-[#0F398A]"
                             : "border border-amber-200 bg-amber-50 text-amber-800"
                       }`}>
                         {row.status === "declined" ? "Rejected" : row.status === "approved" ? "Approved" : "Pending"}
@@ -318,10 +318,10 @@ export default function EmployeeRequestsPage() {
       <TechnicalPageShell>
         <div className="w-full px-3 sm:px-5 lg:px-6 xl:px-8 py-4 sm:py-6 space-y-4">
           <header>
-            <Link href="/technical/reports" className="inline-flex h-10 items-center gap-1.5 rounded-2xl border border-gray-200 bg-white px-3 text-xs font-semibold text-[#B8112D] shadow-sm dark:border-crm-border dark:bg-crm-surface">
+            <Link href="/technical/reports" className="inline-flex h-10 items-center gap-1.5 rounded-2xl border border-gray-200 bg-white px-3 text-xs font-semibold text-[#0F398A] shadow-sm dark:border-crm-border dark:bg-crm-surface">
               <ArrowLeft size={14} /> Reports
             </Link>
-            <p className="mt-4 text-[11px] font-bold uppercase tracking-wider text-[#B8112D]/80">Chief Estimator · Reports</p>
+            <p className="mt-4 text-[11px] font-bold uppercase tracking-wider text-[#0F398A]/80">Chief Estimator · Reports</p>
             <h1 className="mt-1 text-2xl sm:text-3xl font-bold tracking-tight text-[#0F172A] dark:text-crm-text">Employee requests</h1>
             <p className="mt-1 max-w-2xl text-sm text-gray-500 dark:text-crm-text-muted">
               Leave, attendance corrections, and other requests waiting for a decision.

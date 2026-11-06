@@ -86,7 +86,7 @@ export default function TechnicalReportsPage() {
     return [
       { name: "Completed", value: sum.completedAssignments, fill: "#059669" },
       { name: "Pending", value: sum.pendingAssignments, fill: "#0B84F3" },
-      { name: "Overdue", value: sum.overdueAssignments, fill: "#B8112D" },
+      { name: "Overdue", value: sum.overdueAssignments, fill: "#0F398A" },
     ].filter((d) => d.value > 0);
   }, [sum]);
 
@@ -141,7 +141,7 @@ export default function TechnicalReportsPage() {
       value: sum ? String(sum.overdueAssignments) : "—",
       hint: "Assignments",
       icon: AlertTriangle,
-      tone: "from-[#B8112D] to-[#8b0d22]",
+      tone: "from-[#0F398A] to-[#8b0d22]",
     },
     {
       label: "Revisions",
@@ -176,7 +176,7 @@ export default function TechnicalReportsPage() {
               className="absolute inset-0 opacity-[0.55]"
               style={{
                 background:
-                  "radial-gradient(900px 240px at 0% 0%, rgba(184,17,45,0.12), transparent 55%), radial-gradient(700px 220px at 100% 0%, rgba(11,132,243,0.10), transparent 50%)",
+                  "radial-gradient(900px 240px at 0% 0%, rgba(15,57,138,0.12), transparent 55%), radial-gradient(700px 220px at 100% 0%, rgba(11,132,243,0.10), transparent 50%)",
               }}
             />
             <div className="relative px-4 sm:px-5 md:px-6 py-4 sm:py-5 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
@@ -206,7 +206,7 @@ export default function TechnicalReportsPage() {
                   type="button"
                   onClick={() => void load()}
                   disabled={loading}
-                  className="h-10 sm:h-11 px-4 rounded-xl border border-gray-200 bg-white text-sm font-semibold text-gray-700 inline-flex items-center justify-center gap-2 hover:border-[#B8112D]/40 disabled:opacity-60 shadow-sm"
+                  className="h-10 sm:h-11 px-4 rounded-xl border border-gray-200 bg-white text-sm font-semibold text-gray-700 inline-flex items-center justify-center gap-2 hover:border-[#0F398A]/40 disabled:opacity-60 shadow-sm"
                 >
                   <RefreshCw size={15} className={loading ? "animate-spin" : ""} />
                   Refresh
@@ -252,7 +252,7 @@ export default function TechnicalReportsPage() {
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
             <div className={`${BENTO_CARD} p-4 sm:p-5`}>
               <h2 className="text-sm font-bold text-[#0F172A] flex items-center gap-2 mb-1">
-                <BarChart3 size={16} className="text-[#B8112D]" />
+                <BarChart3 size={16} className="text-[#0F398A]" />
                 Pipeline stages
               </h2>
               <p className="text-[11px] text-gray-400 mb-4">Live project distribution</p>
@@ -273,7 +273,7 @@ export default function TechnicalReportsPage() {
 
             <div className={`${BENTO_CARD} p-4 sm:p-5`}>
               <h2 className="text-sm font-bold text-[#0F172A] flex items-center gap-2 mb-1">
-                <Target size={16} className="text-[#B8112D]" />
+                <Target size={16} className="text-[#0F398A]" />
                 Assignment workload
               </h2>
               <p className="text-[11px] text-gray-400 mb-4">Completed vs pending vs overdue</p>
@@ -303,7 +303,7 @@ export default function TechnicalReportsPage() {
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
             <div className={`${BENTO_CARD} p-4 sm:p-5`}>
               <h2 className="text-sm font-bold text-[#0F172A] flex items-center gap-2 mb-1">
-                <Users size={16} className="text-[#B8112D]" />
+                <Users size={16} className="text-[#0F398A]" />
                 Estimator scoreboard
               </h2>
               <p className="text-[11px] text-gray-400 mb-4">Live performance score (0–100)</p>
@@ -313,7 +313,7 @@ export default function TechnicalReportsPage() {
                   <XAxis type="number" domain={[0, 100]} tick={{ fontSize: 10 }} />
                   <YAxis type="category" dataKey="name" width={72} tick={{ fontSize: 10 }} />
                   <Tooltip formatter={(v, _n, p) => [`${v}`, (p?.payload as { fullName?: string })?.fullName ?? "Score"]} />
-                  <Bar dataKey="score" fill="#B8112D" radius={[0, 6, 6, 0]} />
+                  <Bar dataKey="score" fill="#0F398A" radius={[0, 6, 6, 0]} />
                 </BarChart>
               </RechartsBox>
             </div>
@@ -444,7 +444,7 @@ export default function TechnicalReportsPage() {
                         <td className="px-4 py-3 text-center text-sm tabular-nums">{r.assigned}</td>
                         <td className="px-4 py-3 text-center text-sm tabular-nums text-emerald-700">{r.completed}</td>
                         <td className="px-4 py-3 text-center text-sm tabular-nums">{r.pending}</td>
-                        <td className="px-4 py-3 text-center text-sm tabular-nums text-[#B8112D]">{r.overdue}</td>
+                        <td className="px-4 py-3 text-center text-sm tabular-nums text-[#0F398A]">{r.overdue}</td>
                         <td className="px-4 py-3 text-center text-sm tabular-nums">{formatLoggedHours(r.loggedSeconds)}</td>
                         <td className="px-4 py-3 text-center">
                           <span className={`inline-flex px-2 py-0.5 rounded-lg text-xs font-bold ${scoreTone(r.score)}`}>

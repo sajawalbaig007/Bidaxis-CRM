@@ -29,9 +29,14 @@ const geistMono =
 
 export const metadata: Metadata =
   {
-    title: "CRM Dashboard",
+    title: "BidAxis CRM Dashboard",
     description:
-      "BEM CRM System",
+      "BidAxis CRM System",
+    icons: {
+      icon: "/images/bidaxis-logo.png",
+      shortcut: "/images/bidaxis-logo.png",
+      apple: "/images/bidaxis-logo.png",
+    },
   };
 
 export default function RootLayout({
@@ -84,7 +89,7 @@ export default function RootLayout({
               },
               error: {
                 style: {
-                  background: "#B8112D",
+                  background: "#0F398A",
                   color: "#fff",
                   border: "none",
                 },

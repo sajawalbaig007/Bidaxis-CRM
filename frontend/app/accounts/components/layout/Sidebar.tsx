@@ -85,7 +85,7 @@ export default function AccountsSidebar() {
       <div className="h-[64px] px-2 sm:px-3 lg:px-4 flex items-center gap-1.5 sm:gap-2 lg:gap-3">
         <div className="flex-1 min-w-0 flex items-center">
         <Link href={BASE} prefetch={false} className="flex items-center gap-2 sm:gap-2.5 min-w-0">
-          <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-[12px] sm:rounded-[14px] bg-[#B8112D] flex items-center justify-center shadow-sm shadow-[#B8112D]/20 overflow-hidden p-1 shrink-0">
+          <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-[12px] sm:rounded-[14px] bg-[#0F398A] flex items-center justify-center shadow-sm shadow-[#0F398A]/20 overflow-hidden p-1 shrink-0">
             <Image
               src="/images/image.png"
               alt="logo"
@@ -98,7 +98,7 @@ export default function AccountsSidebar() {
             <h2 className="text-[17px] xl:text-[19px] font-extrabold leading-none text-crm-text tracking-tight truncate">
               CRM Dashboard
             </h2>
-            <p className="text-[10px] font-semibold text-[#B8112D] mt-0.5 tracking-wide uppercase">
+            <p className="text-[10px] font-semibold text-[#0F398A] mt-0.5 tracking-wide uppercase">
               Accounts Panel
             </p>
           </div>
@@ -109,7 +109,7 @@ export default function AccountsSidebar() {
           <CapsuleChipNav
             items={navItems}
             baseHref={BASE}
-            accent="#B8112D"
+            accent="#0F398A"
             variant="inline"
           />
         </div>
@@ -125,14 +125,14 @@ export default function AccountsSidebar() {
           }}
           className={`relative w-9 h-9 rounded-[12px] flex items-center justify-center transition-all shrink-0 ${
             chatOpen
-              ? "bg-[#B8112D] text-white shadow-md"
-              : "bg-crm-nav-pill text-crm-text-muted hover:bg-crm-brand-soft hover:text-[#B8112D]"
+              ? "bg-[#0F398A] text-white shadow-md"
+              : "bg-crm-nav-pill text-crm-text-muted hover:bg-crm-brand-soft hover:text-[#0F398A]"
           } ${!chatEnabled ? "opacity-50" : ""}`}
           title={chatEnabled ? "Messages" : "Chat disabled by admin"}
         >
           <MessageSquare size={16} />
           {chatEnabled && totalUnread > 0 && (
-            <span className="absolute -top-1 -right-1 min-w-[16px] h-4 bg-[#B8112D] text-white text-[9px] font-bold rounded-full flex items-center justify-center px-0.5 border-2 border-crm-surface">
+            <span className="absolute -top-1 -right-1 min-w-[16px] h-4 bg-[#0F398A] text-white text-[9px] font-bold rounded-full flex items-center justify-center px-0.5 border-2 border-crm-surface">
               {totalUnread > 9 ? "9+" : totalUnread}
             </span>
           )}
@@ -161,7 +161,7 @@ export default function AccountsSidebar() {
 
           {profileOpen && (
             <div className="absolute right-0 top-[calc(100%+10px)] w-[240px] bg-crm-surface rounded-2xl border border-crm-border-subtle shadow-2xl z-50 overflow-hidden">
-              <div className="bg-gradient-to-br from-[#B8112D] to-[#7A0B1E] px-4 py-4 flex items-center gap-3">
+              <div className="bg-gradient-to-br from-[#0F398A] to-[#7A0B1E] px-4 py-4 flex items-center gap-3">
                 <ProfileAvatar user={user} size="md" fallback="AC" />
                 <div className="min-w-0">
                   <p className="text-white text-[14px] font-bold truncate">
@@ -176,7 +176,7 @@ export default function AccountsSidebar() {
               <div className="px-3 pb-3">
                 <button
                   onClick={() => void handleLogout()}
-                  className="w-full h-9 rounded-xl bg-[#FFF1F3] dark:bg-[#B8112D]/15 hover:bg-[#ffe4e9] dark:hover:bg-[#B8112D]/25 text-[#B8112D] text-[12px] font-semibold flex items-center justify-center gap-2 transition-colors"
+                  className="w-full h-9 rounded-xl bg-[#EFF6FF] dark:bg-[#0F398A]/15 hover:bg-[#ffe4e9] dark:hover:bg-[#0F398A]/25 text-[#0F398A] text-[12px] font-semibold flex items-center justify-center gap-2 transition-colors"
                 >
                   <LogOut size={13} />
                   Logout

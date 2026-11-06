@@ -123,7 +123,7 @@ export default function TechnicalDashboardPage() {
     const onTrack = Math.max(0, stats.active - stats.overdue);
     return [
       { name: "On track", value: onTrack, color: "#D97706" },
-      { name: "Overdue", value: stats.overdue, color: "#B8112D" },
+      { name: "Overdue", value: stats.overdue, color: "#0F398A" },
       { name: "Delivered", value: stats.delivered, color: "#059669" },
     ].filter((d) => d.value > 0);
   }, [stats]);
@@ -161,7 +161,7 @@ export default function TechnicalDashboardPage() {
     { label: "Total Projects", value: stats.total, icon: FolderKanban, from: "from-[#0B84F3]", to: "to-[#0369A1]", bar: "70%" },
     { label: "Active", value: stats.active, icon: Clock3, from: "from-[#D97706]", to: "to-[#B45309]", bar: "55%" },
     { label: "Delivered", value: stats.delivered, icon: CheckCircle2, from: "from-[#059669]", to: "to-[#047857]", bar: "80%" },
-    { label: "Overdue", value: stats.overdue, icon: AlertTriangle, from: "from-[#B8112D]", to: "to-[#8b0d22]", bar: "35%" },
+    { label: "Overdue", value: stats.overdue, icon: AlertTriangle, from: "from-[#0F398A]", to: "to-[#8b0d22]", bar: "35%" },
   ];
 
   const bentoItems: UploadBentoItem[] = useMemo(() => [
@@ -169,7 +169,7 @@ export default function TechnicalDashboardPage() {
       id: "overview",
       label: "Overview",
       shortLabel: "Mix",
-      accent: "#B8112D",
+      accent: "#0F398A",
       content: (
         <div className="p-4 sm:p-5 flex flex-col h-full min-h-0">
           <h2 className="font-bold text-gray-800 dark:text-crm-text text-sm sm:text-base">Project mix</h2>
@@ -235,8 +235,8 @@ export default function TechnicalDashboardPage() {
                 <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="var(--crm-border-subtle)" />
                 <XAxis type="number" allowDecimals={false} tick={{ fontSize: 10, fill: "var(--crm-text-muted)" }} axisLine={false} tickLine={false} />
                 <YAxis type="category" dataKey="name" width={96} tick={{ fontSize: 10, fill: "var(--crm-text-muted)" }} axisLine={false} tickLine={false} />
-                <Tooltip contentStyle={CHART_TIP} cursor={{ fill: "rgba(184,17,45,0.12)" }} />
-                <Bar dataKey="count" fill="#B8112D" radius={[0, 8, 8, 0]} barSize={18}>
+                <Tooltip contentStyle={CHART_TIP} cursor={{ fill: "rgba(15,57,138,0.12)" }} />
+                <Bar dataKey="count" fill="#0F398A" radius={[0, 8, 8, 0]} barSize={18}>
                   <LabelList dataKey="count" position="right" fontSize={10} fill="var(--crm-text-muted)" />
                 </Bar>
               </BarChart>
@@ -263,7 +263,7 @@ export default function TechnicalDashboardPage() {
                 {prevMonthLabel ? `${prevMonthLabel} rating` : "Previous month KPI marks & stars"}
               </p>
             </div>
-            <Link href="/technical/kpi" className="text-xs font-semibold text-[#B8112D] hover:underline">
+            <Link href="/technical/kpi" className="text-xs font-semibold text-[#0F398A] hover:underline">
               KPI
             </Link>
           </div>
@@ -321,7 +321,7 @@ export default function TechnicalDashboardPage() {
               <h2 className="font-bold text-gray-800 dark:text-crm-text text-sm">Recent Active Projects</h2>
               <p className="text-[11px] text-gray-400 mt-0.5">Latest updates from Project DB</p>
             </div>
-            <Link href="/technical/active-projects" className="text-xs font-semibold text-[#B8112D] hover:underline">
+            <Link href="/technical/active-projects" className="text-xs font-semibold text-[#0F398A] hover:underline">
               View all
             </Link>
           </div>
@@ -352,8 +352,8 @@ export default function TechnicalDashboardPage() {
                   </tr>
                 ) : (
                   recent.map((p) => (
-                    <tr key={p.id} className="border-t border-gray-50 hover:bg-[#FFF8F9] dark:hover:bg-[#B8112D]/10">
-                      <td className="px-4 py-3 text-xs font-semibold text-[#B8112D] whitespace-nowrap">
+                    <tr key={p.id} className="border-t border-gray-50 hover:bg-[#F8FAFF] dark:hover:bg-[#0F398A]/10">
+                      <td className="px-4 py-3 text-xs font-semibold text-[#0F398A] whitespace-nowrap">
                         {p.projectCode || "—"}
                       </td>
                       <td className="px-4 py-3 text-sm font-semibold text-[#0F172A] dark:text-crm-text truncate max-w-[220px]">
@@ -365,7 +365,7 @@ export default function TechnicalDashboardPage() {
                       <td className="px-4 py-3 text-xs text-gray-600 dark:text-crm-text-secondary whitespace-nowrap">
                         {p.projectDeadline ? new Date(p.projectDeadline).toLocaleDateString() : "—"}
                         {isOverdue(p) && (
-                          <span className="ml-2 text-[10px] font-bold text-[#B8112D]">OVERDUE</span>
+                          <span className="ml-2 text-[10px] font-bold text-[#0F398A]">OVERDUE</span>
                         )}
                       </td>
                     </tr>
@@ -387,13 +387,13 @@ export default function TechnicalDashboardPage() {
           {showRequests ? (
             <Link
               href="/technical/reports/requests"
-              className="group rounded-2xl p-3.5 border border-gray-100 dark:border-crm-border bg-[#FAFAFA] dark:bg-crm-muted hover:border-[#B8112D]/30 hover:shadow-md transition-all sm:col-span-2"
+              className="group rounded-2xl p-3.5 border border-gray-100 dark:border-crm-border bg-[#FAFAFA] dark:bg-crm-muted hover:border-[#0F398A]/30 hover:shadow-md transition-all sm:col-span-2"
             >
               <div className="flex items-start justify-between gap-2">
                 <div className="w-9 h-9 rounded-xl bg-[#EEF2FF] text-[#3730A3] flex items-center justify-center">
                   <ClipboardList size={16} />
                 </div>
-                <ArrowRight size={14} className="text-gray-300 group-hover:text-[#B8112D] group-hover:translate-x-0.5 transition-all" />
+                <ArrowRight size={14} className="text-gray-300 group-hover:text-[#0F398A] group-hover:translate-x-0.5 transition-all" />
               </div>
               <h3 className="mt-2 font-bold text-gray-800 dark:text-crm-text text-sm">Employee requests</h3>
               <p className="text-[11px] text-gray-400 mt-0.5 line-clamp-2">Leave, attendance corrections, and other requests waiting for a decision.</p>
@@ -403,15 +403,15 @@ export default function TechnicalDashboardPage() {
             <Link
               key={m.href}
               href={m.href}
-              className={`group rounded-2xl p-3.5 border border-gray-100 dark:border-crm-border bg-[#FAFAFA] dark:bg-crm-muted hover:border-[#B8112D]/30 hover:shadow-md transition-all ${
+              className={`group rounded-2xl p-3.5 border border-gray-100 dark:border-crm-border bg-[#FAFAFA] dark:bg-crm-muted hover:border-[#0F398A]/30 hover:shadow-md transition-all ${
                 m.href === "/technical/reports" ? "sm:col-span-2" : ""
               }`}
             >
               <div className="flex items-start justify-between gap-2">
-                <div className="w-9 h-9 rounded-xl bg-[#FFF1F3] dark:bg-[#B8112D]/20 text-[#B8112D] flex items-center justify-center">
+                <div className="w-9 h-9 rounded-xl bg-[#EFF6FF] dark:bg-[#0F398A]/20 text-[#0F398A] flex items-center justify-center">
                   <m.icon size={16} />
                 </div>
-                <ArrowRight size={14} className="text-gray-300 group-hover:text-[#B8112D] group-hover:translate-x-0.5 transition-all" />
+                <ArrowRight size={14} className="text-gray-300 group-hover:text-[#0F398A] group-hover:translate-x-0.5 transition-all" />
               </div>
               <h3 className="mt-2 font-bold text-gray-800 dark:text-crm-text text-sm">{m.title}</h3>
               <p className="text-[11px] text-gray-400 mt-0.5 line-clamp-2">{m.desc}</p>
@@ -439,7 +439,7 @@ export default function TechnicalDashboardPage() {
               {showRequests ? (
                 <Link
                   href="/technical/reports/requests"
-                  className="h-10 sm:h-11 px-4 sm:px-5 rounded-xl bg-[#B8112D] text-white text-sm font-semibold inline-flex items-center justify-center gap-2 shadow-sm w-full sm:w-auto shrink-0"
+                  className="h-10 sm:h-11 px-4 sm:px-5 rounded-xl bg-[#0F398A] text-white text-sm font-semibold inline-flex items-center justify-center gap-2 shadow-sm w-full sm:w-auto shrink-0"
                 >
                   <ClipboardList size={15} />
                   Requests
@@ -449,7 +449,7 @@ export default function TechnicalDashboardPage() {
                 type="button"
                 onClick={() => void load()}
                 disabled={loading}
-                className="h-10 sm:h-11 px-4 sm:px-5 rounded-xl border border-crm-border bg-crm-surface text-sm font-semibold text-crm-text-secondary inline-flex items-center justify-center gap-2 hover:border-[#B8112D]/40 hover:text-[#B8112D] hover:bg-[#FFF6F7] dark:hover:bg-crm-brand-soft disabled:opacity-60 shadow-sm w-full sm:w-auto shrink-0"
+                className="h-10 sm:h-11 px-4 sm:px-5 rounded-xl border border-crm-border bg-crm-surface text-sm font-semibold text-crm-text-secondary inline-flex items-center justify-center gap-2 hover:border-[#0F398A]/40 hover:text-[#0F398A] hover:bg-[#FFF6F7] dark:hover:bg-crm-brand-soft disabled:opacity-60 shadow-sm w-full sm:w-auto shrink-0"
               >
                 <RefreshCw size={15} className={loading ? "animate-spin" : ""} />
                 {loading ? "Refreshing…" : "Refresh stats"}

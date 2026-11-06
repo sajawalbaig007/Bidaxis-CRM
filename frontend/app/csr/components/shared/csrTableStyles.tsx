@@ -8,7 +8,7 @@ export const CSR_TABLE_CLASS = "w-full table-fixed border-collapse";
 export const CSR_TABLE_FLUID = "w-full border-collapse table-fixed";
 export const CSR_TD_FLUID = "py-2 px-1.5 sm:px-2 align-middle";
 export const CSR_THEAD =
-  "crm-thead sticky top-0 z-20 bg-[#B8112D]";
+  "crm-thead sticky top-0 z-20 bg-[#0F398A]";
 export const CSR_TH =
   "text-left py-2.5 px-1.5 sm:px-2 text-[10px] sm:text-[11px] font-bold text-white/80 uppercase tracking-[0.14em]";
 export const CSR_TD = "py-3 px-1.5 sm:px-2 align-middle max-w-0 overflow-hidden";
@@ -67,7 +67,7 @@ export const CLIENT_GRID_ROW =
   "lg:grid-cols-[minmax(52px,64px)_minmax(150px,1.4fr)_minmax(110px,1fr)_minmax(120px,0.95fr)_minmax(90px,0.75fr)_minmax(130px,1fr)_minmax(90px,0.8fr)_minmax(120px,1fr)_minmax(124px,124px)]";
 
 export const CRM_GRID_HEAD_ROW =
-  "crm-grid-head border-b border-[#B8112D] bg-[#B8112D] [&>*]:!text-white/80";
+  "crm-grid-head border-b border-[#0F398A] bg-[#0F398A] [&>*]:!text-white/80";
 
 export const PROJECT_GRID_HEAD =
   "grid-cols-[minmax(160px,1.4fr)_minmax(160px,1.3fr)_minmax(88px,88px)_minmax(130px,1fr)_minmax(120px,1fr)_minmax(110px,1fr)_minmax(72px,72px)]";

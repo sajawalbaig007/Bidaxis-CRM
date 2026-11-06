@@ -186,7 +186,7 @@ export default function LateDeductionCard() {
     <div className="rounded-[1.5rem] sm:rounded-[1.75rem] border border-gray-100/90 dark:border-crm-border bg-white dark:bg-crm-surface shadow-[0_10px_40px_-24px_rgba(15,23,42,0.35)] p-4 sm:p-5 min-w-0">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-[11px] font-bold uppercase tracking-wider text-[#B8112D]/80">Ranges</p>
+          <p className="text-[11px] font-bold uppercase tracking-wider text-[#0F398A]/80">Ranges</p>
           <h2 className="mt-1 font-bold text-[#0F172A] dark:text-white text-base sm:text-lg tracking-tight">
             Late deduction
           </h2>
@@ -204,7 +204,7 @@ export default function LateDeductionCard() {
             type="month"
             value={month}
             onChange={(e) => setMonth(e.target.value)}
-            className="mt-1 block h-10 rounded-2xl border border-gray-200 bg-white px-3 text-sm font-medium text-[#0F172A] outline-none focus:border-[#B8112D] dark:border-crm-border dark:bg-[#0B1220] dark:text-white"
+            className="mt-1 block h-10 rounded-2xl border border-gray-200 bg-white px-3 text-sm font-medium text-[#0F172A] outline-none focus:border-[#0F398A] dark:border-crm-border dark:bg-[#0B1220] dark:text-white"
           />
         </label>
       </div>
@@ -232,7 +232,7 @@ export default function LateDeductionCard() {
                       type="button"
                       disabled={deptBusy}
                       onClick={() => void save(dept.department, "", "", dept.components, dept.ranges)}
-                      className="h-10 rounded-2xl bg-[#B8112D] px-4 text-xs font-semibold text-white shadow-sm disabled:opacity-50"
+                      className="h-10 rounded-2xl bg-[#0F398A] px-4 text-xs font-semibold text-white shadow-sm disabled:opacity-50"
                     >
                       {deptBusy ? "Saving…" : "Save department"}
                     </button>
@@ -259,7 +259,7 @@ export default function LateDeductionCard() {
                 <button
                   type="button"
                   onClick={() => setOpen(expanded ? null : dept.department)}
-                  className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-[#B8112D]"
+                  className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-[#0F398A]"
                 >
                   <ChevronDown size={14} className={expanded ? "rotate-180" : ""} />
                   Employees ({dept.employees.length})
@@ -285,7 +285,7 @@ export default function LateDeductionCard() {
                                 type="button"
                                 disabled={personBusy}
                                 onClick={() => void save(dept.department, person.personKey, person.personName, person.components, person.ranges)}
-                                className="h-10 rounded-2xl bg-[#B8112D] px-4 text-xs font-semibold text-white shadow-sm disabled:opacity-50"
+                                className="h-10 rounded-2xl bg-[#0F398A] px-4 text-xs font-semibold text-white shadow-sm disabled:opacity-50"
                               >
                                 {personBusy ? "Saving…" : "Save"}
                               </button>
@@ -360,7 +360,7 @@ function RangeEditor({
                 type="time"
                 value={range.from}
                 onChange={(e) => onRanges(ranges.map((row) => row.key === range.key ? { ...row, from: e.target.value } : row))}
-                className="mt-1 block h-10 rounded-2xl border border-gray-200 bg-white px-3 text-sm text-[#0F172A] outline-none focus:border-[#B8112D] dark:border-crm-border dark:bg-[#0B1220] dark:text-white"
+                className="mt-1 block h-10 rounded-2xl border border-gray-200 bg-white px-3 text-sm text-[#0F172A] outline-none focus:border-[#0F398A] dark:border-crm-border dark:bg-[#0B1220] dark:text-white"
               />
             </label>
             <label className="text-[11px] text-gray-500 dark:text-gray-400">
@@ -369,7 +369,7 @@ function RangeEditor({
                 type="time"
                 value={range.to}
                 onChange={(e) => onRanges(ranges.map((row) => row.key === range.key ? { ...row, to: e.target.value } : row))}
-                className="mt-1 block h-10 rounded-2xl border border-gray-200 bg-white px-3 text-sm text-[#0F172A] outline-none focus:border-[#B8112D] dark:border-crm-border dark:bg-[#0B1220] dark:text-white"
+                className="mt-1 block h-10 rounded-2xl border border-gray-200 bg-white px-3 text-sm text-[#0F172A] outline-none focus:border-[#0F398A] dark:border-crm-border dark:bg-[#0B1220] dark:text-white"
               />
             </label>
             <label className="text-[11px] text-gray-500 dark:text-gray-400">
@@ -381,14 +381,14 @@ function RangeEditor({
                 step="0.5"
                 value={range.percent}
                 onChange={(e) => onRanges(ranges.map((row) => row.key === range.key ? { ...row, percent: e.target.value } : row))}
-                className="mt-1 block h-10 w-24 rounded-2xl border border-gray-200 bg-white px-3 text-sm text-[#0F172A] outline-none focus:border-[#B8112D] dark:border-crm-border dark:bg-[#0B1220] dark:text-white"
+                className="mt-1 block h-10 w-24 rounded-2xl border border-gray-200 bg-white px-3 text-sm text-[#0F172A] outline-none focus:border-[#0F398A] dark:border-crm-border dark:bg-[#0B1220] dark:text-white"
               />
             </label>
             <button
               type="button"
               aria-label="Remove range"
               onClick={() => onRanges(ranges.filter((row) => row.key !== range.key))}
-              className="mb-1 rounded-lg p-1.5 text-gray-500 hover:text-[#B8112D]"
+              className="mb-1 rounded-lg p-1.5 text-gray-500 hover:text-[#0F398A]"
             >
               <Trash2 size={14} />
             </button>
@@ -397,7 +397,7 @@ function RangeEditor({
         <button
           type="button"
           onClick={() => onRanges([...ranges, newRange()])}
-          className="inline-flex items-center gap-1 rounded-2xl px-2 py-1 text-xs font-semibold text-[#B8112D]"
+          className="inline-flex items-center gap-1 rounded-2xl px-2 py-1 text-xs font-semibold text-[#0F398A]"
         >
           <Plus size={14} /> Add range
         </button>

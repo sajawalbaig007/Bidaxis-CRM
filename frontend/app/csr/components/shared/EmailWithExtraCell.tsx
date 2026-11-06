@@ -34,7 +34,7 @@ function CopyEmailButton({ value }: { value: string }) {
           window.setTimeout(() => setCopied(false), 1200);
         }).catch(() => {});
       }}
-      className="inline-flex items-center justify-center w-5 h-5 rounded-md text-gray-400 hover:text-[#B8112D] hover:bg-[#FFF6F7] shrink-0"
+      className="inline-flex items-center justify-center w-5 h-5 rounded-md text-gray-400 hover:text-[#0F398A] hover:bg-[#FFF6F7] shrink-0"
     >
       {copied ? <Check size={11} /> : <Copy size={11} />}
     </button>
@@ -74,7 +74,7 @@ export default function EmailWithExtraCell({
         {primary}
       </span>
       {extras > 0 && (
-        <span className="bg-[#B8112D] text-white text-[9px] font-bold px-1.5 py-0.5 rounded-md shrink-0">
+        <span className="bg-[#0F398A] text-white text-[9px] font-bold px-1.5 py-0.5 rounded-md shrink-0">
           +{extras}
         </span>
       )}

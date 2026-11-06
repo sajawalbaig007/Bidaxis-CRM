@@ -203,7 +203,7 @@ export default function TechnicalSidebar() {
         <div className="h-[64px] px-3 sm:px-4 lg:px-5 flex items-center gap-3">
           <div className="flex-1 min-w-0 flex items-center">
           <Link href={BASE} prefetch={false} className="flex items-center gap-3 min-w-0">
-            <div className="w-11 h-11 rounded-[14px] bg-[#B8112D] flex items-center justify-center shadow-sm overflow-hidden p-1">
+            <div className="w-11 h-11 rounded-[14px] bg-[#0F398A] flex items-center justify-center shadow-sm overflow-hidden p-1">
               <Image
                 src="/images/image.png"
                 alt="logo"
@@ -216,7 +216,7 @@ export default function TechnicalSidebar() {
               <h2 className="text-[18px] md:text-[20px] font-extrabold leading-none text-crm-text tracking-tight">
                 CRM Dashboard
               </h2>
-              <p className="text-[10px] md:text-[11px] font-semibold text-[#B8112D] mt-1 tracking-wide uppercase">
+              <p className="text-[10px] md:text-[11px] font-semibold text-[#0F398A] mt-1 tracking-wide uppercase">
                 {user?.role === "bim_manager" ? "BIM Manager" : "Chief Estimator"}
               </p>
             </div>
@@ -235,7 +235,7 @@ export default function TechnicalSidebar() {
                     ]
               }
               baseHref={BASE}
-              accent="#B8112D"
+              accent="#0F398A"
               variant="inline"
             />
           </div>
@@ -253,14 +253,14 @@ export default function TechnicalSidebar() {
               }}
               className={`relative w-9 h-9 rounded-[13px] flex items-center justify-center transition-all ${
                 bellOpen
-                  ? "bg-[#B8112D] text-white shadow-md"
-                  : "bg-crm-nav-pill text-crm-text-muted hover:bg-crm-brand-soft hover:text-[#B8112D]"
+                  ? "bg-[#0F398A] text-white shadow-md"
+                  : "bg-crm-nav-pill text-crm-text-muted hover:bg-crm-brand-soft hover:text-[#0F398A]"
               }`}
               title="Project notifications"
             >
               <Bell size={16} />
               {unreadCount > 0 && (
-                <span className="absolute -top-1 -right-1 min-w-[16px] h-4 bg-[#B8112D] text-white text-[9px] font-bold rounded-full flex items-center justify-center px-0.5 border-2 border-white">
+                <span className="absolute -top-1 -right-1 min-w-[16px] h-4 bg-[#0F398A] text-white text-[9px] font-bold rounded-full flex items-center justify-center px-0.5 border-2 border-white">
                   {unreadCount > 9 ? "9+" : unreadCount}
                 </span>
               )}
@@ -268,7 +268,7 @@ export default function TechnicalSidebar() {
 
             {bellOpen && (
               <div className="absolute right-0 top-[calc(100%+10px)] w-[min(92vw,380px)] bg-crm-surface rounded-2xl border border-crm-border-subtle shadow-2xl z-50 overflow-hidden">
-                <div className="px-4 py-3 border-b border-crm-border-subtle flex items-center justify-between gap-2 bg-gradient-to-r from-[#FFF1F3] to-white dark:from-[#B8112D]/20 dark:to-crm-surface">
+                <div className="px-4 py-3 border-b border-crm-border-subtle flex items-center justify-between gap-2 bg-gradient-to-r from-[#EFF6FF] to-white dark:from-[#0F398A]/20 dark:to-crm-surface">
                   <div>
                     <p className="text-sm font-bold text-[#0F172A] dark:text-crm-text">Notifications</p>
                     <p className="text-[10px] text-gray-500">
@@ -279,7 +279,7 @@ export default function TechnicalSidebar() {
                     <button
                       type="button"
                       onClick={() => void handleMarkAll()}
-                      className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#B8112D] hover:underline shrink-0"
+                      className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#0F398A] hover:underline shrink-0"
                     >
                       <CheckCheck size={13} />
                       Mark all
@@ -297,12 +297,12 @@ export default function TechnicalSidebar() {
                       {notifications.map((n) => {
                         const unread = !n.readAt;
                         return (
-                          <li key={n.id} className={unread ? "bg-[#FFF8F9]" : "bg-white"}>
+                          <li key={n.id} className={unread ? "bg-[#F8FAFF]" : "bg-white"}>
                             <div className="flex items-start gap-1">
                               <button
                                 type="button"
                                 onClick={() => void openNotification(n)}
-                                className="flex-1 min-w-0 text-left px-3.5 py-3 hover:bg-[#FFF1F3]/80 transition-colors"
+                                className="flex-1 min-w-0 text-left px-3.5 py-3 hover:bg-[#EFF6FF]/80 transition-colors"
                               >
                                 <div className="flex items-center gap-2 flex-wrap">
                                   <span
@@ -315,7 +315,7 @@ export default function TechnicalSidebar() {
                                     {sourceLabel(n.source, n.actorRole)}
                                   </span>
                                   {unread ? (
-                                    <span className="w-1.5 h-1.5 rounded-full bg-[#B8112D]" />
+                                    <span className="w-1.5 h-1.5 rounded-full bg-[#0F398A]" />
                                   ) : null}
                                   <span className="text-[10px] text-gray-400 ml-auto">
                                     {formatNotifTime(n.createdAt)}
@@ -328,7 +328,7 @@ export default function TechnicalSidebar() {
                                   {n.message}
                                 </p>
                                 {(n.projectCode || n.projectTitle) && (
-                                  <p className="text-[10px] font-semibold text-[#B8112D] mt-1 truncate">
+                                  <p className="text-[10px] font-semibold text-[#0F398A] mt-1 truncate">
                                     {n.projectCode ? `${n.projectCode} · ` : ""}
                                     {n.projectTitle || "Open project"}
                                   </p>
@@ -340,7 +340,7 @@ export default function TechnicalSidebar() {
                               <button
                                 type="button"
                                 onClick={(e) => void handleDismiss(n.id, e)}
-                                className="mt-3 mr-2 w-7 h-7 rounded-lg text-gray-400 hover:text-[#B8112D] hover:bg-[#FFF1F3] inline-flex items-center justify-center shrink-0"
+                                className="mt-3 mr-2 w-7 h-7 rounded-lg text-gray-400 hover:text-[#0F398A] hover:bg-[#EFF6FF] inline-flex items-center justify-center shrink-0"
                                 title="Dismiss"
                               >
                                 <X size={13} />
@@ -361,14 +361,14 @@ export default function TechnicalSidebar() {
             onClick={() => setChatOpen(v => !v)}
             className={`relative w-9 h-9 rounded-[13px] flex items-center justify-center transition-all shrink-0 ${
               chatOpen
-                ? "bg-[#B8112D] text-white shadow-md"
-                : "bg-crm-nav-pill text-crm-text-muted hover:bg-crm-brand-soft hover:text-[#B8112D]"
+                ? "bg-[#0F398A] text-white shadow-md"
+                : "bg-crm-nav-pill text-crm-text-muted hover:bg-crm-brand-soft hover:text-[#0F398A]"
             } ${!chatEnabled ? "opacity-50" : ""}`}
             title={chatEnabled ? "Messages" : "Chat disabled by admin"}
           >
             <MessageSquare size={16} />
             {chatEnabled && totalUnread > 0 && (
-              <span className="absolute -top-1 -right-1 min-w-[16px] h-4 bg-[#B8112D] text-white text-[9px] font-bold rounded-full flex items-center justify-center px-0.5 border-2 border-white">
+              <span className="absolute -top-1 -right-1 min-w-[16px] h-4 bg-[#0F398A] text-white text-[9px] font-bold rounded-full flex items-center justify-center px-0.5 border-2 border-white">
                 {totalUnread > 9 ? "9+" : totalUnread}
               </span>
             )}
@@ -396,7 +396,7 @@ export default function TechnicalSidebar() {
             </button>
             {profileOpen && (
               <div className="absolute right-0 top-[calc(100%+10px)] w-[240px] bg-crm-surface rounded-2xl border border-crm-border-subtle shadow-2xl z-50 overflow-hidden">
-                <div className="bg-gradient-to-br from-[#B8112D] to-[#7A0B1E] px-4 py-4 flex items-center gap-3">
+                <div className="bg-gradient-to-br from-[#0F398A] to-[#7A0B1E] px-4 py-4 flex items-center gap-3">
                   <ProfileAvatar user={user} size="md" fallback="TM" />
                   <div className="min-w-0">
                     <p className="text-white text-[14px] font-bold truncate">{user?.name ?? "Chief Estimator"}</p>
@@ -409,7 +409,7 @@ export default function TechnicalSidebar() {
                     type="button"
                     onClick={() => void handleLogout()}
                     disabled={loggingOut}
-                    className="w-full h-9 rounded-xl bg-[#FFF1F3] text-[#B8112D] text-sm font-semibold flex items-center justify-center gap-2 hover:bg-[#FFE4E8] transition-colors"
+                    className="w-full h-9 rounded-xl bg-[#EFF6FF] text-[#0F398A] text-sm font-semibold flex items-center justify-center gap-2 hover:bg-[#DBEAFE] transition-colors"
                   >
                     <LogOut size={13} />
                     {loggingOut ? "Logging out…" : "Logout"}

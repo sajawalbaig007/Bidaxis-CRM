@@ -409,7 +409,7 @@ function ProjectCard({
 
       <div className="flex flex-wrap gap-2">
         {p.uploadFile?.companyName && (
-          <span className="inline-flex items-center gap-1 bg-[#FFF1F3] text-[#B8112D] px-2.5 py-1 rounded-xl text-xs font-semibold">
+          <span className="inline-flex items-center gap-1 bg-[#EFF6FF] text-[#0F398A] px-2.5 py-1 rounded-xl text-xs font-semibold">
             <Building2 size={10} />{p.uploadFile.companyName}
           </span>
         )}
@@ -751,7 +751,7 @@ function ProjectCsrCell({ p }: { p: Project }) {
   if (p.csr?.csrCode) {
     return (
       <span
-        className="inline-flex bg-[#B8112D]/10 text-[#B8112D] text-[10px] xl:text-[11px] font-bold px-2 py-1 rounded-lg tabular-nums"
+        className="inline-flex bg-[#0F398A]/10 text-[#0F398A] text-[10px] xl:text-[11px] font-bold px-2 py-1 rounded-lg tabular-nums"
         title={p.csr.name ? `${p.csr.csrCode} — ${p.csr.name}` : p.csr.csrCode}
       >
         {p.csr.csrCode}
@@ -1395,7 +1395,7 @@ export default function AdminProjectsPage() {
         {/* HEADER */}
         <div className="mb-5 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
           <div className="flex items-start gap-3 min-w-0">
-            <span className="w-11 h-11 rounded-2xl bg-[#B8112D] text-white inline-flex items-center justify-center shrink-0 shadow-sm">
+            <span className="w-11 h-11 rounded-2xl bg-[#0F398A] text-white inline-flex items-center justify-center shrink-0 shadow-sm">
               <FolderKanban size={18} />
             </span>
             <div className="min-w-0">
@@ -1453,7 +1453,7 @@ export default function AdminProjectsPage() {
                 <button
                   type="button"
                   onClick={openAddModal}
-                  className="h-10 px-4 rounded-xl bg-[#B8112D] text-white text-xs sm:text-sm font-semibold inline-flex items-center gap-2 hover:bg-[#a30f27]"
+                  className="h-10 px-4 rounded-xl bg-[#0F398A] text-white text-xs sm:text-sm font-semibold inline-flex items-center gap-2 hover:bg-[#a30f27]"
                 >
                   <Plus size={14} /> Add New Project
                 </button>
@@ -1481,7 +1481,7 @@ export default function AdminProjectsPage() {
                 placeholder="Search by project name, client, project code..."
                 value={search}
                 onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-                className="w-full h-11 bg-white border border-gray-200 rounded-xl pl-10 pr-4 text-sm outline-none focus:border-[#B8112D]"
+                className="w-full h-11 bg-white border border-gray-200 rounded-xl pl-10 pr-4 text-sm outline-none focus:border-[#0F398A]"
               />
             </div>
 
@@ -1491,7 +1491,7 @@ export default function AdminProjectsPage() {
                 <select
                   value={filterCSR}
                   onChange={(e) => { setFilterCSR(e.target.value); setPage(1); }}
-                  className="appearance-none w-full h-11 bg-white border border-gray-200 rounded-xl pl-10 pr-9 text-sm outline-none focus:border-[#B8112D]"
+                  className="appearance-none w-full h-11 bg-white border border-gray-200 rounded-xl pl-10 pr-9 text-sm outline-none focus:border-[#0F398A]"
                 >
                   <option value="all">All CSRs</option>
                   {csrList.map(([id, name]) => (
@@ -1529,7 +1529,7 @@ export default function AdminProjectsPage() {
                 <button
                   type="button"
                   onClick={() => { setDateFrom(""); setDateTo(""); setPage(1); }}
-                  className="text-[10px] font-bold text-[#B8112D] hover:underline shrink-0"
+                  className="text-[10px] font-bold text-[#0F398A] hover:underline shrink-0"
                 >
                   Clear
                 </button>
@@ -1552,7 +1552,7 @@ export default function AdminProjectsPage() {
                     <button
                       type="button"
                       onClick={() => { setMonthFilter(""); setPage(1); }}
-                      className="text-[10px] font-bold text-[#B8112D] hover:underline shrink-0"
+                      className="text-[10px] font-bold text-[#0F398A] hover:underline shrink-0"
                     >
                       Clear
                     </button>
@@ -1562,7 +1562,7 @@ export default function AdminProjectsPage() {
                   <select
                     value={paymentTypeFilter}
                     onChange={(e) => { setPaymentTypeFilter(e.target.value); setPage(1); }}
-                    className="appearance-none w-full h-11 bg-white border border-gray-200 rounded-xl pl-3.5 pr-9 text-sm outline-none focus:border-[#B8112D] font-semibold text-gray-700"
+                    className="appearance-none w-full h-11 bg-white border border-gray-200 rounded-xl pl-3.5 pr-9 text-sm outline-none focus:border-[#0F398A] font-semibold text-gray-700"
                   >
                     <option value="">All payments</option>
                     {PAYMENT_TYPE_FILTER_OPTIONS.map((t) => (
@@ -1584,7 +1584,7 @@ export default function AdminProjectsPage() {
             stretch
             activeKey={projectTab}
             onChange={(key) => { setProjectTab(key); setPage(1); }}
-            accent="#B8112D"
+            accent="#0F398A"
             tabs={[
               { key: "all", label: "All Projects", shortLabel: "All", count: allProjects.length },
               { key: "active", label: "Active Projects", shortLabel: "Active", count: activeProjects.length },
@@ -1739,7 +1739,7 @@ export default function AdminProjectsPage() {
       {showReassign && reassignProj && !hideClientFinanceCols && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center z-[100] p-0 sm:p-4">
           <div className="bg-white w-full sm:max-w-md rounded-t-3xl sm:rounded-[32px] shadow-2xl overflow-hidden">
-            <div className="bg-gradient-to-br from-[#B8112D] to-[#8b0d22] px-5 sm:px-6 pt-5 pb-5">
+            <div className="bg-gradient-to-br from-[#0F398A] to-[#8b0d22] px-5 sm:px-6 pt-5 pb-5">
               <div className="flex items-center justify-between">
                 <div>
                   <h2 className="text-base sm:text-lg font-bold text-white">Reassign Project</h2>
@@ -1764,22 +1764,22 @@ export default function AdminProjectsPage() {
               ) : csrOpts.map(csr => (
                 <button key={csr.id} onClick={() => setSelCsrId(csr.id)}
                   className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl border-2 transition-all text-left ${
-                    selCsrId === csr.id ? "border-[#B8112D] bg-[#FFF1F3]" : "border-gray-100 bg-[#FAFAFA] hover:border-gray-200"
+                    selCsrId === csr.id ? "border-[#0F398A] bg-[#EFF6FF]" : "border-gray-100 bg-[#FAFAFA] hover:border-gray-200"
                   }`}
                 >
                   <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold text-white shrink-0 ${
-                    selCsrId === csr.id ? "bg-[#B8112D]" : "bg-gray-400"
+                    selCsrId === csr.id ? "bg-[#0F398A]" : "bg-gray-400"
                   }`}>
                     {csr.name.charAt(0).toUpperCase()}
                   </div>
                   <div className="min-w-0">
-                    <p className={`font-semibold text-sm truncate ${selCsrId === csr.id ? "text-[#B8112D]" : "text-[#0F172A]"}`}>
+                    <p className={`font-semibold text-sm truncate ${selCsrId === csr.id ? "text-[#0F398A]" : "text-[#0F172A]"}`}>
                       {csr.name}
                     </p>
                     {csr.csrCode && <p className="text-xs text-gray-400">{csr.csrCode}</p>}
                   </div>
                   {selCsrId === csr.id && (
-                    <div className="ml-auto w-5 h-5 rounded-full bg-[#B8112D] flex items-center justify-center shrink-0">
+                    <div className="ml-auto w-5 h-5 rounded-full bg-[#0F398A] flex items-center justify-center shrink-0">
                       <Check size={11} className="text-white" />
                     </div>
                   )}
@@ -1793,7 +1793,7 @@ export default function AdminProjectsPage() {
                 Cancel
               </button>
               <button onClick={confirmReassign} disabled={!selCsrId || isReassigning}
-                className="flex-1 h-11 rounded-2xl bg-[#B8112D] text-white font-semibold text-sm disabled:opacity-40 flex items-center justify-center gap-2">
+                className="flex-1 h-11 rounded-2xl bg-[#0F398A] text-white font-semibold text-sm disabled:opacity-40 flex items-center justify-center gap-2">
                 <ArrowRightLeft size={14} />
                 {isReassigning ? "Reassigning…" : "Reassign"}
               </button>

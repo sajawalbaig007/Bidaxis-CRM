@@ -84,7 +84,7 @@ export default function ActiveProjectsWidget({ enabled = false }: { enabled?: bo
               onClick={() => setOpen(o => !o)}
               className={`h-9 px-3 rounded-xl border text-xs font-semibold flex items-center gap-1.5 min-w-[140px] transition-colors ${
                 filter !== "all"
-                  ? "border-[#B8112D] bg-[#FFF1F3] text-[#B8112D]"
+                  ? "border-[#0F398A] bg-[#EFF6FF] text-[#0F398A]"
                   : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
               }`}
             >
@@ -107,8 +107,8 @@ export default function ActiveProjectsWidget({ enabled = false }: { enabled?: bo
                 <button
                   type="button"
                   onClick={() => { setFilter("all"); setOpen(false); }}
-                  className={`w-full text-left px-3 py-2.5 text-xs font-semibold hover:bg-[#FFF1F3] ${
-                    filter === "all" ? "text-[#B8112D] bg-[#FFF1F3]" : "text-gray-700"
+                  className={`w-full text-left px-3 py-2.5 text-xs font-semibold hover:bg-[#EFF6FF] ${
+                    filter === "all" ? "text-[#0F398A] bg-[#EFF6FF]" : "text-gray-700"
                   }`}
                 >
                   All CSRs
@@ -118,8 +118,8 @@ export default function ActiveProjectsWidget({ enabled = false }: { enabled?: bo
                     key={c.id}
                     type="button"
                     onClick={() => { setFilter(c.id); setOpen(false); }}
-                    className={`w-full text-left px-3 py-2.5 text-xs font-semibold border-t border-gray-50 hover:bg-[#FFF1F3] truncate ${
-                      filter === c.id ? "text-[#B8112D] bg-[#FFF1F3]" : "text-gray-700"
+                    className={`w-full text-left px-3 py-2.5 text-xs font-semibold border-t border-gray-50 hover:bg-[#EFF6FF] truncate ${
+                      filter === c.id ? "text-[#0F398A] bg-[#EFF6FF]" : "text-gray-700"
                     }`}
                   >
                     {c.csrCode ? `${c.csrCode} — ${c.name}` : c.name}
@@ -131,7 +131,7 @@ export default function ActiveProjectsWidget({ enabled = false }: { enabled?: bo
           <Link
             href={filter !== "all" ? `/admin/active-projects?csr=${filter}` : "/admin/active-projects"}
             prefetch={false}
-            className="text-xs text-[#B8112D] hover:underline flex items-center gap-1 whitespace-nowrap"
+            className="text-xs text-[#0F398A] hover:underline flex items-center gap-1 whitespace-nowrap"
           >
             View All <ChevronRight size={12} />
           </Link>

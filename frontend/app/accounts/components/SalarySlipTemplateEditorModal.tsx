@@ -258,7 +258,7 @@ export default function SalarySlipTemplateEditorModal({ open, kind, onClose }: P
 
   const companyKey = salarySlipCompanyForKind(kind);
   const company = SALARY_SLIP_COMPANIES[companyKey];
-  const accent = companyKey === "GPS" ? "#0F398A" : "#B8112D";
+  const accent = companyKey === "GPS" ? "#0F398A" : "#0F398A";
 
   const patchSectionTitle = (key: keyof typeof DEFAULT_SECTION_TITLES, value: string) => {
     setDraft({

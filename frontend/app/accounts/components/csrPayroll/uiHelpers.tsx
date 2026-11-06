@@ -35,7 +35,7 @@ export function MockInput({
         className={`mt-1 h-9 w-full rounded-lg border px-2.5 text-sm tabular-nums outline-none transition-colors ${
           readOnly
             ? "border-crm-border-subtle bg-[#F8FAFC] text-crm-text-secondary cursor-default"
-            : "border-crm-border bg-crm-surface focus:border-[#B8112D] focus:ring-2 focus:ring-[#B8112D]/15"
+            : "border-crm-border bg-crm-surface focus:border-[#0F398A] focus:ring-2 focus:ring-[#0F398A]/15"
         }`}
       />
     </label>

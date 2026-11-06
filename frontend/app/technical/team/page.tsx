@@ -188,7 +188,7 @@ export default function TechnicalTeamPage() {
       value: String(summary.overdue),
       hint: "Past assignment deadlines",
       icon: AlertTriangle,
-      from: "from-[#B8112D]",
+      from: "from-[#0F398A]",
       to: "to-[#8b0d22]",
     },
     {
@@ -206,7 +206,7 @@ export default function TechnicalTeamPage() {
         <div className={STAFF_PAGE_PAD}>
           <header className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
             <div className="min-w-0">
-              <div className="inline-flex items-center gap-2 text-[11px] font-semibold text-[#B8112D] mb-1">
+              <div className="inline-flex items-center gap-2 text-[11px] font-semibold text-[#0F398A] mb-1">
                 <Users size={13} />
                 Live workload
               </div>
@@ -226,14 +226,14 @@ export default function TechnicalTeamPage() {
             <div className="flex flex-col sm:flex-row gap-2 w-full lg:w-auto">
               <Link
                 href="/technical/active-projects"
-                className="h-10 sm:h-11 px-4 rounded-xl border border-gray-200 bg-white text-sm font-semibold text-gray-700 inline-flex items-center justify-center gap-1.5 hover:border-[#B8112D]/40 hover:text-[#B8112D]"
+                className="h-10 sm:h-11 px-4 rounded-xl border border-gray-200 bg-white text-sm font-semibold text-gray-700 inline-flex items-center justify-center gap-1.5 hover:border-[#0F398A]/40 hover:text-[#0F398A]"
               >
                 <FolderKanban size={14} />
                 Active Projects
               </Link>
               <Link
                 href="/technical/kpi"
-                className="h-10 sm:h-11 px-4 rounded-xl border border-gray-200 bg-white text-sm font-semibold text-gray-700 inline-flex items-center justify-center hover:border-[#B8112D]/40 hover:text-[#B8112D]"
+                className="h-10 sm:h-11 px-4 rounded-xl border border-gray-200 bg-white text-sm font-semibold text-gray-700 inline-flex items-center justify-center hover:border-[#0F398A]/40 hover:text-[#0F398A]"
               >
                 Open KPI
               </Link>
@@ -241,7 +241,7 @@ export default function TechnicalTeamPage() {
                 type="button"
                 onClick={() => void load()}
                 disabled={loading}
-                className="h-10 sm:h-11 px-4 sm:px-5 rounded-xl border border-gray-200 bg-white text-sm font-semibold text-gray-700 inline-flex items-center justify-center gap-2 hover:border-[#B8112D]/40 hover:text-[#B8112D] hover:bg-[#FFF6F7] disabled:opacity-60 shadow-sm"
+                className="h-10 sm:h-11 px-4 sm:px-5 rounded-xl border border-gray-200 bg-white text-sm font-semibold text-gray-700 inline-flex items-center justify-center gap-2 hover:border-[#0F398A]/40 hover:text-[#0F398A] hover:bg-[#FFF6F7] disabled:opacity-60 shadow-sm"
               >
                 <RefreshCw size={15} className={loading ? "animate-spin" : ""} />
                 {loading ? "Refreshing…" : "Refresh"}
@@ -286,13 +286,13 @@ export default function TechnicalTeamPage() {
               ]}
               activeKey={filter}
               onChange={(key) => setFilter(key)}
-              accent="#B8112D"
+              accent="#0F398A"
             />
             <div className="flex flex-col sm:flex-row gap-2 w-full lg:w-auto">
               <select
                 value={sort}
                 onChange={(e) => setSort(e.target.value as TeamSort)}
-                className="h-10 px-3 rounded-xl border border-gray-200 bg-white text-sm font-semibold text-gray-700 outline-none focus:border-[#B8112D]"
+                className="h-10 px-3 rounded-xl border border-gray-200 bg-white text-sm font-semibold text-gray-700 outline-none focus:border-[#0F398A]"
               >
                 <option value="busy">Sort: Busiest</option>
                 <option value="overdue">Sort: Overdue</option>
@@ -305,7 +305,7 @@ export default function TechnicalTeamPage() {
                   value={q}
                   onChange={(e) => setQ(e.target.value)}
                   placeholder="Search estimator or project…"
-                  className="w-full h-10 pl-9 pr-3 rounded-xl border border-gray-200 bg-white text-sm text-[#0F172A] outline-none focus:border-[#B8112D] placeholder:text-gray-400"
+                  className="w-full h-10 pl-9 pr-3 rounded-xl border border-gray-200 bg-white text-sm text-[#0F172A] outline-none focus:border-[#0F398A] placeholder:text-gray-400"
                 />
               </div>
             </div>
@@ -341,11 +341,11 @@ export default function TechnicalTeamPage() {
                       onClick={() =>
                         setExpanded((prev) => ({ ...prev, [m.estimatorId]: !open }))
                       }
-                      className="w-full text-left px-4 sm:px-5 py-4 flex flex-col gap-3 hover:bg-[#FFF8F9]/60 transition-colors"
+                      className="w-full text-left px-4 sm:px-5 py-4 flex flex-col gap-3 hover:bg-[#F8FAFF]/60 transition-colors"
                     >
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                         <div className="flex items-start gap-3 min-w-0">
-                          <div className="w-10 h-10 rounded-xl bg-[#FFF1F3] text-[#B8112D] flex items-center justify-center font-bold text-xs shrink-0">
+                          <div className="w-10 h-10 rounded-xl bg-[#EFF6FF] text-[#0F398A] flex items-center justify-center font-bold text-xs shrink-0">
                             {m.name
                               .split(" ")
                               .map((w) => w[0])
@@ -372,7 +372,7 @@ export default function TechnicalTeamPage() {
                                 </span>
                               ) : null}
                               {m.overdue > 0 ? (
-                                <span className="inline-flex items-center gap-1 text-[10px] font-bold text-[#B8112D] bg-[#FFF1F3] px-2 py-0.5 rounded-lg">
+                                <span className="inline-flex items-center gap-1 text-[10px] font-bold text-[#0F398A] bg-[#EFF6FF] px-2 py-0.5 rounded-lg">
                                   <AlertTriangle size={11} /> {m.overdue} overdue
                                 </span>
                               ) : null}
@@ -474,10 +474,10 @@ export default function TechnicalTeamPage() {
                                   return (
                                     <tr
                                       key={`${m.estimatorId}-${p.leadId}-${idx}`}
-                                      className={`border-t border-gray-50 ${p.overdue ? "bg-[#FFF8F9]" : ""}`}
+                                      className={`border-t border-gray-50 ${p.overdue ? "bg-[#F8FAFF]" : ""}`}
                                     >
                                       <td className="px-4 py-3">
-                                        <div className="text-xs font-semibold text-[#B8112D]">
+                                        <div className="text-xs font-semibold text-[#0F398A]">
                                           {p.projectCode || "—"}
                                         </div>
                                         <div className="text-sm font-semibold text-[#0F172A] truncate max-w-[220px]">
@@ -490,7 +490,7 @@ export default function TechnicalTeamPage() {
                                       <td className="px-4 py-3 text-xs text-gray-600 whitespace-nowrap">
                                         {formatDeadline(p.deadline)}
                                         {p.overdue ? (
-                                          <span className="ml-1.5 text-[10px] font-bold text-[#B8112D]">OVERDUE</span>
+                                          <span className="ml-1.5 text-[10px] font-bold text-[#0F398A]">OVERDUE</span>
                                         ) : null}
                                         {p.deadlineTiming ? (
                                           <span className="ml-1.5 text-[10px] font-bold uppercase text-amber-700">
@@ -546,13 +546,13 @@ export default function TechnicalTeamPage() {
                           <div className="flex items-center gap-3 justify-end">
                             <Link
                               href="/technical/kpi"
-                              className="text-xs font-semibold text-gray-600 hover:text-[#B8112D] hover:underline"
+                              className="text-xs font-semibold text-gray-600 hover:text-[#0F398A] hover:underline"
                             >
                               Edit KPI →
                             </Link>
                             <Link
                               href="/technical/active-projects"
-                              className="text-xs font-semibold text-[#B8112D] hover:underline"
+                              className="text-xs font-semibold text-[#0F398A] hover:underline"
                             >
                               Manage assignments →
                             </Link>

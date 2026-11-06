@@ -85,7 +85,7 @@ export default function RequestDecisionDialog({
       >
         <div className="flex items-start justify-between gap-3 px-5 pt-5">
           <div>
-            <p className="text-[11px] font-bold uppercase tracking-wider text-[#B8112D]/80">{row.kindLabel}</p>
+            <p className="text-[11px] font-bold uppercase tracking-wider text-[#0F398A]/80">{row.kindLabel}</p>
             <h2 className="text-lg font-semibold text-[#0F172A] dark:text-white">{row.personName}</h2>
           </div>
           <button type="button" onClick={onClose} className="inline-flex h-9 w-9 items-center justify-center rounded-2xl text-gray-400 hover:bg-gray-100 dark:hover:bg-white/10" aria-label="Close">
@@ -98,16 +98,16 @@ export default function RequestDecisionDialog({
             <>
               <label className="block text-xs font-medium text-gray-500">
                 Date
-                <input type="date" value={day} onChange={(event) => setDay(event.target.value)} disabled={!editable} className="mt-1 h-10 w-full rounded-2xl border border-gray-200 outline-none focus:border-[#B8112D] px-3 text-sm text-[#0F172A] dark:border-crm-border dark:bg-transparent dark:text-white" />
+                <input type="date" value={day} onChange={(event) => setDay(event.target.value)} disabled={!editable} className="mt-1 h-10 w-full rounded-2xl border border-gray-200 outline-none focus:border-[#0F398A] px-3 text-sm text-[#0F172A] dark:border-crm-border dark:bg-transparent dark:text-white" />
               </label>
               <div className="grid grid-cols-2 gap-3">
                 <label className="block text-xs font-medium text-gray-500">
                   Check in
-                  <input type="time" value={checkIn} onChange={(event) => setCheckIn(event.target.value)} disabled={!editable} className="mt-1 h-10 w-full rounded-2xl border border-gray-200 outline-none focus:border-[#B8112D] px-3 text-sm text-[#0F172A] dark:border-crm-border dark:bg-transparent dark:text-white" />
+                  <input type="time" value={checkIn} onChange={(event) => setCheckIn(event.target.value)} disabled={!editable} className="mt-1 h-10 w-full rounded-2xl border border-gray-200 outline-none focus:border-[#0F398A] px-3 text-sm text-[#0F172A] dark:border-crm-border dark:bg-transparent dark:text-white" />
                 </label>
                 <label className="block text-xs font-medium text-gray-500">
                   Check out
-                  <input type="time" value={stillIn ? "" : checkOut} onChange={(event) => setCheckOut(event.target.value)} disabled={!editable || stillIn} className="mt-1 h-10 w-full rounded-2xl border border-gray-200 outline-none focus:border-[#B8112D] px-3 text-sm text-[#0F172A] disabled:opacity-50 dark:border-crm-border dark:bg-transparent dark:text-white" />
+                  <input type="time" value={stillIn ? "" : checkOut} onChange={(event) => setCheckOut(event.target.value)} disabled={!editable || stillIn} className="mt-1 h-10 w-full rounded-2xl border border-gray-200 outline-none focus:border-[#0F398A] px-3 text-sm text-[#0F172A] disabled:opacity-50 dark:border-crm-border dark:bg-transparent dark:text-white" />
                 </label>
               </div>
               {row.detail ? (
@@ -131,11 +131,11 @@ export default function RequestDecisionDialog({
               <div className="grid grid-cols-2 gap-3">
                 <label className="block text-xs font-medium text-gray-500">
                   From
-                  <input type="date" value={fromDay} onChange={(event) => setFromDay(event.target.value)} disabled={!editable} className="mt-1 h-10 w-full rounded-2xl border border-gray-200 outline-none focus:border-[#B8112D] px-3 text-sm text-[#0F172A] dark:border-crm-border dark:bg-transparent dark:text-white" />
+                  <input type="date" value={fromDay} onChange={(event) => setFromDay(event.target.value)} disabled={!editable} className="mt-1 h-10 w-full rounded-2xl border border-gray-200 outline-none focus:border-[#0F398A] px-3 text-sm text-[#0F172A] dark:border-crm-border dark:bg-transparent dark:text-white" />
                 </label>
                 <label className="block text-xs font-medium text-gray-500">
                   To
-                  <input type="date" value={toDay} onChange={(event) => setToDay(event.target.value)} disabled={!editable} className="mt-1 h-10 w-full rounded-2xl border border-gray-200 outline-none focus:border-[#B8112D] px-3 text-sm text-[#0F172A] dark:border-crm-border dark:bg-transparent dark:text-white" />
+                  <input type="date" value={toDay} onChange={(event) => setToDay(event.target.value)} disabled={!editable} className="mt-1 h-10 w-full rounded-2xl border border-gray-200 outline-none focus:border-[#0F398A] px-3 text-sm text-[#0F172A] dark:border-crm-border dark:bg-transparent dark:text-white" />
                 </label>
               </div>
               <p className="text-xs text-gray-500">These dates are saved as paid leave, so those days are not deducted.</p>
@@ -146,7 +146,7 @@ export default function RequestDecisionDialog({
             <>
               <label className="block text-xs font-medium text-gray-500">
                 Amount
-                <input value={amount} onChange={(event) => setAmount(event.target.value)} disabled={!editable} className="mt-1 h-10 w-full rounded-2xl border border-gray-200 outline-none focus:border-[#B8112D] px-3 text-sm text-[#0F172A] dark:border-crm-border dark:bg-transparent dark:text-white" />
+                <input value={amount} onChange={(event) => setAmount(event.target.value)} disabled={!editable} className="mt-1 h-10 w-full rounded-2xl border border-gray-200 outline-none focus:border-[#0F398A] px-3 text-sm text-[#0F172A] dark:border-crm-border dark:bg-transparent dark:text-white" />
               </label>
               {row.detail ? <p className="text-sm text-gray-600 dark:text-gray-300">{row.detail}</p> : null}
             </>
@@ -165,7 +165,7 @@ export default function RequestDecisionDialog({
               <select
                 value={nextStatus}
                 onChange={(event) => setNextStatus(event.target.value)}
-                className="mt-1 h-10 w-full rounded-2xl border border-gray-200 bg-white px-3 text-sm font-semibold text-[#0F172A] outline-none focus:border-[#B8112D] dark:border-crm-border dark:bg-transparent dark:text-white"
+                className="mt-1 h-10 w-full rounded-2xl border border-gray-200 bg-white px-3 text-sm font-semibold text-[#0F172A] outline-none focus:border-[#0F398A] dark:border-crm-border dark:bg-transparent dark:text-white"
               >
                 <option value="pending">Pending</option>
                 <option value="approved">Approved</option>
@@ -177,7 +177,7 @@ export default function RequestDecisionDialog({
           {editable ? (
             <label className="block text-xs font-medium text-gray-500">
               Remarks
-              <textarea value={remarks} onChange={(event) => setRemarks(event.target.value)} rows={2} className="mt-1 w-full rounded-2xl border border-gray-200 outline-none focus:border-[#B8112D] px-3 py-2 text-sm text-[#0F172A] dark:border-crm-border dark:bg-transparent dark:text-white" />
+              <textarea value={remarks} onChange={(event) => setRemarks(event.target.value)} rows={2} className="mt-1 w-full rounded-2xl border border-gray-200 outline-none focus:border-[#0F398A] px-3 py-2 text-sm text-[#0F172A] dark:border-crm-border dark:bg-transparent dark:text-white" />
             </label>
           ) : (
             <p className="text-sm text-gray-500">
@@ -195,12 +195,12 @@ export default function RequestDecisionDialog({
                 <button type="button" disabled={!!busy} onClick={() => void submit("decline")} className="inline-flex h-10 items-center rounded-2xl border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-600 disabled:opacity-50 dark:border-crm-border dark:bg-transparent dark:text-gray-300">
                   {busy === "decline" ? <Loader2 size={14} className="animate-spin" /> : "Reject"}
                 </button>
-                <button type="button" disabled={!!busy} onClick={() => void submit("approve")} className="inline-flex h-10 items-center rounded-2xl bg-[#B8112D] px-4 text-sm font-semibold text-white shadow-sm disabled:opacity-50">
+                <button type="button" disabled={!!busy} onClick={() => void submit("approve")} className="inline-flex h-10 items-center rounded-2xl bg-[#0F398A] px-4 text-sm font-semibold text-white shadow-sm disabled:opacity-50">
                   {busy === "approve" ? <Loader2 size={14} className="animate-spin" /> : "Approve"}
                 </button>
               </>
             ) : (
-              <button type="button" disabled={!!busy} onClick={() => void submit(actionFor(nextStatus))} className="inline-flex h-10 items-center rounded-2xl bg-[#B8112D] px-4 text-sm font-semibold text-white shadow-sm disabled:opacity-50">
+              <button type="button" disabled={!!busy} onClick={() => void submit(actionFor(nextStatus))} className="inline-flex h-10 items-center rounded-2xl bg-[#0F398A] px-4 text-sm font-semibold text-white shadow-sm disabled:opacity-50">
                 {busy ? <Loader2 size={14} className="animate-spin" /> : "Save"}
               </button>
             )}

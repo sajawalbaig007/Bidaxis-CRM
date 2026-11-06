@@ -406,7 +406,7 @@ function OvertimeCells({
       <td className="px-3 py-3 text-xs text-gray-700 max-w-[240px]">
         <p className="whitespace-pre-wrap">{row.overtimeComment?.trim() || "—"}</p>
         {row.overtimeEditedBy ? (
-          <p className="mt-1 text-[10px] font-bold uppercase tracking-wide text-[#B8112D]">Edited by {row.overtimeEditedBy}</p>
+          <p className="mt-1 text-[10px] font-bold uppercase tracking-wide text-[#0F398A]">Edited by {row.overtimeEditedBy}</p>
         ) : null}
       </td>
       <td className="px-3 py-3">
@@ -736,7 +736,7 @@ export default function CsrActivityReport({
         <span className={`inline-flex items-center gap-1.5 h-9 px-3 rounded-xl text-xs font-bold shrink-0 transition-colors ${
           open
             ? "bg-gray-100 dark:bg-crm-muted text-gray-600 dark:text-gray-300"
-            : "bg-[#B8112D] text-white"
+            : "bg-[#0F398A] text-white"
         }`}>
           {open ? "Collapse" : "Expand"}
           <ChevronDown size={16} className={`transition-transform duration-200 ${open ? "rotate-180" : ""}`} />
@@ -766,7 +766,7 @@ export default function CsrActivityReport({
                 onClick={() => applyPeriod(key)}
                 className={`h-8 px-3 rounded-full text-xs font-bold border ${
                   activePeriod === key
-                    ? "bg-[#B8112D] text-white border-[#B8112D]"
+                    ? "bg-[#0F398A] text-white border-[#0F398A]"
                     : "bg-white dark:bg-crm-muted text-gray-600 dark:text-crm-text-secondary border-gray-200 dark:border-crm-border"
                 }`}
               >
@@ -779,14 +779,14 @@ export default function CsrActivityReport({
               type="date"
               value={fromDate}
               onChange={e => setFromDate(e.target.value)}
-              className="h-10 flex-1 min-w-[130px] sm:flex-none rounded-xl border border-gray-200 bg-white px-3 text-sm outline-none focus:border-[#B8112D]"
+              className="h-10 flex-1 min-w-[130px] sm:flex-none rounded-xl border border-gray-200 bg-white px-3 text-sm outline-none focus:border-[#0F398A]"
             />
             <span className="text-gray-400 text-sm">to</span>
             <input
               type="date"
               value={toDate}
               onChange={e => setToDate(e.target.value)}
-              className="h-10 flex-1 min-w-[130px] sm:flex-none rounded-xl border border-gray-200 bg-white px-3 text-sm outline-none focus:border-[#B8112D]"
+              className="h-10 flex-1 min-w-[130px] sm:flex-none rounded-xl border border-gray-200 bg-white px-3 text-sm outline-none focus:border-[#0F398A]"
             />
             <div className="flex items-center gap-1.5">
               {(["est", "pkt"] as const).map(key => (
@@ -796,8 +796,8 @@ export default function CsrActivityReport({
                   onClick={() => setClockTz(key)}
                   className={`h-10 px-3 rounded-xl text-xs font-bold border ${
                     clockTz === key
-                      ? "bg-[#B8112D] text-white border-[#B8112D]"
-                      : "bg-white text-gray-600 border-gray-200 hover:border-[#B8112D]/40"
+                      ? "bg-[#0F398A] text-white border-[#0F398A]"
+                      : "bg-white text-gray-600 border-gray-200 hover:border-[#0F398A]/40"
                   }`}
                 >
                   {CLOCKS[key].button}
@@ -825,7 +825,7 @@ export default function CsrActivityReport({
                   <button
                     type="button"
                     onClick={() => { setCsrId("all"); setDropdownOpen(false); }}
-                    className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-50 ${csrId === "all" ? "text-[#B8112D] font-semibold" : "text-gray-700"}`}
+                    className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-50 ${csrId === "all" ? "text-[#0F398A] font-semibold" : "text-gray-700"}`}
                   >
                     {allLabel}
                   </button>
@@ -834,7 +834,7 @@ export default function CsrActivityReport({
                       key={c.id}
                       type="button"
                       onClick={() => { setCsrId(c.id); setDropdownOpen(false); }}
-                      className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-50 ${csrId === c.id ? "text-[#B8112D] font-semibold" : "text-gray-700"}`}
+                      className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-50 ${csrId === c.id ? "text-[#0F398A] font-semibold" : "text-gray-700"}`}
                     >
                       {c.name}
                     </button>
@@ -847,7 +847,7 @@ export default function CsrActivityReport({
               type="button"
               onClick={() => void loadReport()}
               disabled={loading || !fromDate || !toDate}
-              className="h-10 px-4 rounded-xl bg-[#B8112D] text-white text-sm font-semibold disabled:opacity-50"
+              className="h-10 px-4 rounded-xl bg-[#0F398A] text-white text-sm font-semibold disabled:opacity-50"
             >
               {loading ? "Loading…" : "Refresh"}
             </button>
@@ -893,14 +893,14 @@ export default function CsrActivityReport({
               <button
                 type="button"
                 onClick={() => setView("sessions")}
-                className={`px-3 py-2 font-semibold ${view === "sessions" ? "bg-[#B8112D] text-white" : "bg-white text-gray-600"}`}
+                className={`px-3 py-2 font-semibold ${view === "sessions" ? "bg-[#0F398A] text-white" : "bg-white text-gray-600"}`}
               >
                 Per session
               </button>
               <button
                 type="button"
                 onClick={() => setView("summary")}
-                className={`px-3 py-2 font-semibold ${view === "summary" ? "bg-[#B8112D] text-white" : "bg-white text-gray-600"}`}
+                className={`px-3 py-2 font-semibold ${view === "summary" ? "bg-[#0F398A] text-white" : "bg-white text-gray-600"}`}
               >
                 Per {personLabel}
               </button>
@@ -923,8 +923,8 @@ export default function CsrActivityReport({
                             onClick={() => setClockTz(key)}
                             className={`h-7 px-3 rounded-lg text-[11px] font-bold border ${
                               clockTz === key
-                                ? "bg-[#B8112D] text-white border-[#B8112D]"
-                                : "bg-white text-gray-600 border-gray-200 hover:border-[#B8112D]/40"
+                                ? "bg-[#0F398A] text-white border-[#0F398A]"
+                                : "bg-white text-gray-600 border-gray-200 hover:border-[#0F398A]/40"
                             }`}
                           >
                             {CLOCKS[key].button}
@@ -967,7 +967,7 @@ export default function CsrActivityReport({
                         <div className="font-semibold text-sm text-[#111827]">{row.csrName}</div>
                         {row.csrCode && <div className="text-[10px] text-gray-400">{row.csrCode}</div>}
                         {(row.sessionCount ?? 1) > 1 ? (
-                          <div className="text-[10px] font-semibold text-[#B8112D] mt-0.5">
+                          <div className="text-[10px] font-semibold text-[#0F398A] mt-0.5">
                             {row.sessionCount} check-ins combined
                           </div>
                         ) : null}
@@ -1034,7 +1034,7 @@ export default function CsrActivityReport({
                           <button
                             type="button"
                             onClick={() => openEdit(row)}
-                            className="inline-flex items-center gap-1 h-8 px-2.5 rounded-lg bg-[#FFF1F3] text-[#B8112D] text-[11px] font-bold hover:bg-[#B8112D] hover:text-white transition-colors"
+                            className="inline-flex items-center gap-1 h-8 px-2.5 rounded-lg bg-[#EFF6FF] text-[#0F398A] text-[11px] font-bold hover:bg-[#0F398A] hover:text-white transition-colors"
                             title="Adjust check-in / check-out times"
                           >
                             <Pencil size={12} />
@@ -1081,7 +1081,7 @@ export default function CsrActivityReport({
                           <button
                             type="button"
                             onClick={() => openMissing(person)}
-                            className="inline-flex items-center gap-1 h-8 px-2.5 rounded-lg bg-[#FFF1F3] text-[#B8112D] text-[11px] font-bold hover:bg-[#B8112D] hover:text-white transition-colors"
+                            className="inline-flex items-center gap-1 h-8 px-2.5 rounded-lg bg-[#EFF6FF] text-[#0F398A] text-[11px] font-bold hover:bg-[#0F398A] hover:text-white transition-colors"
                           >
                             <Pencil size={12} />
                             Edit
@@ -1135,8 +1135,8 @@ export default function CsrActivityReport({
                             onClick={() => setClockTz(key)}
                             className={`h-7 px-3 rounded-lg text-[11px] font-bold border ${
                               clockTz === key
-                                ? "bg-[#B8112D] text-white border-[#B8112D]"
-                                : "bg-white text-gray-600 border-gray-200 hover:border-[#B8112D]/40"
+                                ? "bg-[#0F398A] text-white border-[#0F398A]"
+                                : "bg-white text-gray-600 border-gray-200 hover:border-[#0F398A]/40"
                             }`}
                           >
                             {CLOCKS[key].button}
@@ -1177,7 +1177,7 @@ export default function CsrActivityReport({
                         <div className="font-semibold text-sm text-[#111827]">{row.csrName}</div>
                         {row.csrCode ? <div className="text-[10px] text-gray-400">{row.csrCode}</div> : null}
                         {(row.sessions ?? 1) > 1 ? (
-                          <div className="text-[10px] font-semibold text-[#B8112D] mt-0.5">
+                          <div className="text-[10px] font-semibold text-[#0F398A] mt-0.5">
                             {row.sessions} check-ins combined
                           </div>
                         ) : null}
@@ -1270,7 +1270,7 @@ export default function CsrActivityReport({
                   value={editCheckIn}
                   max={`${calendarYmd(clock.tz)}T23:59`}
                   onChange={e => setEditCheckIn(e.target.value)}
-                  className="w-full h-11 rounded-xl border-2 border-gray-200 px-3 text-sm outline-none focus:border-[#B8112D]"
+                  className="w-full h-11 rounded-xl border-2 border-gray-200 px-3 text-sm outline-none focus:border-[#0F398A]"
                 />
                 <p className="text-[11px] text-gray-400 mt-1">Change the date here to correct a previous day.</p>
               </div>
@@ -1280,7 +1280,7 @@ export default function CsrActivityReport({
                   type="checkbox"
                   checked={editStillOpen}
                   onChange={e => setEditStillOpen(e.target.checked)}
-                  className="rounded border-gray-300 text-[#B8112D] focus:ring-[#B8112D]"
+                  className="rounded border-gray-300 text-[#0F398A] focus:ring-[#0F398A]"
                 />
                 Still checked in (no check-out)
               </label>
@@ -1293,7 +1293,7 @@ export default function CsrActivityReport({
                     value={editCheckOut}
                     max={`${calendarYmd(clock.tz)}T23:59`}
                     onChange={e => setEditCheckOut(e.target.value)}
-                    className="w-full h-11 rounded-xl border-2 border-gray-200 px-3 text-sm outline-none focus:border-[#B8112D]"
+                    className="w-full h-11 rounded-xl border-2 border-gray-200 px-3 text-sm outline-none focus:border-[#0F398A]"
                   />
                 </div>
               )}
@@ -1305,7 +1305,7 @@ export default function CsrActivityReport({
                   value={editNote}
                   onChange={e => setEditNote(e.target.value)}
                   placeholder="admin_adjusted"
-                  className="w-full h-11 rounded-xl border-2 border-gray-200 px-3 text-sm outline-none focus:border-[#B8112D]"
+                  className="w-full h-11 rounded-xl border-2 border-gray-200 px-3 text-sm outline-none focus:border-[#0F398A]"
                 />
               </div>
             </div>
@@ -1322,7 +1322,7 @@ export default function CsrActivityReport({
                 type="button"
                 onClick={() => void saveEdit()}
                 disabled={savingEdit}
-                className="flex-1 h-11 rounded-xl bg-[#B8112D] text-white font-semibold text-sm disabled:opacity-50"
+                className="flex-1 h-11 rounded-xl bg-[#0F398A] text-white font-semibold text-sm disabled:opacity-50"
               >
                 {savingEdit ? "Saving…" : "Save times"}
               </button>
@@ -1348,7 +1348,7 @@ export default function CsrActivityReport({
                 onChange={(event) => setOvertimeText(event.target.value)}
                 rows={4}
                 maxLength={500}
-                className="w-full rounded-2xl border-2 border-gray-200 px-3 py-2 text-sm outline-none focus:border-[#B8112D]"
+                className="w-full rounded-2xl border-2 border-gray-200 px-3 py-2 text-sm outline-none focus:border-[#0F398A]"
               />
             </div>
             <div className="px-5 pb-5 flex gap-2">
@@ -1357,7 +1357,7 @@ export default function CsrActivityReport({
                 type="button"
                 disabled={reviewing || !overtimeEdit.overtimeId}
                 onClick={() => overtimeEdit.overtimeId && void reviewOvertime(overtimeEdit.overtimeId, "edit", overtimeText)}
-                className="flex-1 h-11 rounded-xl bg-[#B8112D] text-white font-semibold text-sm disabled:opacity-50"
+                className="flex-1 h-11 rounded-xl bg-[#0F398A] text-white font-semibold text-sm disabled:opacity-50"
               >
                 {reviewing ? "Saving…" : "Save"}
               </button>

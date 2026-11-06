@@ -49,7 +49,7 @@ function CheckoutCommentForm({
               rows={3}
               maxLength={500}
               placeholder="Mention the hours, for example 2 hours overtime"
-              className="mt-1.5 w-full rounded-2xl border border-gray-200 bg-[#F8FAFC] px-3 py-2 text-sm font-normal normal-case tracking-normal text-[#0B1220] outline-none focus:border-[#B8112D]/40"
+              className="mt-1.5 w-full rounded-2xl border border-gray-200 bg-[#F8FAFC] px-3 py-2 text-sm font-normal normal-case tracking-normal text-[#0B1220] outline-none focus:border-[#0F398A]/40"
               style={{ color: "#0B1220" }}
             />
           </label>
@@ -62,7 +62,7 @@ function CheckoutCommentForm({
             type="button"
             disabled={busy}
             onClick={() => onConfirm(comment.trim())}
-            className="flex-1 h-11 rounded-xl bg-[#B8112D] text-white font-semibold text-sm disabled:opacity-50"
+            className="flex-1 h-11 rounded-xl bg-[#0F398A] text-white font-semibold text-sm disabled:opacity-50"
           >
             {busy ? "Saving…" : "Check out"}
           </button>

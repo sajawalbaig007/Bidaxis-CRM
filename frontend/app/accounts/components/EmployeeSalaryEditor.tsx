@@ -47,7 +47,7 @@ function Num({
       <AmountInput
         value={Number.isFinite(value) ? value : 0}
         onChange={onChange}
-        className="mt-1 h-9 w-full rounded-lg border border-crm-border bg-crm-surface px-2 text-sm tabular-nums outline-none focus:border-[#B8112D]"
+        className="mt-1 h-9 w-full rounded-lg border border-crm-border bg-crm-surface px-2 text-sm tabular-nums outline-none focus:border-[#0F398A]"
       />
       {hint && <span className="block mt-0.5 text-[9px] font-normal normal-case tracking-normal text-crm-text-faint">{hint}</span>}
     </label>
@@ -126,7 +126,7 @@ export default function EmployeeSalaryEditor({
           <p className="text-sm font-extrabold text-crm-text">{name || "Employee"}</p>
           {teamHint && <p className="text-[10px] text-crm-text-faint">{teamHint}</p>}
         </div>
-        <p className="text-xs font-extrabold text-[#B8112D] tabular-nums">Net: {currency(b.totalSalary)}</p>
+        <p className="text-xs font-extrabold text-[#0F398A] tabular-nums">Net: {currency(b.totalSalary)}</p>
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
@@ -159,7 +159,7 @@ export default function EmployeeSalaryEditor({
               value={d.occasionalRemark ?? ""}
               onChange={e => set("occasionalRemark", e.target.value)}
               placeholder="e.g. Eid bonus, wedding gift…"
-              className="mt-1 h-9 w-full rounded-lg border border-crm-border bg-crm-surface px-2 text-sm outline-none focus:border-[#B8112D]"
+              className="mt-1 h-9 w-full rounded-lg border border-crm-border bg-crm-surface px-2 text-sm outline-none focus:border-[#0F398A]"
             />
           </label>
         </div>
@@ -167,7 +167,7 @@ export default function EmployeeSalaryEditor({
 
       <div className="rounded-xl border border-crm-border bg-crm-surface-muted p-2.5 space-y-2">
         <p className="text-[10px] font-extrabold uppercase tracking-wide text-crm-text-secondary">
-          Salary slip profile ({isGpsTechnical ? "GPS · Global Pre Construction" : "BEM Solutions"})
+          Salary slip profile (BidAxis)
         </p>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           <label className="block text-[10px] font-bold uppercase tracking-wide text-crm-text-muted">
@@ -176,7 +176,7 @@ export default function EmployeeSalaryEditor({
               value={d.employeeId || ""}
               onChange={e => set("employeeId", e.target.value)}
               placeholder="BEM-DEV-002"
-              className="mt-1 h-9 w-full rounded-lg border border-crm-border bg-crm-surface px-2 text-sm outline-none focus:border-[#B8112D]"
+              className="mt-1 h-9 w-full rounded-lg border border-crm-border bg-crm-surface px-2 text-sm outline-none focus:border-[#0F398A]"
             />
           </label>
           <label className="block text-[10px] font-bold uppercase tracking-wide text-crm-text-muted">
@@ -185,7 +185,7 @@ export default function EmployeeSalaryEditor({
               value={d.phone || ""}
               onChange={e => set("phone", e.target.value)}
               placeholder="03xx-xxxxxxx"
-              className="mt-1 h-9 w-full rounded-lg border border-crm-border bg-crm-surface px-2 text-sm outline-none focus:border-[#B8112D]"
+              className="mt-1 h-9 w-full rounded-lg border border-crm-border bg-crm-surface px-2 text-sm outline-none focus:border-[#0F398A]"
             />
           </label>
           <label className="block text-[10px] font-bold uppercase tracking-wide text-crm-text-muted">
@@ -194,7 +194,7 @@ export default function EmployeeSalaryEditor({
               value={d.cnic || ""}
               onChange={e => set("cnic", e.target.value)}
               placeholder="xxxxx-xxxxxxx-x"
-              className="mt-1 h-9 w-full rounded-lg border border-crm-border bg-crm-surface px-2 text-sm outline-none focus:border-[#B8112D]"
+              className="mt-1 h-9 w-full rounded-lg border border-crm-border bg-crm-surface px-2 text-sm outline-none focus:border-[#0F398A]"
             />
           </label>
           <label className="block text-[10px] font-bold uppercase tracking-wide text-crm-text-muted col-span-2 sm:col-span-1">
@@ -203,7 +203,7 @@ export default function EmployeeSalaryEditor({
               value={d.address || ""}
               onChange={e => set("address", e.target.value)}
               placeholder="City / area"
-              className="mt-1 h-9 w-full rounded-lg border border-crm-border bg-crm-surface px-2 text-sm outline-none focus:border-[#B8112D]"
+              className="mt-1 h-9 w-full rounded-lg border border-crm-border bg-crm-surface px-2 text-sm outline-none focus:border-[#0F398A]"
             />
           </label>
         </div>
@@ -314,7 +314,7 @@ export default function EmployeeSalaryEditor({
             onClick={() => set("loanPaymentMode", "salary")}
             className={`h-8 px-3 rounded-lg text-[11px] font-bold border transition-colors ${
               (d.loanPaymentMode ?? "salary") === "salary"
-                ? "bg-[#B8112D] text-white border-[#B8112D]"
+                ? "bg-[#0F398A] text-white border-[#0F398A]"
                 : "bg-crm-surface text-crm-text-secondary border-crm-border hover:bg-crm-surface-muted"
             }`}
           >
@@ -335,7 +335,7 @@ export default function EmployeeSalaryEditor({
         {(d.loanPaymentMode ?? "salary") === "salary" && (Number(d.loanThisMonth) || 0) > 0 ? (
           <div className="grid grid-cols-2 gap-2 pt-1">
             <Read label="Net before loan" value={currency(b.netBeforeLoan)} accent="text-crm-text-secondary" />
-            <Read label="Net after loan deduction" value={currency(b.totalSalary)} accent="text-[#B8112D]" />
+            <Read label="Net after loan deduction" value={currency(b.totalSalary)} accent="text-[#0F398A]" />
           </div>
         ) : d.loanPaymentMode === "cash" && (Number(d.loanThisMonth) || 0) > 0 ? (
           <p className="text-[10px] font-semibold text-amber-800 bg-amber-50 rounded-lg px-2 py-1.5">
@@ -367,7 +367,7 @@ export default function EmployeeSalaryEditor({
       </div>
 
       <div className="rounded-xl border border-[#F3D7DC] bg-gradient-to-br from-[#FFF6F8] to-white p-2.5 space-y-2">
-        <p className="text-[10px] font-extrabold uppercase tracking-wide text-[#B8112D]">Totals</p>
+        <p className="text-[10px] font-extrabold uppercase tracking-wide text-[#0F398A]">Totals</p>
         <p className="text-[10px] text-crm-text-muted">
           Net Salary = (Total Earning − Total Deduction) + Occasional
         </p>
@@ -378,7 +378,7 @@ export default function EmployeeSalaryEditor({
           <Read
             label={(d.loanPaymentMode ?? "salary") === "salary" && b.loanFromSalary > 0 ? "Net after loan" : "Net Salary"}
             value={currency(b.totalSalary)}
-            accent="text-[#B8112D]"
+            accent="text-[#0F398A]"
           />
         </div>
       </div>
@@ -390,7 +390,7 @@ export default function EmployeeSalaryEditor({
           onChange={e => set("remarks", e.target.value)}
           rows={2}
           placeholder="Manual remarks…"
-          className="mt-1 w-full rounded-lg border border-crm-border bg-crm-surface px-2 py-1.5 text-sm outline-none resize-none focus:border-[#B8112D]"
+          className="mt-1 w-full rounded-lg border border-crm-border bg-crm-surface px-2 py-1.5 text-sm outline-none resize-none focus:border-[#0F398A]"
         />
       </label>
     </div>

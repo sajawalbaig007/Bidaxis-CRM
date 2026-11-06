@@ -31,32 +31,32 @@ export default function ProjectDetailsForm({
     <>
       <div>
         <label className="text-[10px] sm:text-[11px] font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-1.5 mb-1.5 sm:mb-2">
-          <Hash size={10} className="text-[#B8112D] sm:w-2.75 sm:h-2.75" />
+          <Hash size={10} className="text-[#0F398A] sm:w-2.75 sm:h-2.75" />
           Project Code <span className="text-gray-300 normal-case">(optional)</span>
         </label>
         <input
           type="text" placeholder="e.g. BIM-2024-001" value={projectCode}
           onChange={e => onProjectCodeChange(e.target.value)}
-          className="w-full h-10 sm:h-11 rounded-xl sm:rounded-2xl border-2 border-gray-200 bg-[#FAFAFA] px-3 sm:px-4 text-sm outline-none focus:border-[#B8112D] focus:bg-white transition-colors placeholder:text-gray-300"
+          className="w-full h-10 sm:h-11 rounded-xl sm:rounded-2xl border-2 border-gray-200 bg-[#FAFAFA] px-3 sm:px-4 text-sm outline-none focus:border-[#0F398A] focus:bg-white transition-colors placeholder:text-gray-300"
         />
       </div>
 
       <div>
         <label className="text-[10px] sm:text-[11px] font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-1.5 mb-1.5 sm:mb-2">
-          <FileText size={10} className="text-[#B8112D] sm:w-[11px] sm:h-[11px]" />
-          Project Title <span className="text-[#B8112D] normal-case ml-1">*required</span>
+          <FileText size={10} className="text-[#0F398A] sm:w-[11px] sm:h-[11px]" />
+          Project Title <span className="text-[#0F398A] normal-case ml-1">*required</span>
         </label>
         <input
           type="text" placeholder="e.g. BIM Modeling Phase 1" value={title}
           onChange={e => onTitleChange(e.target.value)}
-          className="w-full h-10 sm:h-11 rounded-xl sm:rounded-2xl border-2 border-gray-200 bg-[#FAFAFA] px-3 sm:px-4 text-sm outline-none focus:border-[#B8112D] focus:bg-white transition-colors placeholder:text-gray-300"
+          className="w-full h-10 sm:h-11 rounded-xl sm:rounded-2xl border-2 border-gray-200 bg-[#FAFAFA] px-3 sm:px-4 text-sm outline-none focus:border-[#0F398A] focus:bg-white transition-colors placeholder:text-gray-300"
         />
       </div>
 
       <div>
         <label className="text-[10px] sm:text-[11px] font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-1.5 mb-1.5 sm:mb-2">
-          <Briefcase size={10} className="text-[#B8112D] sm:w-[11px] sm:h-[11px]" />
-          Service to Provide <span className="text-[#B8112D] normal-case ml-1">*required</span>
+          <Briefcase size={10} className="text-[#0F398A] sm:w-[11px] sm:h-[11px]" />
+          Service to Provide <span className="text-[#0F398A] normal-case ml-1">*required</span>
         </label>
         <ServicePicker value={service} onChange={onServiceChange} />
       </div>
@@ -64,17 +64,17 @@ export default function ProjectDetailsForm({
       <div className="grid grid-cols-2 gap-2 sm:gap-3">
         <div>
           <label className="text-[10px] sm:text-[11px] font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-1.5 mb-1.5 sm:mb-2">
-            <CalendarDays size={10} className="text-[#B8112D] sm:w-[11px] sm:h-[11px]" />
-            Deadline <span className="text-[#B8112D] normal-case">*</span>
+            <CalendarDays size={10} className="text-[#0F398A] sm:w-[11px] sm:h-[11px]" />
+            Deadline <span className="text-[#0F398A] normal-case">*</span>
           </label>
           <input
             type="date" value={deadline} onChange={e => onDeadlineChange(e.target.value)}
-            className="w-full h-10 sm:h-11 rounded-xl sm:rounded-2xl border-2 border-gray-200 bg-[#FAFAFA] px-2 sm:px-3 text-xs sm:text-sm outline-none focus:border-[#B8112D] focus:bg-white transition-colors"
+            className="w-full h-10 sm:h-11 rounded-xl sm:rounded-2xl border-2 border-gray-200 bg-[#FAFAFA] px-2 sm:px-3 text-xs sm:text-sm outline-none focus:border-[#0F398A] focus:bg-white transition-colors"
           />
         </div>
         <div>
           <label className="text-[10px] sm:text-[11px] font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-1.5 mb-1.5 sm:mb-2">
-            <DollarSign size={10} className="text-[#B8112D] sm:w-[11px] sm:h-[11px]" />
+            <DollarSign size={10} className="text-[#0F398A] sm:w-[11px] sm:h-[11px]" />
             Quotation / Budget <span className="text-gray-300 normal-case">(opt)</span>
           </label>
           <div className="relative">
@@ -82,7 +82,7 @@ export default function ProjectDetailsForm({
             <input
               type="text" placeholder="0.00" value={budget.replace(/^\$/, "")}
               onChange={e => onBudgetChange(e.target.value)}
-              className="w-full h-10 sm:h-11 rounded-xl sm:rounded-2xl border-2 border-gray-200 bg-[#FAFAFA] pl-6 sm:pl-7 pr-2 sm:pr-3 text-xs sm:text-sm outline-none focus:border-[#B8112D] focus:bg-white transition-colors placeholder:text-gray-300"
+              className="w-full h-10 sm:h-11 rounded-xl sm:rounded-2xl border-2 border-gray-200 bg-[#FAFAFA] pl-6 sm:pl-7 pr-2 sm:pr-3 text-xs sm:text-sm outline-none focus:border-[#0F398A] focus:bg-white transition-colors placeholder:text-gray-300"
             />
           </div>
         </div>
@@ -90,8 +90,8 @@ export default function ProjectDetailsForm({
 
       <div>
         <label className="text-[10px] sm:text-[11px] font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-1.5 mb-1.5 sm:mb-2">
-          <DollarSign size={10} className="text-[#B8112D] sm:w-2.75 sm:h-2.75" />
-          Paid Amount <span className="text-[#B8112D] normal-case ml-1">*required</span>
+          <DollarSign size={10} className="text-[#0F398A] sm:w-2.75 sm:h-2.75" />
+          Paid Amount <span className="text-[#0F398A] normal-case ml-1">*required</span>
         </label>
         <div className="flex items-center gap-2 sm:gap-3">
           <div className="relative flex-1">
@@ -99,7 +99,7 @@ export default function ProjectDetailsForm({
             <input
               type="text" placeholder="0.00" value={paidAmount.replace(/^\$/, "")}
               onChange={e => onPaidAmountChange(e.target.value)}
-              className="w-full h-10 sm:h-11 rounded-xl sm:rounded-2xl border-2 border-gray-200 bg-[#FAFAFA] pl-6 sm:pl-7 pr-2 sm:pr-3 text-xs sm:text-sm outline-none focus:border-[#B8112D] focus:bg-white transition-colors placeholder:text-gray-300"
+              className="w-full h-10 sm:h-11 rounded-xl sm:rounded-2xl border-2 border-gray-200 bg-[#FAFAFA] pl-6 sm:pl-7 pr-2 sm:pr-3 text-xs sm:text-sm outline-none focus:border-[#0F398A] focus:bg-white transition-colors placeholder:text-gray-300"
             />
           </div>
           <PaymentStatusCircle percent={percent} />
@@ -115,13 +115,13 @@ export default function ProjectDetailsForm({
 
       <div>
         <label className="text-[10px] sm:text-[11px] font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-1.5 mb-1.5 sm:mb-2">
-          <AlignLeft size={10} className="text-[#B8112D] sm:w-[11px] sm:h-[11px]" />
+          <AlignLeft size={10} className="text-[#0F398A] sm:w-[11px] sm:h-[11px]" />
           Notes <span className="text-gray-300 normal-case">(optional)</span>
         </label>
         <textarea
           placeholder="Any additional notes..." value={notes}
           onChange={e => onNotesChange(e.target.value)} rows={3}
-          className="w-full rounded-xl sm:rounded-2xl border-2 border-gray-200 bg-[#FAFAFA] px-3 sm:px-4 py-2.5 sm:py-3 text-xs sm:text-sm outline-none focus:border-[#B8112D] focus:bg-white transition-colors resize-none placeholder:text-gray-300"
+          className="w-full rounded-xl sm:rounded-2xl border-2 border-gray-200 bg-[#FAFAFA] px-3 sm:px-4 py-2.5 sm:py-3 text-xs sm:text-sm outline-none focus:border-[#0F398A] focus:bg-white transition-colors resize-none placeholder:text-gray-300"
         />
       </div>
     </>

@@ -47,7 +47,7 @@ export function buildEstimatorKpiReportHtml(opts: {
   records: EstimatorKpiRecord[];
   estimatorFilterId?: string;
 }): string {
-  const RED = "#B8112D";
+  const RED = "#0F398A";
   const NAVY = "#0B1220";
   const label = kpiReportPeriodLabel(opts.period);
   const roster = opts.estimatorFilterId

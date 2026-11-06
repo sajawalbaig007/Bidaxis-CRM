@@ -120,7 +120,7 @@ function ChiefOvertimeForm({ onSaved }: { onSaved: () => void }) {
         Reason
         <input value={note} onChange={(e) => setNote(e.target.value)} maxLength={300} placeholder="Why this overtime" className="mt-1 block w-full h-10 rounded-xl border border-amber-200 bg-white px-3 text-sm" />
       </label>
-      <button type="button" disabled={busy} onClick={() => void save()} className="h-10 px-4 rounded-xl bg-[#B8112D] text-white text-sm font-semibold disabled:opacity-50">
+      <button type="button" disabled={busy} onClick={() => void save()} className="h-10 px-4 rounded-xl bg-[#0F398A] text-white text-sm font-semibold disabled:opacity-50">
         {busy ? "Sending…" : "Send to CEO"}
       </button>
     </div>
@@ -630,7 +630,7 @@ function DeptCard({
             </p>
           </div>
         </div>
-        <span className={`inline-flex items-center gap-1.5 h-9 px-3 rounded-xl text-xs font-bold ${open ? "bg-gray-100 text-gray-600" : "bg-[#B8112D] text-white"}`}>
+        <span className={`inline-flex items-center gap-1.5 h-9 px-3 rounded-xl text-xs font-bold ${open ? "bg-gray-100 text-gray-600" : "bg-[#0F398A] text-white"}`}>
           {open ? "Collapse" : "Expand"}
           <ChevronDown size={16} className={open ? "rotate-180" : ""} />
         </span>
@@ -661,7 +661,7 @@ function DeptCard({
                 key={key}
                 type="button"
                 onClick={() => setClockTz(key)}
-                className={`h-10 px-3 rounded-xl text-xs font-bold border ${clockTz === key ? "bg-[#B8112D] text-white border-[#B8112D]" : "bg-white text-gray-600 border-gray-200"}`}
+                className={`h-10 px-3 rounded-xl text-xs font-bold border ${clockTz === key ? "bg-[#0F398A] text-white border-[#0F398A]" : "bg-white text-gray-600 border-gray-200"}`}
               >
                 {CLOCKS[key].button}
               </button>
@@ -670,7 +670,7 @@ function DeptCard({
               <option value="all">All {personLabel}</option>
               {people.map((p) => <option key={p.key} value={p.key}>{p.name}</option>)}
             </select>
-            <button type="button" onClick={onRefresh} className="h-10 px-4 rounded-xl bg-[#B8112D] text-white text-sm font-semibold">
+            <button type="button" onClick={onRefresh} className="h-10 px-4 rounded-xl bg-[#0F398A] text-white text-sm font-semibold">
               {loading ? "Loading…" : "Refresh"}
             </button>
             <button
@@ -710,7 +710,7 @@ function DeptCard({
                       <span className="inline-flex items-center gap-1">
                         <LogOut size={12} className={absent ? "text-gray-300" : row.checkOut || row.checkOutAt ? "text-gray-400" : "text-amber-500"} />
                         {absent ? "—" : rowCheckOut(row, clock.tz).text}
-                        {!absent && rowCheckOut(row, clock.tz).nextDay ? <span className="ml-1 text-[10px] font-bold text-[#B8112D]">next day</span> : null}
+                        {!absent && rowCheckOut(row, clock.tz).nextDay ? <span className="ml-1 text-[10px] font-bold text-[#0F398A]">next day</span> : null}
                       </span>                    </td>
                     {showShiftOt ? (
                       <td className="px-3 py-3">
@@ -737,7 +737,7 @@ function DeptCard({
                       <td className="px-3 py-3 text-xs text-gray-700 max-w-[240px]">
                         <p className="whitespace-pre-wrap">{row.overtimeComment?.trim() || "—"}</p>
                         {row.overtimeEditedBy ? (
-                          <p className="mt-1 text-[10px] font-bold uppercase tracking-wide text-[#B8112D]">Edited by {row.overtimeEditedBy}</p>
+                          <p className="mt-1 text-[10px] font-bold uppercase tracking-wide text-[#0F398A]">Edited by {row.overtimeEditedBy}</p>
                         ) : null}
                       </td>
                     ) : null}
@@ -769,7 +769,7 @@ function DeptCard({
                           <button
                             type="button"
                             onClick={() => openEdit(row)}
-                            className="inline-flex items-center gap-1 h-8 px-2.5 rounded-lg bg-[#FFF1F3] text-[#B8112D] text-[11px] font-bold hover:bg-[#B8112D] hover:text-white transition-colors"
+                            className="inline-flex items-center gap-1 h-8 px-2.5 rounded-lg bg-[#EFF6FF] text-[#0F398A] text-[11px] font-bold hover:bg-[#0F398A] hover:text-white transition-colors"
                           >
                             <Pencil size={12} />
                             Edit
@@ -839,12 +839,12 @@ function DeptCard({
             <div className="p-5 space-y-3.5">
               <div>
                 <label className="text-[10px] font-semibold text-gray-500 uppercase mb-1 block">Date</label>
-                <input type="date" value={editDay} max={calendarYmd(clock.tz)} onChange={(e) => setEditDay(e.target.value)} className="w-full h-11 rounded-xl border-2 border-gray-200 px-3 text-sm outline-none focus:border-[#B8112D]" />
+                <input type="date" value={editDay} max={calendarYmd(clock.tz)} onChange={(e) => setEditDay(e.target.value)} className="w-full h-11 rounded-xl border-2 border-gray-200 px-3 text-sm outline-none focus:border-[#0F398A]" />
                 <p className="text-[11px] text-gray-400 mt-1">Today or any previous day.</p>
               </div>
               <div>
                 <label className="text-[10px] font-semibold text-gray-500 uppercase mb-1 block">Check in</label>
-                <input type="time" value={editCheckIn} onChange={(e) => setEditCheckIn(e.target.value)} className="w-full h-11 rounded-xl border-2 border-gray-200 px-3 text-sm outline-none focus:border-[#B8112D]" />
+                <input type="time" value={editCheckIn} onChange={(e) => setEditCheckIn(e.target.value)} className="w-full h-11 rounded-xl border-2 border-gray-200 px-3 text-sm outline-none focus:border-[#0F398A]" />
               </div>
               <label className="flex items-center gap-2 text-sm text-gray-700">
                 <input type="checkbox" checked={editStillOpen} onChange={(e) => setEditStillOpen(e.target.checked)} className="rounded border-gray-300" />
@@ -853,13 +853,13 @@ function DeptCard({
               {!editStillOpen ? (
                 <div>
                   <label className="text-[10px] font-semibold text-gray-500 uppercase mb-1 block">Check out</label>
-                  <input type="time" value={editCheckOut} onChange={(e) => setEditCheckOut(e.target.value)} className="w-full h-11 rounded-xl border-2 border-gray-200 px-3 text-sm outline-none focus:border-[#B8112D]" />
+                  <input type="time" value={editCheckOut} onChange={(e) => setEditCheckOut(e.target.value)} className="w-full h-11 rounded-xl border-2 border-gray-200 px-3 text-sm outline-none focus:border-[#0F398A]" />
                 </div>
               ) : null}
             </div>
             <div className="px-5 pb-5 flex gap-2">
               <button type="button" onClick={() => setEditing(null)} className="flex-1 h-11 rounded-xl bg-gray-100 text-gray-600 font-semibold text-sm">Cancel</button>
-              <button type="button" onClick={() => void saveEdit()} disabled={savingEdit} className="flex-1 h-11 rounded-xl bg-[#B8112D] text-white font-semibold text-sm disabled:opacity-50">
+              <button type="button" onClick={() => void saveEdit()} disabled={savingEdit} className="flex-1 h-11 rounded-xl bg-[#0F398A] text-white font-semibold text-sm disabled:opacity-50">
                 {savingEdit ? "Saving…" : "Save"}
               </button>
             </div>
@@ -884,7 +884,7 @@ function DeptCard({
                 onChange={(event) => setOvertimeText(event.target.value)}
                 rows={4}
                 maxLength={500}
-                className="w-full rounded-2xl border-2 border-gray-200 px-3 py-2 text-sm outline-none focus:border-[#B8112D]"
+                className="w-full rounded-2xl border-2 border-gray-200 px-3 py-2 text-sm outline-none focus:border-[#0F398A]"
               />
             </div>
             <div className="px-5 pb-5 flex gap-2">
@@ -893,7 +893,7 @@ function DeptCard({
                 type="button"
                 disabled={reviewing || !overtimeEdit.overtimeId}
                 onClick={() => void reviewOvertimeComment(overtimeEdit.overtimeId!, "edit", overtimeText)}
-                className="flex-1 h-11 rounded-xl bg-[#B8112D] text-white font-semibold text-sm disabled:opacity-50"
+                className="flex-1 h-11 rounded-xl bg-[#0F398A] text-white font-semibold text-sm disabled:opacity-50"
               >
                 {reviewing ? "Saving…" : "Save"}
               </button>

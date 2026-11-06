@@ -25,7 +25,7 @@ type CapsuleChipNavProps = {
 export default function CapsuleChipNav({
   items,
   baseHref,
-  accent = "#B8112D",
+  accent = "#0F398A",
   gridClassName = "grid-cols-3 sm:grid-cols-6",
   className = "",
   variant = "inline",

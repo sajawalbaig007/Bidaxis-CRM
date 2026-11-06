@@ -82,9 +82,9 @@ export default function SalesPayrollPageContent({ variant }: Props) {
           <p className="text-[10px] font-bold uppercase text-emerald-700 opacity-80">Headcount</p>
           <p className="text-xl font-extrabold text-emerald-800 mt-1">{employees.length}</p>
         </div>
-        <div className="rounded-2xl border border-[#B8112D]/20 bg-gradient-to-br from-[#FFF1F3] to-white p-4">
-          <p className="text-[10px] font-bold uppercase text-[#B8112D] opacity-80">Total Net (computed)</p>
-          <p className="text-xl font-extrabold text-[#B8112D] mt-1 tabular-nums">{currency(totalNet)}</p>
+        <div className="rounded-2xl border border-[#0F398A]/20 bg-gradient-to-br from-[#EFF6FF] to-white p-4">
+          <p className="text-[10px] font-bold uppercase text-[#0F398A] opacity-80">Total Net (computed)</p>
+          <p className="text-xl font-extrabold text-[#0F398A] mt-1 tabular-nums">{currency(totalNet)}</p>
         </div>
         {variant === "team_lead" && (
           <div className="rounded-2xl border border-indigo-200 bg-gradient-to-br from-[#F3EEFF] to-white p-4 col-span-2 lg:col-span-1">

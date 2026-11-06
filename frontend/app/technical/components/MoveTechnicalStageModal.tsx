@@ -85,7 +85,7 @@ export default function MoveTechnicalStageModal({
   return (
     <div className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-4">
       <div className="w-full sm:max-w-[480px] bg-white rounded-t-[24px] sm:rounded-[28px] shadow-2xl flex flex-col overflow-hidden max-h-[92vh]">
-        <div className="relative bg-gradient-to-br from-[#B8112D] to-[#8b0d22] px-5 pt-5 pb-4 shrink-0">
+        <div className="relative bg-gradient-to-br from-[#0F398A] to-[#8b0d22] px-5 pt-5 pb-4 shrink-0">
           <button
             type="button"
             onClick={onClose}
@@ -117,7 +117,7 @@ export default function MoveTechnicalStageModal({
                 onClick={() => onMove(opt.tab)}
                 className={`w-full flex items-center gap-3 rounded-2xl border px-3.5 py-3 text-left transition-all ${
                   active
-                    ? "border-[#B8112D]/40 bg-[#FFF1F3] opacity-70 cursor-default"
+                    ? "border-[#0F398A]/40 bg-[#EFF6FF] opacity-70 cursor-default"
                     : "border-gray-100 bg-white hover:border-gray-200 hover:bg-gray-50"
                 } disabled:opacity-60`}
               >

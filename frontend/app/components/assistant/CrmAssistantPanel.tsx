@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -329,23 +329,23 @@ export default function CrmAssistantPanel() {
     <div className="fixed z-[110] right-3 bottom-3 sm:right-5 sm:bottom-5 lg:right-7 lg:bottom-7 xl:right-8 xl:bottom-8 flex flex-col items-end gap-3 lg:gap-4 pointer-events-none">
       {open ? (
         <div
-          className="pointer-events-auto relative w-[calc(100vw-1.5rem)] max-w-[22rem] sm:max-w-[26rem] md:max-w-[28rem] lg:max-w-[32rem] xl:max-w-[34rem] 2xl:max-w-[36rem] h-[min(66dvh,32rem)] sm:h-[min(70dvh,38rem)] lg:h-[min(74dvh,44rem)] xl:h-[min(78dvh,50rem)] 2xl:h-[min(80dvh,54rem)] flex flex-col overflow-hidden rounded-[1.85rem] border border-white/70 dark:border-white/10 bg-white/90 dark:bg-crm-surface/95 backdrop-blur-2xl shadow-[0_28px_80px_-18px_rgba(15,23,42,0.5),0_0_0_1px_rgba(184,17,45,0.08)] animate-[fadeUp_0.32s_ease-out]"
+          className="pointer-events-auto relative w-[calc(100vw-1.5rem)] max-w-[22rem] sm:max-w-[26rem] md:max-w-[28rem] lg:max-w-[32rem] xl:max-w-[34rem] 2xl:max-w-[36rem] h-[min(66dvh,32rem)] sm:h-[min(70dvh,38rem)] lg:h-[min(74dvh,44rem)] xl:h-[min(78dvh,50rem)] 2xl:h-[min(80dvh,54rem)] flex flex-col overflow-hidden rounded-[1.85rem] border border-white/70 dark:border-white/10 bg-white/90 dark:bg-crm-surface/95 backdrop-blur-2xl shadow-[0_28px_80px_-18px_rgba(15,23,42,0.5),0_0_0_1px_rgba(15,57,138,0.08)] animate-[fadeUp_0.32s_ease-out]"
         >
-          <div className="pointer-events-none absolute -top-20 -right-8 h-44 w-44 rounded-full bg-[#B8112D]/15 blur-3xl" />
+          <div className="pointer-events-none absolute -top-20 -right-8 h-44 w-44 rounded-full bg-[#0F398A]/15 blur-3xl" />
           <div className="pointer-events-none absolute -bottom-24 -left-10 h-40 w-40 rounded-full bg-sky-400/10 blur-3xl" />
 
           <header className="relative shrink-0 px-4 pt-4 pb-3 flex items-center gap-3">
-            <span className="h-11 w-11 rounded-2xl bg-gradient-to-br from-[#B8112D] to-[#8c0d22] text-white inline-flex items-center justify-center shadow-[0_8px_20px_rgba(184,17,45,0.35)]">
+            <span className="h-11 w-11 rounded-2xl bg-gradient-to-br from-[#0F398A] to-[#8c0d22] text-white inline-flex items-center justify-center shadow-[0_8px_20px_rgba(15,57,138,0.35)]">
               <Sparkles size={18} />
             </span>
             <div className="min-w-0 flex-1">
-              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#B8112D]">Nexa</p>
+              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#0F398A]">Nexa</p>
               <p className="text-[15px] font-extrabold text-[#0F172A] dark:text-white tracking-tight">Live CRM</p>
             </div>
             <button
               type="button"
               onClick={startNewChat}
-              className="h-9 w-9 rounded-2xl bg-[#FFF1F3] text-[#B8112D] inline-flex items-center justify-center hover:bg-[#FFE4E8] transition-colors"
+              className="h-9 w-9 rounded-2xl bg-[#EFF6FF] text-[#0F398A] inline-flex items-center justify-center hover:bg-[#DBEAFE] transition-colors"
               title="New chat"
             >
               <Plus size={16} />
@@ -355,8 +355,8 @@ export default function CrmAssistantPanel() {
               onClick={() => setHistoryOpen(v => !v)}
               className={`h-9 w-9 rounded-2xl inline-flex items-center justify-center transition-colors ${
                 historyOpen
-                  ? "bg-[#B8112D] text-white"
-                  : "bg-[#FFF1F3] text-[#B8112D] hover:bg-[#FFE4E8]"
+                  ? "bg-[#0F398A] text-white"
+                  : "bg-[#EFF6FF] text-[#0F398A] hover:bg-[#DBEAFE]"
               }`}
               title="History"
               aria-label="Chat history"
@@ -369,7 +369,7 @@ export default function CrmAssistantPanel() {
                 setHistoryOpen(false);
                 setOpen(false);
               }}
-              className="h-9 w-9 rounded-2xl bg-gray-50 dark:bg-white/5 text-gray-500 hover:text-[#B8112D] inline-flex items-center justify-center transition-colors"
+              className="h-9 w-9 rounded-2xl bg-gray-50 dark:bg-white/5 text-gray-500 hover:text-[#0F398A] inline-flex items-center justify-center transition-colors"
               aria-label="Close Nexa"
             >
               <X size={16} />
@@ -385,7 +385,7 @@ export default function CrmAssistantPanel() {
                     key={c.id}
                     className={`group flex items-center gap-2 rounded-2xl px-3 py-2.5 transition-colors ${
                       c.id === activeId
-                        ? "bg-[#FFF1F3] dark:bg-[#B8112D]/15"
+                        ? "bg-[#EFF6FF] dark:bg-[#0F398A]/15"
                         : "hover:bg-gray-50 dark:hover:bg-white/5"
                     }`}
                   >
@@ -397,7 +397,7 @@ export default function CrmAssistantPanel() {
                       }}
                       className="min-w-0 flex-1 text-left"
                     >
-                      <p className={`text-[13px] font-bold truncate ${c.id === activeId ? "text-[#B8112D]" : "text-[#0F172A] dark:text-white"}`}>
+                      <p className={`text-[13px] font-bold truncate ${c.id === activeId ? "text-[#0F398A]" : "text-[#0F172A] dark:text-white"}`}>
                         {c.title}
                       </p>
                       <p className="text-[11px] text-gray-400 mt-0.5">{chatWhen(c.updatedAt)}</p>
@@ -405,7 +405,7 @@ export default function CrmAssistantPanel() {
                     <button
                       type="button"
                       onClick={() => deleteChat(c.id)}
-                      className="h-8 w-8 rounded-xl text-gray-400 hover:text-[#B8112D] hover:bg-white inline-flex items-center justify-center"
+                      className="h-8 w-8 rounded-xl text-gray-400 hover:text-[#0F398A] hover:bg-white inline-flex items-center justify-center"
                       aria-label="Delete chat"
                     >
                       <Trash2 size={14} />
@@ -426,7 +426,7 @@ export default function CrmAssistantPanel() {
                       e.stopPropagation();
                       quoteIntoInput(msg);
                     }}
-                    className="h-7 w-7 mb-5 rounded-lg text-gray-400 hover:text-[#B8112D] hover:bg-[#FFF1F3] inline-flex items-center justify-center shrink-0"
+                    className="h-7 w-7 mb-5 rounded-lg text-gray-400 hover:text-[#0F398A] hover:bg-[#EFF6FF] inline-flex items-center justify-center shrink-0"
                     aria-label="Reply"
                     title="Reply"
                   >
@@ -437,7 +437,7 @@ export default function CrmAssistantPanel() {
                 <div
                   className={`px-3.5 py-2.5 text-[13px] leading-relaxed ${
                     msg.role === "user"
-                      ? "bg-gradient-to-br from-[#B8112D] to-[#9d0e26] text-white rounded-[1.15rem] rounded-br-md whitespace-pre-wrap shadow-[0_8px_18px_rgba(184,17,45,0.22)]"
+                      ? "bg-gradient-to-br from-[#0F398A] to-[#9d0e26] text-white rounded-[1.15rem] rounded-br-md whitespace-pre-wrap shadow-[0_8px_18px_rgba(15,57,138,0.22)]"
                       : "rounded-[1.15rem] rounded-bl-md bg-white/80 dark:bg-white/5 border border-gray-100/80 dark:border-white/10 text-[#0F172A] dark:text-gray-100 shadow-[0_8px_24px_-16px_rgba(15,23,42,0.35)]"
                   }`}
                 >
@@ -449,7 +449,7 @@ export default function CrmAssistantPanel() {
                         const a = msg.actions?.find(x => x.type === "compose_email");
                         if (a) openEmail(a);
                       }}
-                      className="mt-2 h-8 px-2.5 rounded-xl bg-[#FFF1F3] text-[#B8112D] text-xs font-semibold inline-flex items-center gap-1"
+                      className="mt-2 h-8 px-2.5 rounded-xl bg-[#EFF6FF] text-[#0F398A] text-xs font-semibold inline-flex items-center gap-1"
                     >
                       <Mail size={12} /> Open email
                     </button>
@@ -462,7 +462,7 @@ export default function CrmAssistantPanel() {
                         if (a?.month) void downloadPdf(a.month);
                       }}
                       disabled={!!pdfBusy}
-                      className="mt-2 h-8 px-2.5 rounded-xl bg-[#FFF1F3] text-[#B8112D] text-xs font-semibold inline-flex items-center gap-1 disabled:opacity-50"
+                      className="mt-2 h-8 px-2.5 rounded-xl bg-[#EFF6FF] text-[#0F398A] text-xs font-semibold inline-flex items-center gap-1 disabled:opacity-50"
                     >
                       {pdfBusy ? <Loader2 size={12} className="animate-spin" /> : <FileDown size={12} />}
                       {pdfBusy
@@ -478,7 +478,7 @@ export default function CrmAssistantPanel() {
                           e.stopPropagation();
                           quoteIntoInput(msg);
                         }}
-                        className="h-7 w-7 rounded-lg text-gray-400 hover:text-[#B8112D] hover:bg-[#FFF1F3] inline-flex items-center justify-center"
+                        className="h-7 w-7 rounded-lg text-gray-400 hover:text-[#0F398A] hover:bg-[#EFF6FF] inline-flex items-center justify-center"
                         aria-label="Reply"
                         title="Reply"
                       >
@@ -488,7 +488,7 @@ export default function CrmAssistantPanel() {
                         type="button"
                         onClick={() => void rate(msg, "up")}
                         className={`h-7 w-7 rounded-lg inline-flex items-center justify-center ${
-                          msg.feedback === "up" ? "bg-[#FFF1F3] text-[#B8112D]" : "text-gray-400 hover:text-[#B8112D]"
+                          msg.feedback === "up" ? "bg-[#EFF6FF] text-[#0F398A]" : "text-gray-400 hover:text-[#0F398A]"
                         }`}
                         aria-label="Good answer"
                         title="Good answer"
@@ -499,7 +499,7 @@ export default function CrmAssistantPanel() {
                         type="button"
                         onClick={() => void rate(msg, "down")}
                         className={`h-7 w-7 rounded-lg inline-flex items-center justify-center ${
-                          msg.feedback === "down" ? "bg-[#FFF1F3] text-[#B8112D]" : "text-gray-400 hover:text-[#B8112D]"
+                          msg.feedback === "down" ? "bg-[#EFF6FF] text-[#0F398A]" : "text-gray-400 hover:text-[#0F398A]"
                         }`}
                         aria-label="Needs work"
                         title="Needs work"
@@ -511,7 +511,7 @@ export default function CrmAssistantPanel() {
                 </div>
                 {nexaStamp(msg) ? (
                   <span className={`mt-0.5 px-1 text-[10px] font-medium ${
-                    msg.role === "user" ? "text-[#B8112D]/70" : "text-gray-400"
+                    msg.role === "user" ? "text-[#0F398A]/70" : "text-gray-400"
                   }`}>
                     {nexaStamp(msg)}
                   </span>
@@ -521,7 +521,7 @@ export default function CrmAssistantPanel() {
             ))}
             {busy ? (
               <div className="inline-flex items-center gap-2 rounded-2xl bg-white/80 dark:bg-white/5 border border-gray-100 px-3 py-2 text-[11px] font-semibold text-gray-500">
-                <Loader2 size={12} className="animate-spin text-[#B8112D]" /> Looking up CRM...
+                <Loader2 size={12} className="animate-spin text-[#0F398A]" /> Looking up CRM...
               </div>
             ) : null}
           </div>
@@ -550,7 +550,7 @@ export default function CrmAssistantPanel() {
               <button
                 type="submit"
                 disabled={busy || !input.trim()}
-                className="h-10 w-10 rounded-2xl bg-gradient-to-br from-[#B8112D] to-[#8c0d22] text-white inline-flex items-center justify-center disabled:opacity-35 shrink-0 shadow-[0_8px_16px_rgba(184,17,45,0.3)] hover:brightness-110 transition"
+                className="h-10 w-10 rounded-2xl bg-gradient-to-br from-[#0F398A] to-[#8c0d22] text-white inline-flex items-center justify-center disabled:opacity-35 shrink-0 shadow-[0_8px_16px_rgba(15,57,138,0.3)] hover:brightness-110 transition"
                 aria-label="Send"
               >
                 {busy ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}
@@ -566,7 +566,7 @@ export default function CrmAssistantPanel() {
         {!open ? (
           <span
             aria-hidden
-            className="crm-assistant-ring pointer-events-none absolute inset-0 rounded-[1.45rem] border-2 border-[#B8112D]/40"
+            className="crm-assistant-ring pointer-events-none absolute inset-0 rounded-[1.45rem] border-2 border-[#0F398A]/40"
           />
         ) : null}
         <button
@@ -575,7 +575,7 @@ export default function CrmAssistantPanel() {
             setHistoryOpen(false);
             setOpen(v => !v);
           }}
-          className="group relative h-14 w-14 lg:h-16 lg:w-16 rounded-[1.35rem] lg:rounded-[1.45rem] bg-gradient-to-br from-[#B8112D] to-[#8c0d22] text-white shadow-[0_16px_40px_rgba(184,17,45,0.45)] inline-flex items-center justify-center hover:scale-[1.05] active:scale-[0.98] transition-transform"
+          className="group relative h-14 w-14 lg:h-16 lg:w-16 rounded-[1.35rem] lg:rounded-[1.45rem] bg-gradient-to-br from-[#0F398A] to-[#8c0d22] text-white shadow-[0_16px_40px_rgba(15,57,138,0.45)] inline-flex items-center justify-center hover:scale-[1.05] active:scale-[0.98] transition-transform"
           aria-label={open ? "Close Nexa" : "Open Nexa"}
         >
           <span className="absolute inset-0 rounded-[1.35rem] lg:rounded-[1.45rem] bg-white/15 opacity-0 group-hover:opacity-100 transition-opacity" />

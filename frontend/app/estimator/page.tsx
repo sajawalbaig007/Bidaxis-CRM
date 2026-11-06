@@ -85,7 +85,7 @@ export default function EstimatorDashboardPage() {
     const pendingOnTrack = Math.max(0, stats.pending - stats.overdue);
     return [
       { name: "Pending", value: pendingOnTrack, color: "#D97706" },
-      { name: "Overdue", value: stats.overdue, color: "#B8112D" },
+      { name: "Overdue", value: stats.overdue, color: "#0F398A" },
       { name: "Takeoff done", value: stats.takeoffDone, color: "#059669" },
     ].filter((d) => d.value > 0);
   }, [stats]);
@@ -96,7 +96,7 @@ export default function EstimatorDashboardPage() {
         { name: "Assigned", count: stats.total, fill: "#7C3AED" },
         { name: "Pending", count: stats.pending, fill: "#D97706" },
         { name: "Done", count: stats.takeoffDone, fill: "#059669" },
-        { name: "Overdue", count: stats.overdue, fill: "#B8112D" },
+        { name: "Overdue", count: stats.overdue, fill: "#0F398A" },
       ].filter((d) => d.count > 0),
     [stats],
   );
@@ -124,7 +124,7 @@ export default function EstimatorDashboardPage() {
     { label: "Assigned", value: stats.total, icon: FolderKanban, from: "from-[#7C3AED]", to: "to-[#5B21B6]", bar: "100%" },
     { label: "Pending", value: stats.pending, icon: Clock3, from: "from-[#D97706]", to: "to-[#B45309]", bar: `${Math.round((stats.pending / denom) * 100)}%` },
     { label: "Takeoff Done", value: stats.takeoffDone, icon: CheckCircle2, from: "from-[#059669]", to: "to-[#047857]", bar: `${Math.round((stats.takeoffDone / denom) * 100)}%` },
-    { label: "Overdue", value: stats.overdue, icon: AlertTriangle, from: "from-[#B8112D]", to: "to-[#8b0d22]", bar: `${Math.round((stats.overdue / denom) * 100)}%` },
+    { label: "Overdue", value: stats.overdue, icon: AlertTriangle, from: "from-[#0F398A]", to: "to-[#8b0d22]", bar: `${Math.round((stats.overdue / denom) * 100)}%` },
   ];
 
   const bentoItems: UploadBentoItem[] = useMemo(() => [

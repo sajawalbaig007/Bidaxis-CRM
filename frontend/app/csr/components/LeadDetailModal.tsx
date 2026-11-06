@@ -102,8 +102,8 @@ const ADMIN_STATUS_OPTIONS = [
   { value: "not in service", label: "Not In Service" },
   { value: "in house", label: "In House" },
 ];
-const inputClass    = "w-full h-11 rounded-2xl border-2 border-gray-200 bg-[#FAFAFA] px-4 text-sm outline-none focus:border-[#B8112D] focus:bg-white transition-colors placeholder:text-gray-300";
-const textareaClass = "w-full rounded-2xl border-2 border-gray-200 bg-[#FAFAFA] px-4 py-3 text-sm outline-none focus:border-[#B8112D] focus:bg-white transition-colors resize-none placeholder:text-gray-300";
+const inputClass    = "w-full h-11 rounded-2xl border-2 border-gray-200 bg-[#FAFAFA] px-4 text-sm outline-none focus:border-[#0F398A] focus:bg-white transition-colors placeholder:text-gray-300";
+const textareaClass = "w-full rounded-2xl border-2 border-gray-200 bg-[#FAFAFA] px-4 py-3 text-sm outline-none focus:border-[#0F398A] focus:bg-white transition-colors resize-none placeholder:text-gray-300";
 const labelClass    = "text-[11px] font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-1.5";
 
 function tradeOptions(selected: string[]): string[] {
@@ -132,7 +132,7 @@ function TradePicker({
 
   return (
     <div>
-      <label className={`${labelClass} mb-2`}><Hammer size={11} className="text-[#B8112D]"/>Trades</label>
+      <label className={`${labelClass} mb-2`}><Hammer size={11} className="text-[#0F398A]"/>Trades</label>
       {selected.length > 0 && (
         <div className="flex flex-wrap gap-1 mb-2">
           {selected.map(name => (
@@ -140,7 +140,7 @@ function TradePicker({
               key={name}
               type="button"
               onClick={() => onToggle(name)}
-              className="inline-flex items-center gap-1 bg-[#FFF1F3] text-[#B8112D] text-[11px] font-semibold px-2 py-0.5 rounded-lg"
+              className="inline-flex items-center gap-1 bg-[#EFF6FF] text-[#0F398A] text-[11px] font-semibold px-2 py-0.5 rounded-lg"
             >
               {name}
               <X size={10} />
@@ -155,7 +155,7 @@ function TradePicker({
           value={search}
           onChange={e => onSearch(e.target.value)}
           placeholder="Search trades"
-          className="w-full h-9 rounded-xl border border-gray-200 bg-[#FAFAFA] pl-8 pr-3 text-[12px] outline-none focus:border-[#B8112D]"
+          className="w-full h-9 rounded-xl border border-gray-200 bg-[#FAFAFA] pl-8 pr-3 text-[12px] outline-none focus:border-[#0F398A]"
         />
       </div>
       <div className="max-h-40 overflow-y-auto rounded-xl border border-gray-200 bg-[#FAFAFA] p-1.5 space-y-0.5">
@@ -165,7 +165,7 @@ function TradePicker({
           const on = selected.some(t => t.toLowerCase() === name.toLowerCase());
           return (
             <label key={name} className="flex items-start gap-2 px-2 py-1.5 rounded-lg hover:bg-white cursor-pointer">
-              <input type="checkbox" checked={on} onChange={() => onToggle(name)} className="mt-0.5 accent-[#B8112D]" />
+              <input type="checkbox" checked={on} onChange={() => onToggle(name)} className="mt-0.5 accent-[#0F398A]" />
               <span className="text-[12px] text-[#0F172A] leading-snug">{name}</span>
             </label>
           );
@@ -548,7 +548,7 @@ export default function LeadDetailModal({ lead, onClose, onSaved, onNoteAdded, o
       <div className="w-full sm:max-w-[540px] bg-white rounded-t-[28px] sm:rounded-[28px] shadow-2xl flex flex-col overflow-hidden" style={{ maxHeight: "92vh" }}>
 
         {/* HEADER */}
-        <div className="relative bg-gradient-to-br from-[#B8112D] to-[#8b0d22] px-5 sm:px-6 pt-5 pb-5 shrink-0 overflow-hidden">
+        <div className="relative bg-gradient-to-br from-[#0F398A] to-[#8b0d22] px-5 sm:px-6 pt-5 pb-5 shrink-0 overflow-hidden">
           <div className="absolute -top-6 -right-6 w-32 h-32 rounded-full bg-white/5 pointer-events-none"/>
           <div className="absolute -bottom-8 -left-4 w-24 h-24 rounded-full bg-white/5 pointer-events-none"/>
           <button onClick={onClose}
@@ -587,7 +587,7 @@ export default function LeadDetailModal({ lead, onClose, onSaved, onNoteAdded, o
             {!isEditing ? (
               <>
                 <button onClick={startEdit}
-                  className="w-full h-11 rounded-2xl bg-[#FFF1F3] border border-[#f5c5ce] text-[#B8112D] text-sm font-semibold flex items-center justify-center gap-1.5 hover:bg-[#fce8ec] transition-colors">
+                  className="w-full h-11 rounded-2xl bg-[#EFF6FF] border border-[#f5c5ce] text-[#0F398A] text-sm font-semibold flex items-center justify-center gap-1.5 hover:bg-[#fce8ec] transition-colors">
                   <Pencil size={13}/> Edit Details
                 </button>
 
@@ -596,7 +596,7 @@ export default function LeadDetailModal({ lead, onClose, onSaved, onNoteAdded, o
                   {infoItems.map(({ label, value, Icon, href }) => (
                     <div key={label} className="bg-[#F8F9FC] rounded-2xl p-3.5">
                       <div className="flex items-center gap-1.5 mb-1.5">
-                        <Icon size={12} className="text-[#B8112D]"/>
+                        <Icon size={12} className="text-[#0F398A]"/>
                         <p className="text-gray-400 text-[11px]">{label}</p>
                       </div>
                       {label === "Email" ? (
@@ -618,7 +618,7 @@ export default function LeadDetailModal({ lead, onClose, onSaved, onNoteAdded, o
                               leadId: lead.id,
                               clientName: lead.company || lead.name,
                             })}
-                            className="text-[#B8112D] text-[13px] font-semibold truncate text-left underline-offset-[3px] hover:underline cursor-pointer"
+                            className="text-[#0F398A] text-[13px] font-semibold truncate text-left underline-offset-[3px] hover:underline cursor-pointer"
                           >
                             {value}
                           </button>
@@ -628,7 +628,7 @@ export default function LeadDetailModal({ lead, onClose, onSaved, onNoteAdded, o
                           href={href}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-[#B8112D] text-[13px] font-semibold truncate block hover:underline"
+                          className="text-[#0F398A] text-[13px] font-semibold truncate block hover:underline"
                         >
                           {value}
                         </a>
@@ -643,42 +643,42 @@ export default function LeadDetailModal({ lead, onClose, onSaved, onNoteAdded, o
               <>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className={`${labelClass} mb-2`}><Hash size={11} className="text-[#B8112D]"/>Client Code</label>
+                    <label className={`${labelClass} mb-2`}><Hash size={11} className="text-[#0F398A]"/>Client Code</label>
                     <input type="text" value={clientCode} onChange={e => setClientCode(e.target.value)}
                       placeholder="Client Code" className={inputClass}/>
                   </div>
                   <div>
-                    <label className={`${labelClass} mb-2`}><User2 size={11} className="text-[#B8112D]"/>Contact Person</label>
+                    <label className={`${labelClass} mb-2`}><User2 size={11} className="text-[#0F398A]"/>Contact Person</label>
                     <input type="text" value={name} onChange={e => setName(e.target.value)}
                       placeholder="Contact Person" className={inputClass}/>
                   </div>
                   <div>
-                    <label className={`${labelClass} mb-2`}><Building2 size={11} className="text-[#B8112D]"/>Company</label>
+                    <label className={`${labelClass} mb-2`}><Building2 size={11} className="text-[#0F398A]"/>Company</label>
                     <input type="text" value={company} onChange={e => setCompany(e.target.value)}
                       placeholder="Company" className={inputClass}/>
                   </div>
                   <div>
-                    <label className={`${labelClass} mb-2`}><Phone size={11} className="text-[#B8112D]"/>Phone</label>
+                    <label className={`${labelClass} mb-2`}><Phone size={11} className="text-[#0F398A]"/>Phone</label>
                     <input type="text" value={phone} onChange={e => setPhone(e.target.value)}
                       placeholder="Phone" className={inputClass}/>
                   </div>
                   <div>
-                    <label className={`${labelClass} mb-2`}><Mail size={11} className="text-[#B8112D]"/>Email</label>
+                    <label className={`${labelClass} mb-2`}><Mail size={11} className="text-[#0F398A]"/>Email</label>
                     <input type="email" value={email} onChange={e => setEmail(e.target.value)}
                       placeholder="Email" className={inputClass}/>
                   </div>
                   <div>
-                    <label className={`${labelClass} mb-2`}><Link2 size={11} className="text-[#B8112D]"/>Website</label>
+                    <label className={`${labelClass} mb-2`}><Link2 size={11} className="text-[#0F398A]"/>Website</label>
                     <input type="url" value={website} onChange={e => setWebsite(e.target.value)}
                       placeholder="Website" className={inputClass}/>
                   </div>
                   <div>
-                    <label className={`${labelClass} mb-2`}><MapPin size={11} className="text-[#B8112D]"/>Location</label>
+                    <label className={`${labelClass} mb-2`}><MapPin size={11} className="text-[#0F398A]"/>Location</label>
                     <input type="text" value={state} onChange={e => setState(e.target.value)}
                       placeholder="Location" className={inputClass}/>
                   </div>
                   <div>
-                    <label className={`${labelClass} mb-2`}><Briefcase size={11} className="text-[#B8112D]"/>Interested In</label>
+                    <label className={`${labelClass} mb-2`}><Briefcase size={11} className="text-[#0F398A]"/>Interested In</label>
                     <input type="text" value={interestedService} onChange={e => setInterestedService(e.target.value)}
                       placeholder="Interested In" className={inputClass}/>
                   </div>
@@ -712,7 +712,7 @@ export default function LeadDetailModal({ lead, onClose, onSaved, onNoteAdded, o
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                       <div>
-                        <label className={`${labelClass} mb-2`}><CalendarDays size={11} className="text-[#B8112D]"/>Next Schedule</label>
+                        <label className={`${labelClass} mb-2`}><CalendarDays size={11} className="text-[#0F398A]"/>Next Schedule</label>
                         <input type="date" value={nextSchedule} onChange={e => setNextSchedule(e.target.value)} className={inputClass}/>
                       </div>
                       <div>
@@ -721,7 +721,7 @@ export default function LeadDetailModal({ lead, onClose, onSaved, onNoteAdded, o
                           placeholder="e.g. 10:30 AM" className={inputClass}/>
                       </div>
                       <div>
-                        <label className={`${labelClass} mb-2`}><Globe size={11} className="text-[#B8112D]"/>Timezone</label>
+                        <label className={`${labelClass} mb-2`}><Globe size={11} className="text-[#0F398A]"/>Timezone</label>
                         <input type="text" value={timezone} onChange={e => setTimezone(e.target.value)}
                           placeholder="ET / CT / PT" className={inputClass}/>
                       </div>
@@ -731,12 +731,12 @@ export default function LeadDetailModal({ lead, onClose, onSaved, onNoteAdded, o
                         type="checkbox"
                         checked={isOldClient}
                         onChange={e => setIsOldClient(e.target.checked)}
-                        className="rounded border-gray-300 text-[#B8112D] focus:ring-[#B8112D]"
+                        className="rounded border-gray-300 text-[#0F398A] focus:ring-[#0F398A]"
                       />
                       Old Client
                     </label>
                     <div>
-                      <label className={`${labelClass} mb-2`}><FileText size={11} className="text-[#B8112D]"/>Notes</label>
+                      <label className={`${labelClass} mb-2`}><FileText size={11} className="text-[#0F398A]"/>Notes</label>
                       <textarea rows={3} value={noteText} onChange={e => setNoteText(e.target.value)}
                         placeholder="Add or update notes" className={textareaClass}/>
                       <p className="text-[10px] text-gray-400 mt-1">Saving a changed note adds it to the notes history.</p>
@@ -768,7 +768,7 @@ export default function LeadDetailModal({ lead, onClose, onSaved, onNoteAdded, o
                   </button>
                   <button onClick={save} disabled={saving}
                     className={`flex-1 h-12 rounded-2xl font-semibold text-sm text-white flex items-center justify-center gap-2 transition-all ${
-                      !saving ? "bg-gradient-to-r from-[#B8112D] to-[#d4173a] shadow-md shadow-red-200" : "bg-gray-200 cursor-not-allowed text-gray-400"
+                      !saving ? "bg-gradient-to-r from-[#0F398A] to-[#d4173a] shadow-md shadow-red-200" : "bg-gray-200 cursor-not-allowed text-gray-400"
                     }`}>
                     {saving ? (
                       <><div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin"/>Saving...</>
@@ -781,11 +781,11 @@ export default function LeadDetailModal({ lead, onClose, onSaved, onNoteAdded, o
             {/* ══ SUB-CONTACTS ══ */}
             <div>
               <div className="flex items-center justify-between mb-3">
-                <label className={labelClass}><Users size={11} className="text-[#B8112D]"/>Sub Contacts</label>
+                <label className={labelClass}><Users size={11} className="text-[#0F398A]"/>Sub Contacts</label>
                 <button
                   type="button"
                   onClick={() => { setShowSubForm(v => !v); setSubName(""); setSubDesig(""); setSubPhone(""); setSubEmail(""); }}
-                  className="h-8 px-3 rounded-full bg-[#FFF1F3] text-[#B8112D] text-[11px] font-semibold inline-flex items-center gap-1 hover:bg-[#B8112D] hover:text-white transition-colors">
+                  className="h-8 px-3 rounded-full bg-[#EFF6FF] text-[#0F398A] text-[11px] font-semibold inline-flex items-center gap-1 hover:bg-[#0F398A] hover:text-white transition-colors">
                   <Plus size={14}/>{showSubForm ? "Cancel" : "Add"}
                 </button>
               </div>
@@ -816,7 +816,7 @@ export default function LeadDetailModal({ lead, onClose, onSaved, onNoteAdded, o
                       Cancel
                     </button>
                     <button onClick={addSubContact} disabled={addingSub || (!subName.trim() && !subPhone.trim() && !subEmail.trim())}
-                      className="flex-1 h-9 rounded-xl bg-[#B8112D] text-white text-xs font-semibold disabled:opacity-50">
+                      className="flex-1 h-9 rounded-xl bg-[#0F398A] text-white text-xs font-semibold disabled:opacity-50">
                       {addingSub ? "Adding…" : "Add Contact"}
                     </button>
                   </div>
@@ -827,7 +827,7 @@ export default function LeadDetailModal({ lead, onClose, onSaved, onNoteAdded, o
                 <div className="space-y-2 max-h-[280px] overflow-y-auto">
                   {subs.map(sub => (
                     <div key={sub.id} className="bg-[#F8F9FC] rounded-2xl p-3 flex items-start gap-3">
-                      <div className="w-9 h-9 rounded-xl bg-[#B8112D] text-white flex items-center justify-center font-bold text-sm shrink-0">
+                      <div className="w-9 h-9 rounded-xl bg-[#0F398A] text-white flex items-center justify-center font-bold text-sm shrink-0">
                         {sub.name.charAt(0).toUpperCase()}
                       </div>
                       <div className="flex-1 min-w-0">
@@ -841,7 +841,7 @@ export default function LeadDetailModal({ lead, onClose, onSaved, onNoteAdded, o
                             </div>
                             <div className="flex gap-2">
                               <button onClick={() => setEditingSubId(null)} className="flex-1 h-8 rounded-lg bg-white border border-gray-200 text-xs font-semibold text-gray-600">Cancel</button>
-                              <button onClick={saveEditSub} disabled={!editSubName.trim() || savingSubId === sub.id} className="flex-1 h-8 rounded-lg bg-[#B8112D] text-white text-xs font-semibold disabled:opacity-50">
+                              <button onClick={saveEditSub} disabled={!editSubName.trim() || savingSubId === sub.id} className="flex-1 h-8 rounded-lg bg-[#0F398A] text-white text-xs font-semibold disabled:opacity-50">
                                 {savingSubId === sub.id ? "Saving…" : "Save"}
                               </button>
                             </div>
@@ -861,7 +861,7 @@ export default function LeadDetailModal({ lead, onClose, onSaved, onNoteAdded, o
                                         leadId: lead.id,
                                         clientName: sub.name || lead.company || lead.name,
                                       })}
-                                      className="flex items-center gap-1 text-[11px] text-[#B8112D] font-medium underline-offset-[3px] hover:underline cursor-pointer"
+                                      className="flex items-center gap-1 text-[11px] text-[#0F398A] font-medium underline-offset-[3px] hover:underline cursor-pointer"
                                     >
                                       <Phone size={16}/>{sub.phone}
                                     </button>
@@ -885,13 +885,13 @@ export default function LeadDetailModal({ lead, onClose, onSaved, onNoteAdded, o
                         <div className="flex flex-col gap-1 shrink-0">
                           <button
                             onClick={() => startEditSub(sub)}
-                            className="w-7 h-7 rounded-lg bg-white border border-gray-200 text-gray-500 flex items-center justify-center hover:border-[#B8112D] hover:text-[#B8112D] transition-colors">
+                            className="w-7 h-7 rounded-lg bg-white border border-gray-200 text-gray-500 flex items-center justify-center hover:border-[#0F398A] hover:text-[#0F398A] transition-colors">
                             <Pencil size={11}/>
                           </button>
                           <button
                             onClick={() => deleteSubContact(sub.id)}
                             disabled={deletingId === sub.id}
-                            className="w-7 h-7 rounded-lg bg-[#FFF1F3] text-[#B8112D] flex items-center justify-center hover:bg-[#B8112D] hover:text-white transition-colors disabled:opacity-40">
+                            className="w-7 h-7 rounded-lg bg-[#EFF6FF] text-[#0F398A] flex items-center justify-center hover:bg-[#0F398A] hover:text-white transition-colors disabled:opacity-40">
                             <Trash2 size={12}/>
                           </button>
                         </div>

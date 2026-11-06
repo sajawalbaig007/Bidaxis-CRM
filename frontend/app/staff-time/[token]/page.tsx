@@ -96,7 +96,7 @@ export default function ReviseAttendancePage() {
       <div className="space-y-5">
         <label className="block rounded-3xl bg-white shadow-[0_20px_50px_-28px_rgba(15,23,42,0.45)] px-5 py-5 sm:px-7 sm:flex sm:items-end sm:justify-between sm:gap-6">
           <span>
-            <span className="block text-[11px] font-bold uppercase tracking-[0.16em] text-[#B8112D]">Date</span>
+            <span className="block text-[11px] font-bold uppercase tracking-[0.16em] text-[#0F398A]">Date</span>
             <span className="mt-1 block text-sm text-gray-500">Any day. Pakistan time.</span>
           </span>
           <input

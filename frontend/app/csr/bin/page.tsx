@@ -93,7 +93,7 @@ export default function CSRBinPage() {
       label: "Bin",
       segments: [
         { label: "Not Picked",     value: counts.notpicked,     color: "#F59E0B" },
-        { label: "Not Interested", value: counts.notinterested, color: "#B8112D" },
+        { label: "Not Interested", value: counts.notinterested, color: "#0F398A" },
         { label: "Deleted",        value: counts.deleted,       color: "#6366F1" },
       ],
     },
@@ -159,7 +159,7 @@ export default function CSRBinPage() {
               <h3 className="text-lg sm:text-[20px] font-bold text-[#0F172A]">Bin Leads</h3>
               <div className="grid w-full gap-2 grid-cols-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.4fr)_auto_auto]">
                 <select value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setPage(1); }}
-                  className="h-9 sm:h-[40px] w-full rounded-xl border border-gray-200 dark:border-crm-border bg-white dark:bg-crm-input px-3 text-xs outline-none focus:border-[#B8112D] dark:text-crm-text">
+                  className="h-9 sm:h-[40px] w-full rounded-xl border border-gray-200 dark:border-crm-border bg-white dark:bg-crm-input px-3 text-xs outline-none focus:border-[#0F398A] dark:text-crm-text">
                   <option value="all">All Status</option>
                   <option value="notpicked">Not Picked</option>
                   <option value="notinterested">Not Interested</option>
@@ -169,7 +169,7 @@ export default function CSRBinPage() {
                   <option value="deleted">Deleted</option>
                 </select>
                 <select value={sourceFilter} onChange={e => { setSourceFilter(e.target.value); setPage(1); }}
-                  className="h-9 sm:h-[40px] w-full rounded-xl border border-gray-200 dark:border-crm-border bg-white dark:bg-crm-input px-3 text-xs outline-none focus:border-[#B8112D] dark:text-crm-text">
+                  className="h-9 sm:h-[40px] w-full rounded-xl border border-gray-200 dark:border-crm-border bg-white dark:bg-crm-input px-3 text-xs outline-none focus:border-[#0F398A] dark:text-crm-text">
                   <option value="all">All Sources</option>
                   {sourceOptions.map(s => <option key={s} value={s}>{s}</option>)}
                 </select>
@@ -178,11 +178,11 @@ export default function CSRBinPage() {
                   <input
                     type="text" placeholder="Search..."
                     value={search} onChange={e => { setSearch(e.target.value); setPage(1); }}
-                    className="w-full h-9 sm:h-[40px] rounded-xl border border-gray-200 dark:border-crm-border bg-[#FAFAFA] dark:bg-crm-input pl-8 pr-3 text-xs outline-none focus:border-[#B8112D] dark:text-crm-text"
+                    className="w-full h-9 sm:h-[40px] rounded-xl border border-gray-200 dark:border-crm-border bg-[#FAFAFA] dark:bg-crm-input pl-8 pr-3 text-xs outline-none focus:border-[#0F398A] dark:text-crm-text"
                   />
                 </div>
                 <button onClick={() => void refetch()}
-                  className="h-9 sm:h-[40px] w-full sm:w-10 rounded-xl border border-gray-200 dark:border-crm-border bg-[#FAFAFA] dark:bg-crm-input flex items-center justify-center hover:border-[#B8112D] hover:text-[#B8112D] text-gray-500 transition-colors"
+                  className="h-9 sm:h-[40px] w-full sm:w-10 rounded-xl border border-gray-200 dark:border-crm-border bg-[#FAFAFA] dark:bg-crm-input flex items-center justify-center hover:border-[#0F398A] hover:text-[#0F398A] text-gray-500 transition-colors"
                   title="Refresh">
                   <RefreshCw size={13} />
                 </button>

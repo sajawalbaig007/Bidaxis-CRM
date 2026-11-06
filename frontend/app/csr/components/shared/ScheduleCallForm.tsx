@@ -17,29 +17,29 @@ export default function ScheduleCallForm({
     <>
       <div>
         <label className="text-[10px] sm:text-[11px] font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-1.5 mb-1.5 sm:mb-2">
-          <CalendarDays size={10} className="text-[#B8112D] sm:w-[11px] sm:h-[11px]" />{dateLabel}
+          <CalendarDays size={10} className="text-[#0F398A] sm:w-[11px] sm:h-[11px]" />{dateLabel}
         </label>
         <input
           type="date" value={date} onChange={e => onDateChange(e.target.value)}
-          className="w-full h-10 sm:h-11 rounded-xl sm:rounded-2xl border-2 border-gray-200 bg-[#FAFAFA] px-3 sm:px-4 text-sm outline-none focus:border-[#B8112D] focus:bg-white transition-colors"
+          className="w-full h-10 sm:h-11 rounded-xl sm:rounded-2xl border-2 border-gray-200 bg-[#FAFAFA] px-3 sm:px-4 text-sm outline-none focus:border-[#0F398A] focus:bg-white transition-colors"
         />
       </div>
       <div>
         <label className="text-[10px] sm:text-[11px] font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-1.5 mb-1.5 sm:mb-2">
-          <Clock3 size={10} className="text-[#B8112D] sm:w-[11px] sm:h-[11px]" />{timeLabel}
+          <Clock3 size={10} className="text-[#0F398A] sm:w-[11px] sm:h-[11px]" />{timeLabel}
         </label>
         <input
           type="time" value={time} onChange={e => onTimeChange(e.target.value)}
-          className="w-full h-10 sm:h-11 rounded-xl sm:rounded-2xl border-2 border-gray-200 bg-[#FAFAFA] px-3 sm:px-4 text-sm outline-none focus:border-[#B8112D] focus:bg-white transition-colors"
+          className="w-full h-10 sm:h-11 rounded-xl sm:rounded-2xl border-2 border-gray-200 bg-[#FAFAFA] px-3 sm:px-4 text-sm outline-none focus:border-[#0F398A] focus:bg-white transition-colors"
         />
       </div>
       <div className="relative">
         <label className="text-[10px] sm:text-[11px] font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-1.5 mb-1.5 sm:mb-2">
-          <Globe size={10} className="text-[#B8112D] sm:w-[11px] sm:h-[11px]" />Client Timezone (US)
+          <Globe size={10} className="text-[#0F398A] sm:w-[11px] sm:h-[11px]" />Client Timezone (US)
         </label>
         <select
           value={timezone} onChange={e => onTimezoneChange(e.target.value)}
-          className="w-full h-10 sm:h-11 rounded-xl sm:rounded-2xl border-2 border-gray-200 bg-[#FAFAFA] px-3 sm:px-4 pr-9 sm:pr-10 text-sm outline-none appearance-none focus:border-[#B8112D] focus:bg-white transition-colors"
+          className="w-full h-10 sm:h-11 rounded-xl sm:rounded-2xl border-2 border-gray-200 bg-[#FAFAFA] px-3 sm:px-4 pr-9 sm:pr-10 text-sm outline-none appearance-none focus:border-[#0F398A] focus:bg-white transition-colors"
         >
           {usTimezones.map(tz => <option key={tz.value} value={tz.value}>{tz.label}</option>)}
         </select>

@@ -161,18 +161,18 @@ export default function ManagerSidebar() {
         <div className="h-[64px] px-3 sm:px-4 lg:px-5 flex items-center gap-3">
           <div className="flex-1 min-w-0 flex items-center">
           <Link href={BASE} prefetch={false} className="flex items-center gap-3 min-w-0">
-            <div className="w-11 h-11 rounded-[14px] bg-[#B8112D] flex items-center justify-center shadow-sm overflow-hidden p-1">
+            <div className="w-11 h-11 rounded-[14px] bg-[#0F398A] flex items-center justify-center shadow-sm overflow-hidden p-1">
               <Image src="/images/image.png" alt="logo" width={44} height={44} className="object-cover w-full h-full rounded-[10px] bg-white" />
             </div>
             <div className="hidden sm:block">
               <h2 className="text-[18px] md:text-[20px] font-extrabold leading-none text-crm-text tracking-tight">CRM Dashboard</h2>
-              <p className="text-[10px] md:text-[11px] font-semibold text-[#B8112D] mt-1 tracking-wide uppercase">Admin Panel</p>
+              <p className="text-[10px] md:text-[11px] font-semibold text-[#0F398A] mt-1 tracking-wide uppercase">Admin Panel</p>
             </div>
           </Link>
           </div>
 
           <div className="min-w-0 shrink">
-            <CapsuleChipNav items={navItems} baseHref={BASE} accent="#B8112D" variant="inline" />
+            <CapsuleChipNav items={navItems} baseHref={BASE} accent="#0F398A" variant="inline" />
           </div>
 
           <div className="flex-1 min-w-0 flex items-center justify-end gap-3">
@@ -182,13 +182,13 @@ export default function ManagerSidebar() {
             type="button"
             onClick={() => { setChatOpen(v => !v); setBellOpen(false); }}
             className={`relative w-9 h-9 rounded-[13px] flex items-center justify-center transition-all shrink-0 ${
-              chatOpen ? "bg-[#B8112D] text-white shadow-md" : "bg-crm-nav-pill text-crm-text-muted hover:bg-crm-brand-soft hover:text-[#B8112D]"
+              chatOpen ? "bg-[#0F398A] text-white shadow-md" : "bg-crm-nav-pill text-crm-text-muted hover:bg-crm-brand-soft hover:text-[#0F398A]"
             } ${!chatEnabled ? "opacity-50" : ""}`}
             title={chatEnabled ? "Messages" : "Chat disabled by admin"}
           >
             <MessageSquare size={16} />
             {chatEnabled && totalUnread > 0 && (
-              <span className="absolute -top-1 -right-1 min-w-[16px] h-4 bg-[#B8112D] text-white text-[9px] font-bold rounded-full flex items-center justify-center px-0.5 border-2 border-white">
+              <span className="absolute -top-1 -right-1 min-w-[16px] h-4 bg-[#0F398A] text-white text-[9px] font-bold rounded-full flex items-center justify-center px-0.5 border-2 border-white">
                 {totalUnread > 9 ? "9+" : totalUnread}
               </span>
             )}
@@ -198,12 +198,12 @@ export default function ManagerSidebar() {
             <button
               type="button"
               onClick={() => { setBellOpen(v => !v); setProfileOpen(false); }}
-              className="relative w-9 h-9 rounded-[13px] flex items-center justify-center text-crm-text-muted hover:text-[#B8112D] hover:bg-crm-nav-pill transition-colors"
+              className="relative w-9 h-9 rounded-[13px] flex items-center justify-center text-crm-text-muted hover:text-[#0F398A] hover:bg-crm-nav-pill transition-colors"
               title="Scheduled meetings"
             >
               <Bell size={17} />
               {scheduledCalls.length > 0 && (
-                <span className="absolute -top-1 -right-1 min-w-[16px] h-4 bg-[#B8112D] text-white text-[9px] font-bold rounded-full flex items-center justify-center px-0.5 border-2 border-white">
+                <span className="absolute -top-1 -right-1 min-w-[16px] h-4 bg-[#0F398A] text-white text-[9px] font-bold rounded-full flex items-center justify-center px-0.5 border-2 border-white">
                   {scheduledCalls.length > 9 ? "9+" : scheduledCalls.length}
                 </span>
               )}
@@ -213,7 +213,7 @@ export default function ManagerSidebar() {
                 <div className="flex items-center justify-between px-4 py-3 border-b border-crm-border-subtle">
                   <span className="text-[13px] font-bold text-[#0F172A]">Meetings</span>
                   {todayCalls.length > 0 && (
-                    <span className="text-[11px] bg-[#FFF1F3] text-[#B8112D] font-bold px-2 py-0.5 rounded-full">{todayCalls.length} today</span>
+                    <span className="text-[11px] bg-[#EFF6FF] text-[#0F398A] font-bold px-2 py-0.5 rounded-full">{todayCalls.length} today</span>
                   )}
                 </div>
                 <div className="max-h-[360px] overflow-y-auto">
@@ -226,7 +226,7 @@ export default function ManagerSidebar() {
                           <p className="text-[13px] font-semibold truncate">{c.client}</p>
                           <p className="text-[11px] text-gray-500">{c.time}</p>
                         </div>
-                        <button type="button" onClick={() => dismissOne(c.id)} className="text-gray-300 hover:text-[#B8112D]">
+                        <button type="button" onClick={() => dismissOne(c.id)} className="text-gray-300 hover:text-[#0F398A]">
                           <X size={12} />
                         </button>
                       </div>
@@ -248,7 +248,7 @@ export default function ManagerSidebar() {
             </button>
             {profileOpen && (
               <div className="absolute right-0 top-[calc(100%+10px)] w-[240px] bg-crm-surface rounded-2xl border border-crm-border-subtle shadow-2xl z-50 overflow-hidden">
-                <div className="bg-gradient-to-br from-[#B8112D] to-[#7A0B1E] px-4 py-4 flex items-center gap-3">
+                <div className="bg-gradient-to-br from-[#0F398A] to-[#7A0B1E] px-4 py-4 flex items-center gap-3">
                   <ProfileAvatar user={user} size="md" fallback="MG" />
                   <div className="min-w-0">
                     <p className="text-white text-[14px] font-bold truncate">{user?.name ?? "Admin"}</p>
@@ -261,7 +261,7 @@ export default function ManagerSidebar() {
                   type="button"
                   onClick={() => void handleLogout()}
                   disabled={loggingOut}
-                  className="w-full h-9 rounded-xl bg-[#FFF1F3] text-[#B8112D] text-sm font-semibold flex items-center justify-center gap-2"
+                  className="w-full h-9 rounded-xl bg-[#EFF6FF] text-[#0F398A] text-sm font-semibold flex items-center justify-center gap-2"
                 >
                   <LogOut size={13} />
                   {loggingOut ? "Logging out…" : "Logout"}

@@ -40,7 +40,7 @@ export const STATUS_BADGE_COLORS: Record<string, string> = {
   "no owner available": "bg-yellow-100 text-yellow-800 dark:bg-yellow-500/25 dark:text-yellow-300",
   "not in service": "bg-violet-100 text-violet-700 dark:bg-violet-500/25 dark:text-violet-300",
   "in house":       "bg-teal-100 text-teal-800 dark:bg-teal-500/25 dark:text-teal-300",
-  "Dialer Calls":   "bg-[#FFF1F3] text-[#B8112D] dark:bg-[#B8112D]/20 dark:text-[#F5C5CE]",
+  "Dialer Calls":   "bg-[#EFF6FF] text-[#0F398A] dark:bg-[#0F398A]/20 dark:text-[#F5C5CE]",
 };
 
 export function statusBadgeColor(status: string): string {

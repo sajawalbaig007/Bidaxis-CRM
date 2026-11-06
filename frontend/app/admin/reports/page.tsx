@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useMemo, useState, useEffect, useRef, useCallback } from "react";
 import dynamic from "next/dynamic";
@@ -140,7 +140,7 @@ function StatusLeadTable({ rows }: { rows: StatusLeadRow[] }) {
 const BENTO =
   "rounded-[1.5rem] sm:rounded-[1.75rem] border border-gray-100/90 dark:border-crm-border bg-white dark:bg-crm-surface shadow-[0_10px_40px_-24px_rgba(15,23,42,0.35)]";
 
-/* ── Main Page ── */
+/* -- Main Page -- */
 export default function ReportsPage() {
   const pathname = usePathname();
   const reportsBase = pathname.startsWith("/manager") ? "/manager/reports" : "/admin/reports";
@@ -281,7 +281,7 @@ export default function ReportsPage() {
     activePeriod === "today"  ? "Today's breakdown by hour" :
     activePeriod === "week"   ? "Last 7 days" :
     activePeriod === "month"  ? "Last 30 days" :
-    fromDate && toDate        ? `${fromDate} → ${toDate}` : "All time";
+    fromDate && toDate        ? `${fromDate} ? ${toDate}` : "All time";
 
   const dropdownLabel = selectedCSR ? selectedCSR.name : "All CSRs";
 
@@ -295,7 +295,7 @@ export default function ReportsPage() {
 
           <header className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
             <div className="min-w-0">
-              <p className="text-[11px] font-bold uppercase tracking-wider text-[#B8112D]/80 mb-1">Admin · Analytics</p>
+              <p className="text-[11px] font-bold uppercase tracking-wider text-[#0F398A]/80 mb-1">Admin · Analytics</p>
               <h1 className="text-2xl sm:text-3xl font-bold text-[#0F172A] dark:text-crm-text tracking-tight">Reports</h1>
               <p className="text-sm text-gray-500 dark:text-crm-text-muted mt-1">
                 CSR performance, status mix, and shift tracking
@@ -306,14 +306,14 @@ export default function ReportsPage() {
                 type="date"
                 value={fromDate}
                 onChange={e => setFromDate(e.target.value)}
-                className="h-11 flex-1 min-w-[130px] sm:flex-none rounded-2xl border border-gray-200 bg-white px-3 text-sm outline-none focus:border-[#B8112D]"
+                className="h-11 flex-1 min-w-[130px] sm:flex-none rounded-2xl border border-gray-200 bg-white px-3 text-sm outline-none focus:border-[#0F398A]"
               />
-              <span className="text-gray-400 text-sm hidden sm:inline">→</span>
+              <span className="text-gray-400 text-sm hidden sm:inline">?</span>
               <input
                 type="date"
                 value={toDate}
                 onChange={e => setToDate(e.target.value)}
-                className="h-11 flex-1 min-w-[130px] sm:flex-none rounded-2xl border border-gray-200 bg-white px-3 text-sm outline-none focus:border-[#B8112D]"
+                className="h-11 flex-1 min-w-[130px] sm:flex-none rounded-2xl border border-gray-200 bg-white px-3 text-sm outline-none focus:border-[#0F398A]"
               />
               <button
                 onClick={() => {
@@ -324,7 +324,7 @@ export default function ReportsPage() {
                 disabled={!fromDate || !toDate}
                 className={`h-11 px-4 rounded-2xl text-sm font-semibold transition-all whitespace-nowrap ${
                   fromDate && toDate
-                    ? "bg-[#B8112D] text-white shadow-sm"
+                    ? "bg-[#0F398A] text-white shadow-sm"
                     : "bg-gray-100 text-gray-400 cursor-not-allowed"
                 }`}
               >
@@ -345,17 +345,17 @@ export default function ReportsPage() {
           </header>
 
           <div className="grid gap-3 sm:grid-cols-2">
-            <Link href={`${reportsBase}/hours`} className={`${BENTO} relative p-4 sm:p-5 transition hover:border-[#B8112D]/40`}>
-              <div className="absolute left-0 top-4 bottom-4 w-[3px] rounded-full bg-[#B8112D]" />
-              <span className="ml-2 inline-flex h-10 w-10 items-center justify-center rounded-xl bg-[#FFF1F3] text-[#B8112D]">
+            <Link href={`${reportsBase}/hours`} className={`${BENTO} relative p-4 sm:p-5 transition hover:border-[#0F398A]/40`}>
+              <div className="absolute left-0 top-4 bottom-4 w-[3px] rounded-full bg-[#0F398A]" />
+              <span className="ml-2 inline-flex h-10 w-10 items-center justify-center rounded-xl bg-[#EFF6FF] text-[#0F398A]">
                 <Clock3 size={18} />
               </span>
               <p className="mt-3 pl-2 text-base font-bold text-[#0F172A] dark:text-white">Shift time and deductions</p>
               <p className="mt-1 pl-2 text-xs leading-relaxed text-gray-500 dark:text-gray-400">Late cut for each employee, shift hours, and the deduction ranges.</p>
             </Link>
-            <Link href={`${reportsBase}/requests`} className={`${BENTO} relative p-4 sm:p-5 transition hover:border-[#B8112D]/40`}>
-              <div className="absolute left-0 top-4 bottom-4 w-[3px] rounded-full bg-[#B8112D]" />
-              <span className="ml-2 inline-flex h-10 w-10 items-center justify-center rounded-xl bg-[#FFF1F3] text-[#B8112D]">
+            <Link href={`${reportsBase}/requests`} className={`${BENTO} relative p-4 sm:p-5 transition hover:border-[#0F398A]/40`}>
+              <div className="absolute left-0 top-4 bottom-4 w-[3px] rounded-full bg-[#0F398A]" />
+              <span className="ml-2 inline-flex h-10 w-10 items-center justify-center rounded-xl bg-[#EFF6FF] text-[#0F398A]">
                 <ClipboardList size={18} />
               </span>
               <p className="mt-3 pl-2 text-base font-bold text-[#0F172A] dark:text-white">Employee requests</p>
@@ -381,7 +381,7 @@ export default function ReportsPage() {
                   }}
                   className={`h-10 px-4 rounded-2xl text-xs sm:text-sm font-semibold transition-all whitespace-nowrap ${
                     activePeriod === key && !fromDate
-                      ? "bg-[#B8112D] text-white shadow-sm"
+                      ? "bg-[#0F398A] text-white shadow-sm"
                       : "border border-gray-200 text-gray-600 hover:bg-gray-50 bg-white"
                   }`}
                 >
@@ -395,7 +395,7 @@ export default function ReportsPage() {
                   onClick={() => setDropdownOpen(!dropdownOpen)}
                   className="h-10 px-4 rounded-2xl border border-gray-200 bg-white text-xs sm:text-sm font-semibold text-gray-700 flex items-center gap-2 min-w-[160px] hover:bg-gray-50"
                 >
-                  <Users size={14} className="text-[#B8112D]" />
+                  <Users size={14} className="text-[#0F398A]" />
                   <span className="truncate">{dropdownLabel}</span>
                   <ChevronDown size={14} className={`ml-auto text-gray-400 transition-transform ${dropdownOpen ? "rotate-180" : ""}`} />
                 </button>
@@ -404,8 +404,8 @@ export default function ReportsPage() {
                     <button
                       type="button"
                       onClick={() => { setSelectedCSRId("all"); setDropdownOpen(false); }}
-                      className={`w-full text-left px-4 py-3 text-sm font-semibold flex items-center gap-2 hover:bg-[#FFF1F3] ${
-                        selectedCSRId === "all" ? "text-[#B8112D] bg-[#FFF1F3]" : "text-gray-700"
+                      className={`w-full text-left px-4 py-3 text-sm font-semibold flex items-center gap-2 hover:bg-[#EFF6FF] ${
+                        selectedCSRId === "all" ? "text-[#0F398A] bg-[#EFF6FF]" : "text-gray-700"
                       }`}
                     >
                       All CSRs
@@ -415,12 +415,12 @@ export default function ReportsPage() {
                         key={csr.id}
                         type="button"
                         onClick={() => { setSelectedCSRId(csr.id); setDropdownOpen(false); }}
-                        className={`w-full text-left px-4 py-3 text-sm font-semibold flex items-center gap-2 hover:bg-[#FFF1F3] border-t border-gray-50 ${
-                          selectedCSRId === csr.id ? "text-[#B8112D] bg-[#FFF1F3]" : "text-gray-700"
+                        className={`w-full text-left px-4 py-3 text-sm font-semibold flex items-center gap-2 hover:bg-[#EFF6FF] border-t border-gray-50 ${
+                          selectedCSRId === csr.id ? "text-[#0F398A] bg-[#EFF6FF]" : "text-gray-700"
                         }`}
                       >
                         {csr.csrCode && (
-                          <span className="bg-[#B8112D]/10 text-[#B8112D] text-[9px] font-bold px-1.5 py-0.5 rounded-md shrink-0">{csr.csrCode}</span>
+                          <span className="bg-[#0F398A]/10 text-[#0F398A] text-[9px] font-bold px-1.5 py-0.5 rounded-md shrink-0">{csr.csrCode}</span>
                         )}
                         <span className="truncate">{csr.name}</span>
                         <span className="ml-auto text-[10px] text-gray-400 shrink-0">{csr.totalLeads}</span>
@@ -430,14 +430,14 @@ export default function ReportsPage() {
                 )}
               </div>
               {loadingReport && (
-                <div className="w-4 h-4 border-2 border-[#B8112D] border-t-transparent rounded-full animate-spin" />
+                <div className="w-4 h-4 border-2 border-[#0F398A] border-t-transparent rounded-full animate-spin" />
               )}
             </div>
           </section>
 
           <section aria-label="Report stats" className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-2.5 sm:gap-3">
             {[
-              { label: "Total Leads", value: stats.totalLeads, accent: "#B8112D", icon: <PhoneCall size={15} /> },
+              { label: "Total Leads", value: stats.totalLeads, accent: "#0F398A", icon: <PhoneCall size={15} /> },
               { label: "Completed", value: stats.completed, accent: "#059669", icon: <ShoppingCart size={15} /> },
               { label: "Important", value: stats.important, accent: "#D97706", icon: <AlertTriangle size={15} /> },
               { label: "Interested", value: stats.interested, accent: "#2563EB", icon: <TrendingUp size={15} /> },
@@ -526,7 +526,7 @@ export default function ReportsPage() {
                     { label: "Schedule Call", val: stats.scheduleCall, color: "text-sky-700", bg: "bg-sky-50" },
                     { label: "Interested", val: stats.interested, color: "text-orange-700", bg: "bg-orange-50" },
                     { label: "Not Useful", val: stats.notUseful, color: "text-violet-800", bg: "bg-violet-50" },
-                    { label: "Dialer Calls", val: stats.dialerCalls, color: "text-[#B8112D]", bg: "bg-[#FFF1F3]" },
+                    { label: "Dialer Calls", val: stats.dialerCalls, color: "text-[#0F398A]", bg: "bg-[#EFF6FF]" },
                     { label: "Close Client", val: stats.projectWon, color: "text-emerald-700", bg: "bg-emerald-50" },
                   ].map(s => (
                     <div key={s.label} className={`flex items-center justify-between gap-3 rounded-2xl ${s.bg} px-3 py-2.5`}>
@@ -572,7 +572,7 @@ export default function ReportsPage() {
                       { key: "schedule", label: "Schedule Call", val: stats.scheduleCall, on: "bg-sky-500 text-white", off: "bg-sky-50 text-sky-800" },
                       { key: "interested", label: "Interested", val: stats.interested, on: "bg-orange-500 text-white", off: "bg-orange-50 text-orange-800" },
                       { key: "notUseful", label: "Not Useful", val: stats.notUseful, on: "bg-fuchsia-700 text-white", off: "bg-fuchsia-50 text-fuchsia-800" },
-                      { key: "dialer", label: "Dialer Calls", val: stats.dialerCalls, on: "bg-[#B8112D] text-white", off: "bg-[#FFF1F3] text-[#B8112D]" },
+                      { key: "dialer", label: "Dialer Calls", val: stats.dialerCalls, on: "bg-[#0F398A] text-white", off: "bg-[#EFF6FF] text-[#0F398A]" },
                       { key: "close", label: "Close Client", val: stats.projectWon, on: "bg-emerald-700 text-white", off: "bg-emerald-50 text-emerald-800" },
                     ].map(pill => {
                       const active = statusFocus === pill.key;
@@ -598,8 +598,8 @@ export default function ReportsPage() {
                     />
                   )}
                   {statusFocus === "dialer" && (
-                    <div className="mt-3 rounded-2xl border border-[#F5C5CE] bg-[#FFF8F9] p-3 max-h-64 overflow-y-auto">
-                      <p className="text-xs font-semibold text-[#B8112D] mb-2">Manual dialer numbers</p>
+                    <div className="mt-3 rounded-2xl border border-[#F5C5CE] bg-[#F8FAFF] p-3 max-h-64 overflow-y-auto">
+                      <p className="text-xs font-semibold text-[#0F398A] mb-2">Manual dialer numbers</p>
                       {(reportData?.dialerLog ?? []).filter(row => !selectedCSR || row.csrId === selectedCSR.id).length === 0 ? (
                         <p className="text-sm text-gray-400">No dialer calls in this period.</p>
                       ) : (
@@ -611,7 +611,7 @@ export default function ReportsPage() {
                                 <button
                                   type="button"
                                   onClick={() => dialer?.open({ destination: row.number })}
-                                  className="font-semibold text-[#B8112D] truncate text-left underline-offset-[3px] hover:underline"
+                                  className="font-semibold text-[#0F398A] truncate text-left underline-offset-[3px] hover:underline"
                                   title="Call this number"
                                 >
                                   {row.number}

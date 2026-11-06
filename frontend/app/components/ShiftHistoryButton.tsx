@@ -97,8 +97,8 @@ export default function ShiftHistoryButton({
                 <>
               {deduction ? (
                 <div className="mb-3 grid grid-cols-2 gap-2">
-                  <div className="rounded-2xl bg-[#FFF1F3] px-3 py-2.5">
-                    <p className="text-[10px] font-bold uppercase tracking-wide text-[#B8112D]">Current date</p>
+                  <div className="rounded-2xl bg-[#EFF6FF] px-3 py-2.5">
+                    <p className="text-[10px] font-bold uppercase tracking-wide text-[#0F398A]">Current date</p>
                     <p className="mt-0.5 text-sm font-bold tabular-nums text-[#0F172A] dark:text-crm-text">{money(deduction.day)}</p>
                   </div>
                   <div className="rounded-2xl bg-[#F8FAFC] px-3 py-2.5 dark:bg-white/5">
@@ -125,12 +125,12 @@ export default function ShiftHistoryButton({
                           ) : null}
                         </div>
                         <div>
-                          <p className="text-[10px] font-bold uppercase tracking-wide text-[#B8112D]">Last check-out</p>
+                          <p className="text-[10px] font-bold uppercase tracking-wide text-[#0F398A]">Last check-out</p>
                           <p className="font-semibold tabular-nums text-[#0B1220] dark:text-crm-text">
                             {day.checkOut ?? "Still in"}
                           </p>
                           {day.overnight && day.checkOutLabel ? (
-                            <p className="text-[10px] font-bold uppercase tracking-wide text-[#B8112D]">
+                            <p className="text-[10px] font-bold uppercase tracking-wide text-[#0F398A]">
                               Next day · {day.checkOutLabel}
                             </p>
                           ) : null}

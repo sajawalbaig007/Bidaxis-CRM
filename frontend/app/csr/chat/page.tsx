@@ -90,7 +90,7 @@ function truncate(text: string, n = 60) {
 }
 
 /* ─── Avatar ─────────────────────────────────────────────── */
-const COLORS = ["bg-[#B8112D]","bg-[#1D4ED8]","bg-[#15803D]","bg-[#B45309]","bg-[#7C3AED]","bg-[#0891B2]"];
+const COLORS = ["bg-[#0F398A]","bg-[#1D4ED8]","bg-[#15803D]","bg-[#B45309]","bg-[#7C3AED]","bg-[#0891B2]"];
 function Avatar({ name, src, size = "md", online }: { name: string; src?: string | null; size?: "sm"|"md"|"lg"; online?: boolean }) {
   const c  = COLORS[name.charCodeAt(0) % COLORS.length];
   const sz = size === "sm" ? "w-8 h-8 text-[10px]" : size === "lg" ? "w-11 h-11 text-sm" : "w-9 h-9 text-xs";
@@ -130,7 +130,7 @@ function FileCard({ fileName, fileSize, fileUrl, fileMimeType, isOwn }: {
         isOwn ? "bg-white/15 hover:bg-white/25" : "bg-[#F5F6FA] hover:bg-gray-100"
       }`}>
       <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
-        isOwn ? "bg-white/20 text-white" : "bg-[#B8112D]/10 text-[#B8112D]"
+        isOwn ? "bg-white/20 text-white" : "bg-[#0F398A]/10 text-[#0F398A]"
       }`}>{mimeIcon(fileMimeType)}</div>
       <div className="flex-1 min-w-0">
         <p className="text-xs font-semibold truncate">{fileName}</p>
@@ -162,14 +162,14 @@ function VoicePlayer({ fileUrl, isOwn }: { fileUrl: string; isOwn: boolean }) {
         onEnded={() => { setPlaying(false); setProgress(0); setCurTime(0); }} />
       <button onClick={toggle}
         className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 transition-colors ${
-          isOwn ? "bg-white/20 hover:bg-white/30" : "bg-[#B8112D]/10 hover:bg-[#B8112D]/20"
+          isOwn ? "bg-white/20 hover:bg-white/30" : "bg-[#0F398A]/10 hover:bg-[#0F398A]/20"
         }`}>
-        {playing ? <Pause size={13} className={isOwn ? "text-white" : "text-[#B8112D]"} />
-                 : <Play  size={13} className={isOwn ? "text-white" : "text-[#B8112D]"} />}
+        {playing ? <Pause size={13} className={isOwn ? "text-white" : "text-[#0F398A]"} />
+                 : <Play  size={13} className={isOwn ? "text-white" : "text-[#0F398A]"} />}
       </button>
       <div className="flex-1 flex flex-col gap-1">
         <div className={`h-1 rounded-full overflow-hidden ${isOwn ? "bg-white/30" : "bg-gray-200"}`}>
-          <div className={`h-full rounded-full ${isOwn ? "bg-white" : "bg-[#B8112D]"}`}
+          <div className={`h-full rounded-full ${isOwn ? "bg-white" : "bg-[#0F398A]"}`}
             style={{ width: `${progress}%`, transition: "width 0.1s linear" }} />
         </div>
         <span className={`text-[9px] ${isOwn ? "text-white/60" : "text-gray-400"}`}>
@@ -230,7 +230,7 @@ function MessageBubble({
 
           <div className={`flex flex-col min-w-0 ${own ? "items-end" : "items-start"}`}>
             {isGroup && !own && showAvatar && (
-              <span className="text-[10px] font-bold text-[#B8112D] mb-0.5 ml-1">{msg.senderName}</span>
+              <span className="text-[10px] font-bold text-[#0F398A] mb-0.5 ml-1">{msg.senderName}</span>
             )}
 
             {msg.replyTo && (
@@ -239,7 +239,7 @@ function MessageBubble({
                 className={`mb-1 text-left rounded-xl px-2.5 py-1.5 border-l-4 text-[11px] max-w-full ${
                   own
                     ? "bg-white/10 border-white/40 text-white/80 hover:bg-white/20"
-                    : "bg-gray-100 border-[#B8112D]/40 text-gray-500 hover:bg-gray-200"
+                    : "bg-gray-100 border-[#0F398A]/40 text-gray-500 hover:bg-gray-200"
                 } transition-colors`}
               >
                 <p className="font-bold text-[10px] mb-0.5 opacity-80">{msg.replyTo.senderName}</p>
@@ -251,7 +251,7 @@ function MessageBubble({
 
             <div className={`rounded-2xl ${msg.type === "text" ? "px-3.5 py-2.5" : "p-2"} ${
               own
-                ? "bg-[#B8112D] text-white rounded-br-sm"
+                ? "bg-[#0F398A] text-white rounded-br-sm"
                 : "bg-white text-[#0F172A] shadow-sm border border-gray-100 rounded-bl-sm"
             }`}>
               {body()}
@@ -288,27 +288,27 @@ function ConvItem({
   return (
     <div
       className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all cursor-pointer group ${
-        active ? "bg-[#FFF1F3]" : "hover:bg-[#F9FAFB]"
-      } ${selected ? "bg-[#FFF1F3] ring-1 ring-[#B8112D]/20" : ""}`}
+        active ? "bg-[#EFF6FF]" : "hover:bg-[#F9FAFB]"
+      } ${selected ? "bg-[#EFF6FF] ring-1 ring-[#0F398A]/20" : ""}`}
       onClick={selectMode ? onSelect : onClick}
     >
       {/* Checkbox in select mode */}
       {selectMode ? (
         <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${
-          selected ? "bg-[#B8112D] border-[#B8112D]" : "border-gray-300"
+          selected ? "bg-[#0F398A] border-[#0F398A]" : "border-gray-300"
         }`}>
           {selected && <Check size={10} className="text-white" />}
         </div>
       ) : (
         conv.type === "group"
-          ? <div className="w-9 h-9 rounded-full bg-[#B8112D]/10 text-[#B8112D] flex items-center justify-center shrink-0"><Hash size={16} /></div>
+          ? <div className="w-9 h-9 rounded-full bg-[#0F398A]/10 text-[#0F398A] flex items-center justify-center shrink-0"><Hash size={16} /></div>
           : <Avatar name={conv.name} size="sm" online={conv.isOnline} />
       )}
 
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between gap-1">
-          <span className={`text-[13px] font-semibold truncate ${active ? "text-[#B8112D]" : "text-[#0F172A]"}`}>
-            {pinned && <Pin size={9} className="inline mr-1 text-[#B8112D]" />}
+          <span className={`text-[13px] font-semibold truncate ${active ? "text-[#0F398A]" : "text-[#0F172A]"}`}>
+            {pinned && <Pin size={9} className="inline mr-1 text-[#0F398A]" />}
             {conv.name}
           </span>
           {conv.lastMessageAt && <span className="text-[10px] text-gray-400 shrink-0">{fmtConvTime(conv.lastMessageAt)}</span>}
@@ -318,7 +318,7 @@ function ConvItem({
             {conv.lastMessage ?? (conv.type === "group" ? `${conv.memberCount ?? 0} members` : "No messages yet")}
           </p>
           {conv.unreadCount > 0 && (
-            <span className="bg-[#B8112D] text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full min-w-[16px] text-center shrink-0">
+            <span className="bg-[#0F398A] text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full min-w-[16px] text-center shrink-0">
               {conv.unreadCount > 9 ? "9+" : conv.unreadCount}
             </span>
           )}
@@ -971,14 +971,14 @@ export default function ChatPage() {
                 <div className="flex items-center gap-1.5">
                   <button
                     onClick={() => setSelectedConvs(conversations.map(c => c.id))}
-                    className="text-[11px] font-semibold text-[#B8112D] hover:underline px-2"
+                    className="text-[11px] font-semibold text-[#0F398A] hover:underline px-2"
                   >
                     All
                   </button>
                   {selectedConvs.length > 0 && (
                     <button
                       onClick={() => void deleteConversations(selectedConvs)}
-                      className="flex items-center gap-1.5 h-8 px-3 rounded-xl bg-[#B8112D] text-white text-[11px] font-bold hover:bg-[#a30f27] transition-colors"
+                      className="flex items-center gap-1.5 h-8 px-3 rounded-xl bg-[#0F398A] text-white text-[11px] font-bold hover:bg-[#a30f27] transition-colors"
                     >
                       <Trash2 size={12} />Delete
                     </button>
@@ -990,7 +990,7 @@ export default function ChatPage() {
               <div className="flex items-center gap-2 mb-3 min-w-0">
                 <h2 className="text-[17px] font-bold text-[#0F172A] truncate">Messages</h2>
                 {totalUnread > 0 && (
-                  <span className="bg-[#B8112D] text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center shrink-0">
+                  <span className="bg-[#0F398A] text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center shrink-0">
                     {totalUnread}
                   </span>
                 )}
@@ -1001,7 +1001,7 @@ export default function ChatPage() {
               <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
               <input type="text" placeholder="Search conversations…" value={convSearch}
                 onChange={e => setConvSearch(e.target.value)}
-                className="w-full h-9 rounded-xl bg-[#F3F4F6] pl-8 pr-3 text-xs outline-none focus:bg-white focus:ring-2 focus:ring-[#B8112D]/20 transition-all" />
+                className="w-full h-9 rounded-xl bg-[#F3F4F6] pl-8 pr-3 text-xs outline-none focus:bg-white focus:ring-2 focus:ring-[#0F398A]/20 transition-all" />
             </div>
           </div>
 
@@ -1017,7 +1017,7 @@ export default function ChatPage() {
                   <button key={c.id} onClick={() => { setActiveConvId(c.id); setMobileSideOpen(false); }}
                     className="flex flex-col items-center gap-1 shrink-0 group" title={c.name}>
                     <Avatar name={c.name} size="sm" online />
-                    <span className="text-[9px] text-gray-500 font-medium max-w-[40px] truncate group-hover:text-[#B8112D] transition-colors">
+                    <span className="text-[9px] text-gray-500 font-medium max-w-[40px] truncate group-hover:text-[#0F398A] transition-colors">
                       {c.name.split(" ")[0]}
                     </span>
                   </button>
@@ -1112,16 +1112,16 @@ export default function ChatPage() {
                   <ChevronLeft size={15} />
                 </button>
                 {activeConv.type === "group"
-                  ? <div className="w-9 h-9 rounded-full bg-[#B8112D]/10 text-[#B8112D] flex items-center justify-center shrink-0"><Hash size={16} /></div>
+                  ? <div className="w-9 h-9 rounded-full bg-[#0F398A]/10 text-[#0F398A] flex items-center justify-center shrink-0"><Hash size={16} /></div>
                   : <Avatar name={activeConv.name} size="sm" online={activeConv.isOnline} />}
                 <div className="flex-1 min-w-0">
                   <h3 className="text-sm font-bold text-[#0F172A] truncate">{activeConv.name}</h3>
                   {/* Typing indicator takes precedence */}
                   {typingName ? (
-                    <span className="inline-flex items-center gap-1 text-[11px] font-medium text-[#B8112D]">
+                    <span className="inline-flex items-center gap-1 text-[11px] font-medium text-[#0F398A]">
                       <span className="flex gap-0.5">
                         {[0,1,2].map(i => (
-                          <span key={i} className="w-1 h-1 rounded-full bg-[#B8112D] animate-bounce"
+                          <span key={i} className="w-1 h-1 rounded-full bg-[#0F398A] animate-bounce"
                             style={{ animationDelay: `${i * 150}ms` }} />
                         ))}
                       </span>
@@ -1143,7 +1143,7 @@ export default function ChatPage() {
                 <button
                   onClick={() => { setMsgSearchOpen(v => !v); if (msgSearchOpen) setMsgSearchText(""); }}
                   className={`w-8 h-8 rounded-xl flex items-center justify-center transition-colors ${
-                    msgSearchOpen ? "bg-[#B8112D] text-white" : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                    msgSearchOpen ? "bg-[#0F398A] text-white" : "bg-gray-100 text-gray-500 hover:bg-gray-200"
                   }`}
                   title="Search in chat"
                 >
@@ -1153,7 +1153,7 @@ export default function ChatPage() {
                 {/* Delete this conversation */}
                 <button
                   onClick={() => void deleteConversations([activeConv.id])}
-                  className="w-8 h-8 rounded-xl bg-gray-100 text-gray-400 hover:bg-red-50 hover:text-[#B8112D] flex items-center justify-center transition-colors"
+                  className="w-8 h-8 rounded-xl bg-gray-100 text-gray-400 hover:bg-red-50 hover:text-[#0F398A] flex items-center justify-center transition-colors"
                   title="Delete conversation"
                 >
                   <Trash2 size={14} />
@@ -1180,7 +1180,7 @@ export default function ChatPage() {
                       placeholder="Search messages…"
                       value={msgSearchText}
                       onChange={e => setMsgSearchText(e.target.value)}
-                      className="w-full h-9 rounded-xl bg-[#F3F4F6] pl-8 pr-8 text-xs outline-none focus:bg-white focus:ring-2 focus:ring-[#B8112D]/20 transition-all"
+                      className="w-full h-9 rounded-xl bg-[#F3F4F6] pl-8 pr-8 text-xs outline-none focus:bg-white focus:ring-2 focus:ring-[#0F398A]/20 transition-all"
                     />
                     {msgSearchText && (
                       <button onClick={() => setMsgSearchText("")}
@@ -1248,10 +1248,10 @@ export default function ChatPage() {
                 <div className="px-4 pt-2 shrink-0 bg-white">
                   <div className="flex items-center gap-2">
                     <div className="flex-1 h-1.5 bg-gray-200 rounded-full overflow-hidden">
-                      <div className="h-full bg-[#B8112D] rounded-full transition-all duration-200"
+                      <div className="h-full bg-[#0F398A] rounded-full transition-all duration-200"
                         style={{ width: `${uploadProgress}%` }} />
                     </div>
-                    <span className="text-[10px] font-bold text-[#B8112D] shrink-0 tabular-nums">{uploadProgress}%</span>
+                    <span className="text-[10px] font-bold text-[#0F398A] shrink-0 tabular-nums">{uploadProgress}%</span>
                   </div>
                 </div>
               )}
@@ -1263,7 +1263,7 @@ export default function ChatPage() {
                     {pendingPreview
                       /* eslint-disable-next-line @next/next/no-img-element */
                       ? <img src={pendingPreview} alt="" className="w-12 h-12 rounded-xl object-cover shrink-0" />
-                      : <div className="w-12 h-12 rounded-xl bg-[#B8112D]/10 text-[#B8112D] flex items-center justify-center shrink-0">{mimeIcon(pendingFile.type)}</div>}
+                      : <div className="w-12 h-12 rounded-xl bg-[#0F398A]/10 text-[#0F398A] flex items-center justify-center shrink-0">{mimeIcon(pendingFile.type)}</div>}
                     <div className="flex-1 min-w-0">
                       <p className="text-xs font-semibold text-[#0F172A] truncate">{pendingFile.name}</p>
                       <p className="text-[10px] text-gray-400">{fmtSize(pendingFile.size)}</p>
@@ -1279,16 +1279,16 @@ export default function ChatPage() {
               {/* Reply-to strip */}
               {replyTo && (
                 <div className="px-4 pt-2 shrink-0 bg-white">
-                  <div className="flex items-center gap-2.5 bg-[#FFF1F3] border border-[#B8112D]/20 rounded-xl px-3 py-2">
-                    <Reply size={13} className="text-[#B8112D] shrink-0" />
+                  <div className="flex items-center gap-2.5 bg-[#EFF6FF] border border-[#0F398A]/20 rounded-xl px-3 py-2">
+                    <Reply size={13} className="text-[#0F398A] shrink-0" />
                     <div className="flex-1 min-w-0">
-                      <p className="text-[10px] font-bold text-[#B8112D]">{replyTo.senderName}</p>
+                      <p className="text-[10px] font-bold text-[#0F398A]">{replyTo.senderName}</p>
                       <p className="text-[11px] text-gray-500 truncate">
                         {replyTo.type !== "text" ? `📎 ${replyTo.type}` : truncate(replyTo.text, 60)}
                       </p>
                     </div>
                     <button onClick={() => setReplyTo(null)}
-                      className="w-6 h-6 rounded-full hover:bg-[#B8112D]/10 flex items-center justify-center shrink-0 text-gray-400">
+                      className="w-6 h-6 rounded-full hover:bg-[#0F398A]/10 flex items-center justify-center shrink-0 text-gray-400">
                       <X size={11} />
                     </button>
                   </div>
@@ -1300,22 +1300,22 @@ export default function ChatPage() {
                 <input ref={fileInputRef} type="file" className="hidden" accept="*/*" onChange={onFileChange} />
 
                 {isRecording ? (
-                  <div className="flex items-center gap-3 bg-[#FFF1F3] rounded-2xl px-4 py-3 border border-[#B8112D]/20">
+                  <div className="flex items-center gap-3 bg-[#EFF6FF] rounded-2xl px-4 py-3 border border-[#0F398A]/20">
                     <div className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse shrink-0" />
                     <div className="flex items-end gap-0.5 flex-1 h-6">
                       {[4,7,3,9,5,8,2,6,4,7,3,8,5,9,3].map((h, i) => (
-                        <div key={i} className="w-0.5 bg-[#B8112D] rounded-full animate-pulse"
+                        <div key={i} className="w-0.5 bg-[#0F398A] rounded-full animate-pulse"
                           style={{ height: `${h * 10}%`, animationDelay: `${i * 55}ms` }} />
                       ))}
                     </div>
-                    <span className="text-sm font-bold text-[#B8112D] tabular-nums shrink-0">{fmtAudio(recTime)}</span>
+                    <span className="text-sm font-bold text-[#0F398A] tabular-nums shrink-0">{fmtAudio(recTime)}</span>
                     <button onClick={cancelRec}
                       className="w-8 h-8 rounded-xl bg-white text-gray-500 hover:bg-gray-100 flex items-center justify-center shrink-0"
                       title="Cancel">
                       <X size={14} />
                     </button>
                     <button onClick={stopRec}
-                      className="w-8 h-8 rounded-xl bg-[#B8112D] text-white flex items-center justify-center shrink-0 shadow-sm"
+                      className="w-8 h-8 rounded-xl bg-[#0F398A] text-white flex items-center justify-center shrink-0 shadow-sm"
                       title="Stop and send">
                       <StopCircle size={14} />
                     </button>
@@ -1323,7 +1323,7 @@ export default function ChatPage() {
                 ) : (
                   <div className="flex items-end gap-2">
                     <button onClick={() => fileInputRef.current?.click()}
-                      className="w-9 h-9 rounded-xl bg-[#F3F4F6] text-gray-500 hover:bg-[#FFF1F3] hover:text-[#B8112D] flex items-center justify-center shrink-0 transition-colors mb-0.5"
+                      className="w-9 h-9 rounded-xl bg-[#F3F4F6] text-gray-500 hover:bg-[#EFF6FF] hover:text-[#0F398A] flex items-center justify-center shrink-0 transition-colors mb-0.5"
                       title="Attach file (max 200 MB)">
                       <Paperclip size={15} />
                     </button>
@@ -1340,7 +1340,7 @@ export default function ChatPage() {
 
                     <button onClick={() => void startRec()}
                       disabled={!!pendingFile || sendingMsg}
-                      className="w-9 h-9 rounded-xl bg-[#F3F4F6] text-gray-500 hover:bg-[#FFF1F3] hover:text-[#B8112D] flex items-center justify-center shrink-0 transition-colors mb-0.5 disabled:opacity-40"
+                      className="w-9 h-9 rounded-xl bg-[#F3F4F6] text-gray-500 hover:bg-[#EFF6FF] hover:text-[#0F398A] flex items-center justify-center shrink-0 transition-colors mb-0.5 disabled:opacity-40"
                       title="Record voice message">
                       <Mic size={15} />
                     </button>
@@ -1348,7 +1348,7 @@ export default function ChatPage() {
                     <button
                       onClick={pendingFile ? () => void sendFile() : () => void sendText()}
                       disabled={(!msgText.trim() && !pendingFile) || sendingMsg || uploading}
-                      className="w-9 h-9 rounded-xl bg-[#B8112D] text-white flex items-center justify-center hover:bg-[#a30f27] disabled:bg-gray-200 disabled:text-gray-400 transition-colors shrink-0 mb-0.5 shadow-sm shadow-red-200">
+                      className="w-9 h-9 rounded-xl bg-[#0F398A] text-white flex items-center justify-center hover:bg-[#a30f27] disabled:bg-gray-200 disabled:text-gray-400 transition-colors shrink-0 mb-0.5 shadow-sm shadow-red-200">
                       {sendingMsg || uploading ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
                     </button>
                   </div>
@@ -1367,16 +1367,16 @@ export default function ChatPage() {
               <p className="text-sm text-gray-400 mt-1 max-w-xs">Select a conversation or start a new one with any team member.</p>
               <div className="flex flex-wrap gap-2.5 mt-5 justify-center">
                 <button onClick={() => { setShowDmModal(true); void fetchUsers(true); }}
-                  className="h-9 px-4 rounded-xl bg-white border border-gray-200 text-sm font-semibold text-gray-600 hover:border-[#B8112D] hover:text-[#B8112D] flex items-center gap-2 shadow-sm transition-all">
+                  className="h-9 px-4 rounded-xl bg-white border border-gray-200 text-sm font-semibold text-gray-600 hover:border-[#0F398A] hover:text-[#0F398A] flex items-center gap-2 shadow-sm transition-all">
                   <User2 size={13} />New DM
                 </button>
                 <button onClick={() => { setShowGroupModal(true); void fetchUsers(true); }}
-                  className="h-9 px-4 rounded-xl bg-[#B8112D] text-white text-sm font-semibold flex items-center gap-2 hover:bg-[#a30f27] shadow-sm shadow-red-200 transition-colors">
+                  className="h-9 px-4 rounded-xl bg-[#0F398A] text-white text-sm font-semibold flex items-center gap-2 hover:bg-[#a30f27] shadow-sm shadow-red-200 transition-colors">
                   <Hash size={13} />Create Group
                 </button>
               </div>
               <button onClick={() => setMobileSideOpen(true)}
-                className="lg:hidden mt-4 text-xs text-[#B8112D] font-semibold underline">
+                className="lg:hidden mt-4 text-xs text-[#0F398A] font-semibold underline">
                 ← Back to conversations
               </button>
             </div>
@@ -1428,7 +1428,7 @@ export default function ChatPage() {
           <div className="w-full sm:max-w-[480px] bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden" style={{ maxHeight: "85vh" }} onClick={e => e.stopPropagation()}>
             <div className="px-5 pt-5 pb-4 border-b border-gray-100 shrink-0 flex items-center justify-between">
               <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-[#B8112D] text-white flex items-center justify-center"><Hash size={16} /></div>
+                <div className="w-9 h-9 rounded-xl bg-[#0F398A] text-white flex items-center justify-center"><Hash size={16} /></div>
                 <div>
                   <h2 className="text-base font-bold text-[#0F172A]">Create Group</h2>
                   <p className="text-[11px] text-gray-400">Name and invite members</p>
@@ -1443,7 +1443,7 @@ export default function ChatPage() {
                 <label className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5 block">Group Name *</label>
                 <input type="text" value={groupName} onChange={e => setGroupName(e.target.value)} autoFocus
                   placeholder="e.g. CSR Team, Morning Shift…"
-                  className="w-full h-10 rounded-xl border-2 border-gray-200 bg-white px-3 text-sm outline-none focus:border-[#B8112D] transition-colors placeholder:text-gray-300" />
+                  className="w-full h-10 rounded-xl border-2 border-gray-200 bg-white px-3 text-sm outline-none focus:border-[#0F398A] transition-colors placeholder:text-gray-300" />
               </div>
 
               <div>
@@ -1455,7 +1455,7 @@ export default function ChatPage() {
                   <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                   <input type="text" value={userSearch} onChange={e => setUserSearch(e.target.value)}
                     placeholder="Search by name, email, CSR code…"
-                    className="w-full h-9 rounded-xl border border-gray-200 bg-[#FAFAFA] pl-8 pr-3 text-xs outline-none focus:border-[#B8112D] transition-colors" />
+                    className="w-full h-9 rounded-xl border border-gray-200 bg-[#FAFAFA] pl-8 pr-3 text-xs outline-none focus:border-[#0F398A] transition-colors" />
                 </div>
 
                 {selectedUsers.length > 0 && (
@@ -1463,7 +1463,7 @@ export default function ChatPage() {
                     {selectedUsers.map(uid => {
                       const u = allUsers.find(x => x.id === uid);
                       return u ? (
-                        <span key={uid} className="flex items-center gap-1 bg-[#FFF1F3] text-[#B8112D] px-2 py-0.5 rounded-lg text-[11px] font-semibold">
+                        <span key={uid} className="flex items-center gap-1 bg-[#EFF6FF] text-[#0F398A] px-2 py-0.5 rounded-lg text-[11px] font-semibold">
                           {u.name.split(" ")[0]}
                           <button onClick={() => setSelectedUsers(p => p.filter(id => id !== uid))} className="hover:opacity-70"><X size={9} /></button>
                         </span>
@@ -1480,13 +1480,13 @@ export default function ChatPage() {
                         return (
                           <button key={user.id}
                             onClick={() => setSelectedUsers(p => sel ? p.filter(id => id !== user.id) : [...p, user.id])}
-                            className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-left transition-colors ${sel ? "bg-[#FFF1F3]" : "hover:bg-white"}`}>
+                            className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-left transition-colors ${sel ? "bg-[#EFF6FF]" : "hover:bg-white"}`}>
                             <Avatar name={user.name} size="sm" />
                             <div className="flex-1 min-w-0">
                               <p className="text-xs font-semibold text-[#0F172A] truncate">{user.name}</p>
                               <p className="text-[10px] text-gray-400">{user.csrCode ?? user.role ?? user.email ?? ""}</p>
                             </div>
-                            <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${sel ? "bg-[#B8112D] border-[#B8112D]" : "border-gray-300"}`}>
+                            <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${sel ? "bg-[#0F398A] border-[#0F398A]" : "border-gray-300"}`}>
                               {sel && <Check size={10} className="text-white" />}
                             </div>
                           </button>
@@ -1502,7 +1502,7 @@ export default function ChatPage() {
                 Cancel
               </button>
               <button onClick={() => void createGroup()} disabled={!groupName.trim() || creatingGroup}
-                className="flex-1 h-10 rounded-xl bg-[#B8112D] text-white font-semibold text-sm flex items-center justify-center gap-2 hover:bg-[#a30f27] disabled:bg-gray-200 disabled:text-gray-400 transition-colors">
+                className="flex-1 h-10 rounded-xl bg-[#0F398A] text-white font-semibold text-sm flex items-center justify-center gap-2 hover:bg-[#a30f27] disabled:bg-gray-200 disabled:text-gray-400 transition-colors">
                 {creatingGroup ? <><Loader2 size={13} className="animate-spin" />Creating…</> : <><Hash size={13} />Create Group</>}
               </button>
             </div>
@@ -1532,7 +1532,7 @@ export default function ChatPage() {
                 <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                 <input type="text" value={dmSearch} onChange={e => setDmSearch(e.target.value)} autoFocus
                   placeholder="Search by name, email, or CSR code…"
-                  className="w-full h-9 rounded-xl border border-gray-200 bg-[#FAFAFA] pl-8 pr-3 text-xs outline-none focus:border-[#B8112D] transition-colors" />
+                  className="w-full h-9 rounded-xl border border-gray-200 bg-[#FAFAFA] pl-8 pr-3 text-xs outline-none focus:border-[#0F398A] transition-colors" />
               </div>
             </div>
 

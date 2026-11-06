@@ -261,7 +261,7 @@ export default function IncomeBudgetModal({ open, onClose }: Props) {
       <div className="relative w-full max-w-6xl max-h-[94vh] flex flex-col rounded-t-2xl sm:rounded-2xl bg-crm-surface shadow-2xl border border-crm-border overflow-hidden">
         <header className="flex items-start justify-between gap-3 px-4 sm:px-5 py-4 border-b border-crm-border-subtle bg-gradient-to-r from-[#FFF6F8] to-white dark:from-rose-500/10 dark:to-crm-surface">
           <div className="min-w-0">
-            <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#B8112D]/80 dark:text-rose-300 flex items-center gap-1.5">
+            <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#0F398A]/80 dark:text-rose-300 flex items-center gap-1.5">
               <PiggyBank size={12} /> 3-Month Budget
             </p>
             <h2 className="text-lg sm:text-xl font-extrabold text-crm-text mt-0.5">
@@ -288,7 +288,7 @@ export default function IncomeBudgetModal({ open, onClose }: Props) {
               type="date"
               value={fromDate}
               onChange={e => applyThreeMonthsFrom(e.target.value)}
-              className="mt-1 h-10 block rounded-xl border border-crm-border bg-crm-surface px-3 text-sm outline-none focus:border-[#B8112D]"
+              className="mt-1 h-10 block rounded-xl border border-crm-border bg-crm-surface px-3 text-sm outline-none focus:border-[#0F398A]"
             />
           </label>
           <label className="text-[10px] font-bold uppercase tracking-wide text-crm-text-muted">
@@ -462,7 +462,7 @@ export default function IncomeBudgetModal({ open, onClose }: Props) {
                                   <AmountInput
                                     value={Number(line.months[mk]) || 0}
                                     onChange={n => setMonthBudget(line.key, mk, n)}
-                                    className="h-8 w-[6.5rem] rounded-lg border border-crm-border bg-crm-surface px-1.5 text-xs tabular-nums text-right outline-none focus:border-[#B8112D]"
+                                    className="h-8 w-[6.5rem] rounded-lg border border-crm-border bg-crm-surface px-1.5 text-xs tabular-nums text-right outline-none focus:border-[#0F398A]"
                                   />
                                 </td>
                                 <td className="px-2 py-1.5 text-right tabular-nums text-xs text-crm-text-secondary align-middle">
@@ -478,7 +478,7 @@ export default function IncomeBudgetModal({ open, onClose }: Props) {
                     </tbody>
                     <tfoot>
                       <tr className="border-t-2 border-rose-200 bg-rose-50/70">
-                        <td className="px-3 py-2.5 font-black uppercase tracking-wide text-[#B8112D] sticky left-0 bg-rose-50/90 z-10 text-[11px]">
+                        <td className="px-3 py-2.5 font-black uppercase tracking-wide text-[#0F398A] sticky left-0 bg-rose-50/90 z-10 text-[11px]">
                           Total expense
                           <span className="block text-[9px] font-bold normal-case tracking-normal text-rose-700/80">
                             Budget you typed · Actual from IS
@@ -486,7 +486,7 @@ export default function IncomeBudgetModal({ open, onClose }: Props) {
                         </td>
                         {monthKeys.map(mk => (
                           <Fragment key={`tb-${mk}`}>
-                            <td className="px-1.5 py-2.5 text-right font-black tabular-nums text-[#B8112D] text-xs">
+                            <td className="px-1.5 py-2.5 text-right font-black tabular-nums text-[#0F398A] text-xs">
                               {currency(monthExpenseBudget(mk))}
                             </td>
                             <td className="px-1.5 py-2.5 text-right font-black tabular-nums text-sky-900 text-xs">
@@ -494,7 +494,7 @@ export default function IncomeBudgetModal({ open, onClose }: Props) {
                             </td>
                           </Fragment>
                         ))}
-                        <td className="px-3 py-2.5 text-right font-black tabular-nums text-[#B8112D]">
+                        <td className="px-3 py-2.5 text-right font-black tabular-nums text-[#0F398A]">
                           {currency(monthKeys.reduce((a, mk) => a + monthExpenseBudget(mk), 0))}
                         </td>
                         <td className="px-3 py-2.5 text-right font-black tabular-nums text-sky-900">
@@ -561,7 +561,7 @@ export default function IncomeBudgetModal({ open, onClose }: Props) {
                       value={period.notes ?? ""}
                       onChange={e => setPeriod(p => ({ ...p, notes: e.target.value }))}
                       rows={2}
-                      className="mt-1 w-full rounded-xl border border-crm-border px-3 py-2 text-sm outline-none focus:border-[#B8112D] resize-none"
+                      className="mt-1 w-full rounded-xl border border-crm-border px-3 py-2 text-sm outline-none focus:border-[#0F398A] resize-none"
                       placeholder="Optional notes…"
                     />
                   </label>
@@ -648,7 +648,7 @@ export default function IncomeBudgetModal({ open, onClose }: Props) {
             type="button"
             onClick={() => void save()}
             disabled={saving || loading}
-            className="h-10 px-4 rounded-xl bg-[#B8112D] text-white text-sm font-bold hover:bg-[#9a0e26] disabled:opacity-50 inline-flex items-center gap-1.5"
+            className="h-10 px-4 rounded-xl bg-[#0F398A] text-white text-sm font-bold hover:bg-[#9a0e26] disabled:opacity-50 inline-flex items-center gap-1.5"
           >
             {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
             Save budget

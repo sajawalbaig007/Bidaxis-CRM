@@ -15,8 +15,6 @@ import DevToolsGuard from "@/app/components/DevToolsGuard";
 import ThemeToggle from "@/app/components/ThemeToggle";
 import BrandLogo from "@/app/components/BrandLogo";
 import BemWordmark from "@/app/components/BemWordmark";
-import GpsLogo from "@/app/components/GpsLogo";
-import GpsWordmark from "@/app/components/GpsWordmark";
 
 interface APIError {
   response?: { data?: { message?: string; code?: string; blocked?: boolean; attempts?: number; captchaRequired?: boolean } };
@@ -24,7 +22,7 @@ interface APIError {
 type Step = "credentials" | "otp";
 
 const PORTAL_ACCENT: Record<PortalRole, string> = {
-  admin: "#B8112D",
+  admin: "#0F398A",
   manager: "#0F766E",
   csr: "#0B84F3",
   technical_manager: "#D97706",
@@ -48,7 +46,6 @@ export default function LoginPortalForm({ portal: loginPortal }: { portal: Porta
   const accent = PORTAL_ACCENT[loginPortal];
   const portalCompany = companyForPortal(loginPortal);
   const companyMeta = COMPANY_META[portalCompany];
-  const isGpsPortal = portalCompany === "GPS";
   const [step, setStep] = useState<Step>("credentials");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -286,7 +283,7 @@ export default function LoginPortalForm({ portal: loginPortal }: { portal: Porta
 
   const otpFilled = otp.join("").length === 6;
   const inputCls =
-    "w-full h-[48px] sm:h-[52px] border border-crm-border bg-crm-surface rounded-xl px-4 text-sm text-crm-text placeholder:text-crm-text-faint outline-none transition-all focus:border-[#B8112D] focus:ring-4 focus:ring-[#B8112D]/8";
+    "w-full h-[48px] sm:h-[52px] border border-crm-border bg-crm-surface rounded-xl px-4 text-sm text-crm-text placeholder:text-crm-text-faint outline-none transition-all focus:border-[#0F398A] focus:ring-4 focus:ring-[#0F398A]/8";
 
   return (
     <>
@@ -295,9 +292,7 @@ export default function LoginPortalForm({ portal: loginPortal }: { portal: Porta
         <div
           className="absolute inset-0 bg-cover bg-center scale-105"
           style={{
-            backgroundImage: isGpsPortal
-              ? `linear-gradient(135deg, rgba(8,20,60,0.9) 0%, rgba(15,23,42,0.82) 50%, ${companyMeta.accent}cc 100%), url('${companyMeta.logoSrc}')`
-              : `linear-gradient(135deg, rgba(74,6,18,0.88) 0%, rgba(15,23,42,0.82) 50%, rgba(184,17,45,0.75) 100%), url('${companyMeta.logoSrc}')`,
+            backgroundImage: `linear-gradient(135deg, rgba(8,20,60,0.9) 0%, rgba(15,23,42,0.82) 50%, ${companyMeta.accent}cc 100%), url('${companyMeta.logoSrc}')`,
           }}
         />
         <div className="absolute inset-0 backdrop-blur-[18px] bg-black/20 dark:bg-black/40" />
@@ -318,19 +313,8 @@ export default function LoginPortalForm({ portal: loginPortal }: { portal: Porta
             <div className="absolute -top-16 -left-16 w-52 h-52 rounded-full bg-white/5" />
             <div className="absolute -bottom-20 -right-20 w-72 h-72 rounded-full bg-white/5" />
             <div className="relative z-10 text-center w-full max-w-[280px] flex flex-col items-center">
-              {isGpsPortal ? (
-                <>
-                  <div className="rounded-2xl bg-white p-3 shadow-lg mb-3 md:mb-4">
-                    <GpsLogo size="md" className="drop-shadow-none" />
-                  </div>
-                  <GpsWordmark className="mb-3 md:mb-4" onDark />
-                </>
-              ) : (
-                <>
-                  <BrandLogo size="md" className="mb-3 md:mb-4" />
-                  <BemWordmark className="text-[15px] md:text-[17px] mb-3 md:mb-4" onDark />
-                </>
-              )}
+              <BrandLogo size="md" className="mb-3 md:mb-4" />
+              <BemWordmark className="text-[15px] md:text-[17px] mb-3 md:mb-4" onDark />
               <div
                 className="relative min-h-[100px] md:min-h-[110px] w-full cursor-pointer"
                 onClick={() => setActiveSlide(s => (s + 1) % loginSlides.length)}
@@ -359,7 +343,7 @@ export default function LoginPortalForm({ portal: loginPortal }: { portal: Porta
           <div className="flex-1 flex flex-col justify-center px-5 py-6 sm:px-8 sm:py-8 md:px-12 md:py-10 min-w-0 overflow-y-auto">
             <Link
               href={`/company/${companyMeta.slug}`}
-              className="inline-flex items-center gap-1.5 text-[12px] sm:text-[13px] font-semibold text-crm-text-muted hover:text-[#B8112D] mb-4 sm:mb-5 transition-colors w-fit"
+              className="inline-flex items-center gap-1.5 text-[12px] sm:text-[13px] font-semibold text-crm-text-muted hover:text-[#0F398A] mb-4 sm:mb-5 transition-colors w-fit"
             >
               <ArrowLeft size={14} /> Back to {companyMeta.name} portals
             </Link>
@@ -419,7 +403,7 @@ export default function LoginPortalForm({ portal: loginPortal }: { portal: Porta
                       type="checkbox"
                       checked={rememberMe}
                       onChange={e => setRememberMe(e.target.checked)}
-                      className="w-4 h-4 rounded border-crm-border text-[#B8112D] focus:ring-[#B8112D]"
+                      className="w-4 h-4 rounded border-crm-border text-[#0F398A] focus:ring-[#0F398A]"
                     />
                     Remember me for 7 days
                   </label>
@@ -462,7 +446,7 @@ export default function LoginPortalForm({ portal: loginPortal }: { portal: Porta
                 ) : (
                   <>
                     <div className="mb-6 sm:mb-7">
-                      <p className="text-[10px] sm:text-[11px] font-bold text-[#B8112D] uppercase tracking-[0.18em] mb-2">2-Factor Auth</p>
+                      <p className="text-[10px] sm:text-[11px] font-bold text-[#0F398A] uppercase tracking-[0.18em] mb-2">2-Factor Auth</p>
                       <h2 className="text-[22px] sm:text-[26px] font-black text-crm-text tracking-tight">Verify Identity</h2>
                       <p className="text-crm-text-muted text-[12px] sm:text-[13px] mt-2 leading-relaxed">6-digit code sent to your registered email</p>
                     </div>
@@ -481,8 +465,8 @@ export default function LoginPortalForm({ portal: loginPortal }: { portal: Porta
                             onKeyDown={e => handleOTPKeyDown(i, e)}
                             className={`flex-1 min-w-0 h-[50px] sm:h-[58px] text-center text-[18px] sm:text-[22px] font-black rounded-xl border-2 outline-none transition-all ${
                               digit
-                                ? "border-[#B8112D] bg-[#FFF1F3] dark:bg-[#B8112D]/15 text-[#B8112D] dark:text-[#ff6b85]"
-                                : "border-crm-border bg-crm-surface text-crm-text focus:border-[#B8112D]"
+                                ? "border-[#0F398A] bg-[#EFF6FF] dark:bg-[#0F398A]/15 text-[#0F398A] dark:text-[#60A5FA]"
+                                : "border-crm-border bg-crm-surface text-crm-text focus:border-[#0F398A]"
                             }`}
                           />
                         ))}
@@ -494,7 +478,7 @@ export default function LoginPortalForm({ portal: loginPortal }: { portal: Porta
                         className={`w-full h-[48px] sm:h-[52px] rounded-xl mt-4 sm:mt-5 font-bold text-[13px] sm:text-[14px] tracking-wide transition-all flex items-center justify-center gap-2 ${
                           otpFilled && !loading ? "text-white active:scale-[0.99] hover:brightness-110" : "bg-crm-muted text-crm-text-faint cursor-not-allowed"
                         }`}
-                        style={otpFilled && !loading ? { background: "linear-gradient(135deg, #B8112D 0%, #8c0d22 100%)", boxShadow: "0 6px 20px rgba(184,17,45,0.4)" } : {}}
+                        style={otpFilled && !loading ? { background: "linear-gradient(135deg, #0F398A 0%, #8c0d22 100%)", boxShadow: "0 6px 20px rgba(15,57,138,0.4)" } : {}}
                       >
                         {loading ? (
                           <>
@@ -517,7 +501,7 @@ export default function LoginPortalForm({ portal: loginPortal }: { portal: Porta
                           type="button"
                           onClick={() => void handleResend()}
                           disabled={resending}
-                          className="flex items-center gap-1.5 text-[12px] sm:text-[13px] text-[#B8112D] font-bold disabled:opacity-40 transition-colors"
+                          className="flex items-center gap-1.5 text-[12px] sm:text-[13px] text-[#0F398A] font-bold disabled:opacity-40 transition-colors"
                         >
                           <RefreshCw size={12} className={resending ? "animate-spin" : ""} />
                           {resending ? "Sending…" : "Resend OTP"}
@@ -526,7 +510,7 @@ export default function LoginPortalForm({ portal: loginPortal }: { portal: Porta
                     </form>
 
                     <div className="mt-5 sm:mt-6 flex items-center gap-2 bg-crm-surface-muted border border-crm-border rounded-xl px-3 sm:px-4 py-2.5 sm:py-3">
-                      <ShieldCheck size={14} className="text-[#B8112D] shrink-0" />
+                      <ShieldCheck size={14} className="text-[#0F398A] shrink-0" />
                       <p className="text-[10px] sm:text-[11px] text-crm-text-muted">Secured 2FA · Max 2 attempts · 5 min expiry</p>
                     </div>
                   </>

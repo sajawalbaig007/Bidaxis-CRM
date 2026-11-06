@@ -17,7 +17,7 @@ export default function SubContactsCell({ contacts = [] }: SubContactsCellProps)
     <div className="min-w-0 overflow-hidden">
       <p className="text-[10px] sm:text-[11px] font-medium text-gray-800 truncate">{first.name}</p>
       {extra > 0 && (
-        <span className="text-[9px] font-bold text-[#B8112D]">+{extra}</span>
+        <span className="text-[9px] font-bold text-[#0F398A]">+{extra}</span>
       )}
     </div>
   );

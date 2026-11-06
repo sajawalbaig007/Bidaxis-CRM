@@ -831,7 +831,7 @@ export async function prepareClientEmail(
       fromAccounts: senders,
       message: senders.length === 0
         ? "Draft is ready, but none of your From emails are configured yet."
-        : "I wrote this as you. When you send, pick Devcon, BIM Design Studio, or PS Estimating — that mailbox’s signature goes in the footer.",
+        : "I wrote this as you. When you send, pick the configured BidAxis mailbox — that mailbox’s signature goes in the footer.",
     },
   };
 }

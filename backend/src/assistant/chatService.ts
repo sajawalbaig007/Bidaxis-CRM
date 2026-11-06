@@ -241,7 +241,7 @@ function formatFallback(results: unknown[]): string {
         lines.push(String(d.body));
       }
       lines.push("");
-      lines.push("When you send, pick Devcon, BIM Design Studio, or PS Estimating. That mailbox’s signature is added to the footer automatically.");
+      lines.push("When you send, pick the configured BidAxis mailbox. That mailbox’s signature is added to the footer automatically.");
       continue;
     }
     if (d.technical) {

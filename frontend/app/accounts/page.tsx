@@ -493,8 +493,8 @@ export default function AccountsDashboardPage() {
   const bsEquity = summaries.balanceSheetTotalEquity ?? 0;
   const kpiCards = [
     { label: "Revenue", value: currencyCardTotal, color: "#6D28D9", hint: "Income Statement total revenue", href: "/accounts/income-statement", icon: <TrendingUp size={14} /> },
-    { label: "Total expenses", value: isExp, color: "#B8112D", hint: "Payroll + OPEX", href: "/accounts/income-statement", icon: <Layers3 size={14} /> },
-    { label: "Profit / Loss", value: isProfit, color: isProfit >= 0 ? "#027A48" : "#B8112D", hint: isProfit >= 0 ? "Net profit" : "Net loss", href: "/accounts/income-statement", icon: <TrendingUp size={14} /> },
+    { label: "Total expenses", value: isExp, color: "#0F398A", hint: "Payroll + OPEX", href: "/accounts/income-statement", icon: <Layers3 size={14} /> },
+    { label: "Profit / Loss", value: isProfit, color: isProfit >= 0 ? "#027A48" : "#0F398A", hint: isProfit >= 0 ? "Net profit" : "Net loss", href: "/accounts/income-statement", icon: <TrendingUp size={14} /> },
     { label: "Net Balance", value: netCashFlow, color: "#8b0d22", hint: "Cash Flow net amount", href: "/accounts/cash-flow-statement", icon: <Waves size={14} /> },
     { label: "Total Assets", value: bsAssets, color: "#0F766E", hint: "Balance Sheet · Total Assets", href: "/accounts/balance-sheet#bs-assets", icon: <Building2 size={14} /> },
     { label: "Total Liabilities", value: bsLiab, color: "#0369A1", hint: "Balance Sheet", href: "/accounts/balance-sheet", icon: <Scale size={14} /> },
@@ -512,7 +512,7 @@ export default function AccountsDashboardPage() {
   };
 
   const channelChips = [
-    { key: "AH" as const, label: "Ahmed Hamza", fx: fxFor("AH"), dot: "#B8112D" },
+    { key: "AH" as const, label: "Ahmed Hamza", fx: fxFor("AH"), dot: "#0F398A" },
     { key: "SN" as const, label: "Sharjeel Nasir", fx: fxFor("SN"), dot: "#0B84F3" },
     { key: "CHQ" as const, label: "Cheque", fx: fxFor("CHQ"), dot: "#F59E0B" },
     { key: "HM" as const, label: "Habib Metro", fx: fxFor("HM"), dot: "#12B76A" },
@@ -546,15 +546,15 @@ export default function AccountsDashboardPage() {
   const pnlHorizontal = [
     { name: "Revenue", value: isRev, fill: "#12B76A" },
     { name: "Payroll", value: isPayroll, fill: "#0B84F3" },
-    { name: "OPEX", value: isOpex, fill: "#B8112D" },
+    { name: "OPEX", value: isOpex, fill: "#0F398A" },
     { name: "Loans", value: isLoans, fill: "#F59E0B" },
     { name: "PF", value: isPf, fill: "#0D9488" },
-    { name: "Net Profit", value: isProfit, fill: isProfit >= 0 ? "#12B76A" : "#B8112D" },
+    { name: "Net Profit", value: isProfit, fill: isProfit >= 0 ? "#12B76A" : "#0F398A" },
   ];
 
   const expenseMix = [
     { name: "Payroll", value: Math.max(0, isPayroll), color: "#0B84F3" },
-    { name: "OPEX", value: Math.max(0, isOpex), color: "#B8112D" },
+    { name: "OPEX", value: Math.max(0, isOpex), color: "#0F398A" },
     { name: "Loans", value: Math.max(0, isLoans), color: "#F59E0B" },
     { name: "PF", value: Math.max(0, isPf), color: "#0D9488" },
   ];
@@ -569,7 +569,7 @@ export default function AccountsDashboardPage() {
     {
       name: "Margin",
       value: marginClamped,
-      fill: profitMarginPct >= 0 ? "#12B76A" : "#B8112D",
+      fill: profitMarginPct >= 0 ? "#12B76A" : "#0F398A",
     },
   ];
 
@@ -664,7 +664,7 @@ export default function AccountsDashboardPage() {
             <button
               type="button"
               onClick={() => setFormulaBookOpen(true)}
-              className="h-10 px-4 rounded-xl bg-[#FFF1F3] border border-[#F3D7DC] text-xs font-bold text-[#B8112D] inline-flex items-center gap-2 hover:bg-[#FFE4E8] transition-colors shadow-sm"
+              className="h-10 px-4 rounded-xl bg-[#EFF6FF] border border-[#F3D7DC] text-xs font-bold text-[#0F398A] inline-flex items-center gap-2 hover:bg-[#DBEAFE] transition-colors shadow-sm"
               title="All Accounts formulas — by section, editable"
             >
               <Sigma size={15} />
@@ -733,7 +733,7 @@ export default function AccountsDashboardPage() {
               <Link
                 key={m.label}
                 href={m.href}
-                className="rounded-2xl border border-gray-100 dark:border-crm-border bg-crm-surface p-3.5 sm:p-4 hover:border-[#B8112D]/35 hover:shadow-sm transition-all"
+                className="rounded-2xl border border-gray-100 dark:border-crm-border bg-crm-surface p-3.5 sm:p-4 hover:border-[#0F398A]/35 hover:shadow-sm transition-all"
               >
                 <div className="flex items-start justify-between gap-2">
                   <p className="text-[10px] font-bold uppercase tracking-wider text-crm-text-faint leading-snug">{m.label}</p>
@@ -801,7 +801,7 @@ export default function AccountsDashboardPage() {
                         <p className="text-[10px] text-crm-text-muted mt-2">
                           Ahmed formula now: <span className="font-bold text-crm-text-secondary tabular-nums">{ah.usdToPkrRate}</span>
                           {Math.abs(ah.usdToPkrRate - fxRates.usdToPkr) > 0.01 && (
-                            <span className="ml-1 text-[#B8112D] font-semibold">
+                            <span className="ml-1 text-[#0F398A] font-semibold">
                               (diff {(fxRates.usdToPkr - ah.usdToPkrRate).toFixed(2)})
                             </span>
                           )}
@@ -831,7 +831,7 @@ export default function AccountsDashboardPage() {
             </div>
 
             <div id="currency-formula" className={`w-full ${BENTO_CARD} overflow-hidden scroll-mt-[80px]`}>
-              <div className="px-4 sm:px-5 py-3 border-b border-crm-border-subtle bg-gradient-to-r from-[#FFF8F9] to-white flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+              <div className="px-4 sm:px-5 py-3 border-b border-crm-border-subtle bg-gradient-to-r from-[#F8FAFF] to-white flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                 <button
                   type="button"
                   onClick={() => setFormulaExpanded(v => !v)}
@@ -840,7 +840,7 @@ export default function AccountsDashboardPage() {
                 >
                   <ChevronDown
                     size={16}
-                    className={`mt-0.5 shrink-0 text-[#B8112D] transition-transform ${formulaExpanded ? "" : "-rotate-90"}`}
+                    className={`mt-0.5 shrink-0 text-[#0F398A] transition-transform ${formulaExpanded ? "" : "-rotate-90"}`}
                   />
                   <div className="min-w-0">
                     <h2 className="font-extrabold text-crm-text text-sm tracking-tight">Currency Payment Formula</h2>
@@ -871,7 +871,7 @@ export default function AccountsDashboardPage() {
                           }}
                           className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-bold transition-all whitespace-nowrap ${
                             selected
-                              ? "bg-[#B8112D] text-white shadow-md shadow-[#B8112D]/20"
+                              ? "bg-[#0F398A] text-white shadow-md shadow-[#0F398A]/20"
                               : "text-crm-text-secondary hover:bg-crm-surface-raised"
                           }`}
                           title={CURRENCY_TAB_LABELS[tab]}
@@ -891,7 +891,7 @@ export default function AccountsDashboardPage() {
               {viewTab === "ALL" ? (
                 <div className="p-3 sm:p-5 grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {([
-                    { key: "AH" as const, label: "Ahmed Hamza", accent: "text-[#B8112D]", calc: ahCalc, note: "FX · 11% tax keep 0.89" },
+                    { key: "AH" as const, label: "Ahmed Hamza", accent: "text-[#0F398A]", calc: ahCalc, note: "FX · 11% tax keep 0.89" },
                     { key: "SN" as const, label: "Sharjeel Nasir", accent: "text-[#0B84F3]", calc: snCalc, note: "CAD · tax 0.945" },
                     { key: "CHQ" as const, label: "Cheque Payment", accent: "text-[#D97706]", calc: chqCalc, note: "25% tax deduction" },
                     { key: "HM" as const, label: "Direct Habib Metro", accent: "text-[#12B76A]", calc: hmCalc, note: "1% tax deduction" },
@@ -943,7 +943,7 @@ export default function AccountsDashboardPage() {
                   <div className="rounded-xl border border-dashed border-crm-border bg-[#F8FAFC] px-3 py-2.5 text-[10px] sm:text-[11px] text-crm-text-secondary font-mono leading-snug">
                     <p>
                       {currency(activeCalc.pkrGross)} − {((active.taxDeductionRate ?? 0) * 100).toFixed(0)}% tax ({currency(activeCalc.pkrTax)}) ={" "}
-                      <span className="font-bold text-[#B8112D]">{currency(activeCalc.pkrNet)}</span>
+                      <span className="font-bold text-[#0F398A]">{currency(activeCalc.pkrNet)}</span>
                     </p>
                   </div>
                 </div>
@@ -981,14 +981,14 @@ export default function AccountsDashboardPage() {
                     <p><span className="font-bold text-crm-text block text-[9px] uppercase tracking-wide">Gross</span><span className="tabular-nums font-semibold">{currency(displayCalc.pkrGross)}</span></p>
                     <p><span className="font-bold text-crm-text block text-[9px] uppercase tracking-wide">Tax</span><span className="tabular-nums font-semibold text-red-600">{currency(displayCalc.pkrTax)}</span></p>
                     <p><span className="font-bold text-crm-text block text-[9px] uppercase tracking-wide">Net</span><span className="tabular-nums font-semibold">{currency(displayCalc.pkrNet)}</span></p>
-                    <p><span className="font-extrabold text-[#B8112D] block text-[9px] uppercase tracking-wide">Total</span><span className="tabular-nums font-extrabold text-[#B8112D]">{currency(displayCalc.total)}</span></p>
+                    <p><span className="font-extrabold text-[#0F398A] block text-[9px] uppercase tracking-wide">Total</span><span className="tabular-nums font-extrabold text-[#0F398A]">{currency(displayCalc.total)}</span></p>
                   </>
                 ) : (
                   <>
                     <p><span className="font-bold text-crm-text block text-[9px] uppercase tracking-wide">USD PKR</span><span className="tabular-nums font-semibold">{currency(displayCalc.usdInPkr)}</span></p>
                     <p><span className="font-bold text-crm-text block text-[9px] uppercase tracking-wide">CAD PKR</span><span className="tabular-nums font-semibold">{currency(displayCalc.cadInPkr)}</span></p>
                     <p><span className="font-bold text-crm-text block text-[9px] uppercase tracking-wide">Local Net PKR</span><span className="tabular-nums font-semibold">{currency(displayCalc.pkrAmount)}</span></p>
-                    <p><span className="font-extrabold text-[#B8112D] block text-[9px] uppercase tracking-wide">Total</span><span className="tabular-nums font-extrabold text-[#B8112D]">{currency(displayCalc.total)}</span></p>
+                    <p><span className="font-extrabold text-[#0F398A] block text-[9px] uppercase tracking-wide">Total</span><span className="tabular-nums font-extrabold text-[#0F398A]">{currency(displayCalc.total)}</span></p>
                   </>
                 )}
               </div>
@@ -1000,7 +1000,7 @@ export default function AccountsDashboardPage() {
               <AccountsChartCard
                 title="Payment Split"
                 subtitle="Ahmed Hamza · Sharjeel Nasir · Cheque · Habib Metro · USD / CAD / PKR"
-                accent="#B8112D"
+                accent="#0F398A"
                 icon={<PieIcon size={16} />}
               >
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-2 items-center">
@@ -1033,7 +1033,7 @@ export default function AccountsDashboardPage() {
                       <Legend wrapperStyle={{ fontSize: 11, fontWeight: 700 }} />
                       <Bar dataKey="USD" fill="#0B84F3" radius={[6, 6, 0, 0]} />
                       <Bar dataKey="CAD" fill="#0D9488" radius={[6, 6, 0, 0]} />
-                      <Bar dataKey="PKR" fill="#B8112D" radius={[6, 6, 0, 0]} />
+                      <Bar dataKey="PKR" fill="#0F398A" radius={[6, 6, 0, 0]} />
                     </BarChart>
                   </RechartsBox>
                 </div>
@@ -1041,7 +1041,7 @@ export default function AccountsDashboardPage() {
             </div>
 
             <div className="flex items-center gap-2.5 px-0.5 pt-1">
-              <span className="w-1 h-6 rounded-full bg-[#B8112D] shrink-0" />
+              <span className="w-1 h-6 rounded-full bg-[#0F398A] shrink-0" />
               <h2 className="font-extrabold text-crm-text text-sm tracking-tight">Financial Insights</h2>
               <span className="text-[11px] text-crm-text-faint font-medium">{periodHint}</span>
             </div>
@@ -1057,8 +1057,8 @@ export default function AccountsDashboardPage() {
                   <ComposedChart data={pnlComposed} margin={{ top: 8, right: 8, left: -4, bottom: 0 }}>
                     <defs>
                       <linearGradient id="dashPnlArea" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#B8112D" stopOpacity={0.22} />
-                        <stop offset="100%" stopColor="#B8112D" stopOpacity={0} />
+                        <stop offset="0%" stopColor="#0F398A" stopOpacity={0.22} />
+                        <stop offset="100%" stopColor="#0F398A" stopOpacity={0} />
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 6" vertical={false} stroke="#f1f5f9" />
@@ -1068,17 +1068,17 @@ export default function AccountsDashboardPage() {
                     <Legend wrapperStyle={{ fontSize: 11, fontWeight: 700 }} />
                     <Bar dataKey="amount" name="Amount" radius={[8, 8, 0, 0]} maxBarSize={42}>
                       <Cell fill="#12B76A" />
-                      <Cell fill="#B8112D" />
+                      <Cell fill="#0F398A" />
                       <Cell fill="#0B84F3" />
                     </Bar>
                     <Area
                       type="monotone"
                       dataKey="marker"
                       name="Net profit"
-                      stroke="#B8112D"
+                      stroke="#0F398A"
                       strokeWidth={2}
                       fill="url(#dashPnlArea)"
-                      dot={{ r: 4, fill: "#B8112D", stroke: "#fff", strokeWidth: 2 }}
+                      dot={{ r: 4, fill: "#0F398A", stroke: "#fff", strokeWidth: 2 }}
                     />
                   </ComposedChart>
                 </RechartsBox>
@@ -1110,7 +1110,7 @@ export default function AccountsDashboardPage() {
               <AccountsChartCard
                 title="Expense Mix"
                 subtitle="Payroll · OPEX · Loans · PF"
-                accent="#B8112D"
+                accent="#0F398A"
                 icon={<PieIcon size={16} />}
               >
                 <RechartsBox height={220}>
@@ -1152,7 +1152,7 @@ export default function AccountsDashboardPage() {
                     <YAxis tick={{ fontSize: 9 }} width={44} tickFormatter={compactPkr} />
                     <Tooltip formatter={v => currency(Number(v ?? 0))} />
                     <Legend wrapperStyle={{ fontSize: 11, fontWeight: 700 }} />
-                    <Area type="monotone" dataKey="Ahmed" stackId="ch" stroke="#B8112D" fill="#B8112D" fillOpacity={0.45} />
+                    <Area type="monotone" dataKey="Ahmed" stackId="ch" stroke="#0F398A" fill="#0F398A" fillOpacity={0.45} />
                     <Area type="monotone" dataKey="Sharjeel" stackId="ch" stroke="#0B84F3" fill="#0B84F3" fillOpacity={0.4} />
                     <Area type="monotone" dataKey="Cheque" stackId="ch" stroke="#F59E0B" fill="#F59E0B" fillOpacity={0.4} />
                     <Area type="monotone" dataKey="Habib" stackId="ch" stroke="#12B76A" fill="#12B76A" fillOpacity={0.4} />
@@ -1163,7 +1163,7 @@ export default function AccountsDashboardPage() {
               <AccountsChartCard
                 title="Net Margin"
                 subtitle="Profit as % of revenue"
-                accent={profitMarginPct >= 0 ? "#12B76A" : "#B8112D"}
+                accent={profitMarginPct >= 0 ? "#12B76A" : "#0F398A"}
                 icon={<TrendingUp size={16} />}
                 className="md:col-span-2 xl:col-span-1"
               >
@@ -1188,7 +1188,7 @@ export default function AccountsDashboardPage() {
                   <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
                     <p
                       className="text-2xl font-extrabold tabular-nums tracking-tight"
-                      style={{ color: profitMarginPct >= 0 ? "#12B76A" : "#B8112D" }}
+                      style={{ color: profitMarginPct >= 0 ? "#12B76A" : "#0F398A" }}
                     >
                       {Number.isFinite(profitMarginPct) ? `${profitMarginPct.toFixed(1)}%` : "—"}
                     </p>

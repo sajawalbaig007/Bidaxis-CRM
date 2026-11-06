@@ -745,7 +745,7 @@ export async function captureReportVisualPdf(
     if (!canvases.length) throw new Error("Report capture produced no pages.");
     return canvasesToVisualPdf(
       canvases,
-      options?.footer ?? "BEM Solutions CRM · Accounts Report",
+      options?.footer ?? "BidAxis CRM · Accounts Report",
     );
   } finally {
     if (hadDark) html.classList.add("dark");

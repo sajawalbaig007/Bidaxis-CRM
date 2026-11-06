@@ -204,7 +204,7 @@ export default function LeadsPage() {
     {
       label: "Active Pipeline",
       segments: [
-        { label: "Important",  value: importantCount,  color: "#B8112D" },
+        { label: "Important",  value: importantCount,  color: "#0F398A" },
         { label: "Interested", value: interestedCount, color: "#D97706" },
         { label: "Pending",    value: pendingCount,    color: "#94A3B8" },
       ],
@@ -381,7 +381,7 @@ export default function LeadsPage() {
           </div>
           <button
             onClick={openAddModal}
-            className="flex items-center justify-center gap-2 h-10 sm:h-11 px-4 sm:px-5 rounded-xl sm:rounded-2xl bg-[#B8112D] text-white text-xs sm:text-sm font-semibold shadow-md shadow-red-200 hover:bg-[#a30f27] transition-colors w-full sm:w-auto shrink-0"
+            className="flex items-center justify-center gap-2 h-10 sm:h-11 px-4 sm:px-5 rounded-xl sm:rounded-2xl bg-[#0F398A] text-white text-xs sm:text-sm font-semibold shadow-md shadow-red-200 hover:bg-[#a30f27] transition-colors w-full sm:w-auto shrink-0"
           >
             <Plus size={14} />Add New Lead
           </button>
@@ -434,7 +434,7 @@ export default function LeadsPage() {
                     placeholder="Search name, company, phone…"
                     value={search}
                     onChange={e => { setSearch(e.target.value); setPage(1); }}
-                    className="w-full h-10 sm:h-[44px] rounded-xl sm:rounded-2xl border border-gray-200 dark:border-crm-border bg-[#FAFAFA] dark:bg-crm-input pl-9 pr-4 text-xs sm:text-sm outline-none focus:border-[#B8112D] transition-colors dark:text-crm-text"
+                    className="w-full h-10 sm:h-[44px] rounded-xl sm:rounded-2xl border border-gray-200 dark:border-crm-border bg-[#FAFAFA] dark:bg-crm-input pl-9 pr-4 text-xs sm:text-sm outline-none focus:border-[#0F398A] transition-colors dark:text-crm-text"
                   />
                 </div>
                 <StateFilterDropdown fullWidth value={stateFilter} onChange={v => { setStateFilter(v); setPage(1); }} />
@@ -450,7 +450,7 @@ export default function LeadsPage() {
                   title="Refresh">
                   <RefreshCw size={13} className="text-gray-500" />
                 </button>
-                <div className="flex items-center justify-center gap-1.5 text-[#B8112D] text-xs sm:text-sm font-semibold whitespace-nowrap">
+                <div className="flex items-center justify-center gap-1.5 text-[#0F398A] text-xs sm:text-sm font-semibold whitespace-nowrap">
                   <Filter size={13} />
                   <span>{filtered.length}</span>
                 </div>
@@ -511,7 +511,7 @@ export default function LeadsPage() {
                       {/* Code column */}
                       <div className="hidden lg:flex items-center gap-1 min-w-0">
                         {displayCode
-                          ? <span className="bg-[#B8112D]/10 text-[#B8112D] text-[10px] font-bold px-2 py-1 rounded-lg truncate">{displayCode}</span>
+                          ? <span className="bg-[#0F398A]/10 text-[#0F398A] text-[10px] font-bold px-2 py-1 rounded-lg truncate">{displayCode}</span>
                           : <span className="text-gray-300 text-xs">—</span>
                         }
                         <ExtraProjectCodesPopup extras={extraProjects} title="Previous projects" />
@@ -526,7 +526,7 @@ export default function LeadsPage() {
                           <div className="flex items-center gap-1.5 flex-wrap">
                             {/* show code badge inline on mobile */}
                             {displayCode && (
-                              <span className="lg:hidden bg-[#B8112D]/10 text-[#B8112D] text-[9px] font-bold px-1.5 py-0.5 rounded-md shrink-0">{displayCode}</span>
+                              <span className="lg:hidden bg-[#0F398A]/10 text-[#0F398A] text-[9px] font-bold px-1.5 py-0.5 rounded-md shrink-0">{displayCode}</span>
                             )}
                             <span className="lg:hidden">
                               <ExtraProjectCodesPopup extras={extraProjects} title="Previous projects" />
@@ -685,7 +685,7 @@ export default function LeadsPage() {
                         <button
                           type="button"
                           onClick={() => setAddProjectFor(lead)}
-                          className="inline-flex items-center gap-1 h-8 sm:h-9 px-2 sm:px-2.5 rounded-xl bg-[#FFF1F3] text-[#B8112D] text-[10px] sm:text-[11px] font-bold hover:bg-[#FFE4E8] transition-colors shrink-0"
+                          className="inline-flex items-center gap-1 h-8 sm:h-9 px-2 sm:px-2.5 rounded-xl bg-[#EFF6FF] text-[#0F398A] text-[10px] sm:text-[11px] font-bold hover:bg-[#DBEAFE] transition-colors shrink-0"
                           title="Add new project">
                           <Plus size={13} strokeWidth={2.5} />
                           <span className="hidden xl:inline">Project</span>
@@ -837,7 +837,7 @@ export default function LeadsPage() {
         {showAdd && (
           <div className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-4">
             <div className="w-full sm:max-w-[520px] bg-white rounded-t-[24px] sm:rounded-[28px] shadow-2xl flex flex-col overflow-hidden" style={{ maxHeight: "92vh" }}>
-              <div className="relative bg-gradient-to-br from-[#B8112D] to-[#8b0d22] px-4 sm:px-5 pt-4 sm:pt-5 pb-4 sm:pb-5 shrink-0 overflow-hidden">
+              <div className="relative bg-gradient-to-br from-[#0F398A] to-[#8b0d22] px-4 sm:px-5 pt-4 sm:pt-5 pb-4 sm:pb-5 shrink-0 overflow-hidden">
                 <div className="absolute -top-6 -right-6 w-32 h-32 rounded-full bg-white/5 pointer-events-none" />
                 <button onClick={closeAddModal}
                   className="absolute top-3 sm:top-4 right-3 sm:right-4 w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-white/20 hover:bg-white/30 flex items-center justify-center text-white transition-colors z-10">
@@ -863,7 +863,7 @@ export default function LeadsPage() {
                   {/* Contact Info */}
                   <div className="bg-[#F8F9FC] rounded-xl sm:rounded-2xl p-3 sm:p-4 space-y-3">
                     <p className="text-[10px] sm:text-[11px] font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
-                      <User2 size={11} className="text-[#B8112D]" />Client Information
+                      <User2 size={11} className="text-[#0F398A]" />Client Information
                     </p>
 
                     <div>
@@ -883,10 +883,10 @@ export default function LeadsPage() {
                           }}
                           onBlur={e => onPhoneBlur(e.target.value)}
                           onPaste={onPhonePaste}
-                          className="w-full h-10 rounded-xl border-2 border-gray-200 bg-white px-3 pr-9 text-sm outline-none focus:border-[#B8112D] transition-colors placeholder:text-gray-300"
+                          className="w-full h-10 rounded-xl border-2 border-gray-200 bg-white px-3 pr-9 text-sm outline-none focus:border-[#0F398A] transition-colors placeholder:text-gray-300"
                         />
                         {phoneLookupLoading && (
-                          <Loader2 size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#B8112D] animate-spin" />
+                          <Loader2 size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#0F398A] animate-spin" />
                         )}
                       </div>
                     </div>
@@ -900,17 +900,17 @@ export default function LeadsPage() {
 
                     <div className="grid grid-cols-2 gap-2 sm:gap-3">
                       <div>
-                        <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Client Name <span className="text-[#B8112D]">*</span></label>
+                        <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Client Name <span className="text-[#0F398A]">*</span></label>
                         <input type="text" value={addForm.name} placeholder="Client name"
                           onChange={e => setAddForm(f => ({ ...f, name: e.target.value }))}
-                          className="w-full h-10 rounded-xl border-2 border-gray-200 bg-white px-3 text-sm outline-none focus:border-[#B8112D] transition-colors placeholder:text-gray-300"
+                          className="w-full h-10 rounded-xl border-2 border-gray-200 bg-white px-3 text-sm outline-none focus:border-[#0F398A] transition-colors placeholder:text-gray-300"
                         />
                       </div>
                       <div>
                         <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Company Name</label>
                         <input type="text" value={addForm.company} placeholder="Company name"
                           onChange={e => setAddForm(f => ({ ...f, company: e.target.value }))}
-                          className="w-full h-10 rounded-xl border-2 border-gray-200 bg-white px-3 text-sm outline-none focus:border-[#B8112D] transition-colors placeholder:text-gray-300"
+                          className="w-full h-10 rounded-xl border-2 border-gray-200 bg-white px-3 text-sm outline-none focus:border-[#0F398A] transition-colors placeholder:text-gray-300"
                         />
                       </div>
                     </div>
@@ -920,14 +920,14 @@ export default function LeadsPage() {
                         <input type="email" value={addForm.email} placeholder="Email address"
                           autoComplete="email"
                           onChange={e => setAddForm(f => ({ ...f, email: e.target.value }))}
-                          className="w-full h-10 rounded-xl border-2 border-gray-200 bg-white px-3 text-sm outline-none focus:border-[#B8112D] transition-colors placeholder:text-gray-300"
+                          className="w-full h-10 rounded-xl border-2 border-gray-200 bg-white px-3 text-sm outline-none focus:border-[#0F398A] transition-colors placeholder:text-gray-300"
                         />
                       </div>
                       <div>
                         <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">State</label>
                         <input type="text" value={addForm.state} placeholder="e.g. California"
                           onChange={e => setAddForm(f => ({ ...f, state: e.target.value }))}
-                          className="w-full h-10 rounded-xl border-2 border-gray-200 bg-white px-3 text-sm outline-none focus:border-[#B8112D] transition-colors placeholder:text-gray-300"
+                          className="w-full h-10 rounded-xl border-2 border-gray-200 bg-white px-3 text-sm outline-none focus:border-[#0F398A] transition-colors placeholder:text-gray-300"
                         />
                       </div>
                     </div>
@@ -935,21 +935,21 @@ export default function LeadsPage() {
                       <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Website Link</label>
                       <input type="url" value={addForm.website} placeholder="https://example.com"
                         onChange={e => setAddForm(f => ({ ...f, website: e.target.value }))}
-                        className="w-full h-10 rounded-xl border-2 border-gray-200 bg-white px-3 text-sm outline-none focus:border-[#B8112D] transition-colors placeholder:text-gray-300"
+                        className="w-full h-10 rounded-xl border-2 border-gray-200 bg-white px-3 text-sm outline-none focus:border-[#0F398A] transition-colors placeholder:text-gray-300"
                       />
                     </div>
                   </div>
 
                   <div>
                     <label className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-1.5 mb-1.5">
-                      <Briefcase size={10} className="text-[#B8112D]" />Service Interested In
+                      <Briefcase size={10} className="text-[#0F398A]" />Service Interested In
                     </label>
                     <ServicePicker value={addForm.service} onChange={v => setAddForm(f => ({ ...f, service: f.service === v ? "" : v }))} />
                   </div>
 
                   <div className="bg-[#F8F9FC] rounded-xl sm:rounded-2xl p-3 sm:p-4 space-y-3">
                     <p className="text-[10px] sm:text-[11px] font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
-                      <DollarSign size={11} className="text-[#B8112D]" />Quotation &amp; Upfront
+                      <DollarSign size={11} className="text-[#0F398A]" />Quotation &amp; Upfront
                     </p>
                     <div className="grid grid-cols-2 gap-2 sm:gap-3">
                       <div>
@@ -961,7 +961,7 @@ export default function LeadsPage() {
                             placeholder="0.00"
                             value={addForm.quotation.replace(/^\$/, "")}
                             onChange={e => setAddForm(f => ({ ...f, quotation: e.target.value.replace(/[^0-9.]/g, "") }))}
-                            className="w-full h-10 rounded-xl border-2 border-gray-200 bg-white pl-6 pr-3 text-sm outline-none focus:border-[#B8112D] transition-colors placeholder:text-gray-300"
+                            className="w-full h-10 rounded-xl border-2 border-gray-200 bg-white pl-6 pr-3 text-sm outline-none focus:border-[#0F398A] transition-colors placeholder:text-gray-300"
                           />
                         </div>
                       </div>
@@ -974,7 +974,7 @@ export default function LeadsPage() {
                             placeholder="0.00"
                             value={addForm.upfront.replace(/^\$/, "")}
                             onChange={e => setAddForm(f => ({ ...f, upfront: e.target.value.replace(/[^0-9.]/g, "") }))}
-                            className="w-full h-10 rounded-xl border-2 border-gray-200 bg-white pl-6 pr-3 text-sm outline-none focus:border-[#B8112D] transition-colors placeholder:text-gray-300"
+                            className="w-full h-10 rounded-xl border-2 border-gray-200 bg-white pl-6 pr-3 text-sm outline-none focus:border-[#0F398A] transition-colors placeholder:text-gray-300"
                           />
                         </div>
                       </div>
@@ -997,11 +997,11 @@ export default function LeadsPage() {
 
                   <div>
                     <label className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-1.5 mb-1.5">
-                      <AlignLeft size={10} className="text-[#B8112D]" />Initial Note
+                      <AlignLeft size={10} className="text-[#0F398A]" />Initial Note
                     </label>
                     <textarea value={addForm.comments} placeholder="Any initial notes..." rows={3}
                       onChange={e => setAddForm(f => ({ ...f, comments: e.target.value }))}
-                      className="w-full rounded-xl border-2 border-gray-200 bg-[#FAFAFA] px-3 py-2.5 text-sm outline-none focus:border-[#B8112D] focus:bg-white transition-colors resize-none placeholder:text-gray-300"
+                      className="w-full rounded-xl border-2 border-gray-200 bg-[#FAFAFA] px-3 py-2.5 text-sm outline-none focus:border-[#0F398A] focus:bg-white transition-colors resize-none placeholder:text-gray-300"
                     />
                   </div>
 
@@ -1012,7 +1012,7 @@ export default function LeadsPage() {
                     </button>
                     <button onClick={handleAdd} disabled={addSaving}
                       className={`flex-1 h-10 sm:h-12 rounded-xl sm:rounded-2xl font-semibold text-sm text-white flex items-center justify-center gap-2 transition-all ${
-                        !addSaving ? "bg-gradient-to-r from-[#B8112D] to-[#d4173a] shadow-md shadow-red-200" : "bg-gray-200 cursor-not-allowed text-gray-400"
+                        !addSaving ? "bg-gradient-to-r from-[#0F398A] to-[#d4173a] shadow-md shadow-red-200" : "bg-gray-200 cursor-not-allowed text-gray-400"
                       }`}>
                       {addSaving
                         ? <><div className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" />Saving...</>
@@ -1030,7 +1030,7 @@ export default function LeadsPage() {
           <div className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-4">
             <div className="w-full sm:max-w-[560px] bg-white rounded-t-[24px] sm:rounded-[28px] shadow-2xl flex flex-col overflow-hidden" style={{ maxHeight: "92vh" }}>
               {/* Gradient header */}
-              <div className="relative bg-gradient-to-br from-[#B8112D] to-[#8b0d22] px-4 sm:px-5 pt-4 sm:pt-5 pb-4 sm:pb-5 shrink-0 overflow-hidden">
+              <div className="relative bg-gradient-to-br from-[#0F398A] to-[#8b0d22] px-4 sm:px-5 pt-4 sm:pt-5 pb-4 sm:pb-5 shrink-0 overflow-hidden">
                 <div className="absolute -top-6 -right-6 w-32 h-32 rounded-full bg-white/5 pointer-events-none" />
                 <div className="absolute -bottom-8 -left-4 w-24 h-24 rounded-full bg-white/5 pointer-events-none" />
                 <button
@@ -1072,7 +1072,7 @@ export default function LeadsPage() {
                   {!isEditing && (
                     <>
                       <button onClick={startEdit}
-                        className="w-full h-9 sm:h-10 rounded-xl border border-[#f5c5ce] bg-[#FFF1F3] text-[#B8112D] text-xs sm:text-sm font-semibold flex items-center justify-center gap-1.5 hover:bg-[#fce8ec] transition-colors">
+                        className="w-full h-9 sm:h-10 rounded-xl border border-[#f5c5ce] bg-[#EFF6FF] text-[#0F398A] text-xs sm:text-sm font-semibold flex items-center justify-center gap-1.5 hover:bg-[#fce8ec] transition-colors">
                         <Pencil size={12} /> Edit All Fields
                       </button>
 
@@ -1091,7 +1091,7 @@ export default function LeadsPage() {
                         ].map(({ Icon, label, value, href }) => (
                           <div key={label} className="bg-[#F8F9FC] rounded-xl p-3">
                             <div className="flex items-center gap-1 mb-1">
-                              <Icon size={11} className="text-[#B8112D]" />
+                              <Icon size={11} className="text-[#0F398A]" />
                               <p className="text-gray-400 text-[10px]">{label}</p>
                             </div>
                             {label === "Email" ? (
@@ -1105,7 +1105,7 @@ export default function LeadsPage() {
                                 company={viewing.company !== "N/A" ? viewing.company : undefined}
                               />
                             ) : href ? (
-                              <a href={href} target="_blank" rel="noopener noreferrer" className="font-semibold text-[#B8112D] text-[12px] sm:text-[13px] break-words hover:underline">
+                              <a href={href} target="_blank" rel="noopener noreferrer" className="font-semibold text-[#0F398A] text-[12px] sm:text-[13px] break-words hover:underline">
                                 {value}
                               </a>
                             ) : (
@@ -1149,11 +1149,11 @@ export default function LeadsPage() {
                       <div>
                         <div className="flex items-center justify-between mb-2">
                           <p className="text-[10px] sm:text-[11px] font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
-                            <Users size={11} className="text-[#B8112D]" />Sub-Contacts
+                            <Users size={11} className="text-[#0F398A]" />Sub-Contacts
                           </p>
                           <button
                             onClick={() => setShowContactForm(v => !v)}
-                            className="h-7 px-2.5 rounded-lg bg-[#B8112D]/10 text-[#B8112D] text-[10px] font-semibold flex items-center gap-1 hover:bg-[#B8112D]/20 transition-colors"
+                            className="h-7 px-2.5 rounded-lg bg-[#0F398A]/10 text-[#0F398A] text-[10px] font-semibold flex items-center gap-1 hover:bg-[#0F398A]/20 transition-colors"
                           >
                             <Plus size={10} />{showContactForm ? "Cancel" : "Add Contact"}
                           </button>
@@ -1167,14 +1167,14 @@ export default function LeadsPage() {
                                 <label className="text-[9px] font-semibold text-gray-400 uppercase tracking-wider mb-0.5 block">Name *</label>
                                 <input type="text" value={newContact.name} placeholder="John Smith"
                                   onChange={e => setNewContact(c => ({ ...c, name: e.target.value }))}
-                                  className="w-full h-8 rounded-lg border border-gray-200 bg-white px-2.5 text-xs outline-none focus:border-[#B8112D] transition-colors"
+                                  className="w-full h-8 rounded-lg border border-gray-200 bg-white px-2.5 text-xs outline-none focus:border-[#0F398A] transition-colors"
                                 />
                               </div>
                               <div>
                                 <label className="text-[9px] font-semibold text-gray-400 uppercase tracking-wider mb-0.5 block">Designation</label>
                                 <input type="text" value={newContact.designation} placeholder="Manager"
                                   onChange={e => setNewContact(c => ({ ...c, designation: e.target.value }))}
-                                  className="w-full h-8 rounded-lg border border-gray-200 bg-white px-2.5 text-xs outline-none focus:border-[#B8112D] transition-colors"
+                                  className="w-full h-8 rounded-lg border border-gray-200 bg-white px-2.5 text-xs outline-none focus:border-[#0F398A] transition-colors"
                                 />
                               </div>
                             </div>
@@ -1183,21 +1183,21 @@ export default function LeadsPage() {
                                 <label className="text-[9px] font-semibold text-gray-400 uppercase tracking-wider mb-0.5 block">Contact</label>
                                 <input type="text" value={newContact.phone} placeholder="+1 234 567"
                                   onChange={e => setNewContact(c => ({ ...c, phone: e.target.value }))}
-                                  className="w-full h-8 rounded-lg border border-gray-200 bg-white px-2.5 text-xs outline-none focus:border-[#B8112D] transition-colors"
+                                  className="w-full h-8 rounded-lg border border-gray-200 bg-white px-2.5 text-xs outline-none focus:border-[#0F398A] transition-colors"
                                 />
                               </div>
                               <div>
                                 <label className="text-[9px] font-semibold text-gray-400 uppercase tracking-wider mb-0.5 block">Email</label>
                                 <input type="email" value={newContact.email} placeholder="email@co.com"
                                   onChange={e => setNewContact(c => ({ ...c, email: e.target.value }))}
-                                  className="w-full h-8 rounded-lg border border-gray-200 bg-white px-2.5 text-xs outline-none focus:border-[#B8112D] transition-colors"
+                                  className="w-full h-8 rounded-lg border border-gray-200 bg-white px-2.5 text-xs outline-none focus:border-[#0F398A] transition-colors"
                                 />
                               </div>
                             </div>
                             <button
                               onClick={addContact}
                               disabled={contactSaving || !newContact.name.trim()}
-                              className="w-full h-8 rounded-lg bg-[#B8112D] text-white text-xs font-semibold hover:bg-[#a30f27] disabled:bg-gray-100 disabled:text-gray-400 transition-colors"
+                              className="w-full h-8 rounded-lg bg-[#0F398A] text-white text-xs font-semibold hover:bg-[#a30f27] disabled:bg-gray-100 disabled:text-gray-400 transition-colors"
                             >
                               {contactSaving ? "Saving…" : "Add Contact"}
                             </button>
@@ -1209,7 +1209,7 @@ export default function LeadsPage() {
                           <div className="space-y-1.5">
                             {viewing.contacts.map(c => (
                               <div key={c.id} className="flex items-center gap-2 bg-[#F8F9FC] rounded-xl px-3 py-2.5">
-                                <div className="w-7 h-7 rounded-full bg-[#B8112D]/10 text-[#B8112D] flex items-center justify-center text-[10px] font-bold shrink-0">
+                                <div className="w-7 h-7 rounded-full bg-[#0F398A]/10 text-[#0F398A] flex items-center justify-center text-[10px] font-bold shrink-0">
                                   {c.name.charAt(0).toUpperCase()}
                                 </div>
                                 <div className="flex-1 min-w-0">
@@ -1247,20 +1247,20 @@ export default function LeadsPage() {
                       {/* All editable fields */}
                       <div className="bg-[#F8F9FC] rounded-xl sm:rounded-2xl p-3 sm:p-4 space-y-3">
                         <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
-                          <User2 size={11} className="text-[#B8112D]" />Contact Information
+                          <User2 size={11} className="text-[#0F398A]" />Contact Information
                         </p>
                         <div className="grid grid-cols-2 gap-2 sm:gap-3">
                           <div>
                             <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Client Name</label>
                             <input type="text" value={editName} onChange={e => setEditName(e.target.value)}
-                              className="w-full h-10 rounded-xl border-2 border-gray-200 bg-white px-3 text-sm outline-none focus:border-[#B8112D] transition-colors"
+                              className="w-full h-10 rounded-xl border-2 border-gray-200 bg-white px-3 text-sm outline-none focus:border-[#0F398A] transition-colors"
                             />
                           </div>
                           <div>
                             <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Company Name</label>
                             <input type="text" value={editCompany} onChange={e => setEditCompany(e.target.value)}
                               placeholder="Company name"
-                              className="w-full h-10 rounded-xl border-2 border-gray-200 bg-white px-3 text-sm outline-none focus:border-[#B8112D] transition-colors placeholder:text-gray-300"
+                              className="w-full h-10 rounded-xl border-2 border-gray-200 bg-white px-3 text-sm outline-none focus:border-[#0F398A] transition-colors placeholder:text-gray-300"
                             />
                           </div>
                         </div>
@@ -1269,14 +1269,14 @@ export default function LeadsPage() {
                             <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Phone</label>
                             <input type="text" value={editPhone} onChange={e => setEditPhone(e.target.value)}
                               placeholder="+1 234 567 890"
-                              className="w-full h-10 rounded-xl border-2 border-gray-200 bg-white px-3 text-sm outline-none focus:border-[#B8112D] transition-colors placeholder:text-gray-300"
+                              className="w-full h-10 rounded-xl border-2 border-gray-200 bg-white px-3 text-sm outline-none focus:border-[#0F398A] transition-colors placeholder:text-gray-300"
                             />
                           </div>
                           <div>
                             <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Email</label>
                             <input type="email" value={editEmail} onChange={e => setEditEmail(e.target.value)}
                               placeholder="email@company.com"
-                              className="w-full h-10 rounded-xl border-2 border-gray-200 bg-white px-3 text-sm outline-none focus:border-[#B8112D] transition-colors placeholder:text-gray-300"
+                              className="w-full h-10 rounded-xl border-2 border-gray-200 bg-white px-3 text-sm outline-none focus:border-[#0F398A] transition-colors placeholder:text-gray-300"
                             />
                           </div>
                         </div>
@@ -1285,14 +1285,14 @@ export default function LeadsPage() {
                             <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">State</label>
                             <input type="text" value={editState} onChange={e => setEditState(e.target.value)}
                               placeholder="e.g. California"
-                              className="w-full h-10 rounded-xl border-2 border-gray-200 bg-white px-3 text-sm outline-none focus:border-[#B8112D] transition-colors placeholder:text-gray-300"
+                              className="w-full h-10 rounded-xl border-2 border-gray-200 bg-white px-3 text-sm outline-none focus:border-[#0F398A] transition-colors placeholder:text-gray-300"
                             />
                           </div>
                           <div>
                             <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Website Link</label>
                             <input type="url" value={editWebsite} onChange={e => setEditWebsite(e.target.value)}
                               placeholder="https://example.com"
-                              className="w-full h-10 rounded-xl border-2 border-gray-200 bg-white px-3 text-sm outline-none focus:border-[#B8112D] transition-colors placeholder:text-gray-300"
+                              className="w-full h-10 rounded-xl border-2 border-gray-200 bg-white px-3 text-sm outline-none focus:border-[#0F398A] transition-colors placeholder:text-gray-300"
                             />
                           </div>
                         </div>
@@ -1300,14 +1300,14 @@ export default function LeadsPage() {
 
                       <div>
                         <label className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-1.5 mb-1.5">
-                          <Briefcase size={10} className="text-[#B8112D]" />Service Type
+                          <Briefcase size={10} className="text-[#0F398A]" />Service Type
                         </label>
                         <ServicePicker value={editService} onChange={v => setEditService(s => s === v ? "" : v)} />
                       </div>
 
                       <div className="bg-[#F8F9FC] rounded-xl sm:rounded-2xl p-3 sm:p-4 space-y-3">
                         <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
-                          <DollarSign size={10} className="text-[#B8112D]" />Quotation &amp; Upfront
+                          <DollarSign size={10} className="text-[#0F398A]" />Quotation &amp; Upfront
                         </p>
                         <div className="grid grid-cols-2 gap-2 sm:gap-3">
                           <div>
@@ -1319,7 +1319,7 @@ export default function LeadsPage() {
                                 value={editQuotation.replace(/^\$/, "")}
                                 placeholder="0.00"
                                 onChange={e => setEditQuotation(e.target.value.replace(/[^0-9.]/g, ""))}
-                                className="w-full h-10 rounded-xl border-2 border-gray-200 bg-white pl-6 pr-3 text-sm outline-none focus:border-[#B8112D] transition-colors"
+                                className="w-full h-10 rounded-xl border-2 border-gray-200 bg-white pl-6 pr-3 text-sm outline-none focus:border-[#0F398A] transition-colors"
                               />
                             </div>
                           </div>
@@ -1332,7 +1332,7 @@ export default function LeadsPage() {
                                 value={editUpfront.replace(/^\$/, "")}
                                 placeholder="0.00"
                                 onChange={e => setEditUpfront(e.target.value.replace(/[^0-9.]/g, ""))}
-                                className="w-full h-10 rounded-xl border-2 border-gray-200 bg-white pl-6 pr-3 text-sm outline-none focus:border-[#B8112D] transition-colors"
+                                className="w-full h-10 rounded-xl border-2 border-gray-200 bg-white pl-6 pr-3 text-sm outline-none focus:border-[#0F398A] transition-colors"
                               />
                             </div>
                           </div>
@@ -1341,15 +1341,15 @@ export default function LeadsPage() {
 
                       <div>
                         <label className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-1.5 mb-1.5">
-                          <Clock3 size={10} className="text-[#B8112D]" />Status
+                          <Clock3 size={10} className="text-[#0F398A]" />Status
                         </label>
                         <div className="flex flex-wrap gap-1.5 sm:gap-2">
                           {EDIT_STATUSES.map(s => (
                             <button key={s} onClick={() => setEditStatus(s)}
                               className={`h-8 sm:h-9 px-3 sm:px-4 rounded-lg sm:rounded-xl text-[11px] sm:text-[12px] font-semibold transition-all border ${
                                 editStatus === s
-                                  ? "bg-[#B8112D] text-white border-[#B8112D]"
-                                  : "bg-white text-gray-600 border-gray-200 hover:border-[#B8112D]/40"
+                                  ? "bg-[#0F398A] text-white border-[#0F398A]"
+                                  : "bg-white text-gray-600 border-gray-200 hover:border-[#0F398A]/40"
                               }`}>
                               {s}
                             </button>
@@ -1359,11 +1359,11 @@ export default function LeadsPage() {
 
                       <div>
                         <label className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-1.5 mb-1.5">
-                          <AlignLeft size={10} className="text-[#B8112D]" />Comments
+                          <AlignLeft size={10} className="text-[#0F398A]" />Comments
                         </label>
                         <textarea value={editComments} onChange={e => setEditComments(e.target.value)} rows={3}
                           placeholder="Add comments..."
-                          className="w-full rounded-xl sm:rounded-2xl border-2 border-gray-200 bg-[#FAFAFA] px-3 sm:px-4 py-2.5 text-xs sm:text-sm outline-none focus:border-[#B8112D] focus:bg-white transition-colors resize-none placeholder:text-gray-300"
+                          className="w-full rounded-xl sm:rounded-2xl border-2 border-gray-200 bg-[#FAFAFA] px-3 sm:px-4 py-2.5 text-xs sm:text-sm outline-none focus:border-[#0F398A] focus:bg-white transition-colors resize-none placeholder:text-gray-300"
                         />
                       </div>
 
@@ -1374,7 +1374,7 @@ export default function LeadsPage() {
                         </button>
                         <button onClick={saveEdit} disabled={saving}
                           className={`flex-1 h-10 sm:h-12 rounded-xl sm:rounded-2xl font-semibold text-sm text-white flex items-center justify-center gap-2 transition-all ${
-                            !saving ? "bg-gradient-to-r from-[#B8112D] to-[#d4173a] shadow-md shadow-red-200" : "bg-gray-200 cursor-not-allowed text-gray-400"
+                            !saving ? "bg-gradient-to-r from-[#0F398A] to-[#d4173a] shadow-md shadow-red-200" : "bg-gray-200 cursor-not-allowed text-gray-400"
                           }`}>
                           {saving
                             ? <><div className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" />Saving...</>

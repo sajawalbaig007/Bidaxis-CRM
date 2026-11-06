@@ -71,7 +71,7 @@ export default function CsrActivityReportModal({ open, onClose }: Props) {
       <div className="bg-white dark:bg-[#1a1d24] rounded-2xl shadow-2xl w-full max-w-[420px] max-h-[min(92vh,760px)] my-auto flex flex-col overflow-hidden border border-gray-100 dark:border-gray-800">
         <div className="shrink-0 flex items-center justify-between px-4 sm:px-5 py-4 border-b border-gray-100 dark:border-gray-800">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-[#FFF1F3] text-[#B8112D] flex items-center justify-center">
+            <div className="w-9 h-9 rounded-xl bg-[#EFF6FF] text-[#0F398A] flex items-center justify-center">
               <Activity size={17} />
             </div>
             <div>
@@ -97,7 +97,7 @@ export default function CsrActivityReportModal({ open, onClose }: Props) {
                 onClick={() => setPeriod(opt.key)}
                 className={`flex-1 h-8 rounded-lg text-[12px] font-semibold transition-colors ${
                   period === opt.key
-                    ? "bg-white dark:bg-gray-700 text-[#B8112D] shadow-sm"
+                    ? "bg-white dark:bg-gray-700 text-[#0F398A] shadow-sm"
                     : "text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
                 }`}
               >
@@ -115,7 +115,7 @@ export default function CsrActivityReportModal({ open, onClose }: Props) {
               type="date"
               value={date}
               onChange={e => setDate(e.target.value)}
-              className="w-full h-10 px-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-[#FAFAFA] dark:bg-gray-900 text-sm outline-none focus:border-[#B8112D] dark:text-gray-100"
+              className="w-full h-10 px-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-[#FAFAFA] dark:bg-gray-900 text-sm outline-none focus:border-[#0F398A] dark:text-gray-100"
             />
           </div>
 

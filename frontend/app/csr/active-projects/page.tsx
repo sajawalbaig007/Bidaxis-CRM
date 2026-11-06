@@ -233,7 +233,7 @@ export default function CSRProjectsPage() {
     {
       label: "Sales",
       segments: [
-        { label: "Today",    value: todaySales,              color: "#B8112D" },
+        { label: "Today",    value: todaySales,              color: "#0F398A" },
         { label: "Previous", value: allTimeSales - todaySales, color: "#94A3B8" },
       ],
     },
@@ -415,7 +415,7 @@ export default function CSRProjectsPage() {
           </div>
           <button
             onClick={openAddModal}
-            className="flex items-center justify-center gap-2 h-10 sm:h-11 px-4 sm:px-5 rounded-xl sm:rounded-2xl bg-[#B8112D] text-white text-xs sm:text-sm font-semibold shadow-md shadow-red-200 hover:bg-[#a30f27] transition-colors shrink-0 w-full sm:w-auto"
+            className="flex items-center justify-center gap-2 h-10 sm:h-11 px-4 sm:px-5 rounded-xl sm:rounded-2xl bg-[#0F398A] text-white text-xs sm:text-sm font-semibold shadow-md shadow-red-200 hover:bg-[#a30f27] transition-colors shrink-0 w-full sm:w-auto"
           >
             <Plus size={14} className="sm:w-4 sm:h-4" />Add New Project
           </button>
@@ -443,7 +443,7 @@ export default function CSRProjectsPage() {
                 placeholder="Search name, company, phone…"
                 value={search}
                 onChange={e => { setSearch(e.target.value); setPage(1); }}
-                className="w-full h-10 sm:h-11 rounded-xl border border-gray-200 dark:border-crm-border bg-[#FAFAFA] dark:bg-crm-input pl-9 pr-3 text-xs sm:text-sm outline-none focus:border-[#B8112D] dark:text-crm-text"
+                className="w-full h-10 sm:h-11 rounded-xl border border-gray-200 dark:border-crm-border bg-[#FAFAFA] dark:bg-crm-input pl-9 pr-3 text-xs sm:text-sm outline-none focus:border-[#0F398A] dark:text-crm-text"
               />
             </div>
             <ClientSortControls
@@ -455,7 +455,7 @@ export default function CSRProjectsPage() {
             />
             <StateFilterDropdown fullWidth value={stateFilter} onChange={v => { setStateFilter(v); setPage(1); }} />
             <PhoneAreaCodeFilterInput fullWidth value={phoneFilter} onChange={v => { setPhoneFilter(v); setPage(1); }} />
-            <div className="hidden xl:flex items-center gap-1 text-[#B8112D] font-semibold text-[11px] whitespace-nowrap">
+            <div className="hidden xl:flex items-center gap-1 text-[#0F398A] font-semibold text-[11px] whitespace-nowrap">
               <Filter size={12} />
               <span>Deadline</span>
             </div>
@@ -466,7 +466,7 @@ export default function CSRProjectsPage() {
                 value={dateFrom}
                 title="Deadline from"
                 onChange={e => { setDateFrom(e.target.value); setPage(1); }}
-                className="h-10 sm:h-11 flex-1 min-w-0 rounded-xl border border-gray-200 dark:border-crm-border px-2 sm:px-2.5 bg-[#FAFAFA] dark:bg-crm-input text-xs outline-none focus:border-[#B8112D] dark:text-crm-text"
+                className="h-10 sm:h-11 flex-1 min-w-0 rounded-xl border border-gray-200 dark:border-crm-border px-2 sm:px-2.5 bg-[#FAFAFA] dark:bg-crm-input text-xs outline-none focus:border-[#0F398A] dark:text-crm-text"
               />
               <span className="text-[10px] text-gray-400 shrink-0">to</span>
               <input
@@ -474,14 +474,14 @@ export default function CSRProjectsPage() {
                 value={dateTo}
                 title="Deadline to"
                 onChange={e => { setDateTo(e.target.value); setPage(1); }}
-                className="h-10 sm:h-11 flex-1 min-w-0 rounded-xl border border-gray-200 dark:border-crm-border px-2 sm:px-2.5 bg-[#FAFAFA] dark:bg-crm-input text-xs outline-none focus:border-[#B8112D] dark:text-crm-text"
+                className="h-10 sm:h-11 flex-1 min-w-0 rounded-xl border border-gray-200 dark:border-crm-border px-2 sm:px-2.5 bg-[#FAFAFA] dark:bg-crm-input text-xs outline-none focus:border-[#0F398A] dark:text-crm-text"
               />
             </div>
             {(dateFrom || dateTo) && (
               <button
                 type="button"
                 onClick={() => { setDateFrom(""); setDateTo(""); setPage(1); }}
-                className="h-10 sm:h-11 px-3 rounded-xl border border-gray-200 bg-[#FAFAFA] text-xs text-gray-500 hover:text-[#B8112D] transition-all shrink-0 whitespace-nowrap"
+                className="h-10 sm:h-11 px-3 rounded-xl border border-gray-200 bg-[#FAFAFA] text-xs text-gray-500 hover:text-[#0F398A] transition-all shrink-0 whitespace-nowrap"
               >
                 Clear
               </button>
@@ -510,7 +510,7 @@ export default function CSRProjectsPage() {
                 <div key={project.id} className="p-4 space-y-3">
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-10 h-10 rounded-xl bg-[#FFF1F3] text-[#B8112D] flex items-center justify-center shrink-0 font-bold text-sm">
+                      <div className="w-10 h-10 rounded-xl bg-[#EFF6FF] text-[#0F398A] flex items-center justify-center shrink-0 font-bold text-sm">
                         {project.client.charAt(0).toUpperCase()}
                       </div>
                       <div className="min-w-0">
@@ -526,7 +526,7 @@ export default function CSRProjectsPage() {
                                 leadId: project.id,
                                 clientName: project.company || project.client,
                               })}
-                              className="text-xs text-[#B8112D] font-medium truncate underline-offset-[3px] hover:underline cursor-pointer"
+                              className="text-xs text-[#0F398A] font-medium truncate underline-offset-[3px] hover:underline cursor-pointer"
                             >
                               {project.phone}
                             </button>
@@ -571,7 +571,7 @@ export default function CSRProjectsPage() {
 
                   <div className="flex flex-wrap gap-2">
                     {(project.clientCode || project.projectCode) && (
-                      <span className="bg-[#B8112D]/10 text-[#B8112D] text-[10px] font-bold px-2 py-0.5 rounded-lg">{project.clientCode || project.projectCode}</span>
+                      <span className="bg-[#0F398A]/10 text-[#0F398A] text-[10px] font-bold px-2 py-0.5 rounded-lg">{project.clientCode || project.projectCode}</span>
                     )}
                     {project.service && project.service !== "N/A" && (
                       <span className="bg-gray-100 text-gray-600 text-[10px] font-medium px-2 py-0.5 rounded-lg">{project.service}</span>
@@ -659,7 +659,7 @@ export default function CSRProjectsPage() {
           </div>
         ) : (
           <div className="bg-white rounded-2xl sm:rounded-[30px] shadow-sm p-10 sm:p-12 lg:p-16 mt-4 sm:mt-7 text-center">
-            <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl sm:rounded-2xl bg-[#FFF1F3] text-[#B8112D] flex items-center justify-center mx-auto mb-4 sm:mb-5">
+            <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl sm:rounded-2xl bg-[#EFF6FF] text-[#0F398A] flex items-center justify-center mx-auto mb-4 sm:mb-5">
               <FolderKanban size={24} className="sm:w-7 sm:h-7" />
             </div>
             <h2 className="text-lg sm:text-[22px] font-bold text-[#0F172A]">No Projects Yet</h2>
@@ -668,7 +668,7 @@ export default function CSRProjectsPage() {
             </p>
             <button
               onClick={openAddModal}
-              className="mt-4 sm:mt-5 inline-flex items-center gap-2 h-10 sm:h-11 px-5 sm:px-6 rounded-xl sm:rounded-2xl bg-[#B8112D] text-white text-xs sm:text-sm font-semibold hover:bg-[#a30f27] transition-colors"
+              className="mt-4 sm:mt-5 inline-flex items-center gap-2 h-10 sm:h-11 px-5 sm:px-6 rounded-xl sm:rounded-2xl bg-[#0F398A] text-white text-xs sm:text-sm font-semibold hover:bg-[#a30f27] transition-colors"
             >
               <Plus size={13} className="sm:w-[15px] sm:h-[15px]" />Add New Project
             </button>
@@ -682,7 +682,7 @@ export default function CSRProjectsPage() {
               className="w-full sm:max-w-[540px] lg:max-w-[560px] bg-white rounded-t-[24px] sm:rounded-[28px] shadow-2xl flex flex-col overflow-hidden"
               style={{ maxHeight: "92vh" }}
             >
-              <div className="relative bg-gradient-to-br from-[#B8112D] to-[#8b0d22] px-4 sm:px-5 lg:px-6 pt-4 sm:pt-5 pb-4 sm:pb-5 shrink-0 overflow-hidden">
+              <div className="relative bg-gradient-to-br from-[#0F398A] to-[#8b0d22] px-4 sm:px-5 lg:px-6 pt-4 sm:pt-5 pb-4 sm:pb-5 shrink-0 overflow-hidden">
                 <div className="absolute -top-6 -right-6 w-32 h-32 rounded-full bg-white/5 pointer-events-none" />
                 <button onClick={resetAddModal}
                   className="absolute top-3 sm:top-4 right-3 sm:right-4 w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-white/20 hover:bg-white/30 flex items-center justify-center text-white transition-colors z-10">
@@ -709,7 +709,7 @@ export default function CSRProjectsPage() {
 
                   <div className="bg-[#F8F9FC] rounded-xl sm:rounded-2xl p-3 sm:p-4 space-y-3 sm:space-y-4">
                     <div className="flex items-center gap-2">
-                      <User2 size={12} className="text-[#B8112D] sm:w-[14px] sm:h-[14px]" />
+                      <User2 size={12} className="text-[#0F398A] sm:w-[14px] sm:h-[14px]" />
                       <p className="text-[10px] sm:text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Client Information</p>
                     </div>
 
@@ -729,10 +729,10 @@ export default function CSRProjectsPage() {
                           }}
                           onBlur={e => onPhoneBlur(e.target.value)}
                           onPaste={onPhonePaste}
-                          className="w-full h-10 sm:h-11 rounded-xl sm:rounded-2xl border-2 border-gray-200 bg-white px-3 sm:px-4 pr-9 sm:pr-10 text-sm outline-none focus:border-[#B8112D] transition-colors placeholder:text-gray-300"
+                          className="w-full h-10 sm:h-11 rounded-xl sm:rounded-2xl border-2 border-gray-200 bg-white px-3 sm:px-4 pr-9 sm:pr-10 text-sm outline-none focus:border-[#0F398A] transition-colors placeholder:text-gray-300"
                         />
                         {phoneLookupLoading && (
-                          <Loader2 size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#B8112D] animate-spin" />
+                          <Loader2 size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#0F398A] animate-spin" />
                         )}
                       </div>
                     </div>
@@ -747,18 +747,18 @@ export default function CSRProjectsPage() {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
                       <div>
                         <label className="text-[10px] sm:text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1 sm:mb-1.5 block">
-                          Client Name <span className="text-[#B8112D]">*</span>
+                          Client Name <span className="text-[#0F398A]">*</span>
                         </label>
                         <input type="text" value={addForm.clientName} placeholder="e.g. John Smith"
                           onChange={e => setAddForm(f => ({ ...f, clientName: e.target.value }))}
-                          className="w-full h-10 sm:h-11 rounded-xl sm:rounded-2xl border-2 border-gray-200 bg-white px-3 sm:px-4 text-sm outline-none focus:border-[#B8112D] transition-colors placeholder:text-gray-300"
+                          className="w-full h-10 sm:h-11 rounded-xl sm:rounded-2xl border-2 border-gray-200 bg-white px-3 sm:px-4 text-sm outline-none focus:border-[#0F398A] transition-colors placeholder:text-gray-300"
                         />
                       </div>
                       <div>
                         <label className="text-[10px] sm:text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1 sm:mb-1.5 block">Company Name</label>
                         <input type="text" value={addForm.clientCompany} placeholder="Company name"
                           onChange={e => setAddForm(f => ({ ...f, clientCompany: e.target.value }))}
-                          className="w-full h-10 sm:h-11 rounded-xl sm:rounded-2xl border-2 border-gray-200 bg-white px-3 sm:px-4 text-sm outline-none focus:border-[#B8112D] transition-colors placeholder:text-gray-300"
+                          className="w-full h-10 sm:h-11 rounded-xl sm:rounded-2xl border-2 border-gray-200 bg-white px-3 sm:px-4 text-sm outline-none focus:border-[#0F398A] transition-colors placeholder:text-gray-300"
                         />
                       </div>
                     </div>
@@ -766,30 +766,30 @@ export default function CSRProjectsPage() {
 
                   <div>
                     <label className="text-[10px] sm:text-[11px] font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-1.5 mb-1.5 sm:mb-2">
-                      <Hash size={10} className="text-[#B8112D] sm:w-2.75 sm:h-2.75" />
+                      <Hash size={10} className="text-[#0F398A] sm:w-2.75 sm:h-2.75" />
                       Project Code <span className="text-gray-300 normal-case">(optional)</span>
                     </label>
                     <input type="text" value={addForm.projectCode} placeholder="e.g. BIM-2024-001"
                       onChange={e => setAddForm(f => ({ ...f, projectCode: e.target.value }))}
-                      className="w-full h-10 sm:h-11 rounded-xl sm:rounded-2xl border-2 border-gray-200 bg-[#FAFAFA] px-3 sm:px-4 text-sm outline-none focus:border-[#B8112D] focus:bg-white transition-colors placeholder:text-gray-300"
+                      className="w-full h-10 sm:h-11 rounded-xl sm:rounded-2xl border-2 border-gray-200 bg-[#FAFAFA] px-3 sm:px-4 text-sm outline-none focus:border-[#0F398A] focus:bg-white transition-colors placeholder:text-gray-300"
                     />
                   </div>
 
                   <div>
                     <label className="text-[10px] sm:text-[11px] font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-1.5 mb-1.5 sm:mb-2">
-                      <FileText size={10} className="text-[#B8112D] sm:w-[11px] sm:h-[11px]" />
-                      Project Title <span className="text-[#B8112D]">*</span>
+                      <FileText size={10} className="text-[#0F398A] sm:w-[11px] sm:h-[11px]" />
+                      Project Title <span className="text-[#0F398A]">*</span>
                     </label>
                     <input type="text" value={addForm.projectTitle} placeholder="e.g. BIM Modeling Phase 1"
                       onChange={e => setAddForm(f => ({ ...f, projectTitle: e.target.value }))}
-                      className="w-full h-10 sm:h-11 rounded-xl sm:rounded-2xl border-2 border-gray-200 bg-[#FAFAFA] px-3 sm:px-4 text-sm outline-none focus:border-[#B8112D] focus:bg-white transition-colors placeholder:text-gray-300"
+                      className="w-full h-10 sm:h-11 rounded-xl sm:rounded-2xl border-2 border-gray-200 bg-[#FAFAFA] px-3 sm:px-4 text-sm outline-none focus:border-[#0F398A] focus:bg-white transition-colors placeholder:text-gray-300"
                     />
                   </div>
 
                   <div>
                     <label className="text-[10px] sm:text-[11px] font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-1.5 mb-1.5 sm:mb-2">
-                      <Briefcase size={10} className="text-[#B8112D] sm:w-[11px] sm:h-[11px]" />
-                      Service Type <span className="text-[#B8112D]">*</span>
+                      <Briefcase size={10} className="text-[#0F398A] sm:w-[11px] sm:h-[11px]" />
+                      Service Type <span className="text-[#0F398A]">*</span>
                     </label>
                     <ServicePicker value={addForm.service} onChange={v => setAddForm(f => ({ ...f, service: v }))} />
                   </div>
@@ -797,28 +797,28 @@ export default function CSRProjectsPage() {
                   <div className="grid grid-cols-2 gap-2 sm:gap-3">
                     <div>
                       <label className="text-[10px] sm:text-[11px] font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-1.5 mb-1.5 sm:mb-2">
-                        <Clock3 size={10} className="text-[#B8112D] sm:w-[11px] sm:h-[11px]" />
-                        Deadline <span className="text-[#B8112D]">*</span>
+                        <Clock3 size={10} className="text-[#0F398A] sm:w-[11px] sm:h-[11px]" />
+                        Deadline <span className="text-[#0F398A]">*</span>
                       </label>
                       <input type="date" value={addForm.deadline}
                         onChange={e => setAddForm(f => ({ ...f, deadline: e.target.value }))}
                         className={`w-full h-10 sm:h-11 rounded-xl sm:rounded-2xl border-2 px-2 sm:px-3 text-xs sm:text-sm outline-none transition-colors ${
                           addForm.deadline && isDeadlinePast(addForm.deadline)
                             ? "border-green-400 bg-green-50 text-green-800"
-                            : "border-gray-200 bg-[#FAFAFA] focus:border-[#B8112D] focus:bg-white"
+                            : "border-gray-200 bg-[#FAFAFA] focus:border-[#0F398A] focus:bg-white"
                         }`}
                       />
                       {addForm.deadline && <DeadlineStatus deadline={addForm.deadline} />}
                     </div>
                     <div>
                       <label className="text-[10px] sm:text-[11px] font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-1.5 mb-1.5 sm:mb-2">
-                        <DollarSign size={10} className="text-[#B8112D] sm:w-[11px] sm:h-[11px]" />Budget
+                        <DollarSign size={10} className="text-[#0F398A] sm:w-[11px] sm:h-[11px]" />Budget
                       </label>
                       <div className="relative">
                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
                         <input type="text" placeholder="0.00" value={addForm.budget.replace(/^\$/, "")}
                           onChange={e => setAddForm(f => ({ ...f, budget: e.target.value }))}
-                          className="w-full h-10 sm:h-11 rounded-xl sm:rounded-2xl border-2 border-gray-200 bg-[#FAFAFA] pl-6 sm:pl-7 pr-2 sm:pr-3 text-xs sm:text-sm outline-none focus:border-[#B8112D] focus:bg-white transition-colors placeholder:text-gray-300"
+                          className="w-full h-10 sm:h-11 rounded-xl sm:rounded-2xl border-2 border-gray-200 bg-[#FAFAFA] pl-6 sm:pl-7 pr-2 sm:pr-3 text-xs sm:text-sm outline-none focus:border-[#0F398A] focus:bg-white transition-colors placeholder:text-gray-300"
                         />
                       </div>
                     </div>
@@ -826,11 +826,11 @@ export default function CSRProjectsPage() {
 
                   <div>
                     <label className="text-[10px] sm:text-[11px] font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-1.5 mb-1.5 sm:mb-2">
-                      <AlignLeft size={10} className="text-[#B8112D] sm:w-[11px] sm:h-[11px]" />Bid Instruction
+                      <AlignLeft size={10} className="text-[#0F398A] sm:w-[11px] sm:h-[11px]" />Bid Instruction
                     </label>
                     <textarea value={addForm.notes} placeholder="Bid Instruction notes..." rows={3}
                       onChange={e => setAddForm(f => ({ ...f, notes: e.target.value }))}
-                      className="w-full rounded-xl sm:rounded-2xl border-2 border-gray-200 bg-[#FAFAFA] px-3 sm:px-4 py-2.5 sm:py-3 text-xs sm:text-sm outline-none focus:border-[#B8112D] focus:bg-white transition-colors resize-none placeholder:text-gray-300"
+                      className="w-full rounded-xl sm:rounded-2xl border-2 border-gray-200 bg-[#FAFAFA] px-3 sm:px-4 py-2.5 sm:py-3 text-xs sm:text-sm outline-none focus:border-[#0F398A] focus:bg-white transition-colors resize-none placeholder:text-gray-300"
                     />
                   </div>
 
@@ -841,7 +841,7 @@ export default function CSRProjectsPage() {
                     </button>
                     <button onClick={handleAddProject} disabled={addSaving}
                       className={`flex-1 h-10 sm:h-12 rounded-xl sm:rounded-2xl font-semibold text-sm text-white flex items-center justify-center gap-2 transition-all ${
-                        !addSaving ? "bg-gradient-to-r from-[#B8112D] to-[#d4173a] shadow-md shadow-red-200" : "bg-gray-200 cursor-not-allowed text-gray-400"
+                        !addSaving ? "bg-gradient-to-r from-[#0F398A] to-[#d4173a] shadow-md shadow-red-200" : "bg-gray-200 cursor-not-allowed text-gray-400"
                       }`}>
                       {addSaving
                         ? <><div className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" />Saving...</>

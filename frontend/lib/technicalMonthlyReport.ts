@@ -68,7 +68,7 @@ export function buildTechnicalWordHtml(report: TechnicalMonthlyReport): string {
   const kpi = report.monitoring.kpi;
   const pipe = kpi.pipeline;
   const sum = kpi.summary;
-  const RED = "#B8112D";
+  const RED = "#0F398A";
   const NAVY = "#0B1220";
   const GREEN = "#059669";
   const BLUE = "#0B84F3";
@@ -138,12 +138,12 @@ export function buildTechnicalWordHtml(report: TechnicalMonthlyReport): string {
 </style></head>
 <body>
   <h1>Technical Team — Monthly Report</h1>
-  <p class="meta">${label} · Generated ${new Date(report.generatedAt).toLocaleString("en-GB")} · BEM Solutions CRM</p>
+  <p class="meta">${label} · Generated ${new Date(report.generatedAt).toLocaleString("en-GB")} · BidAxis CRM</p>
 
   <table width="100%" cellpadding="0" cellspacing="0"><tr>
     ${card("Pipeline projects", String(pipe.total), "Active technical queue", "#EFF6FF")}
     ${card("Completion rate", `${sum.completionRate}%`, `${sum.completedAssignments}/${sum.totalAssignments} assignments`, "#ECFDF5")}
-    ${card("Overdue", String(sum.overdueAssignments), "Needs follow-up", "#FFF1F3")}
+    ${card("Overdue", String(sum.overdueAssignments), "Needs follow-up", "#EFF6FF")}
     ${card("Revisions queue", String(report.revisionsCount), "Admin-sent revisions", "#F5F3FF")}
   </tr></table>
 

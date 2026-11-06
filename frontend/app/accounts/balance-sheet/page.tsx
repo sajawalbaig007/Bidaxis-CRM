@@ -97,7 +97,7 @@ export default function BalanceSheetPage() {
             {[
               { label: "Total Assets", value: totalAssets, grad: "from-[#0B84F3] to-[#0369A1]" },
               { label: "Current Assets", value: currentAssets, grad: "from-[#12B76A] to-[#027A48]" },
-              { label: "Total Liabilities", value: totalLiabilities, grad: "from-[#B8112D] to-[#8b0d22]" },
+              { label: "Total Liabilities", value: totalLiabilities, grad: "from-[#0F398A] to-[#8b0d22]" },
               { label: "Total Equity", value: totalEquity, grad: "from-[#0D9488] to-[#0F766E]" },
             ].map(c => (
               <div key={c.label} className={`relative overflow-hidden rounded-2xl p-4 text-white shadow-lg bg-gradient-to-br ${c.grad}`}>
@@ -139,13 +139,13 @@ export default function BalanceSheetPage() {
             <AccountsChartCard
               title="Assets vs Equity + Liabilities"
               subtitle="Balance check at a glance"
-              accent="#B8112D"
+              accent="#0F398A"
               icon={<TrendingUp size={16} />}
             >
               <RechartsBox height={240}>
                 <BarChart data={[
                   { name: "Assets", value: totalAssets, fill: "#0B84F3" },
-                  { name: "Eq + Liab.", value: totalEquity + totalLiabilities, fill: "#B8112D" },
+                  { name: "Eq + Liab.", value: totalEquity + totalLiabilities, fill: "#0F398A" },
                 ]} barSize={52}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                   <XAxis dataKey="name" tick={{ fontSize: 11, fontWeight: 600 }} />
@@ -153,7 +153,7 @@ export default function BalanceSheetPage() {
                   <Tooltip formatter={v => currency(Number(v ?? 0))} />
                   <Bar dataKey="value" radius={[12, 12, 0, 0]}>
                     <Cell fill="#0B84F3" />
-                    <Cell fill="#B8112D" />
+                    <Cell fill="#0F398A" />
                   </Bar>
                 </BarChart>
               </RechartsBox>

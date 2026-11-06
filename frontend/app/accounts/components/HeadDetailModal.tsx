@@ -65,7 +65,6 @@ type HeadDetailModalProps = {
   /** Date used for salary-slip month label. */
   recordDate?: string;
   calcOpts?: SalesPayrollCalcOpts;
-  /** Company slip format (BEM Solutions now; GPS/BDS later). */
   salarySlipCompany?: SalarySlipCompanyKey;
   /** BEM Asset inventory tables (qty × unit price). */
   inventoryMode?: boolean;
@@ -322,7 +321,7 @@ export default function HeadDetailModal({
             <input
               value={draft.title}
               onChange={e => setField("title", e.target.value)}
-              className="mt-1 h-10 w-full rounded-xl border border-crm-border px-3 text-sm outline-none focus:ring-2 focus:ring-[#B8112D]/30"
+              className="mt-1 h-10 w-full rounded-xl border border-crm-border px-3 text-sm outline-none focus:ring-2 focus:ring-[#0F398A]/30"
             />
           </label>
 
@@ -340,7 +339,7 @@ export default function HeadDetailModal({
                 <AmountInput
                   value={Number(draft.amount) || 0}
                   onChange={n => setField("amount", n)}
-                  className="mt-1 h-10 w-full rounded-xl border border-crm-border px-3 text-sm outline-none focus:ring-2 focus:ring-[#B8112D]/30"
+                  className="mt-1 h-10 w-full rounded-xl border border-crm-border px-3 text-sm outline-none focus:ring-2 focus:ring-[#0F398A]/30"
                 />
               )}
             </label>
@@ -350,7 +349,7 @@ export default function HeadDetailModal({
                 type="date"
                 value={draft.filledAt ?? todayIso()}
                 onChange={e => setField("filledAt", e.target.value)}
-                className="mt-1 h-10 w-full rounded-xl border border-crm-border px-3 text-sm outline-none focus:ring-2 focus:ring-[#B8112D]/30"
+                className="mt-1 h-10 w-full rounded-xl border border-crm-border px-3 text-sm outline-none focus:ring-2 focus:ring-[#0F398A]/30"
               />
             </label>
           </div>
@@ -465,7 +464,7 @@ export default function HeadDetailModal({
                             className="flex-1 h-8 rounded-lg border border-crm-border bg-crm-surface px-2 text-xs font-semibold"
                             placeholder="Employee name"
                           />
-                          <span className="text-xs font-bold tabular-nums text-[#B8112D] whitespace-nowrap">{currency(net)}</span>
+                          <span className="text-xs font-bold tabular-nums text-[#0F398A] whitespace-nowrap">{currency(net)}</span>
                           <SalarySlipDownloadButton
                             sub={s}
                             kind={payrollKind === "sales_lead" ? "sales_lead" : "sales"}
@@ -522,7 +521,7 @@ export default function HeadDetailModal({
                             placeholder="Executive name"
                           />
                           <span className="text-[10px] font-bold text-indigo-600 whitespace-nowrap">{exec.commissionPct}%</span>
-                          <span className="text-xs font-black tabular-nums text-[#B8112D] whitespace-nowrap" title="Total due = Salary + Loan+ve − Loan−ve + Occasional − PF">
+                          <span className="text-xs font-black tabular-nums text-[#0F398A] whitespace-nowrap" title="Total due = Salary + Loan+ve − Loan−ve + Occasional − PF">
                             Due {currency(exec.totalPayable)}
                           </span>
                           <SalarySlipDownloadButton
@@ -591,7 +590,7 @@ export default function HeadDetailModal({
                           className="flex-1 h-8 rounded-lg border border-crm-border bg-crm-surface px-2 text-xs font-semibold"
                           placeholder="Employee name"
                         />
-                        <span className="text-xs font-bold tabular-nums text-[#B8112D] whitespace-nowrap">{currency(net)}</span>
+                        <span className="text-xs font-bold tabular-nums text-[#0F398A] whitespace-nowrap">{currency(net)}</span>
                         <SalarySlipDownloadButton
                           sub={s}
                           kind={slipKind}
@@ -687,7 +686,7 @@ export default function HeadDetailModal({
               type="button"
               onClick={handleDone}
               disabled={saving}
-              className="h-9 px-4 rounded-xl text-xs font-bold bg-[#B8112D] text-white hover:bg-[#9a0e26] disabled:opacity-50 inline-flex items-center gap-1.5"
+              className="h-9 px-4 rounded-xl text-xs font-bold bg-[#0F398A] text-white hover:bg-[#9a0e26] disabled:opacity-50 inline-flex items-center gap-1.5"
             >
               {saving ? <Loader2 size={14} className="animate-spin" /> : null}
               Done

@@ -289,7 +289,7 @@ export default function TopNavbar() {
     <header ref={headerRef} className="sticky top-0 z-30 bg-crm-surface border-b border-crm-border shadow-sm">
       <div className="h-[64px] px-2 sm:px-3 lg:px-4 flex items-center gap-2 sm:gap-2.5 min-w-0">
         <Link href={BASE} prefetch={false} className="flex items-center gap-2 sm:gap-2.5 shrink-0 min-w-0">
-          <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-[14px] bg-[#B8112D] flex items-center justify-center shadow-sm overflow-hidden p-1 shrink-0">
+          <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-[14px] bg-[#0F398A] flex items-center justify-center shadow-sm overflow-hidden p-1 shrink-0">
             <Image
               src="/images/image.png"
               alt="logo"
@@ -303,14 +303,14 @@ export default function TopNavbar() {
             <h2 className="text-[16px] xl:text-[18px] font-extrabold leading-none text-crm-text tracking-tight truncate">
               CRM Dashboard
             </h2>
-            <p className="text-[10px] font-semibold text-[#B8112D] mt-1 tracking-wide uppercase">
-              BEM Solutions
+            <p className="text-[10px] font-semibold text-[#0F398A] mt-1 tracking-wide uppercase">
+              BidAxis
             </p>
           </div>
         </Link>
 
         <div className="flex-1 min-w-0 overflow-hidden">
-          <CapsuleChipNav items={navItems} baseHref={BASE} accent="#B8112D" variant="inline" />
+          <CapsuleChipNav items={navItems} baseHref={BASE} accent="#0F398A" variant="inline" />
         </div>
 
         <div className="flex items-center justify-end gap-1.5 sm:gap-2 shrink-0">
@@ -326,14 +326,14 @@ export default function TopNavbar() {
           }}
           className={`relative w-9 h-9 rounded-[13px] flex items-center justify-center transition-all shrink-0 ${
             chatOpen
-              ? "bg-[#B8112D] text-white shadow-md"
-              : "bg-crm-nav-pill text-crm-text-muted hover:bg-crm-brand-soft hover:text-[#B8112D]"
+              ? "bg-[#0F398A] text-white shadow-md"
+              : "bg-crm-nav-pill text-crm-text-muted hover:bg-crm-brand-soft hover:text-[#0F398A]"
           } ${!chatEnabled ? "opacity-50" : ""}`}
           title={chatEnabled ? "Messages" : "Chat disabled by admin"}
         >
           <MessageSquare size={16} />
           {chatEnabled && totalUnread > 0 && (
-            <span className="absolute -top-1 -right-1 min-w-[16px] h-4 bg-[#B8112D] text-white text-[9px] font-bold rounded-full flex items-center justify-center px-0.5 border-2 border-white">
+            <span className="absolute -top-1 -right-1 min-w-[16px] h-4 bg-[#0F398A] text-white text-[9px] font-bold rounded-full flex items-center justify-center px-0.5 border-2 border-white">
               {totalUnread > 9 ? "9+" : totalUnread}
             </span>
           )}
@@ -346,12 +346,12 @@ export default function TopNavbar() {
                 setBellOpen((v) => !v);
                 setProfileOpen(false);
               }}
-              className="relative w-10 h-10 rounded-[13px] flex items-center justify-center text-crm-text-muted hover:text-[#B8112D] hover:bg-crm-nav-pill transition-colors"
+              className="relative w-10 h-10 rounded-[13px] flex items-center justify-center text-crm-text-muted hover:text-[#0F398A] hover:bg-crm-nav-pill transition-colors"
             >
               <Bell size={18} />
 
               {calls.length > 0 && (
-                <span className="absolute -top-1 -right-1 min-w-[17px] h-[17px] bg-[#B8112D] text-white text-[9px] font-bold rounded-full flex items-center justify-center px-1 leading-none">
+                <span className="absolute -top-1 -right-1 min-w-[17px] h-[17px] bg-[#0F398A] text-white text-[9px] font-bold rounded-full flex items-center justify-center px-1 leading-none">
                   {calls.length > 9 ? "9+" : calls.length}
                 </span>
               )}
@@ -361,12 +361,12 @@ export default function TopNavbar() {
               <div className="absolute right-0 top-[calc(100%+10px)] w-[300px] sm:w-[340px] bg-crm-surface rounded-2xl border border-crm-border-subtle shadow-2xl z-50 overflow-hidden">
                 <div className="flex items-center justify-between px-4 py-3 border-b border-crm-border-subtle">
                   <div className="flex items-center gap-2">
-                    <Bell size={14} className="text-[#B8112D]" />
+                    <Bell size={14} className="text-[#0F398A]" />
                     <span className="text-[13px] font-bold text-crm-text">Notifications</span>
                   </div>
                   <div className="flex items-center gap-2">
                     {todayCalls.length > 0 && (
-                      <span className="text-[11px] bg-red-100 text-[#B8112D] dark:bg-red-500/25 dark:text-red-300 font-bold px-2 py-0.5 rounded-full">
+                      <span className="text-[11px] bg-red-100 text-[#0F398A] dark:bg-red-500/25 dark:text-red-300 font-bold px-2 py-0.5 rounded-full">
                         {todayCalls.length} call{todayCalls.length > 1 ? "s" : ""} today
                       </span>
                     )}
@@ -374,7 +374,7 @@ export default function TopNavbar() {
                       <button
                         type="button"
                         onClick={handleClearNotifications}
-                        className="text-[10px] font-semibold text-crm-text-muted hover:text-[#B8112D] transition-colors"
+                        className="text-[10px] font-semibold text-crm-text-muted hover:text-[#0F398A] transition-colors"
                       >
                         Clear
                       </button>
@@ -385,7 +385,7 @@ export default function TopNavbar() {
                 <div className="px-4 py-3 bg-crm-muted border-b border-crm-border-subtle">
                   <div className="flex items-center justify-between gap-2 mb-2">
                     <div className="flex items-center gap-2 min-w-0">
-                      <Activity size={13} className="text-[#B8112D] shrink-0" />
+                      <Activity size={13} className="text-[#0F398A] shrink-0" />
                       <p className="text-[12px] font-bold text-crm-text truncate">
                         Last {dailyStats.periodHours}h — {dailyStats.total} call{dailyStats.total !== 1 ? "s" : ""}
                       </p>
@@ -393,7 +393,7 @@ export default function TopNavbar() {
                     <button
                       type="button"
                       onClick={() => { setBellOpen(false); setReportOpen(true); }}
-                      className="text-[10px] font-bold text-[#B8112D] hover:text-[#9a0e25] whitespace-nowrap shrink-0 transition-colors"
+                      className="text-[10px] font-bold text-[#0F398A] hover:text-[#9a0e25] whitespace-nowrap shrink-0 transition-colors"
                     >
                       View Report
                     </button>
@@ -449,7 +449,7 @@ export default function TopNavbar() {
                         <div
                           key={c.id}
                           className={`w-full flex items-center gap-3 px-4 py-3 ${
-                            isToday ? "bg-[#FFFBF5]" : ""
+                            isToday ? "bg-[#F8FAFF]" : ""
                           }`}
                         >
                           <button
@@ -458,7 +458,7 @@ export default function TopNavbar() {
                             className="flex flex-1 items-center gap-3 text-left min-w-0 hover:opacity-80"
                           >
                           <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
-                            isToday ? "bg-[#FFF1F3] text-[#B8112D]" : "bg-[#FFF7E6] text-[#B54708]"
+                            isToday ? "bg-[#EFF6FF] text-[#0F398A]" : "bg-[#FFF7E6] text-[#B54708]"
                           }`}>
                             <Phone size={18} />
                           </div>
@@ -472,7 +472,7 @@ export default function TopNavbar() {
                             </div>
                           </div>
                           <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap ${
-                            isToday ? "bg-[#FFF1F3] text-[#B8112D]" : "bg-[#FFF7E6] text-[#B54708]"
+                            isToday ? "bg-[#EFF6FF] text-[#0F398A]" : "bg-[#FFF7E6] text-[#B54708]"
                           }`}>
                             {label}
                           </span>
@@ -480,7 +480,7 @@ export default function TopNavbar() {
                           <button
                             type="button"
                             onClick={e => dismissOneCall(c.id, e)}
-                            className="w-6 h-6 rounded-lg text-gray-300 hover:text-[#B8112D] flex items-center justify-center shrink-0"
+                            className="w-6 h-6 rounded-lg text-gray-300 hover:text-[#0F398A] flex items-center justify-center shrink-0"
                             title="Dismiss"
                           >
                             <X size={12} />
@@ -503,7 +503,7 @@ export default function TopNavbar() {
               }}
               className="crm-profile-btn flex items-center gap-2 rounded-[14px] pl-1.5 pr-2.5 h-10 transition-colors"
             >
-              <div className="w-8 h-8 rounded-[11px] bg-[#B8112D] text-white flex items-center justify-center font-bold text-xs shrink-0 overflow-hidden">
+              <div className="w-8 h-8 rounded-[11px] bg-[#0F398A] text-white flex items-center justify-center font-bold text-xs shrink-0 overflow-hidden">
                 {user?.profilePic
                   ? <Image src={user.profilePic} alt={user.name} width={32} height={32} className="w-full h-full object-cover" />
                   : initials
@@ -529,7 +529,7 @@ export default function TopNavbar() {
 
             {profileOpen && (
               <div className="absolute right-0 top-[calc(100%+10px)] w-[240px] bg-crm-surface rounded-2xl border border-crm-border-subtle shadow-2xl z-50 overflow-hidden">
-                <div className="bg-gradient-to-br from-[#B8112D] to-[#7A0B1E] px-4 py-4 flex items-center gap-3">
+                <div className="bg-gradient-to-br from-[#0F398A] to-[#7A0B1E] px-4 py-4 flex items-center gap-3">
                   <div className="w-12 h-12 rounded-xl bg-white/20 text-white flex items-center justify-center text-lg font-bold shrink-0 overflow-hidden">
                     {user?.profilePic
                       ? <Image src={user.profilePic} alt={user?.name ?? "Avatar"} width={48} height={48} className="w-full h-full object-cover" />
@@ -568,7 +568,7 @@ export default function TopNavbar() {
                   <button
                     onClick={handleLogout}
                     disabled={loggingOut}
-                    className="w-full h-9 rounded-xl bg-[#FFF1F3] hover:bg-[#ffe4e9] text-[#B8112D] text-[12px] font-semibold flex items-center justify-center gap-2 transition-colors disabled:opacity-60"
+                    className="w-full h-9 rounded-xl bg-[#EFF6FF] hover:bg-[#ffe4e9] text-[#0F398A] text-[12px] font-semibold flex items-center justify-center gap-2 transition-colors disabled:opacity-60"
                   >
                     <LogOut size={13} />
                     {loggingOut ? "Logging out…" : "Logout"}
@@ -613,7 +613,7 @@ function InfoRow({
       <span
         className={`text-right truncate max-w-[140px] ${
           mono
-            ? "font-mono text-[#B8112D] text-[11px] font-bold"
+            ? "font-mono text-[#0F398A] text-[11px] font-bold"
             : small
             ? "text-[10px] text-[#0F172A]"
             : "text-[11px] font-semibold text-[#0F172A]"

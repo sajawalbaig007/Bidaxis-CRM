@@ -17,7 +17,7 @@ export default function AccountsChartCard({
   title,
   subtitle,
   icon,
-  accent = "#B8112D",
+  accent = "#0F398A",
   children,
   className = "",
 }: AccountsChartCardProps) {
@@ -50,7 +50,7 @@ export default function AccountsChartCard({
 }
 
 export const CHART_COLORS = [
-  "#B8112D", // brand red
+  "#0F398A", // brand red
   "#0B84F3", // blue
   "#12B76A", // green
   "#F59E0B", // amber

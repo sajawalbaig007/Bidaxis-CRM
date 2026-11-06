@@ -83,7 +83,7 @@ export default function ChatActionRail({
           type="button"
           onClick={onArchiveToggle}
           title={showArchived ? "Show active chats" : "Show archived"}
-          className={`${btn} ${showArchived ? "bg-[#B8112D] text-white" : "bg-white text-gray-500 hover:bg-gray-100"}`}
+          className={`${btn} ${showArchived ? "bg-[#0F398A] text-white" : "bg-white text-gray-500 hover:bg-gray-100"}`}
         >
           {showArchived ? <ArchiveRestore size={15} /> : <Archive size={15} />}
         </button>
@@ -105,7 +105,7 @@ export default function ChatActionRail({
         type="button"
         onClick={onNewDm}
         title="New DM"
-        className={`${btn} bg-white text-gray-500 hover:bg-[#FFF1F3] hover:text-[#B8112D]`}
+        className={`${btn} bg-white text-gray-500 hover:bg-[#EFF6FF] hover:text-[#0F398A]`}
       >
         <User2 size={15} />
       </button>
@@ -116,7 +116,7 @@ export default function ChatActionRail({
         type="button"
         onClick={onNewGroup}
         title="New group"
-        className={`${btn} bg-[#B8112D] text-white hover:bg-[#a30f27]`}
+        className={`${btn} bg-[#0F398A] text-white hover:bg-[#a30f27]`}
       >
         <Plus size={15} />
       </button>
@@ -127,7 +127,7 @@ export default function ChatActionRail({
         type="button"
         onClick={onSettings}
         title="Chat theme"
-        className={`${btn} ${settingsOpen ? "bg-[#B8112D] text-white" : "bg-white text-gray-500 hover:bg-[#FFF1F3] hover:text-[#B8112D]"}`}
+        className={`${btn} ${settingsOpen ? "bg-[#0F398A] text-white" : "bg-white text-gray-500 hover:bg-[#EFF6FF] hover:text-[#0F398A]"}`}
       >
         <Settings size={15} />
       </button>
@@ -138,7 +138,7 @@ export default function ChatActionRail({
         type="button"
         onClick={onFullscreen}
         title={isFullscreen ? "Exit fullscreen" : "Fullscreen chat"}
-        className={`${btn} ${isFullscreen ? "bg-[#B8112D] text-white" : "bg-white text-gray-500 hover:bg-[#FFF1F3] hover:text-[#B8112D]"}`}
+        className={`${btn} ${isFullscreen ? "bg-[#0F398A] text-white" : "bg-white text-gray-500 hover:bg-[#EFF6FF] hover:text-[#0F398A]"}`}
       >
         {isFullscreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
       </button>

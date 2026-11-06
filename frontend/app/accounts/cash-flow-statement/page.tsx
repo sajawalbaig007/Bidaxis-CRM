@@ -186,7 +186,7 @@ export default function CashFlowStatementPage() {
             <button
               type="button"
               onClick={addMonth}
-              className="h-10 px-3 rounded-xl bg-[#FFF1F3] text-[#B8112D] text-xs font-bold inline-flex items-center gap-1.5 hover:bg-[#FFE4E8] shrink-0"
+              className="h-10 px-3 rounded-xl bg-[#EFF6FF] text-[#0F398A] text-xs font-bold inline-flex items-center gap-1.5 hover:bg-[#DBEAFE] shrink-0"
             >
               <Landmark size={14} />
               Add Month Section
@@ -194,7 +194,7 @@ export default function CashFlowStatementPage() {
           }
         >
           <section className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-2.5">
-            <div className={`rounded-xl p-3 text-white bg-gradient-to-br from-[#B8112D] to-[#8b0d22] shadow-md min-w-0 ${theme.card}`}>
+            <div className={`rounded-xl p-3 text-white bg-gradient-to-br from-[#0F398A] to-[#8b0d22] shadow-md min-w-0 ${theme.card}`}>
               <div className="flex items-center gap-1.5">
                 <Wallet size={14} className="text-white/80 shrink-0" />
                 <p className="text-[10px] font-bold uppercase tracking-wider text-white/75 truncate">Net Cash Flow</p>
@@ -222,22 +222,22 @@ export default function CashFlowStatementPage() {
             <AccountsChartCard
               title="Net by Section"
               subtitle="Cash movement across month sections"
-              accent="#B8112D"
+              accent="#0F398A"
               icon={<Activity size={16} />}
             >
               <RechartsBox height={250}>
                 <AreaChart data={monthChart.length ? monthChart : [{ name: "—", net: 0 }]}>
                   <defs>
                     <linearGradient id="cfArea" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#B8112D" stopOpacity={0.4} />
-                      <stop offset="100%" stopColor="#B8112D" stopOpacity={0.02} />
+                      <stop offset="0%" stopColor="#0F398A" stopOpacity={0.4} />
+                      <stop offset="100%" stopColor="#0F398A" stopOpacity={0.02} />
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                   <XAxis dataKey="name" tick={{ fontSize: 10, fontWeight: 600 }} />
                   <YAxis tick={{ fontSize: 10 }} />
                   <Tooltip formatter={v => currency(Number(v ?? 0))} />
-                  <Area type="monotone" dataKey="net" stroke="#B8112D" fill="url(#cfArea)" strokeWidth={2.5} />
+                  <Area type="monotone" dataKey="net" stroke="#0F398A" fill="url(#cfArea)" strokeWidth={2.5} />
                 </AreaChart>
               </RechartsBox>
             </AccountsChartCard>
@@ -298,7 +298,7 @@ export default function CashFlowStatementPage() {
                     <Tooltip formatter={v => currency(Number(v ?? 0))} />
                     <Legend />
                     <Bar dataKey="debit" name="Debit" fill="#0B84F3" radius={[8, 8, 0, 0]} />
-                    <Bar dataKey="credit" name="Credit" fill="#B8112D" radius={[8, 8, 0, 0]} />
+                    <Bar dataKey="credit" name="Credit" fill="#0F398A" radius={[8, 8, 0, 0]} />
                   </BarChart>
                 </RechartsBox>
               </AccountsChartCard>
@@ -316,7 +316,7 @@ export default function CashFlowStatementPage() {
                     <Tooltip formatter={v => currency(Number(v ?? 0))} />
                     <Legend />
                     <Line type="monotone" dataKey="debit" name="Debit" stroke="#0B84F3" strokeWidth={2.5} dot={{ r: 4 }} />
-                    <Line type="monotone" dataKey="credit" name="Credit" stroke="#B8112D" strokeWidth={2.5} dot={{ r: 4 }} />
+                    <Line type="monotone" dataKey="credit" name="Credit" stroke="#0F398A" strokeWidth={2.5} dot={{ r: 4 }} />
                   </LineChart>
                 </RechartsBox>
               </AccountsChartCard>

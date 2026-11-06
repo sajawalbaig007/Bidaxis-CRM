@@ -361,7 +361,7 @@ export default function IncomeStatementPage() {
 
   const stackCompare = [
     { name: "Revenue", amount: revenue, fill: "#0B84F3" },
-    { name: "Expense", amount: totalExpense, fill: "#B8112D" },
+    { name: "Expense", amount: totalExpense, fill: "#0F398A" },
     { name: "Profit", amount: netProfit, fill: "#12B76A" },
   ];
 
@@ -415,7 +415,7 @@ export default function IncomeStatementPage() {
               { label: "Total Revenue", value: revenue, cls: "from-[#6D28D9] to-[#4C1D95]", hint: activeRollup ? "All Time · sum" : "Currency Formula" },
               { label: "Team Salaries", value: payrollExpense, cls: "from-[#0B84F3] to-[#0369A1]", hint: activeRollup ? "All Time · sum" : "Payroll tables" },
               { label: "Operating Expense", value: operatingExpense, cls: "from-[#F59E0B] to-[#D97706]", hint: activeRollup ? "All Time · sum" : "OPEX table" },
-              { label: "Total Expense", value: totalExpense, cls: "from-[#B8112D] to-[#8b0d22]", hint: "Salaries + OPEX" },
+              { label: "Total Expense", value: totalExpense, cls: "from-[#0F398A] to-[#8b0d22]", hint: "Salaries + OPEX" },
               { label: "Net Profit", value: netProfit, cls: "from-[#12B76A] to-[#027A48]", hint: "Revenue − Expense" },
               { label: "Loans", value: loanExpense, cls: "from-[#EA580C] to-[#C2410C]", hint: "Pending only" },
               { label: "Provident Fund", value: pfExpense, cls: "from-[#0D9488] to-[#0F766E]", hint: "Auto from salaries" },
@@ -438,7 +438,7 @@ export default function IncomeStatementPage() {
             <AccountsChartCard
               title="Expense Mix"
               subtitle="Team Salaries + Operating Expense"
-              accent="#B8112D"
+              accent="#0F398A"
               icon={<PieIcon size={16} />}
             >
               <RechartsBox height={240}>

@@ -185,7 +185,7 @@ export default function DeptAttendancePage({
               >
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#B8112D]">{title}</p>
+                    <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#0F398A]">{title}</p>
                     <h2 className="mt-1 text-2xl font-bold tracking-tight">{person.name}</h2>
                   </div>
                   <span className="shrink-0 rounded-full bg-[#F4F6FB] px-3 py-1 text-[11px] font-semibold text-black">
@@ -198,10 +198,10 @@ export default function DeptAttendancePage({
                     <p className="mt-1 text-2xl sm:text-3xl font-bold tabular-nums tracking-tight text-[#0B1220]" style={{ color: "#0B1220" }}>{formatClock(row?.checkIn)}</p>
                   </div>
                   <div className="rounded-2xl bg-[#FFF5F6] px-4 py-4">
-                    <p className="text-[11px] font-bold uppercase tracking-wide text-[#B8112D]">Out</p>
+                    <p className="text-[11px] font-bold uppercase tracking-wide text-[#0F398A]">Out</p>
                     <p className="mt-1 text-2xl sm:text-3xl font-bold tabular-nums tracking-tight text-[#0B1220]" style={{ color: "#0B1220" }}>{formatClock(row?.checkOut)}</p>
                     {row?.checkIn && row.checkOut && row.checkOut < row.checkIn ? (
-                      <p className="mt-1 text-[10px] font-bold uppercase tracking-wide text-[#B8112D]">Next day</p>
+                      <p className="mt-1 text-[10px] font-bold uppercase tracking-wide text-[#0F398A]">Next day</p>
                     ) : null}
                   </div>
                 </div>
@@ -221,7 +221,7 @@ export default function DeptAttendancePage({
                       if (department === "dev" || department === "bim_modeler") setCheckoutFor(person.key);
                       else void punch(person.key, "out");
                     }}
-                    className="h-14 rounded-2xl bg-[#B8112D] text-white text-base font-semibold inline-flex items-center justify-center gap-2 shadow-sm hover:bg-[#9d0e26] disabled:opacity-60 touch-manipulation"
+                    className="h-14 rounded-2xl bg-[#0F398A] text-white text-base font-semibold inline-flex items-center justify-center gap-2 shadow-sm hover:bg-[#9d0e26] disabled:opacity-60 touch-manipulation"
                   >
                     <LogOut size={18} /> {row?.checkOut ? "Checked out" : "Check out"}
                   </button>
@@ -276,7 +276,7 @@ function CommentBox({ initial, onSave }: { initial: string; onSave: (text: strin
           rows={2}
           maxLength={500}
           placeholder="Optional note for the report"
-          className="mt-1.5 w-full rounded-2xl border border-gray-200 bg-[#F8FAFC] px-3 py-2 text-sm font-normal normal-case tracking-normal text-[#0B1220] outline-none focus:border-[#B8112D]/40"
+          className="mt-1.5 w-full rounded-2xl border border-gray-200 bg-[#F8FAFC] px-3 py-2 text-sm font-normal normal-case tracking-normal text-[#0B1220] outline-none focus:border-[#0F398A]/40"
           style={{ color: "#0B1220" }}
         />
       </label>

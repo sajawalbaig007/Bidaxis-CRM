@@ -60,7 +60,7 @@ export default function StateFilterDropdown({ value, onChange, compact = false, 
             onClick={() => { setCountry(tab.key); setSearch(""); }}
             className={`flex-1 h-7 rounded-lg text-[11px] font-bold flex items-center justify-center gap-1 transition-all ${
               country === tab.key
-                ? "bg-[#B8112D] text-white shadow-sm"
+                ? "bg-[#0F398A] text-white shadow-sm"
                 : "text-gray-500 hover:bg-gray-100"
             }`}
           >
@@ -82,7 +82,7 @@ export default function StateFilterDropdown({ value, onChange, compact = false, 
               country === "canada" ? "Search provinces…" :
               "Search states / provinces…"
             }
-            className="w-full h-8 rounded-lg border border-gray-200 bg-[#FAFAFA] pl-7 pr-2 text-[12px] outline-none focus:border-[#B8112D]"
+            className="w-full h-8 rounded-lg border border-gray-200 bg-[#FAFAFA] pl-7 pr-2 text-[12px] outline-none focus:border-[#0F398A]"
           />
         </div>
       </div>
@@ -97,8 +97,8 @@ export default function StateFilterDropdown({ value, onChange, compact = false, 
             {filteredUSStates.map(s => (
               <button key={s.code} type="button"
                 onClick={() => select(s.name)}
-                className={`w-full text-left px-3 py-1.5 text-[12px] flex items-center justify-between transition-colors hover:bg-[#FFF1F3] ${
-                  value === s.name ? "bg-[#FFF1F3] text-[#B8112D] font-semibold" : "text-[#0F172A]"
+                className={`w-full text-left px-3 py-1.5 text-[12px] flex items-center justify-between transition-colors hover:bg-[#EFF6FF] ${
+                  value === s.name ? "bg-[#EFF6FF] text-[#0F398A] font-semibold" : "text-[#0F172A]"
                 }`}
               >
                 <span>{s.name}</span>
@@ -117,8 +117,8 @@ export default function StateFilterDropdown({ value, onChange, compact = false, 
             {filteredCAProvinces.map(p => (
               <button key={p.code} type="button"
                 onClick={() => select(p.name)}
-                className={`w-full text-left px-3 py-1.5 text-[12px] flex items-center justify-between transition-colors hover:bg-[#FFF1F3] ${
-                  value === p.name ? "bg-[#FFF1F3] text-[#B8112D] font-semibold" : "text-[#0F172A]"
+                className={`w-full text-left px-3 py-1.5 text-[12px] flex items-center justify-between transition-colors hover:bg-[#EFF6FF] ${
+                  value === p.name ? "bg-[#EFF6FF] text-[#0F398A] font-semibold" : "text-[#0F172A]"
                 }`}
               >
                 <span>{p.name}</span>
@@ -143,14 +143,14 @@ export default function StateFilterDropdown({ value, onChange, compact = false, 
         onClick={toggle}
         className={`px-3 sm:px-4 rounded-xl sm:rounded-2xl border flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm font-medium transition-colors ${fullWidth ? "h-10 sm:h-[42px] w-full min-w-0" : compact ? "h-10 sm:h-[42px] min-w-[140px] sm:min-w-[168px]" : "h-10 sm:h-[42px] min-w-[160px] sm:min-w-[200px]"} ${
           value
-            ? "border-[#B8112D] bg-[#FFF1F3] text-[#B8112D]"
+            ? "border-[#0F398A] bg-[#EFF6FF] text-[#0F398A]"
             : "border-gray-200 dark:border-crm-border bg-[#FAFAFA] dark:bg-crm-input text-gray-600 dark:text-crm-text-secondary hover:border-gray-300 dark:hover:border-crm-border"
         }`}
       >
-        <MapPin size={12} className={`shrink-0 sm:w-[14px] sm:h-[14px] ${value ? "text-[#B8112D]" : "text-gray-400"}`} />
+        <MapPin size={12} className={`shrink-0 sm:w-[14px] sm:h-[14px] ${value ? "text-[#0F398A]" : "text-gray-400"}`} />
         <span className="flex-1 text-left truncate text-[12px] sm:text-[13px]">{value || (compact ? "State / Province" : "Filter by State / Province")}</span>
         {value ? (
-          <span role="button" onClick={e => { e.stopPropagation(); clear(); }} className="ml-1 text-[#B8112D] hover:text-[#8b0d22] shrink-0">
+          <span role="button" onClick={e => { e.stopPropagation(); clear(); }} className="ml-1 text-[#0F398A] hover:text-[#8b0d22] shrink-0">
             <X size={12} className="sm:w-[13px] sm:h-[13px]" />
           </span>
         ) : (

@@ -146,7 +146,7 @@ function LeadsPageFallback() {
       <main className="flex-1 p-6 mt-[var(--app-header-h,64px)]">
         <DashboardNavbar />
         <div className="flex items-center justify-center h-[50vh]">
-          <div className="w-12 h-12 border-4 border-[#B8112D] border-t-transparent rounded-full animate-spin" />
+          <div className="w-12 h-12 border-4 border-[#0F398A] border-t-transparent rounded-full animate-spin" />
         </div>
       </main>
     </div>
@@ -629,7 +629,7 @@ function ClientsPageContent() {
           <DashboardNavbar />
           <div className="flex items-center justify-center h-[60vh]">
             <div className="text-center">
-              <div className="w-16 h-16 border-4 border-[#B8112D] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+              <div className="w-16 h-16 border-4 border-[#0F398A] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
               <p className="text-gray-500">Loading clients...</p>
             </div>
           </div>
@@ -651,7 +651,7 @@ function ClientsPageContent() {
         {/* ─── PAGE HEADER ─── */}
         <div className="mb-5 space-y-4">
           <div className="flex items-start gap-3 min-w-0">
-            <span className="w-11 h-11 rounded-2xl bg-[#B8112D] text-white inline-flex items-center justify-center shrink-0 shadow-sm">
+            <span className="w-11 h-11 rounded-2xl bg-[#0F398A] text-white inline-flex items-center justify-center shrink-0 shadow-sm">
               <HeartHandshake size={18} />
             </span>
             <div className="min-w-0">
@@ -679,7 +679,7 @@ function ClientsPageContent() {
                       cx="50%" cy="50%" innerRadius={58} outerRadius={86}
                       paddingAngle={3} dataKey="value"
                     >
-                      <Cell fill="#B8112D"/>
+                      <Cell fill="#0F398A"/>
                       <Cell fill="#0B84F3"/>
                       <Cell fill="#027A48"/>
                       <Cell fill="#065F46"/>
@@ -717,7 +717,7 @@ function ClientsPageContent() {
                   key={s.label}
                   className={`rounded-2xl p-3 sm:p-4 h-full border ${
                     s.tone === "red"
-                      ? "bg-gradient-to-br from-[#B8112D] to-[#8c0d22] border-[#B8112D]/40"
+                      ? "bg-gradient-to-br from-[#0F398A] to-[#8c0d22] border-[#0F398A]/40"
                       : s.tone === "blue"
                         ? "border-sky-100 dark:border-sky-500/20 bg-gradient-to-br from-sky-50 to-white dark:from-sky-950/30 dark:to-crm-surface"
                         : s.tone === "green"
@@ -763,7 +763,7 @@ function ClientsPageContent() {
                   setRecordsView(null);
                   hasRowsRef.current = false;
                 }}
-                className="h-11 w-full appearance-none border border-gray-200 dark:border-crm-border rounded-xl pl-10 pr-3 text-xs sm:text-sm outline-none focus:border-[#B8112D] bg-white dark:bg-crm-input text-gray-700 dark:text-crm-text font-medium"
+                className="h-11 w-full appearance-none border border-gray-200 dark:border-crm-border rounded-xl pl-10 pr-3 text-xs sm:text-sm outline-none focus:border-[#0F398A] bg-white dark:bg-crm-input text-gray-700 dark:text-crm-text font-medium"
               >
                 <option value="all">All CSR</option>
                 {csrOptions.map((csr) => (
@@ -794,7 +794,7 @@ function ClientsPageContent() {
                       else setSearch(e.target.value);
                       setPage(1);
                     }}
-                    className="w-full h-11 bg-white dark:bg-crm-input border border-gray-200 dark:border-crm-border rounded-xl pl-10 sm:pl-11 pr-4 text-sm outline-none focus:border-[#B8112D] dark:text-crm-text"
+                    className="w-full h-11 bg-white dark:bg-crm-input border border-gray-200 dark:border-crm-border rounded-xl pl-10 sm:pl-11 pr-4 text-sm outline-none focus:border-[#0F398A] dark:text-crm-text"
                   />
                 </div>
                 <StateFilterDropdown fullWidth value={stateFilter} onChange={v => { setStateFilter(v); setPage(1); }} />
@@ -805,12 +805,12 @@ function ClientsPageContent() {
                       type="date"
                       value={impFilterDate}
                       onChange={(e) => { setImpFilterDate(e.target.value); setPage(1); }}
-                      className="h-11 flex-1 min-w-0 rounded-xl border border-gray-200 dark:border-crm-border px-3 bg-white dark:bg-crm-input text-sm outline-none focus:border-[#B8112D] dark:text-crm-text"
+                      className="h-11 flex-1 min-w-0 rounded-xl border border-gray-200 dark:border-crm-border px-3 bg-white dark:bg-crm-input text-sm outline-none focus:border-[#0F398A] dark:text-crm-text"
                     />
                     {impFilterDate && (
                       <button
                         onClick={() => { setImpFilterDate(""); setPage(1); }}
-                        className="h-11 px-3 rounded-xl border border-gray-200 dark:border-crm-border text-sm text-gray-500 hover:text-[#B8112D] shrink-0"
+                        className="h-11 px-3 rounded-xl border border-gray-200 dark:border-crm-border text-sm text-gray-500 hover:text-[#0F398A] shrink-0"
                       >
                         Clear
                       </button>
@@ -825,7 +825,7 @@ function ClientsPageContent() {
                   setNewClient(emptyClient);
                   setAddCsrId("");
                 }}
-                className="h-11 w-full xl:w-auto px-5 rounded-xl bg-[#B8112D] text-white text-sm font-semibold inline-flex items-center justify-center gap-2 hover:bg-[#a30f27]"
+                className="h-11 w-full xl:w-auto px-5 rounded-xl bg-[#0F398A] text-white text-sm font-semibold inline-flex items-center justify-center gap-2 hover:bg-[#a30f27]"
               >
                 <Plus size={15} />
                 Add Client
@@ -900,7 +900,7 @@ function ClientsPageContent() {
                         <td colSpan={tableHeaders.length} className="px-6 py-16 sm:py-20 text-center">
                           <div className="flex flex-col items-center justify-center">
                             <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-[#F8ECEF] flex items-center justify-center mb-3 sm:mb-4">
-                              <Building2 size={28} className="text-[#B8112D] sm:w-8 sm:h-8" />
+                              <Building2 size={28} className="text-[#0F398A] sm:w-8 sm:h-8" />
                             </div>
                             <h3 className="text-base sm:text-lg font-semibold text-gray-700">
                               No Clients Found
@@ -936,13 +936,13 @@ function ClientsPageContent() {
                                 client.company && client.company !== "N/A" ? client.company.trim() : "";
                               return (
                                 <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-                                  <div className="w-8 h-8 sm:w-9 sm:h-9 lg:w-10 lg:h-10 rounded-full bg-[#F8ECEF] flex items-center justify-center text-[#B8112D] font-semibold shrink-0 text-xs sm:text-sm">
+                                  <div className="w-8 h-8 sm:w-9 sm:h-9 lg:w-10 lg:h-10 rounded-full bg-[#F8ECEF] flex items-center justify-center text-[#0F398A] font-semibold shrink-0 text-xs sm:text-sm">
                                     {client.clientName.charAt(0)}
                                   </div>
                                   <div className="min-w-0 flex-1 overflow-visible">
                                     <div className="flex items-center gap-1.5 flex-wrap min-w-0">
                                       {(client.clientCode || client.projectCode) && (
-                                        <span className="bg-[#B8112D]/10 text-[#B8112D] text-[9px] font-bold px-1.5 py-0.5 rounded-md shrink-0">
+                                        <span className="bg-[#0F398A]/10 text-[#0F398A] text-[9px] font-bold px-1.5 py-0.5 rounded-md shrink-0">
                                           {client.clientCode || client.projectCode}
                                         </span>
                                       )}
@@ -1017,7 +1017,7 @@ function ClientsPageContent() {
                             <>
                               <td className={CSR_TD}>
                                 <div className="inline-flex items-center gap-1.5 border border-gray-200 rounded-xl px-2.5 py-1.5 text-xs font-medium text-gray-700 bg-[#FAFAFA]">
-                                  <CalendarDays size={12} className="text-[#B8112D] shrink-0" />
+                                  <CalendarDays size={12} className="text-[#0F398A] shrink-0" />
                                   {client.nextFollowup || "—"}
                                 </div>
                               </td>
@@ -1033,7 +1033,7 @@ function ClientsPageContent() {
                           <td className={`${CSR_TD} min-w-0 overflow-hidden`}>
                             {client.csrCode ? (
                               <span
-                                className="inline-flex bg-[#B8112D]/10 text-[#B8112D] text-[10px] sm:text-[11px] font-bold px-1.5 py-0.5 rounded-md tabular-nums"
+                                className="inline-flex bg-[#0F398A]/10 text-[#0F398A] text-[10px] sm:text-[11px] font-bold px-1.5 py-0.5 rounded-md tabular-nums"
                                 title={client.csr ? `${client.csrCode} — ${client.csr}` : client.csrCode}
                               >
                                 {client.csrCode}
@@ -1186,7 +1186,7 @@ function ClientsPageContent() {
                               )}
                               <button
                                 onClick={() => openAddProject(client)}
-                                className="h-8 lg:h-9 px-2.5 rounded-xl bg-[#FFF1F3] text-[#B8112D] hover:bg-[#B8112D] hover:text-white flex items-center gap-1 text-[11px] font-semibold whitespace-nowrap transition-all"
+                                className="h-8 lg:h-9 px-2.5 rounded-xl bg-[#EFF6FF] text-[#0F398A] hover:bg-[#0F398A] hover:text-white flex items-center gap-1 text-[11px] font-semibold whitespace-nowrap transition-all"
                                 title="Add project"
                               >
                                 <FolderPlus size={13} />
@@ -1241,7 +1241,7 @@ function ClientsPageContent() {
                                       openAddProject(client);
                                       setOpenMenu(null);
                                     }}
-                                    className="w-full px-4 py-3 text-left text-sm hover:bg-[#FFF1F3] text-[#B8112D] flex items-center gap-2"
+                                    className="w-full px-4 py-3 text-left text-sm hover:bg-[#EFF6FF] text-[#0F398A] flex items-center gap-2"
                                   >
                                     <FolderPlus size={14} /> Add project
                                   </button>
@@ -1469,19 +1469,19 @@ function ClientsPageContent() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 <div>
                   <label className="text-xs sm:text-sm text-gray-500 mb-1.5 sm:mb-2 block">
-                    Client Name <span className="text-[#B8112D]">*</span>
+                    Client Name <span className="text-[#0F398A]">*</span>
                   </label>
                   <input
                     type="text"
                     value={newClient.clientName}
                     placeholder="Client name"
                     onChange={(e) => setNewClient({ ...newClient, clientName: e.target.value })}
-                    className="w-full border border-gray-200 rounded-xl sm:rounded-2xl px-3 sm:px-4 py-2.5 sm:py-3 text-sm outline-none focus:border-[#B8112D]"
+                    className="w-full border border-gray-200 rounded-xl sm:rounded-2xl px-3 sm:px-4 py-2.5 sm:py-3 text-sm outline-none focus:border-[#0F398A]"
                   />
                 </div>
                 <div>
                   <label className="text-xs sm:text-sm text-gray-500 mb-1.5 sm:mb-2 block">
-                    Company Name <span className="text-[#B8112D]">*</span>
+                    Company Name <span className="text-[#0F398A]">*</span>
                   </label>
                   <input
                     type="text"
@@ -1494,7 +1494,7 @@ function ClientsPageContent() {
                         parentCompany: e.target.value,
                       })
                     }
-                    className="w-full border border-gray-200 rounded-xl sm:rounded-2xl px-3 sm:px-4 py-2.5 sm:py-3 text-sm outline-none focus:border-[#B8112D]"
+                    className="w-full border border-gray-200 rounded-xl sm:rounded-2xl px-3 sm:px-4 py-2.5 sm:py-3 text-sm outline-none focus:border-[#0F398A]"
                   />
                 </div>
 
@@ -1505,7 +1505,7 @@ function ClientsPageContent() {
                   <div key={f.key}>
                     <label className="text-xs sm:text-sm text-gray-500 mb-1.5 sm:mb-2 block">
                       {f.label}{" "}
-                      {f.req && <span className="text-[#B8112D]">*</span>}
+                      {f.req && <span className="text-[#0F398A]">*</span>}
                     </label>
                     <input
                       type={f.type}
@@ -1514,7 +1514,7 @@ function ClientsPageContent() {
                       onChange={(e) =>
                         setNewClient({ ...newClient, [f.key]: e.target.value })
                       }
-                      className="w-full border border-gray-200 rounded-xl sm:rounded-2xl px-3 sm:px-4 py-2.5 sm:py-3 text-sm outline-none focus:border-[#B8112D]"
+                      className="w-full border border-gray-200 rounded-xl sm:rounded-2xl px-3 sm:px-4 py-2.5 sm:py-3 text-sm outline-none focus:border-[#0F398A]"
                     />
                   </div>
                 ))}
@@ -1529,7 +1529,7 @@ function ClientsPageContent() {
                       const name = csrOptions.find(c => c.id === id)?.name ?? "";
                       setNewClient({ ...newClient, csr: name });
                     }}
-                    className="w-full border border-gray-200 rounded-xl sm:rounded-2xl px-3 sm:px-4 py-2.5 sm:py-3 text-sm outline-none focus:border-[#B8112D] bg-white"
+                    className="w-full border border-gray-200 rounded-xl sm:rounded-2xl px-3 sm:px-4 py-2.5 sm:py-3 text-sm outline-none focus:border-[#0F398A] bg-white"
                   >
                     <option value="">Unassigned</option>
                     {csrOptions.map(c => (
@@ -1545,7 +1545,7 @@ function ClientsPageContent() {
                     onChange={(e) =>
                       setNewClient({ ...newClient, status: e.target.value as Client["status"] })
                     }
-                    className="w-full border border-gray-200 rounded-xl sm:rounded-2xl px-3 sm:px-4 py-2.5 sm:py-3 text-sm outline-none focus:border-[#B8112D] bg-white"
+                    className="w-full border border-gray-200 rounded-xl sm:rounded-2xl px-3 sm:px-4 py-2.5 sm:py-3 text-sm outline-none focus:border-[#0F398A] bg-white"
                   >
                     {["Closed", "Interested", "Important"].map((s) => (
                       <option key={s} value={s}>{s}</option>
@@ -1560,7 +1560,7 @@ function ClientsPageContent() {
                     value={newClient.scope}
                     placeholder="Write project scope..."
                     onChange={(e) => setNewClient({ ...newClient, scope: e.target.value })}
-                    className="w-full border border-gray-200 rounded-xl sm:rounded-2xl px-3 sm:px-4 py-2.5 sm:py-3 text-sm outline-none resize-none focus:border-[#B8112D]"
+                    className="w-full border border-gray-200 rounded-xl sm:rounded-2xl px-3 sm:px-4 py-2.5 sm:py-3 text-sm outline-none resize-none focus:border-[#0F398A]"
                   />
                 </div>
 
@@ -1571,7 +1571,7 @@ function ClientsPageContent() {
                     value={newClient.lastComment}
                     placeholder="Write discussion notes..."
                     onChange={(e) => setNewClient({ ...newClient, lastComment: e.target.value })}
-                    className="w-full border border-gray-200 rounded-xl sm:rounded-2xl px-3 sm:px-4 py-2.5 sm:py-3 text-sm outline-none resize-none focus:border-[#B8112D]"
+                    className="w-full border border-gray-200 rounded-xl sm:rounded-2xl px-3 sm:px-4 py-2.5 sm:py-3 text-sm outline-none resize-none focus:border-[#0F398A]"
                   />
                 </div>
               </div>
@@ -1585,7 +1585,7 @@ function ClientsPageContent() {
                 </button>
                 <button
                   onClick={handleSaveClient}
-                  className="px-5 sm:px-6 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl bg-[#B8112D] text-white text-sm hover:bg-[#a30f27] transition-all"
+                  className="px-5 sm:px-6 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl bg-[#0F398A] text-white text-sm hover:bg-[#a30f27] transition-all"
                 >
                   {isEditing ? "Update Client" : "Save Client"}
                 </button>
@@ -1597,7 +1597,7 @@ function ClientsPageContent() {
       {showReassignModal && reassignClient && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center z-[100] p-0 sm:p-4">
           <div className="bg-white w-full sm:max-w-md rounded-t-3xl sm:rounded-[32px] shadow-2xl overflow-hidden">
-            <div className="bg-gradient-to-br from-[#B8112D] to-[#8b0d22] px-5 sm:px-6 pt-5 pb-5">
+            <div className="bg-gradient-to-br from-[#0F398A] to-[#8b0d22] px-5 sm:px-6 pt-5 pb-5">
               <div className="flex items-center justify-between">
                 <div>
                   <h2 className="text-base sm:text-lg font-bold text-white">Reassign Lead</h2>
@@ -1614,29 +1614,29 @@ function ClientsPageContent() {
             <div className="px-5 sm:px-6 py-4 space-y-2 max-h-64 overflow-y-auto">
               {!reassignCsrLoaded ? (
                 <div className="flex items-center justify-center py-8">
-                  <div className="w-5 h-5 border-2 border-[#B8112D] border-t-transparent rounded-full animate-spin" />
+                  <div className="w-5 h-5 border-2 border-[#0F398A] border-t-transparent rounded-full animate-spin" />
                 </div>
               ) : reassignCsrList.length === 0 ? (
                 <p className="text-sm text-gray-400 text-center py-6">No CSRs available.</p>
               ) : reassignCsrList.map(csr => (
                 <button key={csr.id} onClick={() => setReassignTargetId(csr.id)}
                   className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl border-2 transition-all text-left ${
-                    reassignTargetId === csr.id ? "border-[#B8112D] bg-[#FFF1F3]" : "border-gray-100 bg-[#FAFAFA] hover:border-gray-200"
+                    reassignTargetId === csr.id ? "border-[#0F398A] bg-[#EFF6FF]" : "border-gray-100 bg-[#FAFAFA] hover:border-gray-200"
                   }`}
                 >
                   <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold text-white shrink-0 ${
-                    reassignTargetId === csr.id ? "bg-[#B8112D]" : "bg-gray-400"
+                    reassignTargetId === csr.id ? "bg-[#0F398A]" : "bg-gray-400"
                   }`}>
                     {csr.name.charAt(0).toUpperCase()}
                   </div>
                   <div className="min-w-0">
-                    <p className={`font-semibold text-sm truncate ${reassignTargetId === csr.id ? "text-[#B8112D]" : "text-[#0F172A]"}`}>
+                    <p className={`font-semibold text-sm truncate ${reassignTargetId === csr.id ? "text-[#0F398A]" : "text-[#0F172A]"}`}>
                       {csr.name}
                     </p>
                     {csr.csrCode && <p className="text-xs text-gray-400">{csr.csrCode}</p>}
                   </div>
                   {reassignTargetId === csr.id && (
-                    <div className="ml-auto w-5 h-5 rounded-full bg-[#B8112D] flex items-center justify-center shrink-0">
+                    <div className="ml-auto w-5 h-5 rounded-full bg-[#0F398A] flex items-center justify-center shrink-0">
                       <Check size={11} className="text-white" />
                     </div>
                   )}
@@ -1649,7 +1649,7 @@ function ClientsPageContent() {
                 Cancel
               </button>
               <button onClick={confirmReassign} disabled={!reassignTargetId || isReassigning}
-                className="flex-1 h-11 rounded-2xl bg-[#B8112D] text-white font-semibold text-sm disabled:opacity-40 flex items-center justify-center gap-2">
+                className="flex-1 h-11 rounded-2xl bg-[#0F398A] text-white font-semibold text-sm disabled:opacity-40 flex items-center justify-center gap-2">
                 <ArrowRightLeft size={14} />
                 {isReassigning ? "Reassigning…" : "Reassign"}
               </button>

@@ -1,7 +1,7 @@
 import fs from "fs";
 import path from "path";
 
-export type MailSignatureBrand = "bds" | "ps" | "devcon";
+export type MailSignatureBrand = "bidaxis-daniel" | "bidaxis-emma" | "bds" | "ps" | "devcon";
 
 export type MailSignature = {
   brand: MailSignatureBrand;
@@ -11,6 +11,8 @@ export type MailSignature = {
 };
 
 const BRAND_LABEL: Record<MailSignatureBrand, string> = {
+  "bidaxis-daniel": "Daniel Parker | BidAxis",
+  "bidaxis-emma": "Emma Collins | BidAxis",
   bds: "BEM Design Studio (BDS)",
   ps: "Pacific Sunshine Estimating",
   devcon: "Devcon Estimating",
@@ -23,6 +25,14 @@ function signaturesDir(): string {
 export function resolveMailBrand(email?: string | null, name?: string | null): MailSignatureBrand | null {
   const hay = `${email ?? ""} ${name ?? ""}`.trim().toLowerCase();
   if (!hay) return null;
+  if (
+    hay.includes("daniel parker") ||
+    hay.includes("info@bidaxis.co")
+  ) return "bidaxis-daniel";
+  if (
+    hay.includes("emma collins") ||
+    hay.includes("sales@bidaxis.co")
+  ) return "bidaxis-emma";
   if (
     hay.includes("bimdesignstudio") ||
     hay.includes("bemdesignstudio") ||
@@ -62,6 +72,14 @@ export function getMailSignature(email?: string | null, name?: string | null): M
   if (!brand) return null;
   try {
     const attachments: MailSignature["attachments"] = [];
+    if (brand === "bidaxis-daniel") {
+      const logo = pngAttachment("bidaxis-daniel.png", "bidaxis-daniel");
+      if (logo) attachments.push(logo);
+    }
+    if (brand === "bidaxis-emma") {
+      const logo = pngAttachment("bidaxis-emma.png", "bidaxis-emma");
+      if (logo) attachments.push(logo);
+    }
     if (brand === "bds") {
       const logo = pngAttachment("bds-logo.png", "bds-logo");
       if (logo) attachments.push(logo);

@@ -167,7 +167,7 @@ export default function EstimatorSidebar() {
         <div className="h-[64px] px-3 sm:px-4 lg:px-5 flex items-center gap-3">
           <div className="flex-1 min-w-0 flex items-center">
             <Link href={BASE} prefetch={false} className="flex items-center gap-3 min-w-0">
-              <div className="w-11 h-11 rounded-[14px] bg-[#B8112D] flex items-center justify-center shadow-sm overflow-hidden p-1">
+              <div className="w-11 h-11 rounded-[14px] bg-[#0F398A] flex items-center justify-center shadow-sm overflow-hidden p-1">
                 <Image
                   src="/images/image.png"
                   alt="logo"
@@ -212,7 +212,7 @@ export default function EstimatorSidebar() {
               >
                 <Bell size={16} />
                 {unreadCount > 0 && (
-                  <span className="absolute -top-1 -right-1 min-w-[16px] h-4 bg-[#B8112D] text-white text-[9px] font-bold rounded-full flex items-center justify-center px-0.5 border-2 border-white">
+                  <span className="absolute -top-1 -right-1 min-w-[16px] h-4 bg-[#0F398A] text-white text-[9px] font-bold rounded-full flex items-center justify-center px-0.5 border-2 border-white">
                     {unreadCount > 9 ? "9+" : unreadCount}
                   </span>
                 )}
@@ -290,7 +290,7 @@ export default function EstimatorSidebar() {
             >
               <MessageSquare size={16} />
               {chatEnabled && totalUnread > 0 && (
-                <span className="absolute -top-1 -right-1 min-w-[16px] h-4 bg-[#B8112D] text-white text-[9px] font-bold rounded-full flex items-center justify-center px-0.5 border-2 border-white">
+                <span className="absolute -top-1 -right-1 min-w-[16px] h-4 bg-[#0F398A] text-white text-[9px] font-bold rounded-full flex items-center justify-center px-0.5 border-2 border-white">
                   {totalUnread > 9 ? "9+" : totalUnread}
                 </span>
               )}

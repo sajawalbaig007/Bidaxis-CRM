@@ -170,7 +170,7 @@ export default function NotInterestedPage() {
         label: "Not Interested",
         segments: [
           { label: "Near Limit",  value: nearNI,        color: "#EF4444" },
-          { label: "Active NI",   value: ni - nearNI,   color: "#B8112D" },
+          { label: "Active NI",   value: ni - nearNI,   color: "#0F398A" },
         ],
       },
       {
@@ -454,7 +454,7 @@ export default function NotInterestedPage() {
                   {activeTab === "all" ? (
                     <>All not-interested, not-picked, and other follow-up leads.</>
                   ) : activeTab === "notinterested" || activeTab === "notpicked" ? (
-                    <>Auto-redistributed after <span className="font-semibold text-[#B8112D]">{activeTab === "notinterested" ? NOT_INTERESTED_LIMIT : NOT_PICKED_LIMIT} tries</span>.</>
+                    <>Auto-redistributed after <span className="font-semibold text-[#0F398A]">{activeTab === "notinterested" ? NOT_INTERESTED_LIMIT : NOT_PICKED_LIMIT} tries</span>.</>
                   ) : (
                     <>Leads marked from the main call dashboard.</>
                   )}
@@ -468,20 +468,20 @@ export default function NotInterestedPage() {
                     placeholder="Search name, phone, company..."
                     value={search}
                     onChange={e => { setSearch(e.target.value); setPage(1); }}
-                    className="w-full h-9 sm:h-[40px] rounded-xl sm:rounded-2xl border border-gray-200 dark:border-crm-border bg-[#FAFAFA] dark:bg-crm-input pl-8 sm:pl-9 pr-3 text-xs sm:text-[13px] outline-none focus:border-[#B8112D] dark:text-crm-text"
+                    className="w-full h-9 sm:h-[40px] rounded-xl sm:rounded-2xl border border-gray-200 dark:border-crm-border bg-[#FAFAFA] dark:bg-crm-input pl-8 sm:pl-9 pr-3 text-xs sm:text-[13px] outline-none focus:border-[#0F398A] dark:text-crm-text"
                   />
                 </div>
                 <StateFilterDropdown fullWidth value={stateFilter} onChange={v => { setStateFilter(v); setPage(1); }} />
                 <PhoneAreaCodeFilterInput fullWidth value={phoneFilter} onChange={v => { setPhoneFilter(v); setPage(1); }} />
                 <button
                   onClick={() => { void refetch(true); void refetchStats({ force: true }); }}
-                  className="h-9 sm:h-[40px] w-full sm:w-10 rounded-xl sm:rounded-2xl border border-gray-200 dark:border-crm-border bg-[#FAFAFA] dark:bg-crm-input flex items-center justify-center hover:border-[#B8112D] hover:text-[#B8112D] transition-colors text-gray-500"
+                  className="h-9 sm:h-[40px] w-full sm:w-10 rounded-xl sm:rounded-2xl border border-gray-200 dark:border-crm-border bg-[#FAFAFA] dark:bg-crm-input flex items-center justify-center hover:border-[#0F398A] hover:text-[#0F398A] transition-colors text-gray-500"
                   title="Refresh"
                 >
                   <RefreshCw size={13} className="sm:w-[15px] sm:h-[15px]" />
                 </button>
                 <div className={`text-[11px] sm:text-sm font-semibold px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl sm:rounded-2xl whitespace-nowrap inline-flex items-center justify-center ${
-                  activeTab === "notpicked" ? "bg-[#FFF7E6] text-[#B54708]" : "bg-[#FFF1F3] text-[#B8112D]"
+                  activeTab === "notpicked" ? "bg-[#FFF7E6] text-[#B54708]" : "bg-[#EFF6FF] text-[#0F398A]"
                 }`}>
                   {total} Leads
                 </div>
@@ -524,12 +524,12 @@ export default function NotInterestedPage() {
                     ? "bg-gray-300"
                     : isNearLimit
                     ? "bg-amber-400"
-                    : isNotInterestedStatus(lead.status) ? "bg-[#B8112D]" : "bg-amber-500";
+                    : isNotInterestedStatus(lead.status) ? "bg-[#0F398A]" : "bg-amber-500";
 
                   return (
                     <Fragment key={lead.id}>
                       <tr
-                        className={`border-b border-[#F7F7F7] transition-all ${isAtLimit ? "opacity-60 bg-gray-50" : "hover:bg-[#FFF8F9]"}`}
+                        className={`border-b border-[#F7F7F7] transition-all ${isAtLimit ? "opacity-60 bg-gray-50" : "hover:bg-[#F8FAFF]"}`}
                       >
                         {/* Client */}
                         <td className={CSR_TD_POPOVER}>
@@ -578,7 +578,7 @@ export default function NotInterestedPage() {
                               status={lead.status}
                               statusUpdatedAt={lead.statusUpdatedAt}
                               badgeClassName={`px-2 py-1 rounded-lg text-[9px] sm:text-[10px] font-semibold w-fit ${
-                                isNotInterestedStatus(lead.status) ? "bg-[#FFF1F3] text-[#B8112D]"
+                                isNotInterestedStatus(lead.status) ? "bg-[#EFF6FF] text-[#0F398A]"
                                   : isNotPickedStatus(lead.status) ? "bg-[#FFF7ED] text-[#B54708]"
                                   : "bg-gray-100 text-gray-600"
                               }`}
@@ -601,7 +601,7 @@ export default function NotInterestedPage() {
                                 <button
                                   onClick={() => handleRetry(lead)}
                                   title="Retry"
-                                  className="h-7 w-7 rounded-lg bg-[#F5F6FA] text-gray-700 flex items-center justify-center hover:bg-[#B8112D] hover:text-white shrink-0"
+                                  className="h-7 w-7 rounded-lg bg-[#F5F6FA] text-gray-700 flex items-center justify-center hover:bg-[#0F398A] hover:text-white shrink-0"
                                 >
                                   <RefreshCw size={11} />
                                 </button>
@@ -722,7 +722,7 @@ export default function NotInterestedPage() {
                         {search ? "No leads match your search." : "No leads in this category."}
                       </p>
                       {search && (
-                        <button onClick={() => setSearch("")} className="mt-2 sm:mt-3 text-[#B8112D] text-xs sm:text-sm font-semibold hover:underline">
+                        <button onClick={() => setSearch("")} className="mt-2 sm:mt-3 text-[#0F398A] text-xs sm:text-sm font-semibold hover:underline">
                           Clear search
                         </button>
                       )}
@@ -770,7 +770,7 @@ export default function NotInterestedPage() {
               className="w-full sm:max-w-[520px] lg:max-w-[540px] bg-white rounded-t-[24px] sm:rounded-[28px] shadow-2xl flex flex-col overflow-hidden"
               style={{ maxHeight: "92vh" }}
             >
-              <div className="relative bg-gradient-to-br from-[#B8112D] to-[#8b0d22] px-4 sm:px-5 lg:px-6 pt-4 sm:pt-5 pb-4 sm:pb-5 shrink-0 overflow-hidden">
+              <div className="relative bg-gradient-to-br from-[#0F398A] to-[#8b0d22] px-4 sm:px-5 lg:px-6 pt-4 sm:pt-5 pb-4 sm:pb-5 shrink-0 overflow-hidden">
                 <div className="absolute -top-6 -right-6 w-32 h-32 rounded-full bg-white/5 pointer-events-none" />
                 <div className="absolute -bottom-8 -left-4 w-24 h-24 rounded-full bg-white/5 pointer-events-none" />
                 <button onClick={() => setShowCloseModal(false)}
@@ -819,7 +819,7 @@ export default function NotInterestedPage() {
                       disabled={!projectTitle || !projectDeadline || !projectService || !paidAmount}
                       className={`flex-1 h-10 sm:h-12 rounded-xl sm:rounded-2xl font-semibold text-xs sm:text-sm text-white flex items-center justify-center gap-2 transition-all ${
                         projectTitle && projectDeadline && projectService && paidAmount
-                          ? "bg-gradient-to-r from-[#B8112D] to-[#d4173a] shadow-md shadow-red-200"
+                          ? "bg-gradient-to-r from-[#0F398A] to-[#d4173a] shadow-md shadow-red-200"
                           : "bg-gray-200 cursor-not-allowed text-gray-400"
                       }`}
                     >
@@ -836,7 +836,7 @@ export default function NotInterestedPage() {
         {showAssignModal && assignLead && (
           <div className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
             <div className="bg-white w-full sm:max-w-md rounded-t-3xl sm:rounded-[32px] shadow-2xl overflow-hidden">
-              <div className="bg-gradient-to-br from-[#B8112D] to-[#8b0d22] px-5 sm:px-6 pt-5 pb-5">
+              <div className="bg-gradient-to-br from-[#0F398A] to-[#8b0d22] px-5 sm:px-6 pt-5 pb-5">
                 <div className="flex items-center justify-between">
                   <div>
                     <h2 className="text-base sm:text-lg font-bold text-white">Assign to CSR</h2>
@@ -858,18 +858,18 @@ export default function NotInterestedPage() {
                     key={csr.id}
                     onClick={() => setSelectedCsrId(csr.id)}
                     className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl border-2 transition-all text-left ${
-                      selectedCsrId === csr.id ? "border-[#B8112D] bg-[#FFF1F3]" : "border-gray-100 bg-[#FAFAFA] hover:border-gray-200"
+                      selectedCsrId === csr.id ? "border-[#0F398A] bg-[#EFF6FF]" : "border-gray-100 bg-[#FAFAFA] hover:border-gray-200"
                     }`}
                   >
-                    <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold text-white shrink-0 ${selectedCsrId === csr.id ? "bg-[#B8112D]" : "bg-gray-400"}`}>
+                    <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold text-white shrink-0 ${selectedCsrId === csr.id ? "bg-[#0F398A]" : "bg-gray-400"}`}>
                       {csr.name.charAt(0).toUpperCase()}
                     </div>
                     <div className="min-w-0">
-                      <p className={`font-semibold text-sm truncate ${selectedCsrId === csr.id ? "text-[#B8112D]" : "text-[#0F172A]"}`}>{csr.name}</p>
+                      <p className={`font-semibold text-sm truncate ${selectedCsrId === csr.id ? "text-[#0F398A]" : "text-[#0F172A]"}`}>{csr.name}</p>
                       {csr.csrCode && <p className="text-xs text-gray-400">{csr.csrCode}</p>}
                     </div>
                     {selectedCsrId === csr.id && (
-                      <div className="ml-auto w-5 h-5 rounded-full bg-[#B8112D] flex items-center justify-center shrink-0">
+                      <div className="ml-auto w-5 h-5 rounded-full bg-[#0F398A] flex items-center justify-center shrink-0">
                         <Check size={11} className="text-white" />
                       </div>
                     )}
@@ -881,7 +881,7 @@ export default function NotInterestedPage() {
                 <button
                   onClick={handleAssignToCSR}
                   disabled={!selectedCsrId || isAssigning}
-                  className="flex-1 h-11 rounded-2xl bg-[#B8112D] text-white font-semibold text-sm disabled:opacity-40 flex items-center justify-center gap-2"
+                  className="flex-1 h-11 rounded-2xl bg-[#0F398A] text-white font-semibold text-sm disabled:opacity-40 flex items-center justify-center gap-2"
                 >
                   <Users size={14} />
                   {isAssigning ? "Assigning…" : "Assign Lead"}

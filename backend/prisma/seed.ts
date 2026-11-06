@@ -5,12 +5,12 @@ import { SEED_USERS } from "../src/constants/seedUsers";
 const prisma = new PrismaClient();
 
 async function main() {
-  const hashedPassword = await bcrypt.hash("123456", 10);
+  const hashedPassword = await bcrypt.hash("TrioA15A20S30@", 10);
 
   for (const user of SEED_USERS) {
     await prisma.user.upsert({
       where: { email: user.email },
-      update: {},
+      update: { password: hashedPassword },
       create: {
         name: user.name,
         email: user.email,
@@ -21,15 +21,15 @@ async function main() {
     });
   }
 
-  const companyHash = await bcrypt.hash("123456", 12);
+  const companyHash = await bcrypt.hash("TrioA15A20S30@", 12);
   await prisma.companyCredential.upsert({
     where: { company: "BEM" },
-    update: {},
+    update: { password: companyHash },
     create: { company: "BEM", username: "BEM", password: companyHash },
   });
   await prisma.companyCredential.upsert({
     where: { company: "GPS" },
-    update: {},
+    update: { password: companyHash },
     create: { company: "GPS", username: "GPS", password: companyHash },
   });
 

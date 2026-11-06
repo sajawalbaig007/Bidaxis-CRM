@@ -193,7 +193,7 @@ export default function CrmMailProvider({ children }: { children: React.ReactNod
           <div className="w-full max-w-[min(100%,28rem)] sm:max-w-lg lg:max-w-xl max-h-[min(92dvh,52rem)] flex flex-col bg-white dark:bg-crm-surface rounded-2xl shadow-2xl overflow-hidden min-w-0">
             <div className="shrink-0 flex items-start justify-between gap-3 px-4 sm:px-5 py-3 sm:py-4 border-b border-gray-100 dark:border-crm-border">
               <div className="min-w-0">
-                <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#B8112D]">Send as you</p>
+                <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#0F398A]">Send as you</p>
                 <h2 className="text-base font-extrabold text-[#0F172A] dark:text-gray-100 truncate">
                   {target.clientName || to || "Client"}
                 </h2>
@@ -213,7 +213,7 @@ export default function CrmMailProvider({ children }: { children: React.ReactNod
             {confirming ? (
               <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 sm:px-5 py-4 space-y-3">
                 <p className="text-sm font-bold text-[#0F172A] dark:text-gray-100">Confirm send</p>
-                <div className="rounded-xl bg-[#FFF1F3] border border-[#f5c5ce] px-3 py-3 text-xs text-[#7f1d1d] space-y-1.5 break-words">
+                <div className="rounded-xl bg-[#EFF6FF] border border-[#f5c5ce] px-3 py-3 text-xs text-[#7f1d1d] space-y-1.5 break-words">
                   <p>
                     <span className="font-semibold">From:</span> {selectedFrom?.email}
                   </p>
@@ -274,14 +274,14 @@ export default function CrmMailProvider({ children }: { children: React.ReactNod
                 />
               </label>
 
-              <div className="rounded-xl border border-[#f5c5ce] bg-[#FFF8F9] px-3 py-2.5 space-y-2">
-                <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#B8112D]">Nexa</p>
+              <div className="rounded-xl border border-[#f5c5ce] bg-[#F8FAFF] px-3 py-2.5 space-y-2">
+                <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#0F398A]">Nexa</p>
                 <div className="flex flex-wrap gap-1.5">
                   <button
                     type="button"
                     disabled={!!aiBusy}
                     onClick={() => void rewrite("enhance")}
-                    className="h-8 px-2.5 rounded-lg bg-white border border-[#f5c5ce] text-[#B8112D] text-[11px] font-semibold inline-flex items-center gap-1 disabled:opacity-50"
+                    className="h-8 px-2.5 rounded-lg bg-white border border-[#f5c5ce] text-[#0F398A] text-[11px] font-semibold inline-flex items-center gap-1 disabled:opacity-50"
                   >
                     {aiBusy === "enhance" ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
                     Enhance
@@ -290,7 +290,7 @@ export default function CrmMailProvider({ children }: { children: React.ReactNod
                     type="button"
                     disabled={!!aiBusy}
                     onClick={() => void rewrite("paraphrase")}
-                    className="h-8 px-2.5 rounded-lg bg-white border border-[#f5c5ce] text-[#B8112D] text-[11px] font-semibold inline-flex items-center gap-1 disabled:opacity-50"
+                    className="h-8 px-2.5 rounded-lg bg-white border border-[#f5c5ce] text-[#0F398A] text-[11px] font-semibold inline-flex items-center gap-1 disabled:opacity-50"
                   >
                     {aiBusy === "paraphrase" ? <Loader2 size={12} className="animate-spin" /> : <Wand2 size={12} />}
                     Paraphrase
@@ -299,7 +299,7 @@ export default function CrmMailProvider({ children }: { children: React.ReactNod
                     type="button"
                     disabled={!!aiBusy}
                     onClick={() => void rewrite("rephrase")}
-                    className="h-8 px-2.5 rounded-lg bg-white border border-[#f5c5ce] text-[#B8112D] text-[11px] font-semibold inline-flex items-center gap-1 disabled:opacity-50"
+                    className="h-8 px-2.5 rounded-lg bg-white border border-[#f5c5ce] text-[#0F398A] text-[11px] font-semibold inline-flex items-center gap-1 disabled:opacity-50"
                   >
                     {aiBusy === "rephrase" ? <Loader2 size={12} className="animate-spin" /> : <Wand2 size={12} />}
                     Rephrase
@@ -308,7 +308,7 @@ export default function CrmMailProvider({ children }: { children: React.ReactNod
                     type="button"
                     disabled={!!aiBusy}
                     onClick={() => void rewrite("add")}
-                    className="h-8 px-2.5 rounded-lg bg-white border border-[#f5c5ce] text-[#B8112D] text-[11px] font-semibold inline-flex items-center gap-1 disabled:opacity-50"
+                    className="h-8 px-2.5 rounded-lg bg-white border border-[#f5c5ce] text-[#0F398A] text-[11px] font-semibold inline-flex items-center gap-1 disabled:opacity-50"
                   >
                     {aiBusy === "add" ? <Loader2 size={12} className="animate-spin" /> : <Plus size={12} />}
                     Add more
@@ -331,7 +331,7 @@ export default function CrmMailProvider({ children }: { children: React.ReactNod
                     type="button"
                     disabled={!!aiBusy}
                     onClick={() => void rewrite(body.trim() ? "edit" : "write")}
-                    className="h-8 px-3 rounded-lg bg-[#B8112D] text-white text-[11px] font-semibold inline-flex items-center gap-1 disabled:opacity-50 shrink-0"
+                    className="h-8 px-3 rounded-lg bg-[#0F398A] text-white text-[11px] font-semibold inline-flex items-center gap-1 disabled:opacity-50 shrink-0"
                   >
                     {aiBusy === "edit" || aiBusy === "write" ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
                     Apply
@@ -340,7 +340,7 @@ export default function CrmMailProvider({ children }: { children: React.ReactNod
               </div>
 
               <div className="min-w-0">
-                <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#B8112D] mb-2">
+                <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#0F398A] mb-2">
                   Send through
                 </p>
                 <p className="text-xs text-gray-500 mb-2">
@@ -359,8 +359,8 @@ export default function CrmMailProvider({ children }: { children: React.ReactNod
                         onClick={() => pickFrom(s.id)}
                         className={`text-left rounded-xl border px-3 py-2.5 transition-colors min-w-0 ${
                           fromId === s.id
-                            ? "border-[#B8112D] bg-[#FFF1F3] shadow-sm"
-                            : "border-gray-200 hover:border-[#B8112D]/40"
+                            ? "border-[#0F398A] bg-[#EFF6FF] shadow-sm"
+                            : "border-gray-200 hover:border-[#0F398A]/40"
                         }`}
                       >
                         <p className="text-sm font-semibold text-[#0F172A] truncate">{s.name}</p>
@@ -399,7 +399,7 @@ export default function CrmMailProvider({ children }: { children: React.ReactNod
                       type="button"
                       onClick={() => void send()}
                       disabled={sending}
-                      className="h-11 w-full rounded-xl bg-[#B8112D] text-white text-sm font-semibold inline-flex items-center justify-center gap-1.5 disabled:opacity-50"
+                      className="h-11 w-full rounded-xl bg-[#0F398A] text-white text-sm font-semibold inline-flex items-center justify-center gap-1.5 disabled:opacity-50"
                     >
                       {sending ? <Loader2 size={14} className="animate-spin" /> : <Mail size={14} />}
                       Confirm send
@@ -409,7 +409,7 @@ export default function CrmMailProvider({ children }: { children: React.ReactNod
                   <button
                     type="button"
                     onClick={requestSend}
-                    className="h-11 w-full sm:w-auto sm:ml-auto sm:px-5 rounded-xl bg-[#B8112D] text-white text-sm font-semibold inline-flex items-center justify-center gap-1.5"
+                    className="h-11 w-full sm:w-auto sm:ml-auto sm:px-5 rounded-xl bg-[#0F398A] text-white text-sm font-semibold inline-flex items-center justify-center gap-1.5"
                   >
                     <Mail size={14} />
                     Send

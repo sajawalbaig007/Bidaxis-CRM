@@ -17,7 +17,7 @@ const SIZE = {
 } as const;
 
 /**
- * Landing / login brand mark — transparent PNG, centered above BEM SOLUTIONS.
+ * Landing / login brand mark — centered above the BidAxis wordmark.
  */
 export default function BrandLogo({
   size = "md",
@@ -28,8 +28,8 @@ export default function BrandLogo({
 
   return (
     <Image
-      src="/images/LOGO.png"
-      alt="BEM Solutions"
+      src="/images/bidaxis-logo.png"
+      alt="BidAxis"
       width={s.w}
       height={s.h}
       priority={priority}

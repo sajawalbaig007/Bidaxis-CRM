@@ -81,7 +81,7 @@ export default function TopPerformers({ leads = [], performers: performersProp }
               </div>
               <div className="h-1.5 rounded-full bg-gray-100 dark:bg-crm-muted overflow-hidden ml-9">
                 <div
-                  className="h-full rounded-full bg-[#B8112D]"
+                  className="h-full rounded-full bg-[#0F398A]"
                   style={{ width: `${Math.max(6, Math.round((p.resolved / maxResolved) * 100))}%` }}
                 />
               </div>

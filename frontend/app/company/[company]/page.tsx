@@ -12,5 +12,5 @@ export default async function CompanyAccessPage({ params }: Props) {
 }
 
 export function generateStaticParams() {
-  return [{ company: "bem" }, { company: "gps" }];
+  return [{ company: "bidaxis" }, { company: "bem" }, { company: "gps" }];
 }

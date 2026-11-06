@@ -90,7 +90,7 @@ export default function AddLeadModal({ open, onClose, onAdded }: AddLeadModalPro
   return (
     <div className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-4">
       <div className="w-full sm:max-w-[520px] bg-white rounded-t-[24px] sm:rounded-[28px] shadow-2xl flex flex-col overflow-hidden max-h-[92vh]">
-        <div className="relative bg-gradient-to-br from-[#B8112D] to-[#8b0d22] px-5 pt-5 pb-4 shrink-0">
+        <div className="relative bg-gradient-to-br from-[#0F398A] to-[#8b0d22] px-5 pt-5 pb-4 shrink-0">
           <button onClick={close} className="absolute top-4 right-4 w-8 h-8 rounded-xl bg-white/20 hover:bg-white/30 flex items-center justify-center text-white">
             <X size={14} />
           </button>
@@ -114,9 +114,9 @@ export default function AddLeadModal({ open, onClose, onAdded }: AddLeadModalPro
               <input type="tel" value={form.phone} placeholder="Phone number" autoComplete="tel"
                 onChange={e => { setForm(f => ({ ...f, phone: e.target.value })); onPhoneValueChange(e.target.value); }}
                 onBlur={e => onPhoneBlur(e.target.value)} onPaste={onPhonePaste}
-                className="w-full h-10 rounded-xl border-2 border-gray-200 px-3 pr-9 text-sm outline-none focus:border-[#B8112D]"
+                className="w-full h-10 rounded-xl border-2 border-gray-200 px-3 pr-9 text-sm outline-none focus:border-[#0F398A]"
               />
-              {phoneLookupLoading && <Loader2 size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#B8112D] animate-spin" />}
+              {phoneLookupLoading && <Loader2 size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#0F398A] animate-spin" />}
             </div>
           </div>
 
@@ -131,14 +131,14 @@ export default function AddLeadModal({ open, onClose, onAdded }: AddLeadModalPro
               <label className="text-[10px] font-semibold text-gray-500 uppercase mb-1 block">Client Name *</label>
               <input type="text" value={form.name} placeholder="Client name"
                 onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-                className="w-full h-10 rounded-xl border-2 border-gray-200 px-3 text-sm outline-none focus:border-[#B8112D]"
+                className="w-full h-10 rounded-xl border-2 border-gray-200 px-3 text-sm outline-none focus:border-[#0F398A]"
               />
             </div>
             <div>
               <label className="text-[10px] font-semibold text-gray-500 uppercase mb-1 block">Client Company</label>
               <input type="text" value={form.company} placeholder="Client's company"
                 onChange={e => setForm(f => ({ ...f, company: e.target.value }))}
-                className="w-full h-10 rounded-xl border-2 border-gray-200 px-3 text-sm outline-none focus:border-[#B8112D]"
+                className="w-full h-10 rounded-xl border-2 border-gray-200 px-3 text-sm outline-none focus:border-[#0F398A]"
               />
             </div>
           </div>
@@ -148,14 +148,14 @@ export default function AddLeadModal({ open, onClose, onAdded }: AddLeadModalPro
               <label className="text-[10px] font-semibold text-gray-500 uppercase mb-1 block">Email Address</label>
               <input type="email" value={form.email} placeholder="Email" autoComplete="email"
                 onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
-                className="w-full h-10 rounded-xl border-2 border-gray-200 px-3 text-sm outline-none focus:border-[#B8112D]"
+                className="w-full h-10 rounded-xl border-2 border-gray-200 px-3 text-sm outline-none focus:border-[#0F398A]"
               />
             </div>
             <div>
               <label className="text-[10px] font-semibold text-gray-500 uppercase mb-1 block">State</label>
               <input type="text" value={form.state} placeholder="State"
                 onChange={e => setForm(f => ({ ...f, state: e.target.value }))}
-                className="w-full h-10 rounded-xl border-2 border-gray-200 px-3 text-sm outline-none focus:border-[#B8112D]"
+                className="w-full h-10 rounded-xl border-2 border-gray-200 px-3 text-sm outline-none focus:border-[#0F398A]"
               />
             </div>
           </div>
@@ -164,7 +164,7 @@ export default function AddLeadModal({ open, onClose, onAdded }: AddLeadModalPro
             <label className="text-[10px] font-semibold text-gray-500 uppercase mb-1 block">Website Link</label>
             <input type="url" value={form.website} placeholder="https://example.com"
               onChange={e => setForm(f => ({ ...f, website: e.target.value }))}
-              className="w-full h-10 rounded-xl border-2 border-gray-200 px-3 text-sm outline-none focus:border-[#B8112D]"
+              className="w-full h-10 rounded-xl border-2 border-gray-200 px-3 text-sm outline-none focus:border-[#0F398A]"
             />
           </div>
 
@@ -181,13 +181,13 @@ export default function AddLeadModal({ open, onClose, onAdded }: AddLeadModalPro
                 </p>
                 {services.map(svc => (
                   <div key={svc} className="flex flex-col gap-1">
-                    <label className="text-[11px] font-semibold text-[#B8112D]">{svc}</label>
+                    <label className="text-[11px] font-semibold text-[#0F398A]">{svc}</label>
                     <input
                       type="text"
                       value={serviceSubtypes[svc] ?? ""}
                       onChange={e => setSubtype(svc, e.target.value)}
                       placeholder={`e.g. ${svc === "IT" ? "Networking" : svc === "Estimating" ? "HVAC" : "detail"}`}
-                      className="h-10 px-3 rounded-xl border-2 border-gray-200 bg-[#FAFAFA] text-sm outline-none focus:border-[#B8112D]"
+                      className="h-10 px-3 rounded-xl border-2 border-gray-200 bg-[#FAFAFA] text-sm outline-none focus:border-[#0F398A]"
                     />
                   </div>
                 ))}
@@ -206,7 +206,7 @@ export default function AddLeadModal({ open, onClose, onAdded }: AddLeadModalPro
             <label className="text-[10px] font-semibold text-gray-500 uppercase mb-1 block">Notes</label>
             <textarea value={form.comments} rows={2} placeholder="Optional notes"
               onChange={e => setForm(f => ({ ...f, comments: e.target.value }))}
-              className="w-full rounded-xl border-2 border-gray-200 px-3 py-2 text-sm outline-none focus:border-[#B8112D] resize-none"
+              className="w-full rounded-xl border-2 border-gray-200 px-3 py-2 text-sm outline-none focus:border-[#0F398A] resize-none"
             />
           </div>
         </div>
@@ -214,7 +214,7 @@ export default function AddLeadModal({ open, onClose, onAdded }: AddLeadModalPro
         <div className="p-5 border-t border-gray-100 flex gap-3">
           <button onClick={close} className="flex-1 h-11 rounded-xl bg-gray-100 text-gray-600 font-semibold text-sm">Cancel</button>
           <button onClick={() => void submit()} disabled={saving}
-            className="flex-1 h-11 rounded-xl bg-[#B8112D] text-white font-semibold text-sm flex items-center justify-center gap-2 disabled:opacity-50">
+            className="flex-1 h-11 rounded-xl bg-[#0F398A] text-white font-semibold text-sm flex items-center justify-center gap-2 disabled:opacity-50">
             {saving ? <Loader2 size={16} className="animate-spin" /> : <><CheckCircle2 size={14} /> Add Lead</>}
           </button>
         </div>

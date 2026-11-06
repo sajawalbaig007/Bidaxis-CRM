@@ -253,7 +253,7 @@ export default function AdminBinPage() {
               <select
                 value={filterCSR}
                 onChange={e => setFilterCSR(e.target.value)}
-                className="appearance-none w-full sm:min-w-[200px] h-10 bg-white border border-gray-200 rounded-xl pl-10 pr-9 text-sm outline-none focus:border-[#B8112D]"
+                className="appearance-none w-full sm:min-w-[200px] h-10 bg-white border border-gray-200 rounded-xl pl-10 pr-9 text-sm outline-none focus:border-[#0F398A]"
               >
                 <option value="all">All CSRs</option>
                 {allCsrs.map(c => (
@@ -274,7 +274,7 @@ export default function AdminBinPage() {
                       type="button"
                       onClick={() => void deleteSelected()}
                       disabled={selectedIds.length === 0 || deleting}
-                      className="h-9 px-3 rounded-xl bg-[#B8112D] text-white text-xs font-semibold inline-flex items-center gap-1.5 disabled:opacity-40"
+                      className="h-9 px-3 rounded-xl bg-[#0F398A] text-white text-xs font-semibold inline-flex items-center gap-1.5 disabled:opacity-40"
                     >
                       <Trash2 size={13} />
                       {deleting ? "Deleting…" : `Delete selected${selectedIds.length ? ` (${selectedIds.length})` : ""}`}
@@ -285,15 +285,15 @@ export default function AdminBinPage() {
                     <input
                       type="text" placeholder="Search..."
                       value={search} onChange={e => setSearch(e.target.value)}
-                      className="w-full h-9 sm:h-[40px] rounded-xl border border-gray-200 bg-[#FAFAFA] pl-8 pr-3 text-xs outline-none focus:border-[#B8112D]"
+                      className="w-full h-9 sm:h-[40px] rounded-xl border border-gray-200 bg-[#FAFAFA] pl-8 pr-3 text-xs outline-none focus:border-[#0F398A]"
                     />
                   </div>
                   <StateFilterDropdown value={stateFilter} onChange={setStateFilter} />
                   <PhoneAreaCodeFilterInput value={phoneFilter} onChange={setPhoneFilter} />
-                  <button onClick={() => void fetchLeads()} className="h-9 w-9 rounded-xl border border-gray-200 bg-[#FAFAFA] flex items-center justify-center hover:border-[#B8112D] text-gray-500">
+                  <button onClick={() => void fetchLeads()} className="h-9 w-9 rounded-xl border border-gray-200 bg-[#FAFAFA] flex items-center justify-center hover:border-[#0F398A] text-gray-500">
                     <RefreshCw size={13} />
                   </button>
-                  <span className="text-xs font-semibold px-3 py-1.5 rounded-xl bg-[#FFF1F3] text-[#B8112D] whitespace-nowrap">{filtered.length} Leads</span>
+                  <span className="text-xs font-semibold px-3 py-1.5 rounded-xl bg-[#EFF6FF] text-[#0F398A] whitespace-nowrap">{filtered.length} Leads</span>
                 </div>
               </div>
             </div>
@@ -315,7 +315,7 @@ export default function AdminBinPage() {
                           checked={allVisibleSelected}
                           onChange={toggleAllVisible}
                           aria-label="Select all Not useful leads"
-                          className="h-4 w-4 accent-[#B8112D]"
+                          className="h-4 w-4 accent-[#0F398A]"
                         />
                       </th>
                     )}
@@ -342,7 +342,7 @@ export default function AdminBinPage() {
                             checked={selectedIds.includes(lead.id)}
                             onChange={() => toggleOne(lead.id)}
                             aria-label={`Select ${lead.client}`}
-                            className="h-4 w-4 accent-[#B8112D]"
+                            className="h-4 w-4 accent-[#0F398A]"
                           />
                         </td>
                       )}
@@ -365,7 +365,7 @@ export default function AdminBinPage() {
                               leadId: lead.id,
                               clientName: lead.company || lead.client,
                             })}
-                            className="group flex items-center gap-1 bg-gray-100 text-gray-600 px-2.5 py-1.5 rounded-xl text-[11px] font-medium w-fit hover:bg-[#FFF6F7] hover:text-[#B8112D] disabled:cursor-default"
+                            className="group flex items-center gap-1 bg-gray-100 text-gray-600 px-2.5 py-1.5 rounded-xl text-[11px] font-medium w-fit hover:bg-[#FFF6F7] hover:text-[#0F398A] disabled:cursor-default"
                             title="Call this number"
                           >
                             <Phone size={10}/><span className="underline-offset-[3px] group-hover:underline group-disabled:no-underline">{lead.phone}</span>
@@ -413,7 +413,7 @@ export default function AdminBinPage() {
       {showReassign && reassignLead && (
         <div className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
           <div className="bg-white w-full sm:max-w-md rounded-t-3xl sm:rounded-[32px] shadow-2xl overflow-hidden">
-            <div className="bg-gradient-to-br from-[#B8112D] to-[#8b0d22] px-5 sm:px-6 pt-5 pb-5">
+            <div className="bg-gradient-to-br from-[#0F398A] to-[#8b0d22] px-5 sm:px-6 pt-5 pb-5">
               <div className="flex items-center justify-between">
                 <div>
                   <h2 className="text-base sm:text-lg font-bold text-white">Reassign Lead</h2>
@@ -425,20 +425,20 @@ export default function AdminBinPage() {
             <div className="px-5 sm:px-6 py-4 space-y-2 max-h-64 overflow-y-auto">
               {csrOptions.map(csr => (
                 <button key={csr.id} onClick={() => setSelectedCsrId(csr.id)}
-                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl border-2 transition-all text-left ${selectedCsrId === csr.id ? "border-[#B8112D] bg-[#FFF1F3]" : "border-gray-100 bg-[#FAFAFA]"}`}>
-                  <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold text-white ${selectedCsrId === csr.id ? "bg-[#B8112D]" : "bg-gray-400"}`}>{csr.name.charAt(0)}</div>
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl border-2 transition-all text-left ${selectedCsrId === csr.id ? "border-[#0F398A] bg-[#EFF6FF]" : "border-gray-100 bg-[#FAFAFA]"}`}>
+                  <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold text-white ${selectedCsrId === csr.id ? "bg-[#0F398A]" : "bg-gray-400"}`}>{csr.name.charAt(0)}</div>
                   <div className="min-w-0">
-                    <p className={`font-semibold text-sm truncate ${selectedCsrId === csr.id ? "text-[#B8112D]" : "text-[#0F172A]"}`}>{csr.name}</p>
+                    <p className={`font-semibold text-sm truncate ${selectedCsrId === csr.id ? "text-[#0F398A]" : "text-[#0F172A]"}`}>{csr.name}</p>
                     {csr.csrCode && <p className="text-xs text-gray-400">{csr.csrCode}</p>}
                   </div>
-                  {selectedCsrId === csr.id && <div className="ml-auto w-5 h-5 rounded-full bg-[#B8112D] flex items-center justify-center"><Check size={11} className="text-white"/></div>}
+                  {selectedCsrId === csr.id && <div className="ml-auto w-5 h-5 rounded-full bg-[#0F398A] flex items-center justify-center"><Check size={11} className="text-white"/></div>}
                 </button>
               ))}
             </div>
             <div className="flex gap-3 px-5 sm:px-6 pb-5 pt-2">
               <button onClick={() => setShowReassign(false)} className="flex-1 h-11 rounded-2xl bg-[#F5F6FA] text-gray-600 font-semibold text-sm">Cancel</button>
               <button onClick={confirmReassign} disabled={!selectedCsrId || isReassigning}
-                className="flex-1 h-11 rounded-2xl bg-[#B8112D] text-white font-semibold text-sm disabled:opacity-40 flex items-center justify-center gap-2">
+                className="flex-1 h-11 rounded-2xl bg-[#0F398A] text-white font-semibold text-sm disabled:opacity-40 flex items-center justify-center gap-2">
                 <ArrowRightLeft size={14}/>{isReassigning ? "Reassigning…" : "Reassign"}
               </button>
             </div>

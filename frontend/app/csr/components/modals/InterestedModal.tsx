@@ -97,13 +97,13 @@ export default function InterestedModal({
               </p>
               {selected.map(svc => (
                 <div key={svc} className="flex flex-col gap-1">
-                  <label className="text-[11px] font-semibold text-[#B8112D]">{svc}</label>
+                  <label className="text-[11px] font-semibold text-[#0F398A]">{svc}</label>
                   <input
                     type="text"
                     value={subtypeOf(svc)}
                     onChange={e => setSubtype(svc, e.target.value)}
                     placeholder={`e.g. ${svc === "IT" ? "Networking" : svc === "Estimating" ? "HVAC" : "detail"}`}
-                    className="h-10 sm:h-11 px-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-[#FAFAFA] dark:bg-gray-800 text-sm text-[#0F172A] dark:text-gray-100 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#B8112D]/30 focus:border-[#B8112D]"
+                    className="h-10 sm:h-11 px-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-[#FAFAFA] dark:bg-gray-800 text-sm text-[#0F172A] dark:text-gray-100 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0F398A]/30 focus:border-[#0F398A]"
                   />
                 </div>
               ))}
@@ -124,7 +124,7 @@ export default function InterestedModal({
           <button onClick={onClose}
             className="flex-1 h-11 sm:h-[52px] rounded-xl sm:rounded-2xl bg-[#F5F6FA] dark:bg-gray-800 font-semibold text-gray-600 dark:text-gray-300 text-sm">Cancel</button>
           <button onClick={onSave} disabled={!canSave}
-            className={`flex-1 h-11 sm:h-[52px] rounded-xl sm:rounded-2xl font-semibold text-white text-sm transition-all ${canSave ? "bg-[#B8112D]" : "bg-gray-300 cursor-not-allowed"}`}>
+            className={`flex-1 h-11 sm:h-[52px] rounded-xl sm:rounded-2xl font-semibold text-white text-sm transition-all ${canSave ? "bg-[#0F398A]" : "bg-gray-300 cursor-not-allowed"}`}>
             {isEdit ? "Update Scope" : isImportant ? "Mark Important" : "Save Interest"}
           </button>
         </div>

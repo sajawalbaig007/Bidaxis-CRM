@@ -807,7 +807,7 @@ export default function UsersPage() {
                 || "Failed to log user out.";
               toast.error(msg, { id: tid });
             }
-          }} className="flex-1 rounded-xl bg-[#B8112D] py-2 text-sm font-semibold text-white">Logout</button>
+          }} className="flex-1 rounded-xl bg-[#0F398A] py-2 text-sm font-semibold text-white">Logout</button>
           <button onClick={() => toast.dismiss(t.id)} className="flex-1 rounded-xl bg-gray-100 py-2 text-sm font-semibold text-gray-600">Cancel</button>
         </div>
       </div>
@@ -833,7 +833,7 @@ export default function UsersPage() {
                 || "Something went wrong.";
               toast.error(msg, { id: tid });
             }
-          }} className="flex-1 rounded-xl bg-[#B8112D] py-2 text-sm font-semibold text-white">Delete</button>
+          }} className="flex-1 rounded-xl bg-[#0F398A] py-2 text-sm font-semibold text-white">Delete</button>
           <button onClick={() => toast.dismiss(t.id)} className="flex-1 rounded-xl bg-gray-100 py-2 text-sm font-semibold text-gray-600">Cancel</button>
         </div>
       </div>
@@ -1097,7 +1097,7 @@ export default function UsersPage() {
       <Toaster position="top-right" toastOptions={{
         style: { borderRadius:"16px", fontFamily:"inherit", fontSize:"14px" },
         success: { iconTheme:{ primary:"#027A48", secondary:"#fff" } },
-        error:   { iconTheme:{ primary:"#B8112D", secondary:"#fff" } },
+        error:   { iconTheme:{ primary:"#0F398A", secondary:"#fff" } },
       }}/>
 
       <DashboardSidebar/>
@@ -1109,7 +1109,7 @@ export default function UsersPage() {
         <div className="mb-5 space-y-4">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
             <div className="flex items-start gap-3 min-w-0">
-              <span className="w-11 h-11 rounded-2xl bg-[#B8112D] text-white inline-flex items-center justify-center shrink-0 shadow-sm">
+              <span className="w-11 h-11 rounded-2xl bg-[#0F398A] text-white inline-flex items-center justify-center shrink-0 shadow-sm">
                 <Users size={18} />
               </span>
               <div className="min-w-0">
@@ -1129,7 +1129,7 @@ export default function UsersPage() {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-[minmax(0,0.7fr)_minmax(0,0.7fr)_minmax(0,1.6fr)] gap-3 items-stretch">
-            <div className="rounded-2xl bg-gradient-to-br from-[#B8112D] to-[#8c0d22] border border-[#B8112D]/40 p-4 h-full">
+            <div className="rounded-2xl bg-gradient-to-br from-[#0F398A] to-[#8c0d22] border border-[#0F398A]/40 p-4 h-full">
               <p className="text-[10px] font-bold uppercase tracking-wider text-white/60">Total users</p>
           {loading ? (
                 <div className="h-8 w-12 bg-white/20 rounded-lg animate-pulse mt-2" />
@@ -1205,7 +1205,7 @@ export default function UsersPage() {
               <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400"/>
               <input type="text" placeholder="Search name, email, code…" value={search}
               onChange={e => { setSearch(e.target.value); setPage(1); }}
-                className="w-full h-11 bg-white border border-gray-200 rounded-xl pl-10 pr-4 text-sm outline-none focus:border-[#B8112D]"/>
+                className="w-full h-11 bg-white border border-gray-200 rounded-xl pl-10 pr-4 text-sm outline-none focus:border-[#0F398A]"/>
           </div>
             <div className="relative min-w-0">
               <ArrowUpDown size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"/>
@@ -1213,7 +1213,7 @@ export default function UsersPage() {
                 value={sortKey}
                 onChange={e => { setSortKey(e.target.value as UserSortKey); setPage(1); }}
                 aria-label="Sort users"
-                className="w-full h-11 appearance-none bg-white border border-gray-200 rounded-xl pl-10 pr-9 text-sm outline-none focus:border-[#B8112D] cursor-pointer"
+                className="w-full h-11 appearance-none bg-white border border-gray-200 rounded-xl pl-10 pr-9 text-sm outline-none focus:border-[#0F398A] cursor-pointer"
               >
                 {USER_SORT_OPTIONS.map(opt => (
                   <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -1222,7 +1222,7 @@ export default function UsersPage() {
               <ChevronDown size={14} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"/>
             </div>
             <button onClick={() => { setEditingUser(null); setForm({ ...EMPTY_USER_FORM }); setShowModal(true); }}
-              className="h-11 px-5 rounded-xl bg-[#B8112D] text-white text-sm font-semibold inline-flex items-center justify-center gap-2 hover:bg-[#a30f27] w-full sm:w-auto">
+              className="h-11 px-5 rounded-xl bg-[#0F398A] text-white text-sm font-semibold inline-flex items-center justify-center gap-2 hover:bg-[#a30f27] w-full sm:w-auto">
             <Plus size={16}/>Create User
           </button>
         </div>
@@ -1239,10 +1239,10 @@ export default function UsersPage() {
               setRoleFilter("All");
               setPage(1);
             }}
-            accent={companyFilter === "GPS" ? "#0F398A" : companyFilter === "EMPLOYEES" ? "#0F766E" : "#B8112D"}
+            accent={companyFilter === "GPS" ? "#0F398A" : companyFilter === "EMPLOYEES" ? "#0F766E" : "#0F398A"}
             tabs={[
-              { key: "BEM", label: "BEM Solutions", shortLabel: "BEM", count: countByCompany.BEM },
-              { key: "GPS", label: "GPS · Global", shortLabel: "GPS", count: countByCompany.GPS },
+              { key: "BEM", label: "BidAxis · Operations", shortLabel: "Operations", count: countByCompany.BEM },
+              { key: "GPS", label: "BidAxis · Technical", shortLabel: "Technical", count: countByCompany.GPS },
               { key: "EMPLOYEES", label: "All Employees", shortLabel: "Employees", count: undefined },
             ]}
           />
@@ -1251,9 +1251,9 @@ export default function UsersPage() {
               stretch
               activeKey={roleFilter}
               onChange={key => { setRoleFilter(key as "All" | UserRole); setPage(1); }}
-              accent={companyFilter === "GPS" ? "#0F398A" : "#B8112D"}
+              accent={companyFilter === "GPS" ? "#0F398A" : "#0F398A"}
               tabs={[
-                { key: "All", label: companyFilter === "GPS" ? "All GPS" : "All BEM", count: companyAllCount },
+                { key: "All", label: "All BidAxis", count: companyAllCount },
                 ...activityDashboards.map(d => ({
                   key: d.role,
                   label: d.role,
@@ -1281,7 +1281,7 @@ export default function UsersPage() {
                 <col style={{ width: "14%" }} />
                 <col style={{ width: "14%" }} />
               </colgroup>
-              <thead className="sticky top-0 z-20 bg-[#B8112D]">
+              <thead className="sticky top-0 z-20 bg-[#0F398A]">
                 <tr className="text-left">
                   <th className="px-5 py-3 text-[10px] font-bold text-white/80 uppercase tracking-[0.14em]">User</th>
                   <th className="px-4 py-3 text-[10px] font-bold text-white/80 uppercase tracking-[0.14em]">Role</th>
@@ -1309,7 +1309,7 @@ export default function UsersPage() {
                     </tr>
                   ))
                 ) : paginatedUsers.length > 0 ? paginatedUsers.map(u => (
-                  <tr key={u.id} className="border-b border-slate-100/90 last:border-0 even:bg-slate-50/40 hover:bg-[#FFF8F9] hover:shadow-[inset_3px_0_0_#B8112D] transition-colors">
+                  <tr key={u.id} className="border-b border-slate-100/90 last:border-0 even:bg-slate-50/40 hover:bg-[#F8FAFF] hover:shadow-[inset_3px_0_0_#0F398A] transition-colors">
 
                     {/* USER */}
                     <td className="px-5 py-3.5">
@@ -1330,7 +1330,7 @@ export default function UsersPage() {
                               </span>
                             )}
                             {u.role === "CSR" && u.csrCode && (
-                              <span className="inline-flex items-center bg-[#B8112D]/10 text-[#B8112D] text-[9px] font-bold px-1.5 py-0.5 rounded-md tracking-wider">
+                              <span className="inline-flex items-center bg-[#0F398A]/10 text-[#0F398A] text-[9px] font-bold px-1.5 py-0.5 rounded-md tracking-wider">
                                 CSR {u.csrCode}
                               </span>
                             )}
@@ -1473,7 +1473,7 @@ export default function UsersPage() {
                 {[
                   { label:"Email",          value: detailUser.email  },
                   { label:"Role",           value: detailUser.role   },
-                  { label:"Company",        value: companyForRole(detailUser.role) === "GPS" ? "GPS · Global" : "BEM Solutions" },
+                  { label:"Company",        value: "BidAxis" },
                   { label:"Account Status", value: detailUser.status },
                 ].map(({ label, value }) => (
                   <div key={label} className="bg-[#F8F9FC] rounded-2xl p-4">
@@ -1538,7 +1538,7 @@ export default function UsersPage() {
                             href={detailUser.cnicPdfUrl}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-xs font-semibold text-[#B8112D] hover:underline"
+                            className="text-xs font-semibold text-[#0F398A] hover:underline"
                           >
                             Open in new tab
                           </a>
@@ -1648,7 +1648,7 @@ export default function UsersPage() {
 
               <div className="p-6 pt-4 shrink-0 border-t border-gray-100">
               <button onClick={() => setDetailUser(null)}
-                className="w-full bg-[#B8112D] text-white py-3 rounded-2xl font-medium">
+                className="w-full bg-[#0F398A] text-white py-3 rounded-2xl font-medium">
                 Close
               </button>
               </div>
@@ -1682,7 +1682,7 @@ export default function UsersPage() {
                       value={newPassword}
                       onChange={e => setNewPassword(e.target.value)}
                       placeholder="Min 8 chars, upper, lower, number"
-                      className="w-full border border-gray-200 dark:border-crm-border rounded-2xl px-4 py-3 pr-12 outline-none focus:border-[#B8112D] text-sm bg-white dark:bg-crm-input dark:text-crm-text"
+                      className="w-full border border-gray-200 dark:border-crm-border rounded-2xl px-4 py-3 pr-12 outline-none focus:border-[#0F398A] text-sm bg-white dark:bg-crm-input dark:text-crm-text"
                     />
                     <button type="button" onClick={() => setShowNewPassword(v => !v)}
                       className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-crm-text">
@@ -1697,7 +1697,7 @@ export default function UsersPage() {
                     value={confirmPassword}
                     onChange={e => setConfirmPassword(e.target.value)}
                     placeholder="Re-enter new password"
-                    className="w-full border border-gray-200 dark:border-crm-border rounded-2xl px-4 py-3 outline-none focus:border-[#B8112D] text-sm bg-white dark:bg-crm-input dark:text-crm-text"
+                    className="w-full border border-gray-200 dark:border-crm-border rounded-2xl px-4 py-3 outline-none focus:border-[#0F398A] text-sm bg-white dark:bg-crm-input dark:text-crm-text"
                   />
                 </div>
                 <p className="text-[11px] text-gray-400 dark:text-crm-text-faint">
@@ -1712,7 +1712,7 @@ export default function UsersPage() {
                   Cancel
                 </button>
                 <button type="button" onClick={handlePasswordSubmit} disabled={savingPassword}
-                  className="flex-1 py-3 rounded-2xl bg-[#B8112D] text-white font-medium text-sm disabled:opacity-60">
+                  className="flex-1 py-3 rounded-2xl bg-[#0F398A] text-white font-medium text-sm disabled:opacity-60">
                   {savingPassword ? "Saving…" : "Update Password"}
                 </button>
               </div>
@@ -1731,7 +1731,7 @@ export default function UsersPage() {
                 <p className="text-xs text-gray-400 mt-0.5">
                   {editingUser
                     ? "Scroll down for access policy & more fields"
-                    : "Choose company first (BEM or GPS), then pick a role for that company"}
+                    : "Choose a BidAxis department, then pick a role"}
                 </p>
               </div>
 
@@ -1746,12 +1746,12 @@ export default function UsersPage() {
                     <input type={type} value={form[key as "name"|"email"]}
                       onChange={e => setForm({ ...form, [key]: e.target.value })}
                       placeholder={placeholder}
-                      className="w-full border border-gray-200 rounded-2xl px-4 py-3 outline-none focus:border-[#B8112D] text-sm"/>
+                      className="w-full border border-gray-200 rounded-2xl px-4 py-3 outline-none focus:border-[#0F398A] text-sm"/>
                   </div>
                 ))}
                 {editingUser && form.name.trim() && form.name.trim() !== editingUser.name.trim() && (
                   <label className="flex items-start gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs text-amber-900 cursor-pointer">
-                    <input type="checkbox" checked={newPerson} onChange={e => setNewPerson(e.target.checked)} className="mt-0.5 accent-[#B8112D]" />
+                    <input type="checkbox" checked={newPerson} onChange={e => setNewPerson(e.target.checked)} className="mt-0.5 accent-[#0F398A]" />
                     <span>
                       <span className="font-bold">New person replacing {editingUser.name}</span>
                       <span className="block text-amber-800/80">
@@ -1767,7 +1767,7 @@ export default function UsersPage() {
                       <input type={showPassword ? "text" : "password"} value={form.password}
                         onChange={e => setForm({ ...form, password: e.target.value })}
                         placeholder="Enter password"
-                        className="w-full border border-gray-200 rounded-2xl px-4 py-3 pr-12 outline-none focus:border-[#B8112D] text-sm"/>
+                        className="w-full border border-gray-200 rounded-2xl px-4 py-3 pr-12 outline-none focus:border-[#0F398A] text-sm"/>
                       <button type="button" onClick={() => setShowPassword(!showPassword)}
                         className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
                         {showPassword ? <EyeOff size={18}/> : <Eye size={18}/>}
@@ -1776,7 +1776,7 @@ export default function UsersPage() {
                   </div>
                 )}
 
-                {/* Company — BEM vs GPS */}
+                {/* Department groups remain internal while sharing the BidAxis company brand. */}
                 <div>
                   <label className="text-sm text-gray-500 block mb-2">
                     Company{!editingUser && <RequiredMark />}
@@ -1784,8 +1784,8 @@ export default function UsersPage() {
                   </label>
                   <div className="grid grid-cols-2 gap-2">
                     {([
-                      { key: "BEM" as const, title: "BEM Solutions", hint: PORTAL_DASHBOARDS.filter(d => d.company === "BEM").map(d => d.shortLabel).join(" · "), accent: "#B8112D" },
-                      { key: "GPS" as const, title: "GPS · Global", hint: PORTAL_DASHBOARDS.filter(d => d.company === "GPS").map(d => d.shortLabel).join(" · "), accent: "#0F398A" },
+                      { key: "BEM" as const, title: "BidAxis · Operations", hint: PORTAL_DASHBOARDS.filter(d => d.company === "BEM").map(d => d.shortLabel).join(" · "), accent: "#0F398A" },
+                      { key: "GPS" as const, title: "BidAxis · Technical", hint: PORTAL_DASHBOARDS.filter(d => d.company === "GPS").map(d => d.shortLabel).join(" · "), accent: "#0F398A" },
                     ]).map(opt => {
                       const active = form.company === opt.key;
                       return (
@@ -1829,7 +1829,7 @@ export default function UsersPage() {
                   <select
                     value={form.role}
                     onChange={e => setForm({ ...form, role: e.target.value as UserRole, csrCode: "" })}
-                    className="w-full border border-gray-200 rounded-2xl px-4 py-3 outline-none focus:border-[#B8112D] bg-white text-sm"
+                    className="w-full border border-gray-200 rounded-2xl px-4 py-3 outline-none focus:border-[#0F398A] bg-white text-sm"
                   >
                     {roleOptionsForCompany(form.company).map(opt => (
                       <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -1850,7 +1850,7 @@ export default function UsersPage() {
                       onChange={e => setForm({ ...form, employeeCode: e.target.value })}
                       placeholder="e.g. EMP-001"
                       maxLength={32}
-                      className="w-full border border-gray-200 rounded-2xl px-4 py-3 outline-none focus:border-[#B8112D] text-sm font-mono"
+                      className="w-full border border-gray-200 rounded-2xl px-4 py-3 outline-none focus:border-[#0F398A] text-sm font-mono"
                     />
                   </div>
                   <div>
@@ -1862,7 +1862,7 @@ export default function UsersPage() {
                       value={form.fatherName}
                       onChange={e => setForm({ ...form, fatherName: e.target.value })}
                       placeholder="Enter father name"
-                      className="w-full border border-gray-200 rounded-2xl px-4 py-3 outline-none focus:border-[#B8112D] text-sm"
+                      className="w-full border border-gray-200 rounded-2xl px-4 py-3 outline-none focus:border-[#0F398A] text-sm"
                     />
                   </div>
                   <div>
@@ -1875,7 +1875,7 @@ export default function UsersPage() {
                       onChange={e => setForm({ ...form, contactNo: e.target.value })}
                       placeholder="e.g. 0300-1234567"
                       maxLength={20}
-                      className="w-full border border-gray-200 rounded-2xl px-4 py-3 outline-none focus:border-[#B8112D] text-sm font-mono"
+                      className="w-full border border-gray-200 rounded-2xl px-4 py-3 outline-none focus:border-[#0F398A] text-sm font-mono"
                     />
                   </div>
                   <div>
@@ -1887,20 +1887,20 @@ export default function UsersPage() {
                       onChange={e => setForm({ ...form, currentAddress: e.target.value })}
                       placeholder="Enter current residential address"
                       rows={2}
-                      className="w-full border border-gray-200 rounded-2xl px-4 py-3 outline-none focus:border-[#B8112D] text-sm resize-none"
+                      className="w-full border border-gray-200 rounded-2xl px-4 py-3 outline-none focus:border-[#0F398A] text-sm resize-none"
                     />
                   </div>
                 </div>
 
                 {/* CSR / Estimator code — separate from employee code */}
                 {(form.role === "CSR" || form.role === "Estimator" || form.role === "BIM") && (
-                  <div className="rounded-2xl border border-[#B8112D]/20 bg-[#FFF8F9] p-3.5 space-y-2">
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-[#B8112D]/70">
+                  <div className="rounded-2xl border border-[#0F398A]/20 bg-[#F8FAFF] p-3.5 space-y-2">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-[#0F398A]/70">
                       {form.role === "Estimator" ? "Estimator Code" : form.role === "BIM" ? "BIM Code" : "CSR Code"} — client coding
                     </p>
                     <label className="text-sm text-gray-500 block">
                       {form.role === "Estimator" ? "Estimator Code" : form.role === "BIM" ? "BIM Code" : "CSR Code"}{" "}
-                      {form.role === "CSR" ? <span className="text-[#B8112D] font-semibold">*</span> : (
+                      {form.role === "CSR" ? <span className="text-[#0F398A] font-semibold">*</span> : (
                         <span className="text-xs text-gray-400">(optional)</span>
                       )}
                       <span className="text-xs text-gray-400 ml-2">
@@ -1913,7 +1913,7 @@ export default function UsersPage() {
                       onChange={e => setForm({ ...form, csrCode: e.target.value })}
                       placeholder={form.role === "Estimator" ? "e.g. TECH-01" : form.role === "BIM" ? "e.g. BIM-01" : "e.g. 1000"}
                       maxLength={10}
-                      className="w-full border-2 border-[#B8112D]/30 rounded-2xl px-4 py-3 outline-none focus:border-[#B8112D] text-sm font-mono font-bold tracking-wider bg-white"
+                      className="w-full border-2 border-[#0F398A]/30 rounded-2xl px-4 py-3 outline-none focus:border-[#0F398A] text-sm font-mono font-bold tracking-wider bg-white"
                     />
                     {form.role === "CSR" && (
                       <p className="text-[11px] text-gray-400">
@@ -1933,7 +1933,7 @@ export default function UsersPage() {
                     onChange={e => setForm({ ...form, cnic: e.target.value })}
                     placeholder="e.g. 12345-6789012-3"
                     maxLength={15}
-                    className="w-full border border-gray-200 rounded-2xl px-4 py-3 outline-none focus:border-[#B8112D] text-sm font-mono"
+                    className="w-full border border-gray-200 rounded-2xl px-4 py-3 outline-none focus:border-[#0F398A] text-sm font-mono"
                   />
                 </div>
 
@@ -1944,25 +1944,25 @@ export default function UsersPage() {
                   </label>
                   <div className="flex flex-col gap-2">
                     {form.cnicPdfUrl ? (
-                      <div className="flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl border border-[#B8112D]/20 bg-[#FFF1F3]">
+                      <div className="flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl border border-[#0F398A]/20 bg-[#EFF6FF]">
                         <a
                           href={form.cnicPdfUrl}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-xs font-semibold text-[#B8112D] truncate hover:underline"
+                          className="text-xs font-semibold text-[#0F398A] truncate hover:underline"
                         >
                           CNIC PDF uploaded — View
                         </a>
                         <button
                           type="button"
                           onClick={() => setForm(f => ({ ...f, cnicPdfUrl: "" }))}
-                          className="text-[11px] font-semibold text-gray-500 hover:text-[#B8112D] shrink-0"
+                          className="text-[11px] font-semibold text-gray-500 hover:text-[#0F398A] shrink-0"
                         >
                           Remove
                         </button>
                       </div>
                     ) : null}
-                    <label className="flex items-center justify-center gap-2 h-11 rounded-2xl border-2 border-dashed border-gray-200 hover:border-[#B8112D]/40 bg-[#FAFAFA] cursor-pointer text-xs font-semibold text-gray-600 hover:text-[#B8112D] transition-colors">
+                    <label className="flex items-center justify-center gap-2 h-11 rounded-2xl border-2 border-dashed border-gray-200 hover:border-[#0F398A]/40 bg-[#FAFAFA] cursor-pointer text-xs font-semibold text-gray-600 hover:text-[#0F398A] transition-colors">
                       <input
                         type="file"
                         accept="application/pdf,.pdf"
@@ -1991,7 +1991,7 @@ export default function UsersPage() {
                       }
                     </div>
                     <div className="flex-1">
-                      <label className={`flex items-center justify-center w-full py-2.5 rounded-2xl border-2 border-dashed transition-all cursor-pointer text-sm font-medium ${uploadingPic ? "border-gray-200 text-gray-300 cursor-not-allowed" : "border-gray-200 text-gray-500 hover:border-[#B8112D] hover:text-[#B8112D]"}`}>
+                      <label className={`flex items-center justify-center w-full py-2.5 rounded-2xl border-2 border-dashed transition-all cursor-pointer text-sm font-medium ${uploadingPic ? "border-gray-200 text-gray-300 cursor-not-allowed" : "border-gray-200 text-gray-500 hover:border-[#0F398A] hover:text-[#0F398A]"}`}>
                         {uploadingPic ? "Uploading…" : form.profilePic ? "Change Photo" : "Upload Photo"}
                         <input type="file" accept="image/*" className="hidden" disabled={uploadingPic}
                           onChange={e => { const f = e.target.files?.[0]; if (f) void handlePicUpload(f); e.target.value = ""; }} />
@@ -2016,7 +2016,7 @@ export default function UsersPage() {
                       type="checkbox"
                       checked={form.ipRestricted}
                       onChange={(event) => setForm((current) => ({ ...current, ipRestricted: event.target.checked }))}
-                      className="h-4 w-4 accent-[#B8112D]"
+                      className="h-4 w-4 accent-[#0F398A]"
                     />
                   </label>
                   <div className="flex items-center justify-between mb-2">
@@ -2028,7 +2028,7 @@ export default function UsersPage() {
                       <button
                         type="button"
                         onClick={() => setForm(f => ({ ...f, allowedIps: [...f.allowedIps, ""] }))}
-                        className="w-7 h-7 rounded-lg bg-[#B8112D] text-white flex items-center justify-center"
+                        className="w-7 h-7 rounded-lg bg-[#0F398A] text-white flex items-center justify-center"
                         title="Add IP field"
                       >
                         <Plus size={14} />
@@ -2049,7 +2049,7 @@ export default function UsersPage() {
                             }));
                           }}
                           placeholder={`Approved IP ${idx + 1}`}
-                          className="flex-1 min-w-0 border border-gray-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-[#B8112D]"
+                          className="flex-1 min-w-0 border border-gray-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-[#0F398A]"
                         />
                         {form.allowedIps.length > 1 && (
                           <button
@@ -2145,7 +2145,7 @@ export default function UsersPage() {
                   Cancel
                 </button>
                 <button onClick={handleSubmit}
-                  className="flex-1 bg-[#B8112D] text-white py-3 rounded-2xl hover:bg-[#a30f27] transition-all text-sm font-semibold">
+                  className="flex-1 bg-[#0F398A] text-white py-3 rounded-2xl hover:bg-[#a30f27] transition-all text-sm font-semibold">
                   {editingUser ? "Update User" : "Create User"}
                 </button>
               </div>
@@ -2186,7 +2186,7 @@ export default function UsersPage() {
                     type="checkbox"
                     checked={chatEnabledForm}
                     onChange={e => setChatEnabledForm(e.target.checked)}
-                    className="h-5 w-5 rounded border-gray-300 text-[#B8112D] focus:ring-[#B8112D]"
+                    className="h-5 w-5 rounded border-gray-300 text-[#0F398A] focus:ring-[#0F398A]"
                   />
                 </label>
 
@@ -2200,7 +2200,7 @@ export default function UsersPage() {
                           onClick={() => setChatRestrictMode("all")}
                           className={`rounded-xl border px-3 py-2.5 text-left text-sm transition-all ${
                             chatRestrictMode === "all"
-                              ? "border-[#B8112D] bg-[#FFF1F3] text-[#B8112D] font-semibold"
+                              ? "border-[#0F398A] bg-[#EFF6FF] text-[#0F398A] font-semibold"
                               : "border-gray-200 text-gray-600 hover:bg-gray-50"
                           }`}
                         >
@@ -2212,7 +2212,7 @@ export default function UsersPage() {
                           onClick={() => setChatRestrictMode("selected")}
                           className={`rounded-xl border px-3 py-2.5 text-left text-sm transition-all ${
                             chatRestrictMode === "selected"
-                              ? "border-[#B8112D] bg-[#FFF1F3] text-[#B8112D] font-semibold"
+                              ? "border-[#0F398A] bg-[#EFF6FF] text-[#0F398A] font-semibold"
                               : "border-gray-200 text-gray-600 hover:bg-gray-50"
                           }`}
                         >
@@ -2265,7 +2265,7 @@ export default function UsersPage() {
                                         checked ? prev.filter(id => id !== u.id) : [...prev, u.id],
                                       );
                                     }}
-                                    className="h-4 w-4 rounded border-gray-300 text-[#B8112D] focus:ring-[#B8112D]"
+                                    className="h-4 w-4 rounded border-gray-300 text-[#0F398A] focus:ring-[#0F398A]"
                                   />
                                   <div className="min-w-0 flex-1">
                                     <p className="text-sm font-semibold text-gray-800 truncate">{u.name}</p>
@@ -2397,7 +2397,7 @@ export default function UsersPage() {
                     )
                   }
                   onClick={() => void saveChatRestrictions()}
-                  className="flex-1 bg-[#B8112D] text-white py-3 rounded-2xl hover:bg-[#a30f27] text-sm font-semibold disabled:opacity-50"
+                  className="flex-1 bg-[#0F398A] text-white py-3 rounded-2xl hover:bg-[#a30f27] text-sm font-semibold disabled:opacity-50"
                 >
                   {savingChat ? "Saving…" : "Save Restrictions"}
                 </button>
@@ -2419,15 +2419,15 @@ export default function UsersPage() {
               </div>
 
               <div className="flex-1 overflow-y-auto px-6 py-4 min-h-0 space-y-4">
-                <label className="flex items-center gap-3 p-3 rounded-xl bg-[#FFF6F7] border border-[#B8112D]/20 cursor-pointer">
+                <label className="flex items-center gap-3 p-3 rounded-xl bg-[#FFF6F7] border border-[#0F398A]/20 cursor-pointer">
                   <input
                     type="checkbox"
                     checked={allResetScopesSelected}
                     onChange={toggleAllResetScopes}
-                    className="w-4 h-4 rounded border-gray-300 text-[#B8112D] focus:ring-[#B8112D]"
+                    className="w-4 h-4 rounded border-gray-300 text-[#0F398A] focus:ring-[#0F398A]"
                   />
                   <div>
-                    <p className="text-sm font-bold text-[#B8112D]">Select All</p>
+                    <p className="text-sm font-bold text-[#0F398A]">Select All</p>
                     <p className="text-xs text-gray-500">Reset every page and sub-page (full wipe)</p>
                   </div>
                 </label>
@@ -2445,7 +2445,7 @@ export default function UsersPage() {
                             if (el) el.indeterminate = groupPartial;
                           }}
                           onChange={() => toggleResetGroup(group.id)}
-                          className="w-4 h-4 mt-0.5 rounded border-gray-300 text-[#B8112D] focus:ring-[#B8112D]"
+                          className="w-4 h-4 mt-0.5 rounded border-gray-300 text-[#0F398A] focus:ring-[#0F398A]"
                         />
                         <div className="min-w-0">
                           <p className="text-sm font-bold text-gray-800">{group.label}</p>
@@ -2469,7 +2469,7 @@ export default function UsersPage() {
                                 type="checkbox"
                                 checked={checked}
                                 onChange={() => toggleResetScope(child.id)}
-                                className="w-4 h-4 mt-0.5 rounded border-gray-300 text-[#B8112D] focus:ring-[#B8112D]"
+                                className="w-4 h-4 mt-0.5 rounded border-gray-300 text-[#0F398A] focus:ring-[#0F398A]"
                               />
                               <div className="min-w-0">
                                 <p className="text-sm font-medium text-gray-800">{child.label}</p>
@@ -2497,7 +2497,7 @@ export default function UsersPage() {
                   type="button"
                   onClick={() => void runCsrReset()}
                   disabled={resettingCsr || resetScopes.length === 0}
-                  className="flex-1 bg-[#B8112D] text-white py-3 rounded-2xl hover:bg-[#a30f27] transition-all text-sm font-semibold disabled:opacity-50 flex items-center justify-center gap-2"
+                  className="flex-1 bg-[#0F398A] text-white py-3 rounded-2xl hover:bg-[#a30f27] transition-all text-sm font-semibold disabled:opacity-50 flex items-center justify-center gap-2"
                 >
                   {resettingCsr && <RotateCcw size={14} className="animate-spin" />}
                   {resettingCsr ? "Resetting…" : `Reset (${resetScopes.length})`}

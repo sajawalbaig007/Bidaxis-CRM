@@ -30,7 +30,7 @@ export default function ClientSortControls({
         <select
           value={sortBy}
           onChange={e => onSortBy(e.target.value as ClientListSortBy)}
-          className="h-10 sm:h-11 rounded-xl border border-gray-200 bg-[#FAFAFA] px-2.5 sm:px-3 text-xs sm:text-sm outline-none focus:border-[#B8112D] text-[#0F172A] font-medium shrink-0"
+          className="h-10 sm:h-11 rounded-xl border border-gray-200 bg-[#FAFAFA] px-2.5 sm:px-3 text-xs sm:text-sm outline-none focus:border-[#0F398A] text-[#0F172A] font-medium shrink-0"
           title="Sort by"
         >
           <option value="oldestNote">Oldest note</option>
@@ -41,7 +41,7 @@ export default function ClientSortControls({
       <button
         type="button"
         onClick={() => onSortDir(sortDir === "asc" ? "desc" : "asc")}
-        className="h-10 sm:h-11 px-2.5 sm:px-3 rounded-xl border border-gray-200 bg-[#FAFAFA] text-xs sm:text-sm font-semibold text-[#B8112D] hover:bg-[#FFF6F7] transition-colors inline-flex items-center gap-1.5 shrink-0"
+        className="h-10 sm:h-11 px-2.5 sm:px-3 rounded-xl border border-gray-200 bg-[#FAFAFA] text-xs sm:text-sm font-semibold text-[#0F398A] hover:bg-[#FFF6F7] transition-colors inline-flex items-center gap-1.5 shrink-0"
         title={
           dirOnly
             ? sortDir === "asc"

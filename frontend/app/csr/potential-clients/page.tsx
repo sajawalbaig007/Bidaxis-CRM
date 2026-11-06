@@ -73,7 +73,7 @@ function potentialRowMeta(lead: Lead): { subtitle: string; label: string; badge:
   if (isInterestedLead(lead)) {
     return { subtitle: "Interested Lead", label: "Interested", badge: "bg-[#ECFDF5] text-[#065F46]" };
   }
-  return { subtitle: "Important Lead", label: "Important", badge: "bg-[#FFF1F3] text-[#B8112D]" };
+  return { subtitle: "Important Lead", label: "Important", badge: "bg-[#EFF6FF] text-[#0F398A]" };
 }
 
 export default function ImportantCallsPage() {
@@ -152,7 +152,7 @@ export default function ImportantCallsPage() {
     {
       label: "Schedule Call",
       segments: [
-        { label: "Today",  value: stats.callsTodayCount,                         color: "#B8112D" },
+        { label: "Today",  value: stats.callsTodayCount,                         color: "#0F398A" },
         { label: "Later",  value: stats.scheduledCount - stats.callsTodayCount, color: "#F59E0B" },
       ],
     },
@@ -373,7 +373,7 @@ export default function ImportantCallsPage() {
             />
             <button
               onClick={() => setShowAddLead(true)}
-              className="flex items-center justify-center gap-2 h-10 sm:h-11 px-4 sm:px-5 rounded-xl sm:rounded-2xl bg-[#B8112D] text-white text-xs sm:text-sm font-semibold shadow-md shadow-red-200 hover:bg-[#a30f27] w-full sm:w-auto shrink-0"
+              className="flex items-center justify-center gap-2 h-10 sm:h-11 px-4 sm:px-5 rounded-xl sm:rounded-2xl bg-[#0F398A] text-white text-xs sm:text-sm font-semibold shadow-md shadow-red-200 hover:bg-[#a30f27] w-full sm:w-auto shrink-0"
             >
               <Plus size={16} /> Add Lead
             </button>
@@ -439,10 +439,10 @@ export default function ImportantCallsPage() {
                       type="text" placeholder="Search name, phone, company..."
                       value={searchQuery}
                       onChange={e => { setSearchQuery(e.target.value); setPage(1); }}
-                      className="w-full h-9 sm:h-[40px] rounded-xl sm:rounded-2xl border border-gray-200 bg-[#FAFAFA] pl-8 sm:pl-9 pr-3 text-xs sm:text-[13px] outline-none focus:border-[#B8112D]"
+                      className="w-full h-9 sm:h-[40px] rounded-xl sm:rounded-2xl border border-gray-200 bg-[#FAFAFA] pl-8 sm:pl-9 pr-3 text-xs sm:text-[13px] outline-none focus:border-[#0F398A]"
                     />
                   </div>
-                  <div className="bg-[#FFF1F3] text-[#B8112D] text-[11px] sm:text-sm font-semibold px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl sm:rounded-2xl whitespace-nowrap">
+                  <div className="bg-[#EFF6FF] text-[#0F398A] text-[11px] sm:text-sm font-semibold px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl sm:rounded-2xl whitespace-nowrap">
                     {total} Leads
                   </div>
                 </div>
@@ -475,7 +475,7 @@ export default function ImportantCallsPage() {
                   ) : filteredCalls.length > 0 ? paginated.map(lead => {
                     const meta = potentialRowMeta(lead);
                     return (
-                    <tr key={lead.id} className="border-b border-[#F7F7F7] hover:bg-[#FFF8F9] transition-all">
+                    <tr key={lead.id} className="border-b border-[#F7F7F7] hover:bg-[#F8FAFF] transition-all">
                       <td className={CSR_TD_POPOVER}>
                         <ClientNameCell lead={lead} subtitle={meta.subtitle} />
                       </td>
@@ -515,7 +515,7 @@ export default function ImportantCallsPage() {
                           <button onClick={() => setViewingLead(lead)} className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gray-100 hover:bg-gray-200 flex items-center justify-center shrink-0" title="View">
                             <Eye size={14} />
                           </button>
-                          <button onClick={() => openEditModal(lead)} className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-[#B8112D] text-white hover:bg-[#a30f27] flex items-center justify-center shrink-0" title="Edit">
+                          <button onClick={() => openEditModal(lead)} className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-[#0F398A] text-white hover:bg-[#a30f27] flex items-center justify-center shrink-0" title="Edit">
                             <Pencil size={14} />
                           </button>
                         </div>
@@ -555,21 +555,21 @@ export default function ImportantCallsPage() {
                       type="text" placeholder="Search name, phone, company..."
                       value={searchQuery}
                       onChange={e => { setSearchQuery(e.target.value); setPage(1); }}
-                      className="w-full h-9 sm:h-[40px] rounded-xl sm:rounded-2xl border border-gray-200 bg-[#FAFAFA] pl-8 sm:pl-9 pr-3 text-xs sm:text-[13px] outline-none focus:border-[#B8112D]"
+                      className="w-full h-9 sm:h-[40px] rounded-xl sm:rounded-2xl border border-gray-200 bg-[#FAFAFA] pl-8 sm:pl-9 pr-3 text-xs sm:text-[13px] outline-none focus:border-[#0F398A]"
                     />
                   </div>
                   <input
                     type="date" value={filterDate}
                     onChange={e => { setFilterDate(e.target.value); setPage(1); }}
-                    className="h-9 sm:h-[40px] rounded-xl sm:rounded-2xl border border-gray-200 bg-[#FAFAFA] px-2.5 sm:px-4 text-xs sm:text-[13px] outline-none focus:border-[#B8112D]"
+                    className="h-9 sm:h-[40px] rounded-xl sm:rounded-2xl border border-gray-200 bg-[#FAFAFA] px-2.5 sm:px-4 text-xs sm:text-[13px] outline-none focus:border-[#0F398A]"
                   />
                   {filterDate && (
                     <button onClick={() => setFilterDate("")}
-                      className="h-9 sm:h-[40px] px-3 sm:px-4 rounded-xl sm:rounded-2xl border border-gray-200 bg-[#FAFAFA] text-xs sm:text-[13px] text-gray-500 hover:text-[#B8112D] transition-all">
+                      className="h-9 sm:h-[40px] px-3 sm:px-4 rounded-xl sm:rounded-2xl border border-gray-200 bg-[#FAFAFA] text-xs sm:text-[13px] text-gray-500 hover:text-[#0F398A] transition-all">
                       Clear
                     </button>
                   )}
-                  <div className="bg-[#FFF1F3] text-[#B8112D] text-[11px] sm:text-sm font-semibold px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl sm:rounded-2xl whitespace-nowrap">
+                  <div className="bg-[#EFF6FF] text-[#0F398A] text-[11px] sm:text-sm font-semibold px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl sm:rounded-2xl whitespace-nowrap">
                     {total} Leads
                   </div>
                 </div>
@@ -597,7 +597,7 @@ export default function ImportantCallsPage() {
                       </tr>
                     ))
                   ) : filteredCalls.length > 0 ? paginated.map(lead => (
-                    <tr key={lead.id} className="border-b border-[#F7F7F7] hover:bg-[#FFF8F9] transition-all">
+                    <tr key={lead.id} className="border-b border-[#F7F7F7] hover:bg-[#F8FAFF] transition-all">
                       <td className={CSR_TD_POPOVER}>
                         <ClientNameCell lead={lead} subtitle="Scheduled Call" />
                       </td>
@@ -650,7 +650,7 @@ export default function ImportantCallsPage() {
                           </button>
                           <button
                             onClick={() => openEditModal(lead)}
-                            className="h-8 sm:h-9 px-2 sm:px-3 rounded-xl bg-[#FFF1F3] text-[#B8112D] text-xs font-semibold flex items-center gap-1 hover:bg-[#B8112D] hover:text-white transition-all whitespace-nowrap shrink-0"
+                            className="h-8 sm:h-9 px-2 sm:px-3 rounded-xl bg-[#EFF6FF] text-[#0F398A] text-xs font-semibold flex items-center gap-1 hover:bg-[#0F398A] hover:text-white transition-all whitespace-nowrap shrink-0"
                           >
                             <Pencil size={12} className="sm:w-[14px] sm:h-[14px]" />
                             <span className="hidden sm:inline">Edit</span>
@@ -665,7 +665,7 @@ export default function ImportantCallsPage() {
                         <p className="text-gray-400 text-xs sm:text-sm">No scheduled calls found.</p>
                         {(searchQuery || filterDate) && (
                           <button onClick={() => { setSearchQuery(""); setFilterDate(""); }}
-                            className="mt-2 sm:mt-3 text-[#B8112D] text-xs sm:text-sm font-semibold hover:underline">
+                            className="mt-2 sm:mt-3 text-[#0F398A] text-xs sm:text-sm font-semibold hover:underline">
                             Clear filters
                           </button>
                         )}
@@ -703,18 +703,18 @@ export default function ImportantCallsPage() {
                       placeholder="Search name, phone, company..."
                       value={searchQuery}
                       onChange={e => { setSearchQuery(e.target.value); setPage(1); }}
-                      className="w-full h-9 sm:h-[40px] rounded-xl sm:rounded-2xl border border-gray-200 bg-[#FAFAFA] pl-8 sm:pl-9 pr-3 text-xs sm:text-[13px] outline-none focus:border-[#B8112D]"
+                      className="w-full h-9 sm:h-[40px] rounded-xl sm:rounded-2xl border border-gray-200 bg-[#FAFAFA] pl-8 sm:pl-9 pr-3 text-xs sm:text-[13px] outline-none focus:border-[#0F398A]"
                     />
                   </div>
                   {searchQuery && (
                     <button
                       onClick={() => { setSearchQuery(""); setPage(1); }}
-                      className="h-9 sm:h-[40px] px-3 sm:px-4 rounded-xl sm:rounded-2xl border border-gray-200 bg-[#FAFAFA] text-xs sm:text-[13px] text-gray-500 hover:text-[#B8112D] transition-all"
+                      className="h-9 sm:h-[40px] px-3 sm:px-4 rounded-xl sm:rounded-2xl border border-gray-200 bg-[#FAFAFA] text-xs sm:text-[13px] text-gray-500 hover:text-[#0F398A] transition-all"
                     >
                       Clear
                     </button>
                   )}
-                  <div className="bg-[#FFF1F3] text-[#B8112D] text-[11px] sm:text-sm font-semibold px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl sm:rounded-2xl whitespace-nowrap">
+                  <div className="bg-[#EFF6FF] text-[#0F398A] text-[11px] sm:text-sm font-semibold px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl sm:rounded-2xl whitespace-nowrap">
                     {total} Leads
                   </div>
                 </div>
@@ -745,7 +745,7 @@ export default function ImportantCallsPage() {
                       </tr>
                     ))
                   ) : filteredCalls.length > 0 ? paginated.map(lead => (
-                    <tr key={lead.id} className="border-b border-[#F7F7F7] hover:bg-[#FFF8F9] transition-all">
+                    <tr key={lead.id} className="border-b border-[#F7F7F7] hover:bg-[#F8FAFF] transition-all">
                       <td className={CSR_TD_POPOVER}>
                         <ClientNameCell lead={lead} subtitle="Interested Lead" />
                       </td>
@@ -773,7 +773,7 @@ export default function ImportantCallsPage() {
                         <CommentCell id={lead.id} noteHistory={lead.noteHistory} noteCount={lead.noteCount} comment={lead.comments?.trim() || undefined} onAddNote={addNote} onNoteUpdated={onNoteUpdated} onNoteDeleted={onNoteDeleted} />
                       </td>
                       <td className={CSR_TD}>
-                        <div className="bg-[#FFF1F3] text-[#B8112D] px-2 py-1 rounded-xl text-[10px] sm:text-[11px] font-semibold w-fit whitespace-nowrap">
+                        <div className="bg-[#EFF6FF] text-[#0F398A] px-2 py-1 rounded-xl text-[10px] sm:text-[11px] font-semibold w-fit whitespace-nowrap">
                           Interested
                         </div>
                       </td>
@@ -787,7 +787,7 @@ export default function ImportantCallsPage() {
                           </button>
                           <button
                             onClick={() => openEditModal(lead)}
-                            className="h-8 sm:h-9 px-2 sm:px-3 rounded-xl bg-[#FFF1F3] text-[#B8112D] text-xs font-semibold flex items-center gap-1 hover:bg-[#B8112D] hover:text-white transition-all whitespace-nowrap shrink-0"
+                            className="h-8 sm:h-9 px-2 sm:px-3 rounded-xl bg-[#EFF6FF] text-[#0F398A] text-xs font-semibold flex items-center gap-1 hover:bg-[#0F398A] hover:text-white transition-all whitespace-nowrap shrink-0"
                           >
                             <Pencil size={12} />
                             <span className="hidden sm:inline">Edit</span>
@@ -801,7 +801,7 @@ export default function ImportantCallsPage() {
                         {searchQuery ? "No leads match your search." : "No interested clients found."}
                         {searchQuery && (
                           <button onClick={() => setSearchQuery("")}
-                            className="block mx-auto mt-2 text-[#B8112D] font-semibold hover:underline">
+                            className="block mx-auto mt-2 text-[#0F398A] font-semibold hover:underline">
                             Clear search
                           </button>
                         )}

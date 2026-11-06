@@ -83,7 +83,7 @@ export default function EditableDataTable<T extends { id: string }>({
                             col.type === "number" ? Number(raw || 0) : raw,
                           );
                         }}
-                        className="h-9 w-full rounded-lg border border-crm-border bg-crm-surface px-2.5 text-sm outline-none focus:ring-2 focus:ring-[#B8112D]/20 focus:border-[#B8112D]/40"
+                        className="h-9 w-full rounded-lg border border-crm-border bg-crm-surface px-2.5 text-sm outline-none focus:ring-2 focus:ring-[#0F398A]/20 focus:border-[#0F398A]/40"
                       />
                     </td>
                   );

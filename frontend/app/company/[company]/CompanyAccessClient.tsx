@@ -18,8 +18,6 @@ import { LANDING_PORTALS } from "@/lib/landingPortals";
 import DevToolsGuard from "@/app/components/DevToolsGuard";
 import BrandLogo from "@/app/components/BrandLogo";
 import BemWordmark from "@/app/components/BemWordmark";
-import GpsLogo from "@/app/components/GpsLogo";
-import GpsWordmark from "@/app/components/GpsWordmark";
 import CompanyPortalChrome from "@/app/components/CompanyPortalChrome";
 import LoginPeekCharacter from "@/app/components/LoginPeekCharacter";
 
@@ -159,19 +157,8 @@ export default function CompanyAccessPage({ company }: { company: PortalCompany 
       <CompanyPortalChrome company={company}>
         <div className="text-center mb-4 sm:mb-6 animate-[fadeUp_0.6s_ease-out] shrink-0">
           <div className="inline-flex items-center justify-center gap-3 sm:gap-4 mb-2.5">
-            {company === "BEM" ? (
-              <>
-                <BrandLogo size="md" className="shrink-0" priority />
-                <BemWordmark className="text-[20px] sm:text-[24px] md:text-[28px]" onDark />
-              </>
-            ) : (
-              <>
-                <div className="rounded-2xl bg-white p-2.5 shadow-lg">
-                  <GpsLogo size="md" className="drop-shadow-none" priority />
-                </div>
-                <GpsWordmark onDark className="items-center" />
-              </>
-            )}
+            <BrandLogo size="md" className="shrink-0" priority />
+            <BemWordmark className="text-[20px] sm:text-[24px] md:text-[28px]" onDark />
           </div>
           <p className="text-white/50 text-[10px] sm:text-[11px] font-bold uppercase tracking-[0.2em] mb-1">
             {unlocked ? "Company portals" : "Company access"}

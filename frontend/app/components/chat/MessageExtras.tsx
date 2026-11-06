@@ -10,7 +10,7 @@ export function MentionText({ text, className, tone = "other" }: { text: string;
   const mentionCls =
     tone === "own"
       ? "font-extrabold text-yellow-200 bg-black/35 px-1 rounded underline decoration-yellow-200/90"
-      : "font-extrabold text-[#B8112D] bg-[#B8112D]/15 px-1 rounded dark:text-yellow-300 dark:bg-yellow-400/25 dark:underline decoration-[#B8112D] dark:decoration-yellow-300";
+      : "font-extrabold text-[#0F398A] bg-[#0F398A]/15 px-1 rounded dark:text-yellow-300 dark:bg-yellow-400/25 dark:underline decoration-[#0F398A] dark:decoration-yellow-300";
   return (
     <p className={className}>
       {parts.map((part, i) =>
@@ -49,7 +49,7 @@ export function PdfPreview({ url, fileName }: { url: string; fileName: string })
         className="flex flex-col gap-1 rounded-xl border border-gray-200 bg-white p-2 text-left hover:bg-gray-50 transition-colors max-w-[220px]"
       >
         <span className="text-xs font-semibold truncate">{fileName}</span>
-        <span className="text-[10px] text-[#B8112D] font-semibold">Preview PDF</span>
+        <span className="text-[10px] text-[#0F398A] font-semibold">Preview PDF</span>
       </button>
       {open && (
         <div className="fixed inset-0 z-[110] bg-black/60 flex items-center justify-center p-4">
@@ -61,7 +61,7 @@ export function PdfPreview({ url, fileName }: { url: string; fileName: string })
                   href={url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-xs font-semibold text-[#B8112D] hover:underline px-2"
+                  className="text-xs font-semibold text-[#0F398A] hover:underline px-2"
                 >
                   Open file
                 </a>
@@ -94,7 +94,7 @@ export function ReactionBar({ reactions, myId, onToggle }: ReactionBarProps) {
           onClick={() => onToggle(emoji)}
           className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[11px] border transition-colors ${
             myId && ids.includes(myId)
-              ? "bg-[#FFF1F3] border-[#B8112D]/30 text-[#B8112D]"
+              ? "bg-[#EFF6FF] border-[#0F398A]/30 text-[#0F398A]"
               : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50"
           }`}
         >

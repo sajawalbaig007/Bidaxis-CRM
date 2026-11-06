@@ -147,7 +147,7 @@ export type AssetsCompanyKey = "BEM" | "GPS" | "BDS";
 export const ASSETS_COMPANIES: { key: AssetsCompanyKey; label: string; accent: string }[] = [
   { key: "BEM", label: "BEM", accent: "#0D9488" },
   { key: "GPS", label: "GPS", accent: "#0B84F3" },
-  { key: "BDS", label: "BDS", accent: "#B8112D" },
+  { key: "BDS", label: "BDS", accent: "#0F398A" },
 ];
 
 export type TotalAssetsData = {

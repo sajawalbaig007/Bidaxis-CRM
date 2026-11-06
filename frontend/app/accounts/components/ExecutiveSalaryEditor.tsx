@@ -31,7 +31,7 @@ function Num({
       <AmountInput
         value={Number.isFinite(value) ? value : 0}
         onChange={onChange}
-        className="mt-1 h-9 w-full rounded-lg border border-crm-border bg-crm-surface px-2 text-sm tabular-nums outline-none focus:border-[#B8112D]"
+        className="mt-1 h-9 w-full rounded-lg border border-crm-border bg-crm-surface px-2 text-sm tabular-nums outline-none focus:border-[#0F398A]"
       />
       {hint && <span className="block mt-0.5 text-[9px] font-normal normal-case tracking-normal text-crm-text-faint">{hint}</span>}
     </label>
@@ -64,12 +64,12 @@ export default function ExecutiveSalaryEditor({ name, value, onChange, profitBas
         </div>
         <div className="text-right">
           <p className="text-[9px] font-bold uppercase tracking-wide text-crm-text-faint">Total due to {name || "executive"}</p>
-          <p className="text-base font-black tabular-nums text-[#B8112D]">{currency(b.totalPayable)}</p>
+          <p className="text-base font-black tabular-nums text-[#0F398A]">{currency(b.totalPayable)}</p>
         </div>
       </div>
 
       <div className="rounded-xl border border-[#F3D7DC] bg-gradient-to-br from-[#FFF6F8] to-white p-2.5 space-y-2">
-        <p className="text-[10px] font-extrabold uppercase tracking-wide text-[#B8112D]">
+        <p className="text-[10px] font-extrabold uppercase tracking-wide text-[#0F398A]">
           Total payable this period
         </p>
         <p className="text-[10px] text-crm-text-muted">
@@ -84,9 +84,9 @@ export default function ExecutiveSalaryEditor({ name, value, onChange, profitBas
           <Read label="+ Loan owed to them" value={currency(b.loanPositive)} accent="text-orange-700" />
           <Read label="− Loan they owe" value={currency(b.loanNegative)} accent="text-red-600" />
         </div>
-        <div className="rounded-xl border border-[#B8112D]/25 bg-crm-surface px-3 py-2.5 flex flex-wrap items-center justify-between gap-2">
+        <div className="rounded-xl border border-[#0F398A]/25 bg-crm-surface px-3 py-2.5 flex flex-wrap items-center justify-between gap-2">
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-wide text-[#B8112D]/80">
+            <p className="text-[10px] font-bold uppercase tracking-wide text-[#0F398A]/80">
               Total due to {name || "this executive"}
             </p>
             <p className="text-[10px] text-crm-text-faint mt-0.5">
@@ -97,7 +97,7 @@ export default function ExecutiveSalaryEditor({ name, value, onChange, profitBas
               {b.pf > 0 ? ` · − PF ${currency(b.pf)}` : ""}
             </p>
           </div>
-          <p className="text-xl font-black tabular-nums text-[#B8112D]">{currency(b.totalPayable)}</p>
+          <p className="text-xl font-black tabular-nums text-[#0F398A]">{currency(b.totalPayable)}</p>
         </div>
       </div>
 
@@ -123,7 +123,7 @@ export default function ExecutiveSalaryEditor({ name, value, onChange, profitBas
         <Read
           label="Total Salary"
           value={currency(b.totalSalary)}
-          accent="text-[#B8112D]"
+          accent="text-[#0F398A]"
           hint="Basic + Commission"
         />
       </div>
@@ -186,7 +186,7 @@ export default function ExecutiveSalaryEditor({ name, value, onChange, profitBas
               value={d.occasionalRemark ?? ""}
               onChange={e => set("occasionalRemark", e.target.value)}
               placeholder="e.g. Eid bonus, wedding gift…"
-              className="mt-1 h-9 w-full rounded-lg border border-crm-border bg-crm-surface px-2 text-sm outline-none focus:border-[#B8112D]"
+              className="mt-1 h-9 w-full rounded-lg border border-crm-border bg-crm-surface px-2 text-sm outline-none focus:border-[#0F398A]"
             />
           </label>
         </div>
@@ -199,7 +199,7 @@ export default function ExecutiveSalaryEditor({ name, value, onChange, profitBas
           onChange={e => set("remarks", e.target.value)}
           rows={2}
           placeholder="Manual remarks…"
-          className="mt-1 w-full rounded-lg border border-crm-border bg-crm-surface px-2 py-1.5 text-sm outline-none resize-none focus:border-[#B8112D]"
+          className="mt-1 w-full rounded-lg border border-crm-border bg-crm-surface px-2 py-1.5 text-sm outline-none resize-none focus:border-[#0F398A]"
         />
       </label>
     </div>

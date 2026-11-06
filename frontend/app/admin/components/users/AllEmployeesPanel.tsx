@@ -369,7 +369,7 @@ export default function AllEmployeesPanel({ dashboardUsers }: AllEmployeesPanelP
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search all employees…"
-            className="w-full h-10 pl-10 pr-3 rounded-2xl border border-gray-200 bg-white text-sm outline-none focus:ring-2 focus:ring-[#B8112D]/20"
+            className="w-full h-10 pl-10 pr-3 rounded-2xl border border-gray-200 bg-white text-sm outline-none focus:ring-2 focus:ring-[#0F398A]/20"
           />
         </div>
         <div className="flex flex-wrap gap-2">
@@ -388,7 +388,7 @@ export default function AllEmployeesPanel({ dashboardUsers }: AllEmployeesPanelP
           <button
             type="button"
             onClick={() => openEdit()}
-            className="h-10 px-4 rounded-2xl text-sm font-semibold bg-[#B8112D] text-white hover:bg-[#a30f27] inline-flex items-center gap-2 shadow-sm shadow-[#B8112D]/20"
+            className="h-10 px-4 rounded-2xl text-sm font-semibold bg-[#0F398A] text-white hover:bg-[#a30f27] inline-flex items-center gap-2 shadow-sm shadow-[#0F398A]/20"
           >
             <UserPlus size={15} />
             Add manual employee
@@ -570,13 +570,13 @@ export default function AllEmployeesPanel({ dashboardUsers }: AllEmployeesPanelP
                   value={pickSearch}
                   onChange={(e) => setPickSearch(e.target.value)}
                   placeholder="Search users…"
-                  className="w-full h-9 pl-9 pr-3 rounded-xl border border-gray-200 text-sm outline-none focus:ring-2 focus:ring-[#B8112D]/20"
+                  className="w-full h-9 pl-9 pr-3 rounded-xl border border-gray-200 text-sm outline-none focus:ring-2 focus:ring-[#0F398A]/20"
                 />
               </div>
               <button
                 type="button"
                 onClick={togglePickAll}
-                className="text-[11px] font-bold text-[#B8112D] hover:underline"
+                className="text-[11px] font-bold text-[#0F398A] hover:underline"
               >
                 {selectedIds.size === pickableUsers.length && pickableUsers.length > 0
                   ? "Clear all"
@@ -597,14 +597,14 @@ export default function AllEmployeesPanel({ dashboardUsers }: AllEmployeesPanelP
                     <label
                       key={u.id}
                       className={`flex items-center gap-3 px-3 py-2.5 rounded-2xl cursor-pointer border transition-colors ${
-                        checked ? "bg-[#FFF1F3] border-[#B8112D]/25" : "border-transparent hover:bg-gray-50"
+                        checked ? "bg-[#EFF6FF] border-[#0F398A]/25" : "border-transparent hover:bg-gray-50"
                       }`}
                     >
                       <input
                         type="checkbox"
                         checked={checked}
                         onChange={() => togglePick(u.id)}
-                        className="w-4 h-4 rounded border-gray-300 text-[#B8112D] focus:ring-[#B8112D]"
+                        className="w-4 h-4 rounded border-gray-300 text-[#0F398A] focus:ring-[#0F398A]"
                       />
                       <div className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center text-xs font-bold text-slate-600 overflow-hidden shrink-0">
                         {u.profilePic ? (
@@ -631,7 +631,7 @@ export default function AllEmployeesPanel({ dashboardUsers }: AllEmployeesPanelP
                 type="button"
                 disabled={saving || selectedIds.size === 0}
                 onClick={() => void addFromUsers()}
-                className="h-9 px-4 rounded-xl text-xs font-bold bg-[#B8112D] text-white hover:bg-[#a30f27] disabled:opacity-50 inline-flex items-center gap-1.5"
+                className="h-9 px-4 rounded-xl text-xs font-bold bg-[#0F398A] text-white hover:bg-[#a30f27] disabled:opacity-50 inline-flex items-center gap-1.5"
               >
                 {saving ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
                 Add to All Employees
@@ -673,12 +673,12 @@ export default function AllEmployeesPanel({ dashboardUsers }: AllEmployeesPanelP
                 <input
                   value={manualForm.name}
                   onChange={(e) => setManualForm({ ...manualForm, name: e.target.value })}
-                  className="mt-1 h-10 w-full rounded-xl border border-gray-200 px-3 text-sm outline-none focus:ring-2 focus:ring-[#B8112D]/20"
+                  className="mt-1 h-10 w-full rounded-xl border border-gray-200 px-3 text-sm outline-none focus:ring-2 focus:ring-[#0F398A]/20"
                 />
               </label>
               {editing?.userId && manualForm.name.trim() && manualForm.name.trim() !== editing.name.trim() && (
                 <label className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs text-amber-900 cursor-pointer">
-                  <input type="checkbox" checked={newPerson} onChange={(e) => setNewPerson(e.target.checked)} className="mt-0.5 accent-[#B8112D]" />
+                  <input type="checkbox" checked={newPerson} onChange={(e) => setNewPerson(e.target.checked)} className="mt-0.5 accent-[#0F398A]" />
                   <span>
                     <span className="font-bold">New person replacing {editing.name}</span>
                     <span className="block text-amber-800/80">
@@ -695,7 +695,7 @@ export default function AllEmployeesPanel({ dashboardUsers }: AllEmployeesPanelP
                     value={manualForm.manualRole}
                     onChange={(e) => setManualForm({ ...manualForm, manualRole: e.target.value })}
                     placeholder="Type role…"
-                    className="mt-1 h-10 w-full rounded-xl border border-gray-200 px-3 text-sm outline-none focus:ring-2 focus:ring-[#B8112D]/20"
+                    className="mt-1 h-10 w-full rounded-xl border border-gray-200 px-3 text-sm outline-none focus:ring-2 focus:ring-[#0F398A]/20"
                   />
                 </label>
               )}
@@ -718,11 +718,11 @@ export default function AllEmployeesPanel({ dashboardUsers }: AllEmployeesPanelP
                           manualForm.company === c
                             ? c === "GPS"
                               ? "bg-[#0F398A] text-white border-[#0F398A]"
-                              : "bg-[#B8112D] text-white border-[#B8112D]"
+                              : "bg-[#0F398A] text-white border-[#0F398A]"
                             : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
                         }`}
                       >
-                        {c === "GPS" ? "GPS · Global" : "BEM Solutions"}
+                        {c === "GPS" ? "BidAxis · Technical" : "BidAxis · Operations"}
                       </button>
                     ))}
                   </div>
@@ -739,7 +739,7 @@ export default function AllEmployeesPanel({ dashboardUsers }: AllEmployeesPanelP
                       <button
                         type="button"
                         onClick={() => setManualForm((f) => ({ ...f, allowedIps: [...f.allowedIps, ""] }))}
-                        className="w-7 h-7 rounded-lg bg-[#B8112D] text-white flex items-center justify-center"
+                        className="w-7 h-7 rounded-lg bg-[#0F398A] text-white flex items-center justify-center"
                         title="Add IP"
                       >
                         <Plus size={14} />
@@ -760,7 +760,7 @@ export default function AllEmployeesPanel({ dashboardUsers }: AllEmployeesPanelP
                             }));
                           }}
                           placeholder={`Approved IP ${idx + 1}`}
-                          className="flex-1 min-w-0 h-10 rounded-xl border border-gray-200 px-3 text-sm outline-none focus:ring-2 focus:ring-[#B8112D]/20"
+                          className="flex-1 min-w-0 h-10 rounded-xl border border-gray-200 px-3 text-sm outline-none focus:ring-2 focus:ring-[#0F398A]/20"
                         />
                         {manualForm.allowedIps.length > 1 && (
                           <button
@@ -795,7 +795,7 @@ export default function AllEmployeesPanel({ dashboardUsers }: AllEmployeesPanelP
                             : manualForm.payrollStartMonth,
                     })
                   }
-                  className="mt-1 h-10 w-full rounded-xl border border-gray-200 px-3 text-sm outline-none focus:ring-2 focus:ring-[#B8112D]/20 bg-white"
+                  className="mt-1 h-10 w-full rounded-xl border border-gray-200 px-3 text-sm outline-none focus:ring-2 focus:ring-[#0F398A]/20 bg-white"
                 >
                   <option value="">— Not in Accounts payroll —</option>
                   {ACCOUNTS_PAYROLL_HEADS.map((h) => (
@@ -814,7 +814,7 @@ export default function AllEmployeesPanel({ dashboardUsers }: AllEmployeesPanelP
                   type="month"
                   value={manualForm.payrollStartMonth}
                   onChange={(e) => setManualForm({ ...manualForm, payrollStartMonth: e.target.value })}
-                  className="mt-1 h-10 w-full rounded-xl border border-gray-200 px-3 text-sm outline-none focus:ring-2 focus:ring-[#B8112D]/20"
+                  className="mt-1 h-10 w-full rounded-xl border border-gray-200 px-3 text-sm outline-none focus:ring-2 focus:ring-[#0F398A]/20"
                 />
               </label>
 
@@ -833,7 +833,7 @@ export default function AllEmployeesPanel({ dashboardUsers }: AllEmployeesPanelP
                   <input
                     value={manualForm[key]}
                     onChange={(e) => setManualForm({ ...manualForm, [key]: e.target.value })}
-                    className="mt-1 h-10 w-full rounded-xl border border-gray-200 px-3 text-sm outline-none focus:ring-2 focus:ring-[#B8112D]/20"
+                    className="mt-1 h-10 w-full rounded-xl border border-gray-200 px-3 text-sm outline-none focus:ring-2 focus:ring-[#0F398A]/20"
                   />
                 </label>
               ))}
@@ -845,7 +845,7 @@ export default function AllEmployeesPanel({ dashboardUsers }: AllEmployeesPanelP
                   onChange={(e) => setManualForm({ ...manualForm, cnic: e.target.value })}
                   placeholder="e.g. 12345-6789012-3"
                   maxLength={15}
-                  className="mt-1 h-10 w-full rounded-xl border border-gray-200 px-3 text-sm font-mono outline-none focus:ring-2 focus:ring-[#B8112D]/20"
+                  className="mt-1 h-10 w-full rounded-xl border border-gray-200 px-3 text-sm font-mono outline-none focus:ring-2 focus:ring-[#0F398A]/20"
                 />
               </label>
               <div>
@@ -870,19 +870,19 @@ export default function AllEmployeesPanel({ dashboardUsers }: AllEmployeesPanelP
                         </div>
                       );
                     })()}
-                    <div className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl border border-[#B8112D]/20 bg-[#FFF1F3]">
+                    <div className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl border border-[#0F398A]/20 bg-[#EFF6FF]">
                       <PdfPreview url={manualForm.cnicPdfUrl} fileName="CNIC document" />
                       <button
                         type="button"
                         onClick={() => setManualForm((f) => ({ ...f, cnicPdfUrl: "" }))}
-                        className="text-[11px] font-semibold text-gray-500 hover:text-[#B8112D] shrink-0"
+                        className="text-[11px] font-semibold text-gray-500 hover:text-[#0F398A] shrink-0"
                       >
                         Remove
                       </button>
                     </div>
                   </div>
                 ) : null}
-                <label className="flex items-center justify-center gap-2 h-11 rounded-2xl border-2 border-dashed border-gray-200 hover:border-[#B8112D]/40 bg-[#FAFAFA] cursor-pointer text-xs font-semibold text-gray-600 hover:text-[#B8112D] transition-colors">
+                <label className="flex items-center justify-center gap-2 h-11 rounded-2xl border-2 border-dashed border-gray-200 hover:border-[#0F398A]/40 bg-[#FAFAFA] cursor-pointer text-xs font-semibold text-gray-600 hover:text-[#0F398A] transition-colors">
                   <input
                     type="file"
                     accept="application/pdf,.pdf"
@@ -912,7 +912,7 @@ export default function AllEmployeesPanel({ dashboardUsers }: AllEmployeesPanelP
                     value={manualForm[key]}
                     onChange={(e) => setManualForm({ ...manualForm, [key]: e.target.value })}
                     rows={2}
-                    className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#B8112D]/20"
+                    className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#0F398A]/20"
                   />
                 </label>
               ))}
@@ -929,7 +929,7 @@ export default function AllEmployeesPanel({ dashboardUsers }: AllEmployeesPanelP
                 type="button"
                 disabled={saving}
                 onClick={() => void saveEmployee()}
-                className="h-9 px-4 rounded-xl text-xs font-bold bg-[#B8112D] text-white hover:bg-[#a30f27] disabled:opacity-50 inline-flex items-center gap-1.5"
+                className="h-9 px-4 rounded-xl text-xs font-bold bg-[#0F398A] text-white hover:bg-[#a30f27] disabled:opacity-50 inline-flex items-center gap-1.5"
               >
                 {saving ? <Loader2 size={14} className="animate-spin" /> : null}
                 {editing ? "Save" : "Add employee"}
@@ -965,7 +965,7 @@ export default function AllEmployeesPanel({ dashboardUsers }: AllEmployeesPanelP
             <div className="flex-1 overflow-y-auto px-6 py-2 space-y-3 min-h-0">
               {[
                 { label: "Role", value: detail.role },
-                { label: "Company", value: detail.company === "GPS" ? "GPS · Global" : "BEM Solutions" },
+                { label: "Company", value: "BidAxis" },
                 { label: "Source", value: detail.source === "dashboard" ? "Dashboard" : "Manual" },
                 ...(detail.source === "manual"
                   ? [{ label: "IP access", value: detail.allowedIps?.filter(Boolean).join(", ") || "Company network" }]
@@ -1018,7 +1018,7 @@ export default function AllEmployeesPanel({ dashboardUsers }: AllEmployeesPanelP
                         href={detail.cnicPdfUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-xs font-semibold text-[#B8112D] hover:underline"
+                        className="text-xs font-semibold text-[#0F398A] hover:underline"
                       >
                         Open in new tab
                       </a>
@@ -1052,7 +1052,7 @@ export default function AllEmployeesPanel({ dashboardUsers }: AllEmployeesPanelP
               <button
                 type="button"
                 onClick={() => setDetail(null)}
-                className="flex-1 h-10 rounded-2xl text-sm font-bold bg-[#B8112D] text-white hover:bg-[#a30f27]"
+                className="flex-1 h-10 rounded-2xl text-sm font-bold bg-[#0F398A] text-white hover:bg-[#a30f27]"
               >
                 Close
               </button>

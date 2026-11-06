@@ -31,7 +31,7 @@ export default function ClientNameCell({
           {index}
         </div>
       )}
-      <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-[#B8112D] text-white flex items-center justify-center font-bold text-xs sm:text-sm shrink-0">
+      <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-[#0F398A] text-white flex items-center justify-center font-bold text-xs sm:text-sm shrink-0">
         {lead.client.charAt(0)}
       </div>
       <div className="min-w-0 flex-1">

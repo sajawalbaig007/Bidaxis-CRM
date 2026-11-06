@@ -446,7 +446,7 @@ function ProjectList({
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       {p.projectCode ? (
-                        <span className="text-[10px] font-bold text-[#B8112D] bg-[#FFF1F3] dark:bg-crm-brand-soft px-1.5 py-0.5 rounded">
+                        <span className="text-[10px] font-bold text-[#0F398A] bg-[#EFF6FF] dark:bg-crm-brand-soft px-1.5 py-0.5 rounded">
                           {p.projectCode}
                         </span>
                       ) : null}
@@ -499,7 +499,7 @@ function ProjectList({
                         type="button"
                         onClick={() => onView(p.leadId)}
                         disabled={viewingLeadId === p.leadId}
-                        className="h-8 w-8 rounded-xl border border-crm-border bg-crm-surface text-crm-text-muted hover:text-[#B8112D] hover:border-[#B8112D]/40 inline-flex items-center justify-center disabled:opacity-50"
+                        className="h-8 w-8 rounded-xl border border-crm-border bg-crm-surface text-crm-text-muted hover:text-[#0F398A] hover:border-[#0F398A]/40 inline-flex items-center justify-center disabled:opacity-50"
                         title="View / edit payment details"
                         aria-label="View payment details"
                       >
@@ -582,7 +582,7 @@ function ProjectList({
                               key={pay.id}
                               className="border-b border-crm-border-subtle last:border-0 bg-crm-surface"
                             >
-                              <td className="px-2.5 py-2.5 font-bold text-[#B8112D] whitespace-nowrap align-top">
+                              <td className="px-2.5 py-2.5 font-bold text-[#0F398A] whitespace-nowrap align-top">
                                 {p.projectCode || "—"}
                               </td>
                               <td className="px-2.5 py-2.5 text-crm-text font-medium max-w-[140px] truncate align-top" title={p.clientName ?? undefined}>
@@ -614,7 +614,7 @@ function ProjectList({
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     onClick={(e) => e.stopPropagation()}
-                                    className="inline-flex items-center gap-1 font-semibold text-[#B8112D] hover:underline max-w-[160px]"
+                                    className="inline-flex items-center gap-1 font-semibold text-[#0F398A] hover:underline max-w-[160px]"
                                     title={pay.link}
                                   >
                                     <ExternalLink size={11} className="shrink-0" />
@@ -872,7 +872,7 @@ export default function AdminPaymentsPage() {
           {/* Header */}
           <header className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <div className="inline-flex items-center gap-2 text-[11px] font-semibold text-[#B8112D] mb-1">
+              <div className="inline-flex items-center gap-2 text-[11px] font-semibold text-[#0F398A] mb-1">
                 <Wallet size={13} />
                 Collections
               </div>
@@ -890,7 +890,7 @@ export default function AdminPaymentsPage() {
               </div>
               <Link
                 href={`${basePath}/active-projects`}
-                className="h-10 sm:h-11 px-4 rounded-xl border border-crm-border bg-crm-surface text-sm font-semibold text-crm-text-secondary inline-flex items-center justify-center hover:border-[#B8112D]/40"
+                className="h-10 sm:h-11 px-4 rounded-xl border border-crm-border bg-crm-surface text-sm font-semibold text-crm-text-secondary inline-flex items-center justify-center hover:border-[#0F398A]/40"
               >
                 Project DB
               </Link>
@@ -898,7 +898,7 @@ export default function AdminPaymentsPage() {
                 type="button"
                 onClick={() => void load()}
                 disabled={loading}
-                className="h-10 sm:h-11 px-4 sm:px-5 rounded-xl bg-[#B8112D] text-white text-sm font-semibold inline-flex items-center justify-center gap-2 disabled:opacity-60 shadow-sm"
+                className="h-10 sm:h-11 px-4 sm:px-5 rounded-xl bg-[#0F398A] text-white text-sm font-semibold inline-flex items-center justify-center gap-2 disabled:opacity-60 shadow-sm"
               >
                 <RefreshCw size={15} className={loading ? "animate-spin" : ""} />
                 Refresh
@@ -913,7 +913,7 @@ export default function AdminPaymentsPage() {
                 type="button"
                 onClick={() => setMonth("")}
                 className={`h-8 px-3 rounded-full text-xs font-bold transition-colors ${
-                  !month ? "bg-[#B8112D] text-white shadow-sm" : "text-crm-text-muted hover:text-crm-text"
+                  !month ? "bg-[#0F398A] text-white shadow-sm" : "text-crm-text-muted hover:text-crm-text"
                 }`}
               >
                 All Time
@@ -923,7 +923,7 @@ export default function AdminPaymentsPage() {
                 onClick={() => setMonth(currentMonthIso())}
                 className={`h-8 px-3 rounded-full text-xs font-bold transition-colors ${
                   month === currentMonthIso()
-                    ? "bg-[#B8112D] text-white shadow-sm"
+                    ? "bg-[#0F398A] text-white shadow-sm"
                     : "text-crm-text-muted hover:text-crm-text"
                 }`}
               >
@@ -973,7 +973,7 @@ export default function AdminPaymentsPage() {
                   setDateFrom("");
                   setDateTo("");
                 }}
-                className="h-10 px-3 rounded-xl border border-crm-border bg-crm-surface text-xs font-bold text-crm-text-muted hover:text-crm-text hover:border-[#B8112D]/40"
+                className="h-10 px-3 rounded-xl border border-crm-border bg-crm-surface text-xs font-bold text-crm-text-muted hover:text-crm-text hover:border-[#0F398A]/40"
               >
                 Clear dates
               </button>
@@ -998,7 +998,7 @@ export default function AdminPaymentsPage() {
                 <span className="font-bold">{t!.unassignedPaidCount} paid entr{t!.unassignedPaidCount === 1 ? "y" : "ies"}</span>
                 {" "}missing channel/currency — set in Project DB so source totals update.
               </p>
-              <Link href={`${basePath}/active-projects`} className="text-xs font-bold text-[#B8112D] hover:underline shrink-0">
+              <Link href={`${basePath}/active-projects`} className="text-xs font-bold text-[#0F398A] hover:underline shrink-0">
                 Fix in Project DB →
               </Link>
             </div>

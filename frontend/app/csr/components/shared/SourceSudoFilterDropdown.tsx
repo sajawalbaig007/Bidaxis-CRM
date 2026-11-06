@@ -65,7 +65,7 @@ export default function SourceSudoFilterDropdown({
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Search source…"
-            className="w-full h-8 pl-8 pr-2 rounded-lg border border-gray-200 dark:border-crm-border bg-white dark:bg-crm-input text-xs outline-none focus:border-[#B8112D]"
+            className="w-full h-8 pl-8 pr-2 rounded-lg border border-gray-200 dark:border-crm-border bg-white dark:bg-crm-input text-xs outline-none focus:border-[#0F398A]"
           />
         </div>
       </div>
@@ -80,8 +80,8 @@ export default function SourceSudoFilterDropdown({
               key={name}
               type="button"
               onClick={() => select(name)}
-              className={`w-full text-left px-3 py-2 text-[12px] font-semibold transition-colors hover:bg-[#FFF1F3] truncate ${
-                value === name ? "bg-[#FFF1F3] text-[#B8112D]" : "text-[#0F172A] dark:text-crm-text"
+              className={`w-full text-left px-3 py-2 text-[12px] font-semibold transition-colors hover:bg-[#EFF6FF] truncate ${
+                value === name ? "bg-[#EFF6FF] text-[#0F398A]" : "text-[#0F172A] dark:text-crm-text"
               }`}
             >
               {name}
@@ -101,7 +101,7 @@ export default function SourceSudoFilterDropdown({
         onClick={toggle}
         className={`h-10 sm:h-[42px] px-3 sm:px-4 rounded-xl sm:rounded-2xl border text-xs sm:text-sm font-medium flex items-center gap-1.5 sm:gap-2 transition-colors ${fullWidth ? "w-full min-w-0" : compact ? "min-w-[110px] sm:min-w-[132px]" : "min-w-[130px] sm:min-w-[160px]"} ${
           value
-            ? "border-[#B8112D] bg-[#FFF1F3] text-[#B8112D]"
+            ? "border-[#0F398A] bg-[#EFF6FF] text-[#0F398A]"
             : "border-gray-200 dark:border-crm-border bg-[#FAFAFA] dark:bg-crm-input text-gray-600 dark:text-crm-text-secondary hover:border-gray-300 dark:hover:border-crm-border"
         }`}
       >
@@ -113,7 +113,7 @@ export default function SourceSudoFilterDropdown({
           <span
             role="button"
             onClick={e => { e.stopPropagation(); clear(); }}
-            className="ml-auto text-[#B8112D] hover:text-[#8b0d22] shrink-0"
+            className="ml-auto text-[#0F398A] hover:text-[#8b0d22] shrink-0"
           >
             <X size={12} className="sm:w-[13px] sm:h-[13px]" />
           </span>

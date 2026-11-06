@@ -70,7 +70,7 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
-const inputClass = "mt-1 w-full h-11 rounded-xl border border-gray-200 px-3 text-sm text-[#0B1220] outline-none focus:border-[#B8112D]";
+const inputClass = "mt-1 w-full h-11 rounded-xl border border-gray-200 px-3 text-sm text-[#0B1220] outline-none focus:border-[#0F398A]";
 
 export default function StaffRequestButton({
   compact = false,
@@ -243,7 +243,7 @@ export default function StaffRequestButton({
                       key={item.key}
                       type="button"
                       onClick={() => setKind(item.key)}
-                      className="rounded-2xl border border-gray-100 bg-[#F8FAFC] px-3 py-4 text-left text-sm font-semibold text-[#111827] hover:border-[#B8112D]/40 hover:bg-[#FFF1F3]"
+                      className="rounded-2xl border border-gray-100 bg-[#F8FAFC] px-3 py-4 text-left text-sm font-semibold text-[#111827] hover:border-[#0F398A]/40 hover:bg-[#EFF6FF]"
                     >
                       {item.label}
                     </button>
@@ -296,7 +296,7 @@ export default function StaffRequestButton({
                   </p>
                   <div className="flex gap-2">
                     <button type="button" onClick={() => setKind("")} className="flex-1 h-11 rounded-xl bg-gray-100 text-gray-600 font-semibold text-sm">Back</button>
-                    <button type="button" disabled={busy || !!missing()} onClick={() => void submit()} className="flex-1 h-11 rounded-xl bg-[#B8112D] text-white font-semibold text-sm disabled:opacity-50">
+                    <button type="button" disabled={busy || !!missing()} onClick={() => void submit()} className="flex-1 h-11 rounded-xl bg-[#0F398A] text-white font-semibold text-sm disabled:opacity-50">
                       {busy ? "Sending…" : "Send"}
                     </button>
                   </div>
@@ -406,7 +406,7 @@ export function StaffRequestCell({
           </p>
           {item.reviewNote ? <p className="mt-1 text-[10px] text-[#3730A3] whitespace-pre-wrap">{item.reviewNote}</p> : null}
           {canApprove && item.status === "pending" && onOpen ? (
-            <button type="button" onClick={() => onOpen(item)} className="mt-1.5 h-7 px-2 rounded-lg bg-[#B8112D] text-white text-[10px] font-bold">Review</button>
+            <button type="button" onClick={() => onOpen(item)} className="mt-1.5 h-7 px-2 rounded-lg bg-[#0F398A] text-white text-[10px] font-bold">Review</button>
           ) : null}
           {canApprove && item.status === "pending" && !onOpen ? (
             <div className="mt-1.5 space-y-1.5">
@@ -415,7 +415,7 @@ export function StaffRequestCell({
                 onChange={(e) => setRemarks((prev) => ({ ...prev, [item.id]: e.target.value }))}
                 rows={2}
                 placeholder="Remarks"
-                className="w-full rounded-lg border border-gray-200 px-2 py-1 text-[11px] text-[#111827] outline-none focus:border-[#B8112D]"
+                className="w-full rounded-lg border border-gray-200 px-2 py-1 text-[11px] text-[#111827] outline-none focus:border-[#0F398A]"
               />
               <div className="flex gap-1.5">
                 <button type="button" disabled={busyId === item.id} onClick={() => void review(item.id, "approve")} className="h-7 px-2 rounded-lg bg-green-600 text-white text-[10px] font-bold disabled:opacity-50">Approve</button>

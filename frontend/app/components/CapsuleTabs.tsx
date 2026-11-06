@@ -37,7 +37,7 @@ export default function CapsuleTabs<K extends string>({
   tabs,
   activeKey,
   onChange,
-  accent = "#B8112D",
+  accent = "#0F398A",
   size = "md",
   className = "",
   stretch = false,

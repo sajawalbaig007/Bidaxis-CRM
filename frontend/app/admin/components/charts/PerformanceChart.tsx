@@ -141,8 +141,8 @@ export default function PerformanceChart({ leads = [], series, range = "week" }:
           <ComposedChart data={data} margin={{ top: 8, right: 8, left: -12, bottom: 0 }}>
             <defs>
               <linearGradient id="dashAreaFill" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#B8112D" stopOpacity={isDark ? 0.35 : 0.22} />
-                <stop offset="100%" stopColor="#B8112D" stopOpacity={0} />
+                <stop offset="0%" stopColor="#0F398A" stopOpacity={isDark ? 0.35 : 0.22} />
+                <stop offset="100%" stopColor="#0F398A" stopOpacity={0} />
               </linearGradient>
             </defs>
             <CartesianGrid vertical={false} stroke={grid} strokeDasharray="3 6" />
@@ -173,7 +173,7 @@ export default function PerformanceChart({ leads = [], series, range = "week" }:
             />
             <Bar
               dataKey="calls"
-              fill="#B8112D"
+              fill="#0F398A"
               fillOpacity={isDark ? 0.45 : 0.28}
               radius={[5, 5, 0, 0]}
               maxBarSize={36}
@@ -182,11 +182,11 @@ export default function PerformanceChart({ leads = [], series, range = "week" }:
             <Area
               type="monotone"
               dataKey="calls"
-              stroke="#B8112D"
+              stroke="#0F398A"
               strokeWidth={2.5}
               fill="url(#dashAreaFill)"
               dot={false}
-              activeDot={{ r: 5, fill: "#B8112D", stroke: isDark ? "#1a1d24" : "#fff", strokeWidth: 2 }}
+              activeDot={{ r: 5, fill: "#0F398A", stroke: isDark ? "#1a1d24" : "#fff", strokeWidth: 2 }}
             />
           </ComposedChart>
         </ResponsiveContainer>

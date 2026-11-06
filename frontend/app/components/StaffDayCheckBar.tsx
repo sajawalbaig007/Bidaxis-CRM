@@ -115,7 +115,7 @@ export default function StaffDayCheckBar({
           type="button"
           disabled={busy || !row?.checkIn || Boolean(row?.checkOut)}
           onClick={() => void punch("out")}
-          className="h-9 px-2.5 rounded-xl bg-[#B8112D] text-white text-xs font-semibold inline-flex items-center gap-1 disabled:opacity-60 touch-manipulation"
+          className="h-9 px-2.5 rounded-xl bg-[#0F398A] text-white text-xs font-semibold inline-flex items-center gap-1 disabled:opacity-60 touch-manipulation"
         >
           <LogOut size={14} /> {row?.checkOut ? "Out" : "Check out"}
         </button>
@@ -129,7 +129,7 @@ export default function StaffDayCheckBar({
   return (
     <section className="rounded-2xl border border-gray-100 dark:border-crm-border bg-white dark:bg-crm-surface px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-3 shadow-sm">
       <div className="min-w-0 flex-1">
-        <p className="text-[11px] font-bold uppercase tracking-wider text-[#B8112D]">Today</p>
+        <p className="text-[11px] font-bold uppercase tracking-wider text-[#0F398A]">Today</p>
         {department === "admin" || department === "accounts" ? (
           <p className="text-[10px] text-gray-500 dark:text-crm-text-muted">5:00 PM to next day 5:00 PM, Pakistan time</p>
         ) : null}
@@ -153,7 +153,7 @@ export default function StaffDayCheckBar({
           type="button"
           disabled={busy || !row?.checkIn || Boolean(row?.checkOut)}
           onClick={() => void punch("out")}
-          className="h-10 px-3 rounded-xl bg-[#B8112D] text-white text-sm font-semibold inline-flex items-center gap-1.5 disabled:opacity-60 touch-manipulation"
+          className="h-10 px-3 rounded-xl bg-[#0F398A] text-white text-sm font-semibold inline-flex items-center gap-1.5 disabled:opacity-60 touch-manipulation"
         >
           <LogOut size={15} /> {row?.checkOut ? "Checked out" : "Check out"}
         </button>

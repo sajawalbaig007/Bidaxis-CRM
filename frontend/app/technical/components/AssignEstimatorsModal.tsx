@@ -87,7 +87,7 @@ function DivisionMultiSelect({
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="w-full h-10 rounded-xl border border-gray-200 px-3 text-sm bg-[#FAFAFA] outline-none focus:border-[#B8112D] flex items-center justify-between gap-2 text-left"
+        className="w-full h-10 rounded-xl border border-gray-200 px-3 text-sm bg-[#FAFAFA] outline-none focus:border-[#0F398A] flex items-center justify-between gap-2 text-left"
       >
         <span className={`truncate ${value.length ? "text-[#0F172A] font-semibold" : "text-gray-500 font-medium"}`}>
           {value.length ? formatDivisionSummary(value) : "Select division(s)"}
@@ -107,12 +107,12 @@ function DivisionMultiSelect({
                 type="button"
                 onClick={() => toggle(opt)}
                 className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-left text-sm transition-colors ${
-                  active ? "bg-[#FFF1F3] text-[#B8112D] font-bold" : "hover:bg-gray-50 text-[#0F172A] font-medium"
+                  active ? "bg-[#EFF6FF] text-[#0F398A] font-bold" : "hover:bg-gray-50 text-[#0F172A] font-medium"
                 }`}
               >
                 <span
                   className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${
-                    active ? "bg-[#B8112D] border-[#B8112D]" : "border-gray-300 bg-white"
+                    active ? "bg-[#0F398A] border-[#0F398A]" : "border-gray-300 bg-white"
                   }`}
                 >
                   {active && <Check size={10} className="text-white" />}
@@ -132,12 +132,12 @@ function DivisionMultiSelect({
                 type="button"
                 onClick={() => toggle(opt)}
                 className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-left text-sm transition-colors ${
-                  active ? "bg-[#FFF1F3] text-[#B8112D] font-bold" : "hover:bg-gray-50 text-[#0F172A] font-medium"
+                  active ? "bg-[#EFF6FF] text-[#0F398A] font-bold" : "hover:bg-gray-50 text-[#0F172A] font-medium"
                 }`}
               >
                 <span
                   className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${
-                    active ? "bg-[#B8112D] border-[#B8112D]" : "border-gray-300 bg-white"
+                    active ? "bg-[#0F398A] border-[#0F398A]" : "border-gray-300 bg-white"
                   }`}
                 >
                   {active && <Check size={10} className="text-white" />}
@@ -188,19 +188,19 @@ function ScopeMultiField({
             }
           }}
           placeholder="Add scope, press Enter"
-          className="flex-1 h-10 rounded-xl border border-gray-200 px-3 text-sm text-[#0F172A] font-medium placeholder:text-gray-500 outline-none focus:border-[#B8112D] bg-[#FAFAFA]"
+          className="flex-1 h-10 rounded-xl border border-gray-200 px-3 text-sm text-[#0F172A] font-medium placeholder:text-gray-500 outline-none focus:border-[#0F398A] bg-[#FAFAFA]"
         />
         <button
           type="button"
           onClick={addScope}
-          className="h-10 px-3 rounded-xl bg-[#FFF1F3] text-[#B8112D] text-sm font-bold shrink-0 hover:bg-[#ffe4e8]"
+          className="h-10 px-3 rounded-xl bg-[#EFF6FF] text-[#0F398A] text-sm font-bold shrink-0 hover:bg-[#ffe4e8]"
         >
           Add
         </button>
       </div>
       {scopes.length > 0 && (
         <div className="flex flex-wrap items-center gap-1.5">
-          <span className="inline-flex items-center gap-1 bg-[#B8112D]/10 text-[#B8112D] text-xs font-bold px-2 py-1 rounded-lg max-w-[65%] truncate">
+          <span className="inline-flex items-center gap-1 bg-[#0F398A]/10 text-[#0F398A] text-xs font-bold px-2 py-1 rounded-lg max-w-[65%] truncate">
             {scopes[0]}
             <button
               type="button"
@@ -228,7 +228,7 @@ function ScopeMultiField({
               key={s}
               type="button"
               onClick={() => onScopesChange(scopes.filter((x) => x !== s))}
-              className="inline-flex items-center gap-1 bg-gray-100 text-gray-700 text-[11px] font-semibold px-2 py-0.5 rounded-lg hover:bg-[#FFF1F3] hover:text-[#B8112D]"
+              className="inline-flex items-center gap-1 bg-gray-100 text-gray-700 text-[11px] font-semibold px-2 py-0.5 rounded-lg hover:bg-[#EFF6FF] hover:text-[#0F398A]"
             >
               {s} <X size={9} />
             </button>
@@ -262,21 +262,21 @@ function EstimatorCheckRow({
           ? "border-amber-500 bg-amber-50 dark:bg-amber-950/30"
           : "border-amber-200 bg-amber-50/50 dark:bg-amber-950/20 hover:border-amber-300"
         : active
-          ? "border-[#B8112D] bg-[#FFF1F3] dark:bg-[#B8112D]/15"
+          ? "border-[#0F398A] bg-[#EFF6FF] dark:bg-[#0F398A]/15"
           : "border-gray-100 bg-[#FAFAFA] dark:bg-crm-muted hover:border-gray-200";
   const avatar = active
     ? tone === "assigned"
       ? "bg-emerald-600"
       : tone === "suggested"
         ? "bg-amber-600"
-        : "bg-[#B8112D]"
+        : "bg-[#0F398A]"
     : "bg-gray-400";
   const nameCls = active
     ? tone === "assigned"
       ? "text-emerald-800 dark:text-emerald-200"
       : tone === "suggested"
         ? "text-amber-800 dark:text-amber-200"
-        : "text-[#B8112D]"
+        : "text-[#0F398A]"
     : "text-[#0F172A] dark:text-crm-text";
 
   return (
@@ -287,7 +287,7 @@ function EstimatorCheckRow({
         type="checkbox"
         checked={active}
         onChange={onToggle}
-        className="w-4 h-4 rounded border-gray-300 text-[#B8112D] accent-[#B8112D] shrink-0"
+        className="w-4 h-4 rounded border-gray-300 text-[#0F398A] accent-[#0F398A] shrink-0"
       />
       <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold text-white shrink-0 ${avatar}`}>
         {est.name.charAt(0).toUpperCase()}
@@ -298,7 +298,7 @@ function EstimatorCheckRow({
       </div>
       {active ? (
         <div className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 ${
-          tone === "assigned" ? "bg-emerald-600" : tone === "suggested" ? "bg-amber-600" : "bg-[#B8112D]"
+          tone === "assigned" ? "bg-emerald-600" : tone === "suggested" ? "bg-amber-600" : "bg-[#0F398A]"
         }`}>
           <Check size={11} className="text-white" />
         </div>
@@ -445,7 +445,7 @@ export default function AssignEstimatorsModal({
         className="w-full sm:max-w-[600px] bg-white dark:bg-crm-surface rounded-t-[24px] sm:rounded-[28px] shadow-2xl flex flex-col overflow-hidden"
         style={{ maxHeight: "92vh" }}
       >
-        <div className="relative bg-gradient-to-br from-[#B8112D] to-[#8b0d22] px-4 sm:px-5 lg:px-6 pt-4 sm:pt-5 pb-3.5 sm:pb-4 shrink-0 overflow-hidden">
+        <div className="relative bg-gradient-to-br from-[#0F398A] to-[#8b0d22] px-4 sm:px-5 lg:px-6 pt-4 sm:pt-5 pb-3.5 sm:pb-4 shrink-0 overflow-hidden">
           <div className="absolute -top-6 -right-6 w-32 h-32 rounded-full bg-white/5 pointer-events-none" />
           <div className="absolute -bottom-8 -left-4 w-24 h-24 rounded-full bg-white/5 pointer-events-none" />
           <button
@@ -501,7 +501,7 @@ export default function AssignEstimatorsModal({
                     <p className="text-sm font-semibold text-gray-600">No estimators available.</p>
                     <p className="text-xs text-gray-500 px-4 leading-relaxed">
                       In Admin → Users, add or activate users with the{" "}
-                      <span className="font-bold text-[#B8112D]">Estimator</span> role, then open this modal again.
+                      <span className="font-bold text-[#0F398A]">Estimator</span> role, then open this modal again.
                     </p>
                   </div>
                 ) : (
@@ -564,12 +564,12 @@ export default function AssignEstimatorsModal({
                       className="rounded-2xl border border-gray-100 bg-white p-3.5 space-y-2.5 shadow-sm"
                     >
                       <div className="flex items-center gap-2.5">
-                        <div className="w-8 h-8 rounded-full bg-[#B8112D] text-white flex items-center justify-center text-sm font-bold">
+                        <div className="w-8 h-8 rounded-full bg-[#0F398A] text-white flex items-center justify-center text-sm font-bold">
                           {est.name.charAt(0).toUpperCase()}
                         </div>
                         <div className="min-w-0">
                           <p className="text-sm font-bold text-[#0F172A] truncate flex items-center gap-1.5">
-                            <User2 size={12} className="text-[#B8112D]" />
+                            <User2 size={12} className="text-[#0F398A]" />
                             {est.name}
                           </p>
                           <p className="text-[11px] text-gray-400">{est.code}</p>
@@ -587,18 +587,18 @@ export default function AssignEstimatorsModal({
                             placeholder="e.g. 8"
                             value={d.manHours}
                             onChange={(e) => patchDraft(est.id, { manHours: e.target.value })}
-                            className="w-full h-10 rounded-xl border border-gray-200 px-3 text-sm outline-none focus:border-[#B8112D] bg-[#FAFAFA]"
+                            className="w-full h-10 rounded-xl border border-gray-200 px-3 text-sm outline-none focus:border-[#0F398A] bg-[#FAFAFA]"
                           />
                         </label>
                         <label className="block space-y-1">
                           <span className="text-[11px] font-bold uppercase tracking-wide text-gray-600 flex items-center gap-1">
-                            <Calendar size={11} /> Deadline <span className="text-[#B8112D]">*required</span>
+                            <Calendar size={11} /> Deadline <span className="text-[#0F398A]">*required</span>
                           </span>
                           <input
                             type="date"
                             value={d.deadline}
                             onChange={(e) => patchDraft(est.id, { deadline: e.target.value })}
-                            className="w-full h-10 rounded-xl border border-gray-200 px-3 text-sm outline-none focus:border-[#B8112D] bg-[#FAFAFA]"
+                            className="w-full h-10 rounded-xl border border-gray-200 px-3 text-sm outline-none focus:border-[#0F398A] bg-[#FAFAFA]"
                           />
                         </label>
                         <label className="block space-y-1 sm:col-span-2">
@@ -610,7 +610,7 @@ export default function AssignEstimatorsModal({
                             onChange={(e) => patchDraft(est.id, { workDetail: e.target.value })}
                             placeholder="Describe the work for this estimator…"
                             rows={3}
-                            className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:border-[#B8112D] bg-[#FAFAFA] resize-none"
+                            className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:border-[#0F398A] bg-[#FAFAFA] resize-none"
                           />
                         </label>
                         <div className="block space-y-1">
@@ -675,7 +675,7 @@ export default function AssignEstimatorsModal({
                   disabled={selectedIds.length === 0}
                   className={`flex-1 h-10 sm:h-12 rounded-xl sm:rounded-2xl font-semibold text-xs sm:text-sm text-white flex items-center justify-center gap-2 transition-all ${
                     selectedIds.length > 0
-                      ? "bg-gradient-to-r from-[#B8112D] to-[#d4173a] shadow-md shadow-red-200"
+                      ? "bg-gradient-to-r from-[#0F398A] to-[#d4173a] shadow-md shadow-red-200"
                       : "bg-gray-200 cursor-not-allowed text-gray-400"
                   }`}
                 >
@@ -688,7 +688,7 @@ export default function AssignEstimatorsModal({
                   disabled={!detailsValid || saving}
                   className={`flex-1 h-10 sm:h-12 rounded-xl sm:rounded-2xl font-semibold text-xs sm:text-sm text-white flex items-center justify-center gap-2 transition-all ${
                     detailsValid && !saving
-                      ? "bg-gradient-to-r from-[#B8112D] to-[#d4173a] shadow-md shadow-red-200"
+                      ? "bg-gradient-to-r from-[#0F398A] to-[#d4173a] shadow-md shadow-red-200"
                       : "bg-gray-200 cursor-not-allowed text-gray-400"
                   }`}
                 >

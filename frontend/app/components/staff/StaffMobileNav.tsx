@@ -56,8 +56,8 @@ export default function StaffMobileNav({
               prefetch={false}
               className={`h-10 px-3 lg:px-4 rounded-[13px] flex items-center gap-2 text-[12px] lg:text-[13px] font-semibold whitespace-nowrap transition-all shrink-0 ${
                 active
-                  ? "bg-[#B8112D] text-white shadow-md shadow-[#B8112D]/20"
-                  : "text-crm-text-secondary hover:bg-crm-surface hover:text-[#B8112D]"
+                  ? "bg-[#0F398A] text-white shadow-md shadow-[#0F398A]/20"
+                  : "text-crm-text-secondary hover:bg-crm-surface hover:text-[#0F398A]"
               }`}
             >
               <Icon size={15} className="shrink-0" />
@@ -96,8 +96,8 @@ export default function StaffMobileNav({
                     onClick={() => setOpen(false)}
                     className={`flex flex-col items-center justify-center gap-2 p-3 rounded-2xl text-center min-h-[88px] transition-all ${
                       active
-                        ? "bg-[#B8112D] text-white shadow-md"
-                        : "bg-crm-nav-pill text-crm-text-secondary hover:bg-crm-brand-soft hover:text-[#B8112D]"
+                        ? "bg-[#0F398A] text-white shadow-md"
+                        : "bg-crm-nav-pill text-crm-text-secondary hover:bg-crm-brand-soft hover:text-[#0F398A]"
                     }`}
                   >
                     <Icon size={20} />

@@ -273,7 +273,7 @@ export default function OvertimeShiftButton({ compact = false, since }: { compac
         onClick={() => void stopOvertime()}
         disabled={busy}
         title={`Overtime started ${sessionClock(mine.running.startAt)} — ${mine.running.reason}`}
-        className={`${btn} rounded-xl font-semibold inline-flex items-center gap-1 disabled:opacity-40 touch-manipulation bg-[#B8112D] text-white`}
+        className={`${btn} rounded-xl font-semibold inline-flex items-center gap-1 disabled:opacity-40 touch-manipulation bg-[#0F398A] text-white`}
       >
         <Square size={compact ? 12 : 13} fill="currentColor" />
         {busy ? "Stopping…" : `Stop OT · ${sessionLength(mine.running, now)}`}
@@ -427,7 +427,7 @@ export function OvertimeShiftCell({
         <div className="mt-2 flex flex-wrap items-center gap-1">
           <input type="time" value={checkIn} onChange={(e) => setCheckIn(e.target.value)} className="h-8 rounded-lg border border-gray-200 px-2 text-xs" />
           <input type="time" value={checkOut} onChange={(e) => setCheckOut(e.target.value)} className="h-8 rounded-lg border border-gray-200 px-2 text-xs" />
-          <button type="button" disabled={busy} onClick={() => void saveTime()} className="h-8 px-2 rounded-lg bg-[#B8112D] text-white text-[10px] font-bold">Save</button>
+          <button type="button" disabled={busy} onClick={() => void saveTime()} className="h-8 px-2 rounded-lg bg-[#0F398A] text-white text-[10px] font-bold">Save</button>
         </div>
       ) : null}
     </div>

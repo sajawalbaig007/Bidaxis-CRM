@@ -478,7 +478,7 @@ export default function TechnicalKpiPage() {
       value: String(monthStats.entries),
       hint: kpiReportPeriodLabel(reportPeriod),
       icon: ClipboardList,
-      tone: "from-[#B8112D] to-[#8b0d22]",
+      tone: "from-[#0F398A] to-[#8b0d22]",
     },
     {
       label: "Marks logged",
@@ -506,12 +506,12 @@ export default function TechnicalKpiPage() {
               className="absolute inset-0 opacity-[0.55]"
               style={{
                 background:
-                  "radial-gradient(900px 240px at 0% 0%, rgba(184,17,45,0.12), transparent 55%), radial-gradient(700px 220px at 100% 0%, rgba(11,132,243,0.10), transparent 50%)",
+                  "radial-gradient(900px 240px at 0% 0%, rgba(15,57,138,0.12), transparent 55%), radial-gradient(700px 220px at 100% 0%, rgba(11,132,243,0.10), transparent 50%)",
               }}
             />
             <div className="relative px-4 sm:px-5 md:px-6 py-4 sm:py-5 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
               <div className="min-w-0">
-                <div className="inline-flex items-center gap-2 rounded-full bg-[#FFF1F3] text-[#B8112D] px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide mb-2">
+                <div className="inline-flex items-center gap-2 rounded-full bg-[#EFF6FF] text-[#0F398A] px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide mb-2">
                   <BarChart3 size={12} />
                   Estimator evaluation
                 </div>
@@ -538,8 +538,8 @@ export default function TechnicalKpiPage() {
                       }}
                       className={`h-9 px-3 rounded-full text-[11px] font-bold border ${
                         periodMode === p.key
-                          ? "bg-[#B8112D] text-white border-[#B8112D]"
-                          : "bg-white text-gray-600 border-gray-200 hover:border-[#B8112D]/40"
+                          ? "bg-[#0F398A] text-white border-[#0F398A]"
+                          : "bg-white text-gray-600 border-gray-200 hover:border-[#0F398A]/40"
                       }`}
                     >
                       {p.label}
@@ -596,14 +596,14 @@ export default function TechnicalKpiPage() {
                   <button
                     type="button"
                     onClick={downloadReport}
-                    className="h-10 sm:h-11 px-4 rounded-xl border border-gray-200 bg-white text-sm font-semibold text-gray-700 inline-flex items-center justify-center gap-2 hover:border-[#B8112D]/40 hover:text-[#B8112D] shadow-sm"
+                    className="h-10 sm:h-11 px-4 rounded-xl border border-gray-200 bg-white text-sm font-semibold text-gray-700 inline-flex items-center justify-center gap-2 hover:border-[#0F398A]/40 hover:text-[#0F398A] shadow-sm"
                   >
                     <Download size={15} />
                     Report
                   </button>
                   <Link
                     href="/technical/team"
-                    className="h-10 sm:h-11 px-4 rounded-xl border border-gray-200 bg-white text-sm font-semibold text-gray-700 inline-flex items-center justify-center hover:border-[#B8112D]/40 hover:text-[#B8112D] shadow-sm"
+                    className="h-10 sm:h-11 px-4 rounded-xl border border-gray-200 bg-white text-sm font-semibold text-gray-700 inline-flex items-center justify-center hover:border-[#0F398A]/40 hover:text-[#0F398A] shadow-sm"
                   >
                     Open Team
                   </Link>
@@ -611,7 +611,7 @@ export default function TechnicalKpiPage() {
                     type="button"
                     onClick={() => void load()}
                     disabled={loading}
-                    className="h-10 sm:h-11 px-4 sm:px-5 rounded-xl bg-[#B8112D] text-white text-sm font-semibold inline-flex items-center justify-center gap-2 hover:bg-[#a30f27] disabled:opacity-60 shadow-sm"
+                    className="h-10 sm:h-11 px-4 sm:px-5 rounded-xl bg-[#0F398A] text-white text-sm font-semibold inline-flex items-center justify-center gap-2 hover:bg-[#a30f27] disabled:opacity-60 shadow-sm"
                   >
                     <RefreshCw size={15} className={loading ? "animate-spin" : ""} />
                     {loading ? "Refreshing…" : "Refresh"}
@@ -683,7 +683,7 @@ export default function TechnicalKpiPage() {
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder="Search estimator…"
-                  className="w-full h-10 pl-9 pr-3 rounded-xl border border-gray-200 bg-white text-sm text-[#0F172A] outline-none focus:border-[#B8112D] placeholder:text-gray-400 shadow-sm"
+                  className="w-full h-10 pl-9 pr-3 rounded-xl border border-gray-200 bg-white text-sm text-[#0F172A] outline-none focus:border-[#0F398A] placeholder:text-gray-400 shadow-sm"
                 />
               </div>
             ) : null}
@@ -718,8 +718,8 @@ export default function TechnicalKpiPage() {
                     key={est.id}
                     className={`rounded-2xl sm:rounded-3xl border shadow-sm overflow-hidden transition-all ${
                       open
-                        ? "bg-white border-[#B8112D]/35 ring-1 ring-[#B8112D]/15 shadow-md"
-                        : "bg-white border-gray-100 hover:border-[#B8112D]/20"
+                        ? "bg-white border-[#0F398A]/35 ring-1 ring-[#0F398A]/15 shadow-md"
+                        : "bg-white border-gray-100 hover:border-[#0F398A]/20"
                     }`}
                   >
                     <button
@@ -731,8 +731,8 @@ export default function TechnicalKpiPage() {
                         <div
                           className={`w-11 h-11 rounded-2xl flex items-center justify-center font-bold text-xs shrink-0 shadow-sm ${
                             open
-                              ? "bg-[#B8112D] text-white"
-                              : "bg-gradient-to-br from-[#FFF1F3] to-[#FFE4E8] text-[#B8112D]"
+                              ? "bg-[#0F398A] text-white"
+                              : "bg-gradient-to-br from-[#EFF6FF] to-[#DBEAFE] text-[#0F398A]"
                           }`}
                         >
                           {est.name
@@ -759,7 +759,7 @@ export default function TechnicalKpiPage() {
                               </span>
                             ) : null}
                             {live && live.overdue > 0 ? (
-                              <span className="inline-flex items-center gap-1 text-[10px] font-bold text-[#B8112D] bg-[#FFF1F3] px-2 py-0.5 rounded-lg">
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold text-[#0F398A] bg-[#EFF6FF] px-2 py-0.5 rounded-lg">
                                 <AlertTriangle size={11} /> {live.overdue} overdue
                               </span>
                             ) : null}
@@ -778,7 +778,7 @@ export default function TechnicalKpiPage() {
                           <div className="mt-2 max-w-xs">
                             <div className="h-1.5 rounded-full bg-gray-100 overflow-hidden">
                               <div
-                                className="h-full rounded-full bg-[#B8112D]"
+                                className="h-full rounded-full bg-[#0F398A]"
                                 style={{ width: `${fillPct}%` }}
                               />
                             </div>
@@ -788,7 +788,7 @@ export default function TechnicalKpiPage() {
                       <div
                         className={`self-end sm:self-center w-9 h-9 rounded-xl border inline-flex items-center justify-center transition-colors ${
                           open
-                            ? "bg-[#B8112D] border-[#B8112D] text-white"
+                            ? "bg-[#0F398A] border-[#0F398A] text-white"
                             : "bg-gray-50 border-gray-200 text-gray-500"
                         }`}
                       >
@@ -819,7 +819,7 @@ export default function TechnicalKpiPage() {
                                 <Sparkles size={12} />
                                 {seedingId === est.id ? "Filling…" : "Auto-fill empty"}
                               </button>
-                              <span className="text-[10px] font-semibold text-[#B8112D] bg-[#FFF1F3] px-2 py-0.5 rounded-md">
+                              <span className="text-[10px] font-semibold text-[#0F398A] bg-[#EFF6FF] px-2 py-0.5 rounded-md">
                                 {kpiReportPeriodLabel(reportPeriod)}
                               </span>
                             </div>
@@ -855,7 +855,7 @@ export default function TechnicalKpiPage() {
                                               ? "bg-emerald-50 text-emerald-700"
                                               : showAuto
                                                 ? "bg-violet-50 text-[#7C3AED]"
-                                                : "bg-[#FFF1F3] text-[#B8112D]"
+                                                : "bg-[#EFF6FF] text-[#0F398A]"
                                           }`}
                                         >
                                           <Icon size={14} />
@@ -909,7 +909,7 @@ export default function TechnicalKpiPage() {
                                                 : undefined,
                                             );
                                           }}
-                                          className="shrink-0 inline-flex items-center gap-1 h-8 px-2.5 rounded-lg bg-[#B8112D] text-white text-[11px] font-semibold hover:bg-[#a30f27] shadow-sm"
+                                          className="shrink-0 inline-flex items-center gap-1 h-8 px-2.5 rounded-lg bg-[#0F398A] text-white text-[11px] font-semibold hover:bg-[#a30f27] shadow-sm"
                                         >
                                           <Plus size={13} />
                                           Add
@@ -941,7 +941,7 @@ export default function TechnicalKpiPage() {
                                         {fieldRecords.map((rec) => (
                                           <li
                                             key={rec.id}
-                                            className="px-3 py-2.5 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 hover:bg-[#FFF8F9]/70"
+                                            className="px-3 py-2.5 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 hover:bg-[#F8FAFF]/70"
                                           >
                                             <div className="min-w-0">
                                               <div className="text-sm font-semibold text-[#0F172A] whitespace-pre-wrap break-words">
@@ -970,7 +970,7 @@ export default function TechnicalKpiPage() {
                                                   e.stopPropagation();
                                                   openEdit(est, fieldKey, rec);
                                                 }}
-                                                className="h-8 w-8 rounded-lg border border-gray-200 text-gray-600 inline-flex items-center justify-center hover:border-[#B8112D]/40 hover:text-[#B8112D] bg-white"
+                                                className="h-8 w-8 rounded-lg border border-gray-200 text-gray-600 inline-flex items-center justify-center hover:border-[#0F398A]/40 hover:text-[#0F398A] bg-white"
                                                 title="Edit"
                                               >
                                                 <Pencil size={13} />
@@ -981,7 +981,7 @@ export default function TechnicalKpiPage() {
                                                   e.stopPropagation();
                                                   void handleDelete(rec.id);
                                                 }}
-                                                className="h-8 w-8 rounded-lg border border-gray-200 text-gray-600 inline-flex items-center justify-center hover:border-[#B8112D]/40 hover:text-[#B8112D] hover:bg-[#FFF1F3] bg-white"
+                                                className="h-8 w-8 rounded-lg border border-gray-200 text-gray-600 inline-flex items-center justify-center hover:border-[#0F398A]/40 hover:text-[#0F398A] hover:bg-[#EFF6FF] bg-white"
                                                 title="Delete"
                                               >
                                                 <Trash2 size={13} />

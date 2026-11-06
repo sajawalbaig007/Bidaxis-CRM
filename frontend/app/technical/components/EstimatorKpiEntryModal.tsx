@@ -64,7 +64,7 @@ export default function EstimatorKpiEntryModal({
       <div className="relative w-full sm:max-w-md bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl border border-gray-100 max-h-[92vh] overflow-y-auto">
         <div className="sticky top-0 bg-white border-b border-gray-100 px-4 py-3 flex items-start justify-between gap-3 z-10">
           <div className="min-w-0">
-            <p className="text-[10px] font-bold uppercase tracking-wide text-[#B8112D]">
+            <p className="text-[10px] font-bold uppercase tracking-wide text-[#0F398A]">
               {mode === "create" ? "Add entry" : "Edit entry"}
             </p>
             <h3 className="font-bold text-[#0F172A] text-sm sm:text-base truncate">{meta.label}</h3>
@@ -127,7 +127,7 @@ export default function EstimatorKpiEntryModal({
                 onChange={(e) => setValue(e.target.value)}
                 rows={4}
                 required
-                className="mt-1.5 w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm text-[#0F172A] outline-none focus:border-[#B8112D] bg-[#FAFAFA]"
+                className="mt-1.5 w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm text-[#0F172A] outline-none focus:border-[#0F398A] bg-[#FAFAFA]"
               />
             </div>
           ) : (
@@ -143,7 +143,7 @@ export default function EstimatorKpiEntryModal({
                 value={value}
                 onChange={(e) => setValue(e.target.value)}
                 required
-                className="mt-1.5 w-full h-11 rounded-xl border border-gray-200 px-3 text-sm text-[#0F172A] outline-none focus:border-[#B8112D] bg-[#FAFAFA]"
+                className="mt-1.5 w-full h-11 rounded-xl border border-gray-200 px-3 text-sm text-[#0F172A] outline-none focus:border-[#0F398A] bg-[#FAFAFA]"
               />
             </div>
           )}
@@ -157,7 +157,7 @@ export default function EstimatorKpiEntryModal({
               value={recordedAt}
               onChange={(e) => setRecordedAt(e.target.value)}
               required
-              className="mt-1.5 w-full h-11 rounded-xl border border-gray-200 px-3 text-sm text-[#0F172A] outline-none focus:border-[#B8112D] bg-[#FAFAFA]"
+              className="mt-1.5 w-full h-11 rounded-xl border border-gray-200 px-3 text-sm text-[#0F172A] outline-none focus:border-[#0F398A] bg-[#FAFAFA]"
             />
           </div>
 
@@ -170,7 +170,7 @@ export default function EstimatorKpiEntryModal({
               value={note}
               onChange={(e) => setNote(e.target.value)}
               placeholder="Context for this entry…"
-              className="mt-1.5 w-full h-11 rounded-xl border border-gray-200 px-3 text-sm text-[#0F172A] outline-none focus:border-[#B8112D] bg-[#FAFAFA] placeholder:text-gray-400"
+              className="mt-1.5 w-full h-11 rounded-xl border border-gray-200 px-3 text-sm text-[#0F172A] outline-none focus:border-[#0F398A] bg-[#FAFAFA] placeholder:text-gray-400"
             />
           </div>
 
@@ -185,7 +185,7 @@ export default function EstimatorKpiEntryModal({
             <button
               type="submit"
               disabled={saving || !value.trim()}
-              className="flex-1 h-11 rounded-xl bg-[#B8112D] text-white text-sm font-semibold hover:bg-[#a30f27] disabled:opacity-60"
+              className="flex-1 h-11 rounded-xl bg-[#0F398A] text-white text-sm font-semibold hover:bg-[#a30f27] disabled:opacity-60"
             >
               {saving ? "Saving…" : mode === "create" ? "Add entry" : "Save changes"}
             </button>

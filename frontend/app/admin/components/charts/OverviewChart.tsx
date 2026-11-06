@@ -12,7 +12,7 @@ type Props = {
 
 type Slice = { name: string; value: number; color: string };
 
-const COLORS = ["#B8112D", "#F97316", "#14B8A6", "#6366F1", "#10B981", "#8B5CF6", "#EC4899", "#64748B"];
+const COLORS = ["#0F398A", "#F97316", "#14B8A6", "#6366F1", "#10B981", "#8B5CF6", "#EC4899", "#64748B"];
 
 export default function OverviewChart({ leads = [], distribution }: Props) {
   const { resolvedTheme } = useTheme();

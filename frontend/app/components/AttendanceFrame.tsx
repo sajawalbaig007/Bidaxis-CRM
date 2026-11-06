@@ -12,7 +12,7 @@ export default function AttendanceFrame({
       <aside className="relative overflow-hidden bg-[#0B1220] text-white px-5 py-7 sm:px-8 lg:px-10 lg:py-12 lg:min-h-[100dvh] flex flex-col">
         <div
           className="pointer-events-none absolute -top-24 -right-16 h-72 w-72 rounded-full opacity-80"
-          style={{ background: "radial-gradient(circle, #B8112D 0%, transparent 68%)" }}
+          style={{ background: "radial-gradient(circle, #0F398A 0%, transparent 68%)" }}
         />
         <div
           className="pointer-events-none absolute bottom-0 left-0 h-56 w-56 rounded-full opacity-40"
@@ -21,11 +21,11 @@ export default function AttendanceFrame({
         <div className="relative flex items-center gap-3">
           <img
             src="/images/LOGO.png"
-            alt="BEM Solutions"
+            alt="BidAxis"
             className="h-14 w-14 sm:h-16 sm:w-16 rounded-2xl bg-white object-contain p-1 shadow-lg"
           />
           <div>
-            <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-white/70">BEM Solutions</p>
+            <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-white/70">BidAxis</p>
             <p className="text-sm font-semibold text-white/90">Attendance</p>
           </div>
         </div>

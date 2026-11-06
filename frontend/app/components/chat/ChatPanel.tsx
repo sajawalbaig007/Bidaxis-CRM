@@ -72,7 +72,7 @@ function messageCanEdit(msg: Message) {
 }
 function initials(name: string) { return name.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase(); }
 type ChatLook = { bg: string; mine: string; font: string; fontFamily: string };
-const DEFAULT_CHAT_LOOK: ChatLook = { bg: "#F5F6FA", mine: "#B8112D", font: "#111827", fontFamily: "inherit" };
+const DEFAULT_CHAT_LOOK: ChatLook = { bg: "#F5F6FA", mine: "#0F398A", font: "#111827", fontFamily: "inherit" };
 const FONT_STYLES = [
   { id: "inherit", label: "Default" },
   { id: "Georgia, serif", label: "Serif" },
@@ -129,7 +129,7 @@ function mimeIcon(mime = "") {
 function truncate(text: string, n = 60) { return text.length > n ? text.slice(0, n) + "..." : text; }
 
 /* ── */
-const COLORS = ["bg-[#B8112D]","bg-[#1D4ED8]","bg-[#15803D]","bg-[#B45309]","bg-[#7C3AED]","bg-[#0891B2]"];
+const COLORS = ["bg-[#0F398A]","bg-[#1D4ED8]","bg-[#15803D]","bg-[#B45309]","bg-[#7C3AED]","bg-[#0891B2]"];
 function Avatar({ name, src, size = "md", online }: { name: string; src?: string | null; size?: "sm"|"md"|"lg"; online?: boolean }) {
   const c  = COLORS[name.charCodeAt(0) % COLORS.length];
   const sz = size === "sm" ? "w-8 h-8 text-[10px]" : size === "lg" ? "w-11 h-11 text-sm" : "w-9 h-9 text-xs";
@@ -166,7 +166,7 @@ function FileCard({ fileName, fileSize, fileUrl, fileMimeType, isOwn }: { fileNa
   return (
     <a href={fileUrl} target="_blank" rel="noopener noreferrer" download={fileName}
       className={`flex items-center gap-2.5 p-2.5 rounded-xl min-w-[160px] max-w-[220px] group transition-colors ${isOwn ? "bg-white/15 hover:bg-white/25" : "bg-[#F5F6FA] hover:bg-gray-100"}`}>
-      <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${isOwn ? "bg-white/20 text-white" : "bg-[#B8112D]/10 text-[#B8112D]"}`}>{mimeIcon(fileMimeType)}</div>
+      <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${isOwn ? "bg-white/20 text-white" : "bg-[#0F398A]/10 text-[#0F398A]"}`}>{mimeIcon(fileMimeType)}</div>
       <div className="flex-1 min-w-0">
         <p className="text-xs font-semibold truncate">{fileName}</p>
         <p className={`text-[10px] ${isOwn ? "text-white/60" : "text-gray-400"}`}>{fmtSize(fileSize)}</p>
@@ -194,12 +194,12 @@ function VoicePlayer({ fileUrl, isOwn }: { fileUrl: string; isOwn: boolean }) {
         onTimeUpdate={e => { const a = e.currentTarget; setCurTime(a.currentTime); setProgress(a.duration ? (a.currentTime/a.duration)*100 : 0); }}
         onLoadedMetadata={e => setDur(e.currentTarget.duration)}
         onEnded={() => { setPlaying(false); setProgress(0); setCurTime(0); }} />
-      <button onClick={toggle} className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 transition-colors ${isOwn ? "bg-white/20 hover:bg-white/30" : "bg-[#B8112D]/10 hover:bg-[#B8112D]/20"}`}>
-        {playing ? <Pause size={13} className={isOwn ? "text-white" : "text-[#B8112D]"} /> : <Play size={13} className={isOwn ? "text-white" : "text-[#B8112D]"} />}
+      <button onClick={toggle} className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 transition-colors ${isOwn ? "bg-white/20 hover:bg-white/30" : "bg-[#0F398A]/10 hover:bg-[#0F398A]/20"}`}>
+        {playing ? <Pause size={13} className={isOwn ? "text-white" : "text-[#0F398A]"} /> : <Play size={13} className={isOwn ? "text-white" : "text-[#0F398A]"} />}
       </button>
       <div className="flex-1 flex flex-col gap-1">
         <div className={`h-1 rounded-full overflow-hidden ${isOwn ? "bg-white/30" : "bg-gray-200"}`}>
-          <div className={`h-full rounded-full ${isOwn ? "bg-white" : "bg-[#B8112D]"}`} style={{ width: `${progress}%`, transition: "width 0.1s linear" }} />
+          <div className={`h-full rounded-full ${isOwn ? "bg-white" : "bg-[#0F398A]"}`} style={{ width: `${progress}%`, transition: "width 0.1s linear" }} />
         </div>
         <span className={`text-[9px] ${isOwn ? "text-white/60" : "text-gray-400"}`}>{fmtAudio(curTime)} / {fmtAudio(dur)}</span>
       </div>
@@ -255,7 +255,7 @@ function MessageBubble({ msg, isGroup, showAvatar, myId, mineColor, textColor, f
       onClick={selectable ? () => onToggleSelect?.() : undefined}
       onContextMenu={e => !deleted && onCtxMenu(e, msg)}>
       {selectable && (
-        <div className={`w-5 h-5 mt-2 rounded-full border-2 flex items-center justify-center shrink-0 ${own ? "order-2 ml-2" : "mr-2"} ${selected ? "bg-[#B8112D] border-[#B8112D]" : "border-gray-300 bg-white"}`}>
+        <div className={`w-5 h-5 mt-2 rounded-full border-2 flex items-center justify-center shrink-0 ${own ? "order-2 ml-2" : "mr-2"} ${selected ? "bg-[#0F398A] border-[#0F398A]" : "border-gray-300 bg-white"}`}>
           {selected ? <Check size={10} className="text-white" /> : null}
         </div>
       )}
@@ -264,7 +264,7 @@ function MessageBubble({ msg, isGroup, showAvatar, myId, mineColor, textColor, f
           {!own && showAvatar  && <Avatar name={msg.senderName} src={msg.senderProfilePic} size="sm" />}
           {!own && !showAvatar && <div className="w-8 shrink-0" />}
           <div className={`flex flex-col min-w-0 ${own ? "items-end" : "items-start"}`}>
-            {isGroup && !own && showAvatar && <span className="text-[10px] font-bold text-[#B8112D] mb-0.5 ml-1">{msg.senderName}</span>}
+            {isGroup && !own && showAvatar && <span className="text-[10px] font-bold text-[#0F398A] mb-0.5 ml-1">{msg.senderName}</span>}
             {deleted && (
               <span
                 className="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-700 dark:text-amber-400 mb-0.5 px-1"
@@ -276,7 +276,7 @@ function MessageBubble({ msg, isGroup, showAvatar, myId, mineColor, textColor, f
             )}
             {msg.replyTo && (
               <button onClick={() => onJumpToReply(msg.replyTo!.id)}
-                className={`mb-1 text-left rounded-xl px-2.5 py-1.5 border-l-4 text-[11px] max-w-full transition-colors ${own ? "bg-white/10 border-white/40 text-white/80 hover:bg-white/20" : "bg-gray-100 border-[#B8112D]/40 text-gray-500 hover:bg-gray-200"}`}>
+                className={`mb-1 text-left rounded-xl px-2.5 py-1.5 border-l-4 text-[11px] max-w-full transition-colors ${own ? "bg-white/10 border-white/40 text-white/80 hover:bg-white/20" : "bg-gray-100 border-[#0F398A]/40 text-gray-500 hover:bg-gray-200"}`}>
                 <p className="font-bold text-[10px] mb-0.5 opacity-80">{msg.replyTo.senderName}</p>
                 <p className="truncate max-w-[160px]">{msg.replyTo.type !== "text" ? `${msg.replyTo.type}` : truncate(msg.replyTo.text, 40)}</p>
               </button>
@@ -286,7 +286,7 @@ function MessageBubble({ msg, isGroup, showAvatar, myId, mineColor, textColor, f
               style={deleted
                 ? { fontFamily: fontFamily || undefined }
                 : own
-                  ? { backgroundColor: mineColor || "#B8112D", color: "#ffffff", fontFamily: fontFamily || undefined }
+                  ? { backgroundColor: mineColor || "#0F398A", color: "#ffffff", fontFamily: fontFamily || undefined }
                   : { backgroundColor: dark ? "#22262f" : "#ffffff", color: incomingTextColor(textColor, dark), fontFamily: fontFamily || undefined }}
             >
               {body()}
@@ -346,33 +346,33 @@ function ConvItem({ conv, active, onClick, selectMode, selected, onSelect, pinne
     <div
       className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all cursor-pointer group ${
         active || selected
-          ? "bg-red-50 dark:bg-red-500/20 ring-1 ring-[#B8112D]/25 dark:ring-red-400/40"
+          ? "bg-red-50 dark:bg-red-500/20 ring-1 ring-[#0F398A]/25 dark:ring-red-400/40"
           : "hover:bg-gray-50 dark:hover:bg-white/5"
       }`}
       onClick={selectMode ? onSelect : onClick}
     >
       {selectMode ? (
-        <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${selected ? "bg-[#B8112D] border-[#B8112D]" : "border-gray-300 dark:border-gray-500"}`}>
+        <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${selected ? "bg-[#0F398A] border-[#0F398A]" : "border-gray-300 dark:border-gray-500"}`}>
           {selected && <Check size={10} className="text-white" />}
         </div>
       ) : (
         conv.type === "group"
-          ? <div className="w-9 h-9 rounded-full bg-[#B8112D]/10 text-[#B8112D] dark:bg-red-500/20 dark:text-red-300 flex items-center justify-center shrink-0"><Hash size={16} /></div>
+          ? <div className="w-9 h-9 rounded-full bg-[#0F398A]/10 text-[#0F398A] dark:bg-red-500/20 dark:text-red-300 flex items-center justify-center shrink-0"><Hash size={16} /></div>
           : <Avatar name={conv.name} src={conv.profilePic} size="sm" online={conv.isOnline} />
       )}
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between gap-1">
           <span className={`text-[13px] font-semibold truncate ${
-            active ? "text-[#B8112D] dark:text-red-300" : "text-gray-900 dark:text-gray-100"
+            active ? "text-[#0F398A] dark:text-red-300" : "text-gray-900 dark:text-gray-100"
           }`}>
-            {pinned && <Pin size={9} className="inline mr-1 text-[#B8112D]" />}{conv.name}
+            {pinned && <Pin size={9} className="inline mr-1 text-[#0F398A]" />}{conv.name}
           </span>
           {conv.lastMessageAt && <span className="text-[10px] text-gray-500 dark:text-gray-400 shrink-0">{fmtConvTime(conv.lastMessageAt)}</span>}
         </div>
         <div className="flex items-center justify-between gap-1 mt-0.5">
           <p className="text-[11px] text-gray-500 dark:text-gray-400 truncate">{conv.lastMessage ?? (conv.type === "group" ? `${conv.memberCount ?? 0} members` : "No messages yet")}</p>
           {conv.unreadCount > 0 && (
-            <span className="bg-[#B8112D] text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full min-w-[16px] text-center shrink-0">
+            <span className="bg-[#0F398A] text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full min-w-[16px] text-center shrink-0">
               {conv.unreadCount > 9 ? "9+" : conv.unreadCount}
             </span>
           )}
@@ -430,7 +430,7 @@ function AdminViewAsPicker({
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="mt-1 w-full h-9 px-2.5 rounded-xl border border-gray-200 text-[12px] font-semibold bg-[#FAFAFA] outline-none focus:border-[#B8112D] flex items-center justify-between gap-2 text-left"
+        className="mt-1 w-full h-9 px-2.5 rounded-xl border border-gray-200 text-[12px] font-semibold bg-[#FAFAFA] outline-none focus:border-[#0F398A] flex items-center justify-between gap-2 text-left"
       >
         <span className="truncate">{value ? `${value.name}${value.role ? ` · ${roleDisplayLabel(value.role)}` : ""}` : "My chats (CEO)"}</span>
         <ChevronLeft size={14} className={`text-gray-400 shrink-0 transition-transform ${open ? "rotate-90" : "-rotate-90"}`} />
@@ -445,7 +445,7 @@ function AdminViewAsPicker({
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
                 placeholder="Search all accounts…"
-                className="w-full h-8 rounded-lg bg-[#F3F4F6] pl-7 pr-2 text-xs outline-none focus:ring-2 focus:ring-[#B8112D]/20"
+                className="w-full h-8 rounded-lg bg-[#F3F4F6] pl-7 pr-2 text-xs outline-none focus:ring-2 focus:ring-[#0F398A]/20"
               />
             </div>
           </div>
@@ -453,7 +453,7 @@ function AdminViewAsPicker({
             <button
               type="button"
               onClick={() => { onChange(null); setOpen(false); setQ(""); }}
-              className={`w-full text-left px-3 py-2 text-xs font-semibold hover:bg-[#FFF1F3] ${!value ? "bg-[#FFF1F3] text-[#B8112D]" : "text-gray-800"}`}
+              className={`w-full text-left px-3 py-2 text-xs font-semibold hover:bg-[#EFF6FF] ${!value ? "bg-[#EFF6FF] text-[#0F398A]" : "text-gray-800"}`}
             >
               My chats (Admin)
             </button>
@@ -465,8 +465,8 @@ function AdminViewAsPicker({
                   key={c.id}
                   type="button"
                   onClick={() => { onChange(c); setOpen(false); setQ(""); }}
-                  className={`w-full text-left px-3 py-2 text-xs hover:bg-[#FFF1F3] flex items-center justify-between gap-2 ${
-                    value?.id === c.id ? "bg-[#FFF1F3] text-[#B8112D] font-semibold" : "text-gray-800"
+                  className={`w-full text-left px-3 py-2 text-xs hover:bg-[#EFF6FF] flex items-center justify-between gap-2 ${
+                    value?.id === c.id ? "bg-[#EFF6FF] text-[#0F398A] font-semibold" : "text-gray-800"
                   }`}
                 >
                   <span className="truncate">{c.name}</span>
@@ -1401,9 +1401,9 @@ export default function ChatPanel({
                   <span className="text-sm font-bold text-gray-900 dark:text-gray-100">{selectedConvs.length} selected</span>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <button onClick={() => setSelectedConvs(conversations.map(c => c.id))} className="text-[11px] font-semibold text-[#B8112D] hover:underline px-1">All</button>
+                  <button onClick={() => setSelectedConvs(conversations.map(c => c.id))} className="text-[11px] font-semibold text-[#0F398A] hover:underline px-1">All</button>
                   {selectedConvs.length > 0 && (
-                    <button onClick={() => void deleteConversations(selectedConvs)} className="flex items-center gap-1 h-7 px-2.5 rounded-xl bg-[#B8112D] text-white text-[11px] font-bold hover:bg-[#a30f27] transition-colors"><Trash2 size={11} />Del</button>
+                    <button onClick={() => void deleteConversations(selectedConvs)} className="flex items-center gap-1 h-7 px-2.5 rounded-xl bg-[#0F398A] text-white text-[11px] font-bold hover:bg-[#a30f27] transition-colors"><Trash2 size={11} />Del</button>
                   )}
                 </div>
               </div>
@@ -1414,7 +1414,7 @@ export default function ChatPanel({
                   {isStealthView ? `${viewAsCsr!.name}'s Chats` : "Messages"}
                 </h2>
                 {!isStealthView && totalUnread > 0 && (
-                  <span className="bg-[#B8112D] text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center shrink-0">{totalUnread}</span>
+                  <span className="bg-[#0F398A] text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center shrink-0">{totalUnread}</span>
                 )}
               </div>
               {adminCsrOptions.length > 0 && onViewAsCsrChange && (
@@ -1429,7 +1429,7 @@ export default function ChatPanel({
             )}
             <div className="relative">
               <Search size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input type="text" placeholder="Search..." value={convSearch} onChange={e => setConvSearch(e.target.value)} className="w-full h-8 rounded-xl bg-[#F3F4F6] dark:bg-crm-muted dark:text-gray-100 pl-7 pr-3 text-xs outline-none focus:bg-white dark:focus:bg-crm-input focus:ring-2 focus:ring-[#B8112D]/20 transition-all" />
+              <input type="text" placeholder="Search..." value={convSearch} onChange={e => setConvSearch(e.target.value)} className="w-full h-8 rounded-xl bg-[#F3F4F6] dark:bg-crm-muted dark:text-gray-100 pl-7 pr-3 text-xs outline-none focus:bg-white dark:focus:bg-crm-input focus:ring-2 focus:ring-[#0F398A]/20 transition-all" />
             </div>
           </div>
 
@@ -1482,29 +1482,29 @@ export default function ChatPanel({
             <>
               <div className="flex items-center gap-2.5 px-3 py-2.5 border-b border-gray-100 bg-white shrink-0 shadow-sm">
                 <button onClick={() => setMobileSideOpen(true)} className="sm:hidden w-7 h-7 rounded-xl bg-gray-100 flex items-center justify-center shrink-0"><ChevronLeft size={14} /></button>
-                {activeConv.type === "group" ? <div className="w-8 h-8 rounded-full bg-[#B8112D]/10 text-[#B8112D] flex items-center justify-center shrink-0"><Hash size={15} /></div> : <Avatar name={activeConv.name} src={activeConv.profilePic} size="sm" online={activeConv.isOnline} />}
+                {activeConv.type === "group" ? <div className="w-8 h-8 rounded-full bg-[#0F398A]/10 text-[#0F398A] flex items-center justify-center shrink-0"><Hash size={15} /></div> : <Avatar name={activeConv.name} src={activeConv.profilePic} size="sm" online={activeConv.isOnline} />}
                 <div className="flex-1 min-w-0">
                   <h3 className="text-sm font-bold text-gray-900 dark:text-gray-100 truncate">{activeConv.name}</h3>
                   {typingName ? (
-                    <span className="inline-flex items-center gap-1 text-[10px] font-medium text-[#B8112D]"><span className="flex gap-0.5">{[0,1,2].map(i => <span key={i} className="w-1 h-1 rounded-full bg-[#B8112D] animate-bounce" style={{ animationDelay: `${i*150}ms` }} />)}</span>{typingName} is typing...</span>
+                    <span className="inline-flex items-center gap-1 text-[10px] font-medium text-[#0F398A]"><span className="flex gap-0.5">{[0,1,2].map(i => <span key={i} className="w-1 h-1 rounded-full bg-[#0F398A] animate-bounce" style={{ animationDelay: `${i*150}ms` }} />)}</span>{typingName} is typing...</span>
                   ) : activeConv.type === "group" ? <p className="text-[10px] text-gray-400">{activeConv.memberCount ?? "-"} members</p>
                     : activeConv.isOnline ? <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-green-600"><span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block animate-pulse" />Active now</span>
                     : <p className="text-[10px] text-gray-400">Offline</p>}
                 </div>
-                <button onClick={() => { setMsgSearchOpen(v => !v); if (msgSearchOpen) setMsgSearchText(""); }} className={`w-7 h-7 rounded-xl flex items-center justify-center transition-colors ${msgSearchOpen ? "bg-[#B8112D] text-white" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}`}><Search size={13} /></button>
+                <button onClick={() => { setMsgSearchOpen(v => !v); if (msgSearchOpen) setMsgSearchText(""); }} className={`w-7 h-7 rounded-xl flex items-center justify-center transition-colors ${msgSearchOpen ? "bg-[#0F398A] text-white" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}`}><Search size={13} /></button>
                 {activeConv.type === "group" && activeConv.canManageGroup ? (
-                  <button onClick={() => { setShowGroupSettings(v => !v); setShowChatSettings(false); }} className={`w-7 h-7 rounded-xl flex items-center justify-center transition-colors ${showGroupSettings ? "bg-[#B8112D] text-white" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}`} title="Group settings"><Settings size={13} /></button>
+                  <button onClick={() => { setShowGroupSettings(v => !v); setShowChatSettings(false); }} className={`w-7 h-7 rounded-xl flex items-center justify-center transition-colors ${showGroupSettings ? "bg-[#0F398A] text-white" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}`} title="Group settings"><Settings size={13} /></button>
                 ) : null}
                 <button type="button" onClick={() => void archiveConversation(!showArchived)} title={showArchived ? "Unarchive" : "Archive chat"} className="w-7 h-7 rounded-xl bg-gray-100 text-gray-400 hover:bg-amber-50 hover:text-amber-600 flex items-center justify-center transition-colors">{showArchived ? <ArchiveRestore size={13} /> : <Archive size={13} />}</button>
-                <button onClick={() => void deleteConversations([activeConv.id])} className="w-7 h-7 rounded-xl bg-gray-100 text-gray-400 hover:bg-red-50 hover:text-[#B8112D] flex items-center justify-center transition-colors"><Trash2 size={13} /></button>
+                <button onClick={() => void deleteConversations([activeConv.id])} className="w-7 h-7 rounded-xl bg-gray-100 text-gray-400 hover:bg-red-50 hover:text-[#0F398A] flex items-center justify-center transition-colors"><Trash2 size={13} /></button>
               </div>
 
               {msgSelectMode && !isStealthView && (
                 <div className="px-3 py-2 border-b border-gray-100 bg-white shrink-0 flex flex-wrap items-center gap-2">
                   <button type="button" onClick={() => { setMsgSelectMode(false); setSelectedMsgIds([]); }} className="h-8 px-2.5 rounded-lg bg-gray-100 text-xs font-semibold text-gray-600">Cancel</button>
                   <span className="text-xs font-bold text-gray-800">{selectedMsgIds.length} selected</span>
-                  <button type="button" disabled={!selectedMsgIds.length} onClick={() => void deleteMsgs(selectedMsgIds, "for_me")} className="h-8 px-2.5 rounded-lg bg-[#FFF1F3] text-[#B8112D] text-xs font-bold disabled:opacity-40">Delete for me</button>
-                  <button type="button" disabled={!selectedMsgIds.length} onClick={() => void deleteMsgs(selectedMsgIds, "for_everyone")} className="h-8 px-2.5 rounded-lg bg-[#B8112D] text-white text-xs font-bold disabled:opacity-40">Delete for everyone</button>
+                  <button type="button" disabled={!selectedMsgIds.length} onClick={() => void deleteMsgs(selectedMsgIds, "for_me")} className="h-8 px-2.5 rounded-lg bg-[#EFF6FF] text-[#0F398A] text-xs font-bold disabled:opacity-40">Delete for me</button>
+                  <button type="button" disabled={!selectedMsgIds.length} onClick={() => void deleteMsgs(selectedMsgIds, "for_everyone")} className="h-8 px-2.5 rounded-lg bg-[#0F398A] text-white text-xs font-bold disabled:opacity-40">Delete for everyone</button>
                 </div>
               )}
 
@@ -1562,7 +1562,7 @@ export default function ChatPanel({
                 <div className="px-3 py-2 border-b border-gray-100 bg-white shrink-0">
                   <div className="relative">
                     <Search size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                    <input autoFocus type="text" placeholder="Search messages..." value={msgSearchText} onChange={e => setMsgSearchText(e.target.value)} className="w-full h-8 rounded-xl bg-[#F3F4F6] pl-7 pr-7 text-xs outline-none focus:bg-white focus:ring-2 focus:ring-[#B8112D]/20 transition-all" />
+                    <input autoFocus type="text" placeholder="Search messages..." value={msgSearchText} onChange={e => setMsgSearchText(e.target.value)} className="w-full h-8 rounded-xl bg-[#F3F4F6] pl-7 pr-7 text-xs outline-none focus:bg-white focus:ring-2 focus:ring-[#0F398A]/20 transition-all" />
                     {msgSearchText && <button onClick={() => setMsgSearchText("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"><X size={11} /></button>}
                   </div>
                   {msgSearchText && <p className="text-[10px] text-gray-400 mt-1 ml-1">{visibleMessages.length} result{visibleMessages.length !== 1 ? "s" : ""}</p>}
@@ -1591,14 +1591,14 @@ export default function ChatPanel({
                 )}
               </div>
 
-              {uploading && (<div className="px-3 pt-2 shrink-0 bg-white"><div className="flex items-center gap-2"><div className="flex-1 h-1.5 bg-gray-200 rounded-full overflow-hidden"><div className="h-full bg-[#B8112D] rounded-full transition-all duration-200" style={{ width: `${uploadProgress}%` }} /></div><span className="text-[10px] font-bold text-[#B8112D] shrink-0">{uploadProgress}%</span></div></div>)}
+              {uploading && (<div className="px-3 pt-2 shrink-0 bg-white"><div className="flex items-center gap-2"><div className="flex-1 h-1.5 bg-gray-200 rounded-full overflow-hidden"><div className="h-full bg-[#0F398A] rounded-full transition-all duration-200" style={{ width: `${uploadProgress}%` }} /></div><span className="text-[10px] font-bold text-[#0F398A] shrink-0">{uploadProgress}%</span></div></div>)}
               {pendingFile && (
                 <div className="px-3 pb-2 pt-2 shrink-0 bg-white">
                   <div className="flex items-center gap-2.5 bg-[#F5F6FA] rounded-2xl border border-gray-100 px-3 py-2">
                     {pendingPreview ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img src={pendingPreview} alt="" className="w-10 h-10 rounded-xl object-cover shrink-0" />
-                    ) : <div className="w-10 h-10 rounded-xl bg-[#B8112D]/10 text-[#B8112D] flex items-center justify-center shrink-0">{mimeIcon(pendingFile.type)}</div>}
+                    ) : <div className="w-10 h-10 rounded-xl bg-[#0F398A]/10 text-[#0F398A] flex items-center justify-center shrink-0">{mimeIcon(pendingFile.type)}</div>}
                     <div className="flex-1 min-w-0"><p className="text-xs font-semibold text-gray-900 dark:text-gray-100 truncate">{pendingFile.name}</p><p className="text-[10px] text-gray-400">{fmtSize(pendingFile.size)}</p></div>
                     <button onClick={clearPending} className="w-6 h-6 rounded-full bg-gray-200 hover:bg-red-100 hover:text-red-500 flex items-center justify-center shrink-0 transition-colors"><X size={10} /></button>
                   </div>
@@ -1606,17 +1606,17 @@ export default function ChatPanel({
               )}
               {replyTo && (
                 <div className="px-3 pt-2 shrink-0 bg-white">
-                  <div className="flex items-center gap-2 bg-[#FFF1F3] border border-[#B8112D]/20 rounded-xl px-3 py-1.5">
-                    <Reply size={12} className="text-[#B8112D] shrink-0" />
-                    <div className="flex-1 min-w-0"><p className="text-[10px] font-bold text-[#B8112D]">{replyTo.senderName}</p><p className="text-[11px] text-gray-500 truncate">{replyTo.type !== "text" ? `${replyTo.type}` : truncate(replyTo.text, 50)}</p></div>
-                    <button onClick={() => setReplyTo(null)} className="w-5 h-5 rounded-full hover:bg-[#B8112D]/10 flex items-center justify-center shrink-0 text-gray-400"><X size={10} /></button>
+                  <div className="flex items-center gap-2 bg-[#EFF6FF] border border-[#0F398A]/20 rounded-xl px-3 py-1.5">
+                    <Reply size={12} className="text-[#0F398A] shrink-0" />
+                    <div className="flex-1 min-w-0"><p className="text-[10px] font-bold text-[#0F398A]">{replyTo.senderName}</p><p className="text-[11px] text-gray-500 truncate">{replyTo.type !== "text" ? `${replyTo.type}` : truncate(replyTo.text, 50)}</p></div>
+                    <button onClick={() => setReplyTo(null)} className="w-5 h-5 rounded-full hover:bg-[#0F398A]/10 flex items-center justify-center shrink-0 text-gray-400"><X size={10} /></button>
                   </div>
                 </div>
               )}
 
               {editingMsg ? (
                 <div className="px-3 py-3 bg-white dark:bg-crm-surface border-t border-gray-100 dark:border-crm-border shrink-0">
-                  <p className="text-[11px] font-bold uppercase tracking-wider text-[#B8112D]/80 mb-2">Edit message</p>
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-[#0F398A]/80 mb-2">Edit message</p>
                   <textarea
                     value={editText}
                     onChange={(e) => { setEditText(e.target.value); autoGrowTextarea(e.target); }}
@@ -1625,11 +1625,11 @@ export default function ChatPanel({
                       if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void saveEdit(); }
                     }}
                     rows={4}
-                    className="w-full min-h-[7.5rem] max-h-52 rounded-2xl border border-gray-200 bg-[#F8FAFC] px-3 py-2.5 text-sm leading-relaxed text-[#0F172A] outline-none focus:border-[#B8112D] resize-y dark:border-crm-border dark:bg-[#0B1220] dark:text-white"
+                    className="w-full min-h-[7.5rem] max-h-52 rounded-2xl border border-gray-200 bg-[#F8FAFC] px-3 py-2.5 text-sm leading-relaxed text-[#0F172A] outline-none focus:border-[#0F398A] resize-y dark:border-crm-border dark:bg-[#0B1220] dark:text-white"
                   />
                   <div className="mt-2 flex justify-end gap-2">
                     <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={cancelEdit} className="h-10 px-4 rounded-2xl border border-gray-200 bg-white text-xs font-semibold text-gray-600 dark:border-crm-border dark:bg-transparent dark:text-gray-300">Cancel</button>
-                    <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => void saveEdit()} className="h-10 px-4 rounded-2xl bg-[#B8112D] text-white text-xs font-semibold shadow-sm">Save</button>
+                    <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => void saveEdit()} className="h-10 px-4 rounded-2xl bg-[#0F398A] text-white text-xs font-semibold shadow-sm">Save</button>
                   </div>
                 </div>
               ) : isStealthView ? (
@@ -1644,21 +1644,21 @@ export default function ChatPanel({
               <div className="px-3 py-2.5 bg-white border-t border-gray-100 shrink-0 relative">
                 <input ref={fileInputRef} type="file" className="hidden" accept="*/*" onChange={onFileChange} />
                 {isRecording ? (
-                  <div className="flex items-center gap-2.5 bg-[#FFF1F3] rounded-2xl px-3 py-2.5 border border-[#B8112D]/20">
+                  <div className="flex items-center gap-2.5 bg-[#EFF6FF] rounded-2xl px-3 py-2.5 border border-[#0F398A]/20">
                     <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse shrink-0" />
-                    <div className="flex items-end gap-0.5 flex-1 h-5">{[4,7,3,9,5,8,2,6,4,7].map((h,i) => <div key={i} className="w-0.5 bg-[#B8112D] rounded-full animate-pulse" style={{ height:`${h*10}%`, animationDelay:`${i*55}ms` }} />)}</div>
-                    <span className="text-sm font-bold text-[#B8112D] tabular-nums shrink-0">{fmtAudio(recTime)}</span>
+                    <div className="flex items-end gap-0.5 flex-1 h-5">{[4,7,3,9,5,8,2,6,4,7].map((h,i) => <div key={i} className="w-0.5 bg-[#0F398A] rounded-full animate-pulse" style={{ height:`${h*10}%`, animationDelay:`${i*55}ms` }} />)}</div>
+                    <span className="text-sm font-bold text-[#0F398A] tabular-nums shrink-0">{fmtAudio(recTime)}</span>
                     <button onClick={cancelRec} className="w-7 h-7 rounded-xl bg-white text-gray-500 hover:bg-gray-100 flex items-center justify-center shrink-0"><X size={13} /></button>
-                    <button onClick={stopRec} className="w-7 h-7 rounded-xl bg-[#B8112D] text-white flex items-center justify-center shrink-0 shadow-sm"><StopCircle size={13} /></button>
+                    <button onClick={stopRec} className="w-7 h-7 rounded-xl bg-[#0F398A] text-white flex items-center justify-center shrink-0 shadow-sm"><StopCircle size={13} /></button>
                   </div>
                 ) : (
                   <div className="flex items-end gap-1.5">
-                    <button onClick={() => fileInputRef.current?.click()} className="w-8 h-8 rounded-xl bg-[#F3F4F6] text-gray-500 hover:bg-[#FFF1F3] hover:text-[#B8112D] flex items-center justify-center shrink-0 transition-colors mb-0.5" title="Attach file"><Paperclip size={14} /></button>
+                    <button onClick={() => fileInputRef.current?.click()} className="w-8 h-8 rounded-xl bg-[#F3F4F6] text-gray-500 hover:bg-[#EFF6FF] hover:text-[#0F398A] flex items-center justify-center shrink-0 transition-colors mb-0.5" title="Attach file"><Paperclip size={14} /></button>
                     <div className="flex-1 flex items-end bg-[#F3F4F6] dark:bg-zinc-800 rounded-2xl px-3 py-2 min-h-[72px]">
                       <textarea ref={inputRef} value={msgText} onChange={onMsgTextChange} onKeyDown={onKey} onPaste={onPasteImage} placeholder={pendingFile ? "Add a message with this file…" : activeConv.type === "group" ? `Message #${activeConv.name}... (@ to mention)` : `Message ${activeConv.name}...`} rows={3} className="w-full flex-1 bg-transparent text-sm outline-none resize-none leading-relaxed placeholder:text-gray-400 dark:placeholder:text-gray-500 min-h-[56px] max-h-52 overflow-y-auto text-gray-900 dark:text-gray-100" />
                     </div>
-                    <button onClick={() => void startRec()} disabled={!!pendingFile || sendingMsg} className="w-8 h-8 rounded-xl bg-[#F3F4F6] text-gray-500 hover:bg-[#FFF1F3] hover:text-[#B8112D] flex items-center justify-center shrink-0 transition-colors mb-0.5 disabled:opacity-40" title="Voice message"><Mic size={14} /></button>
-                    <button onClick={pendingFile ? () => void sendFile() : () => void sendText()} disabled={(!msgText.trim() && !pendingFile) || sendingMsg || uploading} className="w-8 h-8 rounded-xl bg-[#B8112D] text-white flex items-center justify-center hover:bg-[#a30f27] disabled:bg-gray-200 disabled:text-gray-400 transition-colors shrink-0 mb-0.5 shadow-sm shadow-red-200">
+                    <button onClick={() => void startRec()} disabled={!!pendingFile || sendingMsg} className="w-8 h-8 rounded-xl bg-[#F3F4F6] text-gray-500 hover:bg-[#EFF6FF] hover:text-[#0F398A] flex items-center justify-center shrink-0 transition-colors mb-0.5 disabled:opacity-40" title="Voice message"><Mic size={14} /></button>
+                    <button onClick={pendingFile ? () => void sendFile() : () => void sendText()} disabled={(!msgText.trim() && !pendingFile) || sendingMsg || uploading} className="w-8 h-8 rounded-xl bg-[#0F398A] text-white flex items-center justify-center hover:bg-[#a30f27] disabled:bg-gray-200 disabled:text-gray-400 transition-colors shrink-0 mb-0.5 shadow-sm shadow-red-200">
                       {sendingMsg || uploading ? <Loader2 size={13} className="animate-spin" /> : <Send size={13} />}
                     </button>
                   </div>
@@ -1667,7 +1667,7 @@ export default function ChatPanel({
                   <div className="absolute bottom-full left-10 mb-1 w-56 max-h-48 overflow-y-auto bg-white dark:bg-zinc-800 rounded-xl border border-gray-200 dark:border-white/15 shadow-lg py-1 z-10">
                     {mentionSuggestions.map(m => (
                       <button key={m.id} type="button" onClick={() => insertMention(m.name)} className="w-full text-left px-3 py-1.5 text-xs hover:bg-[#F5F6FA] dark:hover:bg-white/10 truncate text-gray-900 dark:text-gray-100">
-                        <span className="font-semibold text-[#B8112D] dark:text-yellow-300">@{m.name}</span>{" "}
+                        <span className="font-semibold text-[#0F398A] dark:text-yellow-300">@{m.name}</span>{" "}
                         <span className="text-gray-500 dark:text-gray-400">{roleDisplayLabel(m.role)}</span>
                       </button>
                     ))}
@@ -1682,10 +1682,10 @@ export default function ChatPanel({
               <h3 className="text-base font-bold text-gray-900 dark:text-gray-100">Your Messages</h3>
               <p className="text-xs text-gray-400 mt-1 max-w-[220px]">Select a conversation or start a new one.</p>
               <div className="flex flex-wrap gap-2 mt-4 justify-center">
-                <button onClick={() => { setShowDmModal(true); void fetchUsers(true); }} className="h-8 px-3 rounded-xl bg-white border border-gray-200 text-xs font-semibold text-gray-600 hover:border-[#B8112D] hover:text-[#B8112D] flex items-center gap-1.5 shadow-sm transition-all"><User2 size={12} />New DM</button>
-                <button onClick={() => { setShowGroupModal(true); void fetchUsers(true); }} className="h-8 px-3 rounded-xl bg-[#B8112D] text-white text-xs font-semibold flex items-center gap-1.5 hover:bg-[#a30f27] shadow-sm shadow-red-200 transition-colors"><Hash size={12} />Create Group</button>
+                <button onClick={() => { setShowDmModal(true); void fetchUsers(true); }} className="h-8 px-3 rounded-xl bg-white border border-gray-200 text-xs font-semibold text-gray-600 hover:border-[#0F398A] hover:text-[#0F398A] flex items-center gap-1.5 shadow-sm transition-all"><User2 size={12} />New DM</button>
+                <button onClick={() => { setShowGroupModal(true); void fetchUsers(true); }} className="h-8 px-3 rounded-xl bg-[#0F398A] text-white text-xs font-semibold flex items-center gap-1.5 hover:bg-[#a30f27] shadow-sm shadow-red-200 transition-colors"><Hash size={12} />Create Group</button>
               </div>
-              <button onClick={() => setMobileSideOpen(true)} className="sm:hidden mt-3 text-xs text-[#B8112D] font-semibold underline">← Back</button>
+              <button onClick={() => setMobileSideOpen(true)} className="sm:hidden mt-3 text-xs text-[#0F398A] font-semibold underline">← Back</button>
             </div>
           )}
         </section>
@@ -1762,12 +1762,12 @@ export default function ChatPanel({
         <div className="fixed inset-0 z-[200] bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={() => { setShowGroupModal(false); setGroupName(""); setSelectedUsers([]); setGroupAdminIds([]); setWhoCanSend("everyone"); setUserSearch(""); }}>
           <div className="w-full sm:max-w-[440px] bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden" style={{ maxHeight: "85vh" }} onClick={e => e.stopPropagation()}>
             <div className="px-4 pt-4 pb-3 border-b border-gray-100 shrink-0 flex items-center justify-between">
-              <div className="flex items-center gap-2.5"><div className="w-8 h-8 rounded-xl bg-[#B8112D] text-white flex items-center justify-center"><Hash size={14} /></div><div><h2 className="text-sm font-bold text-gray-900 dark:text-gray-100">Create Group</h2><p className="text-[10px] text-gray-400">Name and invite members</p></div></div>
+              <div className="flex items-center gap-2.5"><div className="w-8 h-8 rounded-xl bg-[#0F398A] text-white flex items-center justify-center"><Hash size={14} /></div><div><h2 className="text-sm font-bold text-gray-900 dark:text-gray-100">Create Group</h2><p className="text-[10px] text-gray-400">Name and invite members</p></div></div>
               <button onClick={() => { setShowGroupModal(false); setGroupName(""); setSelectedUsers([]); setGroupAdminIds([]); setWhoCanSend("everyone"); setUserSearch(""); }} className="w-7 h-7 rounded-xl bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors"><X size={13} /></button>
             </div>
             <div className="px-4 pt-3 pb-2 shrink-0 space-y-2.5 border-b border-gray-100">
-              <input type="text" placeholder="Group name..." value={groupName} onChange={e => setGroupName(e.target.value)} className="w-full h-9 rounded-xl border-2 border-gray-200 bg-[#FAFAFA] px-3 text-sm outline-none focus:border-[#B8112D] focus:bg-white transition-colors" />
-              <div className="relative"><Search size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" /><input type="text" placeholder="Search users..." value={userSearch} onChange={e => setUserSearch(e.target.value)} className="w-full h-8 rounded-xl bg-[#F3F4F6] dark:bg-crm-muted dark:text-gray-100 pl-7 pr-3 text-xs outline-none focus:bg-white dark:focus:bg-crm-input focus:ring-2 focus:ring-[#B8112D]/20 transition-all" /></div>
+              <input type="text" placeholder="Group name..." value={groupName} onChange={e => setGroupName(e.target.value)} className="w-full h-9 rounded-xl border-2 border-gray-200 bg-[#FAFAFA] px-3 text-sm outline-none focus:border-[#0F398A] focus:bg-white transition-colors" />
+              <div className="relative"><Search size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" /><input type="text" placeholder="Search users..." value={userSearch} onChange={e => setUserSearch(e.target.value)} className="w-full h-8 rounded-xl bg-[#F3F4F6] dark:bg-crm-muted dark:text-gray-100 pl-7 pr-3 text-xs outline-none focus:bg-white dark:focus:bg-crm-input focus:ring-2 focus:ring-[#0F398A]/20 transition-all" /></div>
               {selectedUsers.length > 0 && <p className="text-[10px] text-gray-400">{selectedUsers.length} member{selectedUsers.length !== 1 ? "s" : ""} selected · you are an admin</p>}
               <label className="flex items-center justify-between gap-3 text-xs font-semibold text-gray-600">
                 Who can send
@@ -1785,7 +1785,7 @@ export default function ChatPanel({
               ) : filteredUsers.map(u => {
                 const sel = selectedUsers.includes(u.id);
                 return (
-                  <div key={u.id} onClick={() => setSelectedUsers(p => sel ? p.filter(id => id !== u.id) : [...p, u.id])} className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl transition-all cursor-pointer ${sel ? "bg-red-50 dark:bg-red-500/20 ring-1 ring-[#B8112D]/20" : "hover:bg-gray-50 dark:hover:bg-white/10"}`}>
+                  <div key={u.id} onClick={() => setSelectedUsers(p => sel ? p.filter(id => id !== u.id) : [...p, u.id])} className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl transition-all cursor-pointer ${sel ? "bg-red-50 dark:bg-red-500/20 ring-1 ring-[#0F398A]/20" : "hover:bg-gray-50 dark:hover:bg-white/10"}`}>
                     <Avatar name={u.name} src={u.profilePic} size="sm" online={u.isOnline} />
                     <div className="flex-1 min-w-0 text-left"><p className="text-xs font-semibold text-gray-900 dark:text-gray-100 truncate">{u.name}</p><p className="text-[10px] text-gray-500 dark:text-gray-400 capitalize">{u.csrCode ?? u.role ?? u.email}</p></div>
                     {sel && (
@@ -1797,14 +1797,14 @@ export default function ChatPanel({
                         {groupAdminIds.includes(u.id) ? "Admin" : "Make admin"}
                       </button>
                     )}
-                    <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${sel ? "bg-[#B8112D] border-[#B8112D]" : "border-gray-300 dark:border-gray-500"}`}>{sel && <Check size={8} className="text-white" />}</div>
+                    <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${sel ? "bg-[#0F398A] border-[#0F398A]" : "border-gray-300 dark:border-gray-500"}`}>{sel && <Check size={8} className="text-white" />}</div>
                   </div>
                 );
               })}
             </div>
             <div className="px-4 py-3 border-t border-gray-100 shrink-0 flex gap-2">
               <button onClick={() => { setShowGroupModal(false); setGroupName(""); setSelectedUsers([]); setGroupAdminIds([]); setWhoCanSend("everyone"); setUserSearch(""); }} className="flex-1 h-9 rounded-xl bg-[#F5F6FA] text-gray-600 font-semibold text-sm hover:bg-gray-100 transition-colors">Cancel</button>
-              <button onClick={() => void createGroup()} disabled={!groupName.trim() || creatingGroup} className={`flex-1 h-9 rounded-xl font-semibold text-sm flex items-center justify-center gap-1.5 transition-all ${groupName.trim() && !creatingGroup ? "bg-[#B8112D] text-white hover:bg-[#a30f27] shadow-sm" : "bg-gray-100 text-gray-400 cursor-not-allowed"}`}>
+              <button onClick={() => void createGroup()} disabled={!groupName.trim() || creatingGroup} className={`flex-1 h-9 rounded-xl font-semibold text-sm flex items-center justify-center gap-1.5 transition-all ${groupName.trim() && !creatingGroup ? "bg-[#0F398A] text-white hover:bg-[#a30f27] shadow-sm" : "bg-gray-100 text-gray-400 cursor-not-allowed"}`}>
                 {creatingGroup ? <><Loader2 size={13} className="animate-spin" />Creating...</> : <><Plus size={13} />Create</>}
               </button>
             </div>
@@ -1818,11 +1818,11 @@ export default function ChatPanel({
         <div className="fixed inset-0 z-[200] bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={() => { setShowDmModal(false); setDmSearch(""); }}>
           <div className="w-full sm:max-w-[400px] bg-white dark:bg-crm-surface rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden border border-transparent dark:border-crm-border" style={{ maxHeight: "80vh" }} onClick={e => e.stopPropagation()}>
             <div className="px-4 pt-4 pb-3 border-b border-gray-100 dark:border-crm-border-subtle shrink-0 flex items-center justify-between">
-              <div className="flex items-center gap-2.5"><div className="w-8 h-8 rounded-xl bg-[#B8112D]/10 text-[#B8112D] flex items-center justify-center"><User2 size={14} /></div><div><h2 className="text-sm font-bold text-gray-900 dark:text-gray-100">New Direct Message</h2><p className="text-[10px] text-gray-500 dark:text-gray-400">Choose a team member</p></div></div>
+              <div className="flex items-center gap-2.5"><div className="w-8 h-8 rounded-xl bg-[#0F398A]/10 text-[#0F398A] flex items-center justify-center"><User2 size={14} /></div><div><h2 className="text-sm font-bold text-gray-900 dark:text-gray-100">New Direct Message</h2><p className="text-[10px] text-gray-500 dark:text-gray-400">Choose a team member</p></div></div>
               <button onClick={() => { setShowDmModal(false); setDmSearch(""); }} className="w-7 h-7 rounded-xl bg-gray-100 dark:bg-crm-muted hover:bg-gray-200 dark:hover:bg-white/10 flex items-center justify-center transition-colors"><X size={13} /></button>
             </div>
             <div className="px-3 py-2.5 border-b border-gray-100 dark:border-crm-border-subtle shrink-0">
-              <div className="relative"><Search size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" /><input type="text" placeholder="Search users..." value={dmSearch} onChange={e => setDmSearch(e.target.value)} autoFocus className="w-full h-8 rounded-xl bg-[#F3F4F6] dark:bg-crm-muted dark:text-gray-100 pl-7 pr-3 text-xs outline-none focus:bg-white dark:focus:bg-crm-input focus:ring-2 focus:ring-[#B8112D]/20 transition-all" /></div>
+              <div className="relative"><Search size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" /><input type="text" placeholder="Search users..." value={dmSearch} onChange={e => setDmSearch(e.target.value)} autoFocus className="w-full h-8 rounded-xl bg-[#F3F4F6] dark:bg-crm-muted dark:text-gray-100 pl-7 pr-3 text-xs outline-none focus:bg-white dark:focus:bg-crm-input focus:ring-2 focus:ring-[#0F398A]/20 transition-all" /></div>
             </div>
             <div className="flex-1 overflow-y-auto px-2 py-1.5 space-y-0.5">
               {loadingUsers ? (
@@ -1833,7 +1833,7 @@ export default function ChatPanel({
                 <button key={u.id} type="button" onClick={(e) => { e.stopPropagation(); guardPanelClose(); void startDm(u); }} disabled={dmLoadingUserId === u.id} className="w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-gray-50 dark:hover:bg-white/10 transition-all group disabled:opacity-50">
                   <Avatar name={u.name} src={u.profilePic} size="sm" online={u.isOnline} />
                   <div className="flex-1 min-w-0 text-left">
-                    <p className="text-xs font-semibold text-gray-900 dark:text-gray-100 truncate group-hover:text-[#B8112D] dark:group-hover:text-red-300 transition-colors">{u.name}</p>
+                    <p className="text-xs font-semibold text-gray-900 dark:text-gray-100 truncate group-hover:text-[#0F398A] dark:group-hover:text-red-300 transition-colors">{u.name}</p>
                     <p className="text-[10px] text-gray-500 dark:text-gray-400">{u.csrCode ?? u.role ?? u.email}</p>
                   </div>
                   {u.isOnline && <div className="w-2 h-2 rounded-full bg-green-500 shrink-0" />}

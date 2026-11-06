@@ -42,7 +42,7 @@ export default function SalarySlipDownloadButton({
   const onClick = async (e: MouseEvent) => {
     e.stopPropagation();
     if (!company.slipReady) {
-      toast.error(`${company.label} salary-slip format is not ready yet — use BEM Solutions for now.`);
+      toast.error(`${company.label} salary-slip format is not ready yet.`);
       return;
     }
     setBusy(true);

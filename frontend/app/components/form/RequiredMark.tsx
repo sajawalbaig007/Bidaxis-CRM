@@ -5,7 +5,7 @@ import type { ReactNode } from "react";
 /** Brand-red asterisk for mandatory fields */
 export default function RequiredMark() {
   return (
-    <span className="text-[#B8112D] font-semibold ml-0.5" aria-hidden="true">
+    <span className="text-[#0F398A] font-semibold ml-0.5" aria-hidden="true">
       *
     </span>
   );

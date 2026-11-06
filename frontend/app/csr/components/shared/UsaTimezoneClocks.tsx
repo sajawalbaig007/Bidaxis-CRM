@@ -137,10 +137,10 @@ function AnalogClock({ tz, accent, dark }: { tz: string; accent: string; dark: b
           <>
             <line x1={cx} y1={cy} x2={h.x} y2={h.y} stroke={hourHand} strokeWidth="3" strokeLinecap="round" />
             <line x1={cx} y1={cy} x2={m.x} y2={m.y} stroke={minuteHand} strokeWidth="2.2" strokeLinecap="round" />
-            <line x1={cx} y1={cy} x2={s.x} y2={s.y} stroke="#B8112D" strokeWidth="1.4" strokeLinecap="round" opacity="0.95" />
+            <line x1={cx} y1={cy} x2={s.x} y2={s.y} stroke="#0F398A" strokeWidth="1.4" strokeLinecap="round" opacity="0.95" />
           </>
         )}
-        <circle cx={cx} cy={cy} r={3} fill="#B8112D" />
+        <circle cx={cx} cy={cy} r={3} fill="#0F398A" />
         <circle cx={cx} cy={cy} r={1.2} fill={dark ? "#1e2330" : "#ffffff"} />
       </svg>
     </div>
@@ -175,7 +175,7 @@ function RegionBadge({ flag, label }: { flag: string; label: string }) {
 function ZoneClock({ zone, dark }: { zone: Zone; dark: boolean }) {
   return (
     <div
-      className="flex items-center gap-2 shrink-0 px-2 py-1.5 rounded-xl border border-crm-border-subtle bg-crm-surface-raised hover:border-[#B8112D]/25 transition-all"
+      className="flex items-center gap-2 shrink-0 px-2 py-1.5 rounded-xl border border-crm-border-subtle bg-crm-surface-raised hover:border-[#0F398A]/25 transition-all"
       style={{ boxShadow: "var(--crm-shadow)" }}
     >
       <AnalogClock tz={zone.tz} accent={zone.accent} dark={dark} />
@@ -192,7 +192,7 @@ function ZoneClock({ zone, dark }: { zone: Zone; dark: boolean }) {
           </span>
         </div>
         <p className="text-[9px] text-crm-text-muted mt-0.5 whitespace-nowrap">{zone.label}</p>
-        <p className="text-[9px] sm:text-[10px] font-mono font-bold text-[#B8112D] mt-0.5 whitespace-nowrap tabular-nums">
+        <p className="text-[9px] sm:text-[10px] font-mono font-bold text-[#0F398A] mt-0.5 whitespace-nowrap tabular-nums">
           <DigitalTime tz={zone.tz} />
         </p>
       </div>

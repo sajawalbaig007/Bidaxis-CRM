@@ -49,7 +49,7 @@ type UseSlidingPillOptions = {
  */
 export function useSlidingPill<T extends HTMLElement>(
   activeIndex: number,
-  { accent = "#B8112D", autoScroll = true, remeasureKey }: UseSlidingPillOptions = {},
+  { accent = "#0F398A", autoScroll = true, remeasureKey }: UseSlidingPillOptions = {},
 ) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const trackRef = useRef<HTMLDivElement>(null);

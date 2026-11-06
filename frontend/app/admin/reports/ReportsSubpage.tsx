@@ -29,11 +29,11 @@ export default function ReportsSubpage({
           <header>
             <Link
               href={back}
-              className="inline-flex h-10 items-center gap-1.5 rounded-2xl border border-gray-200 bg-white px-3 text-xs font-semibold text-[#B8112D] shadow-sm dark:border-crm-border dark:bg-crm-surface"
+              className="inline-flex h-10 items-center gap-1.5 rounded-2xl border border-gray-200 bg-white px-3 text-xs font-semibold text-[#0F398A] shadow-sm dark:border-crm-border dark:bg-crm-surface"
             >
               <ArrowLeft size={14} /> Reports
             </Link>
-            <p className="mt-4 text-[11px] font-bold uppercase tracking-wider text-[#B8112D]/80">
+            <p className="mt-4 text-[11px] font-bold uppercase tracking-wider text-[#0F398A]/80">
               {manager ? "Admin portal · Reports" : "Admin · Reports"}
             </p>
             <h1 className="mt-1 text-2xl sm:text-3xl font-bold tracking-tight text-[#0F172A] dark:text-crm-text">{title}</h1>

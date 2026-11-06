@@ -35,7 +35,7 @@ type Props = {
   distributedCount: number;
 };
 
-const DONUT_COLORS = ["#0B84F3", "#D97706", "#B8112D", "#B54708", "#10B981", "#94A3B8"];
+const DONUT_COLORS = ["#0B84F3", "#D97706", "#0F398A", "#B54708", "#10B981", "#94A3B8"];
 
 function sourceLabel(s: SourceRow) {
   const label = s.sudoName ? `${s.name} · ${s.sudoName}` : s.name;
@@ -99,13 +99,13 @@ export default function UploadAnalyticsBento({
     <div className="grid grid-cols-1 md:grid-cols-12 gap-3 sm:gap-4 mb-5 sm:mb-7">
       {/* Donut */}
       <div className="md:col-span-4 rounded-[1.75rem] border border-gray-100 bg-white p-4 sm:p-5 shadow-sm relative overflow-hidden">
-        <div className="absolute -right-8 -top-8 w-32 h-32 rounded-full bg-[#B8112D]/5 blur-2xl" />
+        <div className="absolute -right-8 -top-8 w-32 h-32 rounded-full bg-[#0F398A]/5 blur-2xl" />
         <div className="flex items-center justify-between mb-2">
           <div>
             <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Lead mix</p>
             <h3 className="text-base font-bold text-[#0F172A]">Status donut</h3>
           </div>
-          <Activity size={18} className="text-[#B8112D]" />
+          <Activity size={18} className="text-[#0F398A]" />
         </div>
         <RechartsBox height={200}>
           <PieChart>
@@ -163,7 +163,7 @@ export default function UploadAnalyticsBento({
               <Tooltip contentStyle={{ borderRadius: 12, fontSize: 12 }} />
               <Bar dataKey="Pending" fill="#0B84F3" radius={[6, 6, 0, 0]} />
               <Bar dataKey="Interested" fill="#D97706" radius={[6, 6, 0, 0]} />
-              <Bar dataKey="Important" fill="#B8112D" radius={[6, 6, 0, 0]} />
+              <Bar dataKey="Important" fill="#0F398A" radius={[6, 6, 0, 0]} />
               <Bar dataKey="Won" fill="#10B981" radius={[6, 6, 0, 0]} />
             </BarChart>
           </RechartsBox>
@@ -202,11 +202,11 @@ export default function UploadAnalyticsBento({
                 <div key={c.name}>
                   <div className="flex items-center justify-between text-[11px] mb-1">
                     <span className="font-semibold text-gray-700 truncate max-w-[70%]">{c.name}</span>
-                    <span className="tabular-nums font-bold text-[#B8112D]">{c.leads}</span>
+                    <span className="tabular-nums font-bold text-[#0F398A]">{c.leads}</span>
                   </div>
                   <div className="h-2 rounded-full bg-gray-100 overflow-hidden">
                     <div
-                      className="h-full rounded-full bg-gradient-to-r from-[#B8112D] to-[#F43F5E] transition-all"
+                      className="h-full rounded-full bg-gradient-to-r from-[#0F398A] to-[#F43F5E] transition-all"
                       style={{ width: `${Math.max(8, (c.leads / maxCsr) * 100)}%` }}
                     />
                   </div>

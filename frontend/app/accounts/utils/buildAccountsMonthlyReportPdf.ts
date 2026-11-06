@@ -235,7 +235,7 @@ export function buildAccountsMonthlyReportPdf(report: AccountsReportPdfInput): B
   doc.text(
     `Accounts Team · ${label} · ${report.daysRecorded} day(s) recorded${
       report.sourceDate ? ` · last ${report.sourceDate}` : ""
-    } · Generated ${generatedAt} · BEM Solutions CRM`,
+    } · Generated ${generatedAt} · BidAxis CRM`,
     14,
     y,
   );
@@ -496,7 +496,7 @@ export function buildAccountsMonthlyReportPdf(report: AccountsReportPdfInput): B
     doc.setPage(i);
     doc.setFontSize(7);
     doc.setTextColor(...MUTED);
-    doc.text(`BEM Solutions CRM · Accounts Report · ${label} · Page ${i} of ${pageCount}`, 14, 287);
+    doc.text(`BidAxis CRM · Accounts Report · ${label} · Page ${i} of ${pageCount}`, 14, 287);
   }
 
   return doc.output("blob");

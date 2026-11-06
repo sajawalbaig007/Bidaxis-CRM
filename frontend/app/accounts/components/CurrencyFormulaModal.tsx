@@ -100,7 +100,7 @@ export default function CurrencyFormulaModal({
               <div className="rounded-2xl border border-dashed border-crm-border bg-[#F8FAFC] p-3.5 text-[11px] text-crm-text-secondary space-y-1.5 font-mono">
                 <p>Gross = <span className="font-bold text-crm-text">{currency(loc.gross)}</span></p>
                 <p>Tax ({taxPct}%) = <span className="font-bold text-red-600">{currency(loc.tax)}</span></p>
-                <p className="pt-1 font-bold text-[#B8112D]">Net received = {currency(loc.net)}</p>
+                <p className="pt-1 font-bold text-[#0F398A]">Net received = {currency(loc.net)}</p>
               </div>
             </>
           ) : (
@@ -120,7 +120,7 @@ export default function CurrencyFormulaModal({
                       <AmountInput
                         value={Number(value[key]) || 0}
                         onChange={n => onChange(key, n)}
-                        className="mt-1 h-10 w-full rounded-xl border border-crm-border px-3 text-sm outline-none focus:ring-2 focus:ring-[#B8112D]/30"
+                        className="mt-1 h-10 w-full rounded-xl border border-crm-border px-3 text-sm outline-none focus:ring-2 focus:ring-[#0F398A]/30"
                       />
                     )}
                   </label>
@@ -131,7 +131,7 @@ export default function CurrencyFormulaModal({
                 <p>USD → PKR = {currency(fx.usdAfterTax)} × {value.usdToPkrRate} = <span className="font-bold text-crm-text">{currency(fx.usdInPkr)}</span></p>
                 <p className="pt-1">CAD After Tax = {currency(value.cadAmount)} × {value.cadTaxFactor} = <span className="font-bold text-crm-text">{currency(fx.cadAfterTax)}</span></p>
                 <p>CAD → PKR = {currency(fx.cadAfterTax)} × {value.cadToPkrRate} = <span className="font-bold text-crm-text">{currency(fx.cadInPkr)}</span></p>
-                <p className="pt-1 font-bold text-[#B8112D]">Total = {currency(fx.total)}</p>
+                <p className="pt-1 font-bold text-[#0F398A]">Total = {currency(fx.total)}</p>
               </div>
             </>
           )}
@@ -141,7 +141,7 @@ export default function CurrencyFormulaModal({
           <button
             type="button"
             onClick={onClose}
-            className="h-9 px-4 rounded-xl text-xs font-bold bg-[#B8112D] text-white hover:bg-[#9a0e26]"
+            className="h-9 px-4 rounded-xl text-xs font-bold bg-[#0F398A] text-white hover:bg-[#9a0e26]"
           >
             Done
           </button>

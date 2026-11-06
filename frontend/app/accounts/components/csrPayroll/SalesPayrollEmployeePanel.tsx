@@ -56,7 +56,7 @@ export default function SalesPayrollEmployeePanel({ employee, variant, defaultOp
         </div>
         <div className="text-right shrink-0 hidden sm:block">
           <p className="text-[10px] font-bold uppercase text-crm-text-faint">Net Salary</p>
-          <p className="text-base font-extrabold text-[#B8112D] tabular-nums">
+          <p className="text-base font-extrabold text-[#0F398A] tabular-nums">
             {fmt(netSalary + (variant === "team_lead" ? assignedTlTotal : 0))}
           </p>
         </div>
@@ -327,7 +327,7 @@ export default function SalesPayrollEmployeePanel({ employee, variant, defaultOp
               </div>
             </div>
 
-            <div className="rounded-xl bg-gradient-to-r from-[#B8112D] to-[#9a0e26] p-4 text-white flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <div className="rounded-xl bg-gradient-to-r from-[#0F398A] to-[#9a0e26] p-4 text-white flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-wide text-white/70">Net Total Salary</p>
                 <p className="text-2xl font-black tabular-nums">{fmt(netSalary + (variant === "team_lead" ? assignedTlTotal : 0))}</p>
@@ -344,7 +344,7 @@ export default function SalesPayrollEmployeePanel({ employee, variant, defaultOp
               defaultValue={employee.remarks}
               rows={2}
               placeholder="Manual remarks…"
-              className="w-full rounded-lg border border-crm-border px-3 py-2 text-sm outline-none resize-none focus:border-[#B8112D] focus:ring-2 focus:ring-[#B8112D]/15"
+              className="w-full rounded-lg border border-crm-border px-3 py-2 text-sm outline-none resize-none focus:border-[#0F398A] focus:ring-2 focus:ring-[#0F398A]/15"
             />
           </div>
         </div>

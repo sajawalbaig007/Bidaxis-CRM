@@ -104,5 +104,5 @@ export function formatDeadline(iso: string | null | undefined): string {
 export function scoreTone(score: number): string {
   if (score >= 80) return "text-emerald-700 bg-emerald-50";
   if (score >= 55) return "text-amber-700 bg-amber-50";
-  return "text-[#B8112D] bg-[#FFF1F3]";
+  return "text-[#0F398A] bg-[#EFF6FF]";
 }

@@ -65,7 +65,7 @@ export function statusBadgeClass(s: string): string {
   if (n === normStatus(STATUS_NO_OWNER)) return "bg-[#FEF3C7] text-[#B45309]";
   if (n === normStatus(STATUS_NOT_IN_SERVICE)) return "bg-[#F3E8FF] text-[#7C3AED]";
   if (n === normStatus(STATUS_IN_HOUSE)) return "bg-[#CCFBF1] text-[#0D9488]";
-  if (n === "important") return "bg-[#FFF1F3] text-[#B8112D]";
+  if (n === "important") return "bg-[#EFF6FF] text-[#0F398A]";
   if (n === "interested") return "bg-[#FFF4E5] text-[#D97706]";
   if (isWonClientStatus(s)) return "bg-[#ECFDF5] text-[#065F46]";
   return "bg-[#F4F4F5] text-[#52525B]";

@@ -263,7 +263,7 @@ export default function ClientHistoryModal({
               <button
                 type="button"
                 onClick={onAddProject}
-                className="inline-flex items-center gap-1.5 h-9 px-3 rounded-xl bg-[#B8112D] text-white text-xs font-bold hover:bg-[#9a0e26] transition-colors"
+                className="inline-flex items-center gap-1.5 h-9 px-3 rounded-xl bg-[#0F398A] text-white text-xs font-bold hover:bg-[#9a0e26] transition-colors"
               >
                 <Plus size={14} strokeWidth={2.5} />
                 Add Project
@@ -286,8 +286,8 @@ export default function ClientHistoryModal({
           ) : (
             <>
               <div className="grid grid-cols-2 gap-3">
-                <div className="bg-[#FFF1F3] rounded-2xl p-4">
-                  <div className="flex items-center gap-2 text-[#B8112D] mb-1">
+                <div className="bg-[#EFF6FF] rounded-2xl p-4">
+                  <div className="flex items-center gap-2 text-[#0F398A] mb-1">
                     <DollarSign size={14} />
                     <span className="text-[11px] font-semibold uppercase tracking-wide">Total Business</span>
                   </div>
@@ -330,7 +330,7 @@ export default function ClientHistoryModal({
                             <div className="flex items-center gap-2 flex-wrap">
                               <span className="text-[10px] font-bold text-gray-400">#{projects.length - idx}</span>
                               {code && (
-                                <span className="bg-[#B8112D]/10 text-[#B8112D] text-[10px] font-bold px-2 py-0.5 rounded-lg">
+                                <span className="bg-[#0F398A]/10 text-[#0F398A] text-[10px] font-bold px-2 py-0.5 rounded-lg">
                                   {code}
                                 </span>
                               )}
@@ -350,7 +350,7 @@ export default function ClientHistoryModal({
                               <button
                                 type="button"
                                 onClick={() => void openEdit(p)}
-                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#FFF1F3] text-[#B8112D] text-[11px] font-semibold hover:bg-[#FFE4E8]"
+                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#EFF6FF] text-[#0F398A] text-[11px] font-semibold hover:bg-[#DBEAFE]"
                               >
                                 <Pencil size={11} /> Edit
                               </button>
@@ -370,7 +370,7 @@ export default function ClientHistoryModal({
                   <button
                     type="button"
                     onClick={onAddProject}
-                    className="inline-flex items-center gap-1.5 h-10 px-4 rounded-xl bg-[#B8112D] text-white text-sm font-bold"
+                    className="inline-flex items-center gap-1.5 h-10 px-4 rounded-xl bg-[#0F398A] text-white text-sm font-bold"
                   >
                     <Plus size={15} /> Add Project
                   </button>

@@ -17,44 +17,44 @@ export type CompanyMeta = {
 export const COMPANY_META: Record<PortalCompany, CompanyMeta> = {
   BEM: {
     key: "BEM",
-    slug: "bem",
-    name: "BEM Solutions",
-    legalName: "BEM Solutions",
-    tagline: "Operations, sales & finance portals",
-    accent: "#B8112D",
-    accentSoft: "#ff4d6d",
-    logoSrc: "/images/LOGO.png",
-    portalsLabel: "CEO · Admin · CSR · Accounts",
+    slug: "bidaxis",
+    name: "BidAxis",
+    legalName: "BidAxis",
+    tagline: "Operations, sales, finance, estimation and project portals",
+    accent: "#0F398A",
+    accentSoft: "#3B82F6",
+    logoSrc: "/images/bidaxis-logo.png",
+    portalsLabel: "CEO · Admin · CSR · Accounts · Estimation · BIM",
   },
   GPS: {
     key: "GPS",
-    slug: "gps",
-    name: "GPS",
-    legalName: "Global Pre Construction Solution",
-    tagline: "Estimation & takeoff portals",
+    slug: "bidaxis",
+    name: "BidAxis",
+    legalName: "BidAxis",
+    tagline: "Operations, sales, finance, estimation and project portals",
     accent: "#0F398A",
     accentSoft: "#3B82F6",
-    logoSrc: "/images/global-logo.png",
-    portalsLabel: "Chief Estimator · Estimator · BIM Manager · BIM",
+    logoSrc: "/images/bidaxis-logo.png",
+    portalsLabel: "CEO · Admin · CSR · Accounts · Estimation · BIM",
   },
 };
 
 export const COMPANY_PORTAL_ROLES: Record<PortalCompany, PortalRole[]> = {
-  BEM: ["admin", "manager", "csr", "accounts"],
-  GPS: ["technical_manager", "estimator", "bim_manager", "bim"],
+  BEM: ["admin", "manager", "csr", "accounts", "technical_manager", "estimator", "bim_manager", "bim"],
+  GPS: ["admin", "manager", "csr", "accounts", "technical_manager", "estimator", "bim_manager", "bim"],
 };
 
 const STORAGE_KEY = "crm_company_gate";
 
 export function parseCompanyParam(raw: string | undefined | null): PortalCompany | null {
   const v = String(raw ?? "").trim().toLowerCase();
-  if (v === "bem") return "BEM";
-  if (v === "gps") return "GPS";
+  if (v === "bidaxis" || v === "bem") return "BEM";
+  if (v === "gps") return "BEM";
   return null;
 }
 
 export function companyForPortal(role: PortalRole): PortalCompany {
-  return COMPANY_PORTAL_ROLES.GPS.includes(role) ? "GPS" : "BEM";
+  return "BEM";
 }
 
 export type CompanyGateSession = {

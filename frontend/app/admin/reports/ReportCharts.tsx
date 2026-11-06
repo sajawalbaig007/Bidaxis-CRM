@@ -18,7 +18,7 @@ const STATUS_PIE_COLORS: Record<string, string> = {
   "Interested":         "#F97316",
   "Close Client":       "#12B76A",
   "Not Useful":         "#7C3AED",
-  "Dialer Calls":       "#B8112D",
+  "Dialer Calls":       "#0F398A",
 };
 
 type ChartPoint = { day: string; calls: number; completed: number };
@@ -62,7 +62,7 @@ export default function ReportCharts({
                   formatter={(v, n) => [v, n === "calls" ? "Total Leads" : "Completed (status updates)"]}
                 />
                 <Legend formatter={v => v === "calls" ? "Total Leads" : "Completed (updates)"} wrapperStyle={{ fontSize: "11px" }} />
-                <Bar dataKey="calls" fill="#B8112D" radius={[5, 5, 0, 0]} name="calls" />
+                <Bar dataKey="calls" fill="#0F398A" radius={[5, 5, 0, 0]} name="calls" />
                 <Bar dataKey="completed" fill="#12B76A" radius={[5, 5, 0, 0]} name="completed" />
               </BarChart>
             </ResponsiveContainer>
@@ -96,7 +96,7 @@ export default function ReportCharts({
                   strokeWidth={2}
                 >
                   {statusPieData.map(entry => (
-                    <Cell key={entry.name} fill={STATUS_PIE_COLORS[entry.name] ?? "#B8112D"} />
+                    <Cell key={entry.name} fill={STATUS_PIE_COLORS[entry.name] ?? "#0F398A"} />
                   ))}
                 </Pie>
                 <Tooltip
@@ -106,7 +106,7 @@ export default function ReportCharts({
                     return (
                       <div className="bg-white border border-gray-100 rounded-xl px-3 py-2 shadow-md text-xs">
                         <p className="font-semibold text-gray-800">{item.name}</p>
-                        <p className="text-[#B8112D] font-bold mt-0.5">Count: {item.value}</p>
+                        <p className="text-[#0F398A] font-bold mt-0.5">Count: {item.value}</p>
                       </div>
                     );
                   }}

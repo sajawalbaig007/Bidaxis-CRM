@@ -207,7 +207,7 @@ export default function AdminSettingsPage() {
       <Toaster position="top-right" toastOptions={{
         style: { borderRadius: "16px", fontSize: "14px" },
         success: { iconTheme: { primary: "#027A48", secondary: "#fff" } },
-        error:   { iconTheme: { primary: "#B8112D", secondary: "#fff" } },
+        error:   { iconTheme: { primary: "#0F398A", secondary: "#fff" } },
       }} />
 
       <DashboardSidebar />
@@ -227,7 +227,7 @@ export default function AdminSettingsPage() {
         <div className="bg-white rounded-2xl sm:rounded-[28px] border border-gray-100 shadow-sm p-4 sm:p-5 mb-4 sm:mb-6">
           <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-5">
             {/* Avatar */}
-            <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-[#FFF1F3] text-[#B8112D] flex items-center justify-center font-bold text-xl sm:text-2xl shrink-0">
+            <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-[#EFF6FF] text-[#0F398A] flex items-center justify-center font-bold text-xl sm:text-2xl shrink-0">
               {loadingProfile ? "…" : initial}
             </div>
 
@@ -235,7 +235,7 @@ export default function AdminSettingsPage() {
             <div className="flex-1 grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
               {[
                 {
-                  Icon: User2, bg: "bg-[#FFF1F3]", color: "text-[#B8112D]",
+                  Icon: User2, bg: "bg-[#EFF6FF]", color: "text-[#0F398A]",
                   label: "Full Name", value: profile?.name ?? "—", skw: "w-24",
                 },
                 {
@@ -264,7 +264,7 @@ export default function AdminSettingsPage() {
             {/* Role badge */}
             <div className="shrink-0">
               {loadingProfile ? <Skeleton w="w-20" h="h-8" /> : (
-                <span className="bg-[#FFF1F3] text-[#B8112D] px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-bold capitalize">
+                <span className="bg-[#EFF6FF] text-[#0F398A] px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-bold capitalize">
                   {profile?.role ?? "Admin"}
                 </span>
               )}
@@ -279,13 +279,13 @@ export default function AdminSettingsPage() {
           <div className="bg-white rounded-2xl sm:rounded-[28px] border border-gray-100 p-3 sm:p-5 shadow-sm">
             <div className="flex items-center justify-between mb-2 sm:mb-3">
               <p className="text-[11px] sm:text-sm text-gray-400">Security</p>
-              <ShieldAlert size={16} className="text-[#B8112D] sm:w-5 sm:h-5" />
+              <ShieldAlert size={16} className="text-[#0F398A] sm:w-5 sm:h-5" />
             </div>
-            <p className={`font-bold text-base sm:text-lg ${twoFactor ? "text-[#027A48]" : "text-[#B8112D]"}`}>
+            <p className={`font-bold text-base sm:text-lg ${twoFactor ? "text-[#027A48]" : "text-[#0F398A]"}`}>
               {twoFactor ? "Maximum" : "Standard"}
             </p>
             <div className="w-full h-1.5 sm:h-2 rounded-full bg-gray-100 mt-1.5 sm:mt-2 overflow-hidden">
-              <div className={`h-full rounded-full transition-all duration-700 ${twoFactor ? "w-full bg-[#027A48]" : "w-[55%] bg-[#B8112D]"}`} />
+              <div className={`h-full rounded-full transition-all duration-700 ${twoFactor ? "w-full bg-[#027A48]" : "w-[55%] bg-[#0F398A]"}`} />
             </div>
             <p className="text-[10px] sm:text-xs text-gray-400 mt-1 sm:mt-1.5">
               {twoFactor ? "2FA active" : "Enable 2FA"}
@@ -311,7 +311,7 @@ export default function AdminSettingsPage() {
             <p className="text-[11px] sm:text-sm text-gray-400 mb-2 sm:mb-3">Role</p>
             {loadingProfile
               ? <Skeleton w="w-16 sm:w-20" h="h-6 sm:h-7" />
-              : <p className="font-bold text-lg sm:text-xl text-[#B8112D] capitalize">{profile?.role ?? "Admin"}</p>
+              : <p className="font-bold text-lg sm:text-xl text-[#0F398A] capitalize">{profile?.role ?? "Admin"}</p>
             }
             <p className="text-[10px] sm:text-xs text-gray-400 mt-1 sm:mt-2">Full access</p>
           </div>
@@ -335,12 +335,12 @@ export default function AdminSettingsPage() {
               {/* Avatar + info */}
               <div className="flex flex-col items-center text-center mb-4 sm:mb-6">
                 <div className="relative">
-                  <div className="w-20 h-20 sm:w-28 sm:h-28 rounded-full overflow-hidden bg-[#FFF1F3] flex items-center justify-center">
+                  <div className="w-20 h-20 sm:w-28 sm:h-28 rounded-full overflow-hidden bg-[#EFF6FF] flex items-center justify-center">
                     {profileImage ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img src={profileImage} alt="Profile" className="w-full h-full object-cover" />
                     ) : (
-                      <span className="text-[#B8112D] text-3xl sm:text-4xl font-bold">{initial}</span>
+                      <span className="text-[#0F398A] text-3xl sm:text-4xl font-bold">{initial}</span>
                     )}
                   </div>
                   <input
@@ -353,7 +353,7 @@ export default function AdminSettingsPage() {
                   <button
                     onClick={() => fileInputRef.current?.click()}
                     disabled={uploadingPic}
-                    className="absolute bottom-0 right-0 w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-[#B8112D] text-white flex items-center justify-center shadow-lg hover:bg-[#a30f27] transition-all disabled:opacity-60"
+                    className="absolute bottom-0 right-0 w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-[#0F398A] text-white flex items-center justify-center shadow-lg hover:bg-[#a30f27] transition-all disabled:opacity-60"
                   >
                     <Camera size={14} className="sm:w-4 sm:h-4" />
                   </button>
@@ -386,7 +386,7 @@ export default function AdminSettingsPage() {
                     value={form.name}
                     onChange={e => setForm({ ...form, name: e.target.value })}
                     placeholder="Enter your name"
-                    className="w-full border border-gray-200 rounded-xl sm:rounded-2xl px-3 sm:px-4 py-2.5 sm:py-3 outline-none focus:border-[#B8112D] text-sm transition-all"
+                    className="w-full border border-gray-200 rounded-xl sm:rounded-2xl px-3 sm:px-4 py-2.5 sm:py-3 outline-none focus:border-[#0F398A] text-sm transition-all"
                   />
                 </div>
                 <div>
@@ -396,7 +396,7 @@ export default function AdminSettingsPage() {
                     value={form.email}
                     onChange={e => setForm({ ...form, email: e.target.value })}
                     placeholder="Enter email"
-                    className="w-full border border-gray-200 rounded-xl sm:rounded-2xl px-3 sm:px-4 py-2.5 sm:py-3 outline-none focus:border-[#B8112D] text-sm transition-all"
+                    className="w-full border border-gray-200 rounded-xl sm:rounded-2xl px-3 sm:px-4 py-2.5 sm:py-3 outline-none focus:border-[#0F398A] text-sm transition-all"
                   />
                 </div>
                 <div>
@@ -406,7 +406,7 @@ export default function AdminSettingsPage() {
                     value={form.cnic}
                     onChange={e => setForm({ ...form, cnic: e.target.value })}
                     placeholder="xxxxx-xxxxxxx-x"
-                    className="w-full border border-gray-200 rounded-xl sm:rounded-2xl px-3 sm:px-4 py-2.5 sm:py-3 outline-none focus:border-[#B8112D] text-sm transition-all font-mono"
+                    className="w-full border border-gray-200 rounded-xl sm:rounded-2xl px-3 sm:px-4 py-2.5 sm:py-3 outline-none focus:border-[#0F398A] text-sm transition-all font-mono"
                   />
                 </div>
                 <button
@@ -415,7 +415,7 @@ export default function AdminSettingsPage() {
                   className={`w-full py-2.5 sm:py-3 rounded-xl sm:rounded-2xl font-semibold flex items-center justify-center gap-2 text-sm transition-all ${
                     saving
                       ? "bg-gray-100 text-gray-400 cursor-not-allowed"
-                      : "bg-[#B8112D] text-white hover:bg-[#a30f27]"
+                      : "bg-[#0F398A] text-white hover:bg-[#a30f27]"
                   }`}
                 >
                   <Save size={14} className="sm:w-4 sm:h-4" />
@@ -431,7 +431,7 @@ export default function AdminSettingsPage() {
             {/* Change Password */}
             <div className="bg-white rounded-2xl sm:rounded-3xl border border-gray-100 p-4 sm:p-6 shadow-sm">
               <div className="flex items-center gap-2.5 sm:gap-3 mb-4 sm:mb-6">
-                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-[#FFF1F3] text-[#B8112D] flex items-center justify-center shrink-0">
+                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-[#EFF6FF] text-[#0F398A] flex items-center justify-center shrink-0">
                   <Lock size={15} className="sm:w-[18px] sm:h-[18px]" />
                 </div>
                 <div>
@@ -450,7 +450,7 @@ export default function AdminSettingsPage() {
                       value={pwForm.current}
                       onChange={e => setPwForm({ ...pwForm, current: e.target.value })}
                       placeholder="Enter current password"
-                      className="w-full border border-gray-200 rounded-xl sm:rounded-2xl px-3 sm:px-4 py-2.5 sm:py-3 pr-11 sm:pr-12 outline-none focus:border-[#B8112D] text-sm transition-all"
+                      className="w-full border border-gray-200 rounded-xl sm:rounded-2xl px-3 sm:px-4 py-2.5 sm:py-3 pr-11 sm:pr-12 outline-none focus:border-[#0F398A] text-sm transition-all"
                     />
                     <button
                       type="button"
@@ -472,7 +472,7 @@ export default function AdminSettingsPage() {
                         value={pwForm.next}
                         onChange={e => setPwForm({ ...pwForm, next: e.target.value })}
                         placeholder="Min. 6 characters"
-                        className="w-full border border-gray-200 rounded-xl sm:rounded-2xl px-3 sm:px-4 py-2.5 sm:py-3 pr-11 sm:pr-12 outline-none focus:border-[#B8112D] text-sm transition-all"
+                        className="w-full border border-gray-200 rounded-xl sm:rounded-2xl px-3 sm:px-4 py-2.5 sm:py-3 pr-11 sm:pr-12 outline-none focus:border-[#0F398A] text-sm transition-all"
                       />
                       <button
                         type="button"
@@ -493,7 +493,7 @@ export default function AdminSettingsPage() {
                       className={`w-full border rounded-xl sm:rounded-2xl px-3 sm:px-4 py-2.5 sm:py-3 outline-none text-sm transition-all ${
                         pwForm.confirm && pwForm.next !== pwForm.confirm
                           ? "border-red-300 focus:border-red-400"
-                          : "border-gray-200 focus:border-[#B8112D]"
+                          : "border-gray-200 focus:border-[#0F398A]"
                       }`}
                     />
                     {pwForm.confirm && pwForm.next !== pwForm.confirm && (
@@ -527,7 +527,7 @@ export default function AdminSettingsPage() {
               <div className="flex items-start justify-between gap-3 sm:gap-4 p-3 sm:p-4 rounded-xl sm:rounded-2xl bg-[#FAFAFA] border border-gray-100">
                 <div className="flex items-start gap-2.5 sm:gap-3 min-w-0">
                   <div className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl flex items-center justify-center shrink-0 ${
-                    twoFactor ? "bg-[#ECFDF3] text-[#027A48]" : "bg-[#FFF1F3] text-[#B8112D]"
+                    twoFactor ? "bg-[#ECFDF3] text-[#027A48]" : "bg-[#EFF6FF] text-[#0F398A]"
                   }`}>
                     <ShieldCheck size={15} className="sm:w-[18px] sm:h-[18px]" />
                   </div>
@@ -535,7 +535,7 @@ export default function AdminSettingsPage() {
                     <h3 className="font-semibold text-gray-800 text-sm sm:text-base">Two Factor Auth</h3>
                     <p className="text-[11px] sm:text-sm text-gray-400 mt-0.5">OTP sent to your email on login</p>
                     <div className="flex items-center gap-1 sm:gap-1.5 mt-1.5 sm:mt-2 bg-white border border-gray-100 rounded-xl px-2.5 sm:px-3 py-1 sm:py-1.5 w-fit">
-                      <Mail size={10} className="text-[#B8112D] sm:w-[11px] sm:h-[11px]" />
+                      <Mail size={10} className="text-[#0F398A] sm:w-[11px] sm:h-[11px]" />
                       <span className="text-[10px] sm:text-xs font-medium text-gray-600 truncate max-w-[160px] sm:max-w-none">
                         {profile?.email ?? ADMIN_2FA_EMAIL}
                       </span>
@@ -601,13 +601,13 @@ export default function AdminSettingsPage() {
                   <h2 className="text-base sm:text-xl font-semibold text-gray-800">Security Activity</h2>
                   <div className="flex flex-wrap items-center gap-2">
                     <input type="date" value={auditFrom} onChange={e => setAuditFrom(e.target.value)}
-                      className="h-9 rounded-xl border border-gray-200 px-3 text-xs outline-none focus:border-[#B8112D]" />
+                      className="h-9 rounded-xl border border-gray-200 px-3 text-xs outline-none focus:border-[#0F398A]" />
                     <span className="text-gray-400 text-xs">→</span>
                     <input type="date" value={auditTo} onChange={e => setAuditTo(e.target.value)}
-                      className="h-9 rounded-xl border border-gray-200 px-3 text-xs outline-none focus:border-[#B8112D]" />
+                      className="h-9 rounded-xl border border-gray-200 px-3 text-xs outline-none focus:border-[#0F398A]" />
                     <button type="button" onClick={() => fetchAuditLogs(auditFrom, auditTo)}
                       disabled={!auditFrom || !auditTo}
-                      className="h-9 px-3 rounded-xl bg-[#B8112D] text-white text-xs font-semibold disabled:opacity-40">
+                      className="h-9 px-3 rounded-xl bg-[#0F398A] text-white text-xs font-semibold disabled:opacity-40">
                       Filter
                     </button>
                     <button type="button" onClick={() => { setAuditFrom(""); setAuditTo(""); fetchAuditLogs(); }}

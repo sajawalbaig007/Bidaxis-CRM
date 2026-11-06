@@ -123,7 +123,7 @@ export default function BemAssetInventoryEditor({
                               className="h-8 w-full rounded-lg border border-crm-border px-2 text-xs text-right bg-crm-surface outline-none focus:ring-2 focus:ring-[#0D9488]/30"
                             />
                           </td>
-                          <td className="px-2 py-1.5 text-right font-bold tabular-nums text-[#B8112D] whitespace-nowrap">
+                          <td className="px-2 py-1.5 text-right font-bold tabular-nums text-[#0F398A] whitespace-nowrap">
                             {currency(total)}
                           </td>
                           <td className="px-1 py-1.5 text-center">
@@ -146,7 +146,7 @@ export default function BemAssetInventoryEditor({
                     <td colSpan={4} className="px-2 py-2 text-[10px] font-extrabold uppercase tracking-wide text-teal-900">
                       Subtotal
                     </td>
-                    <td className="px-2 py-2 text-right font-black tabular-nums text-[#B8112D] text-sm">
+                    <td className="px-2 py-2 text-right font-black tabular-nums text-[#0F398A] text-sm">
                       {currency(subtotal)}
                     </td>
                     <td />

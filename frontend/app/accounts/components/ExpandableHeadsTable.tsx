@@ -72,7 +72,6 @@ type ExpandableHeadsTableProps = {
   execProfitBase?: number;
   /** Record date (YYYY-MM-DD) — salary slip month label. */
   recordDate?: string;
-  /** Which company slip format to download (default BEM Solutions). */
   salarySlipCompany?: SalarySlipCompanyKey;
   /**
    * Custom sub-head delete. Return true if you already applied `nextRows`
@@ -431,7 +430,7 @@ export default function ExpandableHeadsTable({
                             <button
                               type="button"
                               onClick={() => setSlipEditorKind(rowPayrollKind)}
-                              className="w-8 h-8 rounded-lg text-[#B8112D] hover:bg-[#FFF1F3] inline-flex items-center justify-center transition-colors"
+                              className="w-8 h-8 rounded-lg text-[#0F398A] hover:bg-[#EFF6FF] inline-flex items-center justify-center transition-colors"
                               title={`Edit ${slipKindTitle(rowPayrollKind)} salary-slip template`}
                             >
                               <FilePenLine size={14} />
@@ -510,7 +509,7 @@ export default function ExpandableHeadsTable({
                                             <td className="px-2 py-2 text-crm-text-secondary font-medium">{s.label}</td>
                                             <td className="px-2 py-2 text-right tabular-nums">{s.qty ?? "—"}</td>
                                             <td className="px-2 py-2 text-right tabular-nums">{currency(Number(s.unitPrice) || 0)}</td>
-                                            <td className="px-2 py-2 text-right font-bold tabular-nums text-[#B8112D]">
+                                            <td className="px-2 py-2 text-right font-bold tabular-nums text-[#0F398A]">
                                               {currency(subHeadLineAmount(s))}
                                             </td>
                                             {onPersist && (
@@ -544,7 +543,7 @@ export default function ExpandableHeadsTable({
                                           <td colSpan={4} className="px-2 py-2 text-[10px] font-extrabold uppercase text-teal-900">
                                             Subtotal
                                           </td>
-                                          <td className="px-2 py-2 text-right font-black tabular-nums text-[#B8112D]">
+                                          <td className="px-2 py-2 text-right font-black tabular-nums text-[#0F398A]">
                                             {currency(sumSubHeads(catRows))}
                                           </td>
                                           <td colSpan={onPersist ? 2 : 1} />
@@ -572,7 +571,7 @@ export default function ExpandableHeadsTable({
                                     <th className="px-2 py-2 text-right font-bold uppercase tracking-wide text-[9px]">Loan −ve</th>
                                     <th className="px-2 py-2 text-right font-bold uppercase tracking-wide text-[9px]">Occas.</th>
                                     <th className="px-2 py-2 text-right font-bold uppercase tracking-wide text-[9px]">PF</th>
-                                    <th className="px-2 py-2 text-right font-bold uppercase tracking-wide text-[9px] text-[#B8112D]">Total Due</th>
+                                    <th className="px-2 py-2 text-right font-bold uppercase tracking-wide text-[9px] text-[#0F398A]">Total Due</th>
                                     <th className="px-2 py-2 text-left font-bold uppercase tracking-wide text-[9px]">Remarks</th>
                                     <th className="w-10 px-1 py-2 text-center font-bold uppercase tracking-wide text-[9px]">Slip</th>
                                     {onPersist && <th className="w-10 px-1 py-2 text-center font-bold uppercase tracking-wide text-[9px]">Save</th>}
@@ -593,7 +592,7 @@ export default function ExpandableHeadsTable({
                                         <td className="px-2 py-2 text-right tabular-nums text-red-600">{currency(ex.loanNegative)}</td>
                                         <td className="px-2 py-2 text-right tabular-nums text-sky-700">{currency(ex.occasionalAmount)}</td>
                                         <td className="px-2 py-2 text-right tabular-nums text-teal-800">{currency(ex.pf)}</td>
-                                        <td className="px-2 py-2 text-right font-extrabold tabular-nums text-[#B8112D] bg-[#FFF6F8]/80">
+                                        <td className="px-2 py-2 text-right font-extrabold tabular-nums text-[#0F398A] bg-[#FFF6F8]/80">
                                           {currency(ex.totalPayable)}
                                         </td>
                                         <td className="px-2 py-2 text-crm-text-muted max-w-[140px] truncate" title={sal.remarks || undefined}>{sal.remarks || "—"}</td>
@@ -629,7 +628,7 @@ export default function ExpandableHeadsTable({
                                     <td colSpan={9} className="px-2 py-2.5 text-[10px] font-extrabold uppercase tracking-wide text-indigo-900">
                                       All executives — total due
                                     </td>
-                                    <td className="px-2 py-2.5 text-right font-black tabular-nums text-[#B8112D] text-sm">
+                                    <td className="px-2 py-2.5 text-right font-black tabular-nums text-[#0F398A] text-sm">
                                       {currency(
                                         subs.reduce((a, s) => {
                                           const ex = computeExecutiveSalary(
@@ -721,7 +720,7 @@ export default function ExpandableHeadsTable({
                                                   const net = computeSalesEmployeePayroll(next, extra, calcOpts).netSalary;
                                                   patchSub(row.id, s.id, { salesPayroll: next, amount: net });
                                                 }}
-                                                className="h-7 w-[4.75rem] rounded-md border border-amber-200 bg-amber-50 px-1.5 text-right text-xs tabular-nums text-amber-950 outline-none focus:border-[#B8112D] dark:border-amber-900 dark:bg-[#0B1220] dark:text-white"
+                                                className="h-7 w-[4.75rem] rounded-md border border-amber-200 bg-amber-50 px-1.5 text-right text-xs tabular-nums text-amber-950 outline-none focus:border-[#0F398A] dark:border-amber-900 dark:bg-[#0B1220] dark:text-white"
                                               />
                                             ) : (
                                               currency(b.lateDeduction)
@@ -736,7 +735,7 @@ export default function ExpandableHeadsTable({
                                           <td className="px-2 py-2 text-right tabular-nums">{currency(sp.incomeTax)}</td>
                                           <td className="px-2 py-2 text-right tabular-nums text-red-600">{currency(b.totalDeduction)}</td>
                                           <td className="px-2 py-2 text-right tabular-nums text-sky-700">{currency(b.occasionalAmount ?? 0)}</td>
-                                          <td className="px-2 py-2 text-right font-bold tabular-nums text-[#B8112D]">{currency(b.netSalary)}</td>
+                                          <td className="px-2 py-2 text-right font-bold tabular-nums text-[#0F398A]">{currency(b.netSalary)}</td>
                                           <td className="px-1 py-2 text-center">
                                             <SalarySlipDownloadButton
                                               compact
@@ -808,7 +807,7 @@ export default function ExpandableHeadsTable({
                                                     : computeSalary(nextSal, { personName: s.label });
                                                 patchSub(row.id, s.id, { salary: nextSal, amount: nextBreak.totalSalary });
                                               }}
-                                              className="h-7 w-[4.75rem] rounded-md border border-amber-200 bg-amber-50 px-1.5 text-right text-xs tabular-nums text-amber-950 outline-none focus:border-[#B8112D] dark:border-amber-900 dark:bg-[#0B1220] dark:text-white"
+                                              className="h-7 w-[4.75rem] rounded-md border border-amber-200 bg-amber-50 px-1.5 text-right text-xs tabular-nums text-amber-950 outline-none focus:border-[#0F398A] dark:border-amber-900 dark:bg-[#0B1220] dark:text-white"
                                             />
                                           ) : b ? (
                                             currency(b.lateDeduction)
@@ -825,7 +824,7 @@ export default function ExpandableHeadsTable({
                                         <td className="px-2 py-2 text-right tabular-nums">{b ? currency(b.incomeTax) : "—"}</td>
                                         <td className="px-2 py-2 text-right tabular-nums text-red-600">{b ? currency(b.totalDeduction) : "—"}</td>
                                         <td className="px-2 py-2 text-right tabular-nums text-sky-700">{b ? currency(b.occasionalAmount ?? 0) : "—"}</td>
-                                        <td className="px-2 py-2 text-right font-bold tabular-nums text-[#B8112D]">{b ? currency(b.totalSalary) : currency(s.amount)}</td>
+                                        <td className="px-2 py-2 text-right font-bold tabular-nums text-[#0F398A]">{b ? currency(b.totalSalary) : currency(s.amount)}</td>
                                         <td className="px-1 py-2 text-center">
                                           <SalarySlipDownloadButton
                                             compact

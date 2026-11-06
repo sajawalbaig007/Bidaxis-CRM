@@ -5,12 +5,10 @@ import { ArrowRight, Building2, Shield } from "lucide-react";
 import DevToolsGuard from "@/app/components/DevToolsGuard";
 import BrandLogo from "@/app/components/BrandLogo";
 import BemWordmark from "@/app/components/BemWordmark";
-import GpsLogo from "@/app/components/GpsLogo";
-import GpsWordmark from "@/app/components/GpsWordmark";
 import CompanyPortalChrome from "@/app/components/CompanyPortalChrome";
 import { COMPANY_META, type PortalCompany } from "@/lib/companyGate";
 
-const CARDS: PortalCompany[] = ["BEM", "GPS"];
+const CARDS: PortalCompany[] = ["BEM"];
 
 export default function HomeLandingPage() {
   return (
@@ -22,14 +20,14 @@ export default function HomeLandingPage() {
             Secure company portals
           </p>
           <h1 className="text-white text-2xl sm:text-3xl md:text-4xl font-black tracking-tight">
-            Choose your company
+            BidAxis CRM Portals
           </h1>
           <p className="text-white/80 text-[13px] sm:text-[14px] mt-2 max-w-md mx-auto leading-relaxed">
             Sign in with company credentials, then open the matching dashboards.
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4 min-h-0">
+        <div className="grid grid-cols-1 max-w-[520px] mx-auto w-full gap-3 sm:gap-4 min-h-0">
           {CARDS.map(key => {
             const c = COMPANY_META[key];
             return (
@@ -43,29 +41,19 @@ export default function HomeLandingPage() {
                     className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-white flex items-center justify-center shadow-lg overflow-hidden"
                     style={{ boxShadow: `0 12px 32px ${c.accent}55` }}
                   >
-                    {key === "BEM" ? (
-                      <BrandLogo size="sm" className="!m-0 drop-shadow-none h-11 w-11" />
-                    ) : (
-                      <GpsLogo size="sm" className="drop-shadow-none h-11 w-11" />
-                    )}
+                    <BrandLogo size="sm" className="!m-0 drop-shadow-none h-11 w-11" />
                   </div>
                   <span
                     className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-white/80 px-2.5 py-1 rounded-full border border-white/15"
                     style={{ background: `${c.accent}33` }}
                   >
                     <Building2 size={11} />
-                    {c.key}
+                    {c.name}
                   </span>
                 </div>
 
                 <div className="mt-5 sm:mt-6 text-left">
-                  {key === "BEM" ? (
-                    <BemWordmark className="text-[18px] sm:text-[22px] justify-start" onDark />
-                  ) : (
-                    <div className="items-start text-left">
-                      <GpsWordmark onDark className="items-start" />
-                    </div>
-                  )}
+                  <BemWordmark className="text-[18px] sm:text-[22px] justify-start" onDark />
                   <p className="text-white/75 text-[13px] sm:text-[14px] mt-3 leading-relaxed">
                     {c.tagline}
                   </p>

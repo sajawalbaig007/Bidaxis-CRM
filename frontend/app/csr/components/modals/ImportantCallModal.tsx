@@ -37,13 +37,13 @@ export default function ImportantCallModal({
 
           {/* Notes */}
           <div>
-            <label className="flex items-center gap-1.5 text-[11px] font-semibold text-[#B8112D] uppercase tracking-wider mb-2">
+            <label className="flex items-center gap-1.5 text-[11px] font-semibold text-[#0F398A] uppercase tracking-wider mb-2">
               <AlignLeft size={11} /> Notes <span className="text-gray-400 normal-case font-normal">(optional)</span>
             </label>
             <textarea
               value={note} onChange={e => onNoteChange?.(e.target.value)} rows={3}
               placeholder="Any additional notes..."
-              className="w-full rounded-2xl border border-gray-200 bg-[#F5F6FA] px-4 py-3 text-sm outline-none resize-none text-[#0F172A] placeholder:text-gray-400 focus:border-[#B8112D] transition-colors"
+              className="w-full rounded-2xl border border-gray-200 bg-[#F5F6FA] px-4 py-3 text-sm outline-none resize-none text-[#0F172A] placeholder:text-gray-400 focus:border-[#0F398A] transition-colors"
             />
           </div>
         </div>
@@ -60,7 +60,7 @@ export default function ImportantCallModal({
         )}
         <div className="flex gap-2 sm:gap-3 mt-4 sm:mt-7">
           <button onClick={onClose} className="flex-1 h-11 sm:h-[52px] rounded-xl sm:rounded-2xl bg-[#F5F6FA] font-semibold text-gray-600 text-sm">Cancel</button>
-          <button onClick={onSave} className="flex-1 h-11 sm:h-[52px] rounded-xl sm:rounded-2xl bg-[#B8112D] text-white font-semibold shadow-sm text-sm">Schedule Call</button>
+          <button onClick={onSave} className="flex-1 h-11 sm:h-[52px] rounded-xl sm:rounded-2xl bg-[#0F398A] text-white font-semibold shadow-sm text-sm">Schedule Call</button>
         </div>
       </div>
     </div>

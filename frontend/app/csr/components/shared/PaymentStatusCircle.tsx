@@ -9,7 +9,7 @@ export default function PaymentStatusCircle({ percent, size = 44, strokeWidth = 
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
   const offset = circumference - (clamped / 100) * circumference;
-  const color = clamped >= 100 ? "#15803D" : clamped > 0 ? "#B8112D" : "#CBD5E1";
+  const color = clamped >= 100 ? "#15803D" : clamped > 0 ? "#0F398A" : "#CBD5E1";
 
   return (
     <div className="relative shrink-0" style={{ width: size, height: size }}>

@@ -35,24 +35,24 @@ export const TABLE_VARIANT: Record<
     accent: "#0D9488",
   },
   liability: {
-    card: "border-[#B8112D]/25 dark:border-rose-500/30 shadow-[0_4px_24px_-4px_rgba(184,17,45,0.12)] bg-crm-surface",
-    header: "bg-gradient-to-r from-[#FFF1F3] to-[#FFF8F9] dark:from-rose-500/15 dark:to-crm-surface",
-    headerText: "text-[#B8112D] dark:text-rose-300",
-    rowHover: "hover:bg-[#FFFBFC] dark:hover:bg-crm-surface-raised",
-    footer: "bg-[#FFF1F3]/80 dark:bg-rose-500/10 border-t-2 border-[#B8112D]/30 dark:border-rose-500/30",
-    input: "focus:ring-[#B8112D]/25 focus:border-[#B8112D] bg-crm-input text-crm-text border-crm-border",
-    badge: "bg-[#B8112D]",
-    accent: "#B8112D",
+    card: "border-[#0F398A]/25 dark:border-rose-500/30 shadow-[0_4px_24px_-4px_rgba(15,57,138,0.12)] bg-crm-surface",
+    header: "bg-gradient-to-r from-[#EFF6FF] to-[#F8FAFF] dark:from-rose-500/15 dark:to-crm-surface",
+    headerText: "text-[#0F398A] dark:text-rose-300",
+    rowHover: "hover:bg-[#F8FAFF] dark:hover:bg-crm-surface-raised",
+    footer: "bg-[#EFF6FF]/80 dark:bg-rose-500/10 border-t-2 border-[#0F398A]/30 dark:border-rose-500/30",
+    input: "focus:ring-[#0F398A]/25 focus:border-[#0F398A] bg-crm-input text-crm-text border-crm-border",
+    badge: "bg-[#0F398A]",
+    accent: "#0F398A",
   },
   cashflow: {
-    card: "border-[#B8112D]/20 dark:border-rose-500/25 shadow-[0_4px_24px_-4px_rgba(184,17,45,0.1)] bg-crm-surface",
-    header: "bg-gradient-to-r from-[#FFF8F9] to-[#FFFBFC] dark:from-rose-500/12 dark:to-crm-surface",
-    headerText: "text-[#B8112D] dark:text-rose-300",
-    rowHover: "hover:bg-[#FFFBFC] dark:hover:bg-crm-surface-raised",
-    footer: "bg-[#FFF8F2] dark:bg-rose-500/10 border-t-2 border-[#B8112D]/25 dark:border-rose-500/25",
-    input: "focus:ring-[#B8112D]/25 focus:border-[#B8112D] bg-crm-input text-crm-text border-crm-border",
-    badge: "bg-[#B8112D]",
-    accent: "#B8112D",
+    card: "border-[#0F398A]/20 dark:border-rose-500/25 shadow-[0_4px_24px_-4px_rgba(15,57,138,0.1)] bg-crm-surface",
+    header: "bg-gradient-to-r from-[#F8FAFF] to-[#F8FAFF] dark:from-rose-500/12 dark:to-crm-surface",
+    headerText: "text-[#0F398A] dark:text-rose-300",
+    rowHover: "hover:bg-[#F8FAFF] dark:hover:bg-crm-surface-raised",
+    footer: "bg-[#FFF8F2] dark:bg-rose-500/10 border-t-2 border-[#0F398A]/25 dark:border-rose-500/25",
+    input: "focus:ring-[#0F398A]/25 focus:border-[#0F398A] bg-crm-input text-crm-text border-crm-border",
+    badge: "bg-[#0F398A]",
+    accent: "#0F398A",
   },
   neutral: {
     card: "border-crm-border shadow-sm bg-crm-surface",
@@ -60,13 +60,13 @@ export const TABLE_VARIANT: Record<
     headerText: "text-crm-text-secondary",
     rowHover: "hover:bg-crm-surface-raised",
     footer: "bg-crm-surface-muted border-t border-crm-border",
-    input: "focus:ring-[#B8112D]/20 focus:border-[#B8112D]/40 bg-crm-input text-crm-text border-crm-border",
+    input: "focus:ring-[#0F398A]/20 focus:border-[#0F398A]/40 bg-crm-input text-crm-text border-crm-border",
     badge: "bg-crm-text-muted",
     accent: "#64748B",
   },
 };
 
-export const BANK_COLORS = ["#0B84F3", "#B8112D", "#12B76A", "#F59E0B", "#0D9488", "#EA580C"];
+export const BANK_COLORS = ["#0B84F3", "#0F398A", "#12B76A", "#F59E0B", "#0D9488", "#EA580C"];
 
 export function bankColor(index: number): string {
   return BANK_COLORS[index % BANK_COLORS.length];

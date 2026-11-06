@@ -54,7 +54,7 @@ const TIP = {
 } as const;
 const GRID = "var(--crm-border-subtle)";
 const TICK = { fontSize: 10, fill: "var(--crm-text-muted)" } as const;
-const DONUT = ["#B8112D", "#0B84F3", "#D97706", "#059669", "#7C3AED", "#38BDF8"];
+const DONUT = ["#0F398A", "#0B84F3", "#D97706", "#059669", "#7C3AED", "#38BDF8"];
 
 function pctOf(part: number, whole: number) {
   if (!(whole > 0)) return 0;
@@ -185,7 +185,7 @@ export default function KpiChartsBento({
         id: "delivered",
         label: "Delivered",
         shortLabel: "Done",
-        accent: "#B8112D",
+        accent: "#0F398A",
         content: (
           <ChartCard
             eyebrow="Volume"
@@ -217,7 +217,7 @@ export default function KpiChartsBento({
                           return [`${v} (${pct}% of team)`, "Delivered"];
                         }}
                       />
-                      <Bar dataKey="projects_delivered" fill="#B8112D" radius={[8, 8, 0, 0]} maxBarSize={28}>
+                      <Bar dataKey="projects_delivered" fill="#0F398A" radius={[8, 8, 0, 0]} maxBarSize={28}>
                         <LabelList
                           dataKey="deliveredPct"
                           position="top"
@@ -509,13 +509,13 @@ export default function KpiChartsBento({
                     <div key={r.fullName}>
                       <div className="flex items-center justify-between text-[11px] mb-1 gap-2">
                         <span className="font-semibold text-gray-700 truncate">{r.fullName}</span>
-                        <span className="tabular-nums font-bold text-[#B8112D] shrink-0">
+                        <span className="tabular-nums font-bold text-[#0F398A] shrink-0">
                           {r.marks_out_of_10 || "—"} · {pctOf(r.marks_out_of_10, 10)}%
                         </span>
                       </div>
                       <div className="h-2 rounded-full bg-gray-100 overflow-hidden">
                         <div
-                          className="h-full rounded-full bg-gradient-to-r from-[#B8112D] to-[#F43F5E]"
+                          className="h-full rounded-full bg-gradient-to-r from-[#0F398A] to-[#F43F5E]"
                           style={{ width: `${Math.max(6, (r.marks_out_of_10 / maxMarks) * 100)}%` }}
                         />
                       </div>

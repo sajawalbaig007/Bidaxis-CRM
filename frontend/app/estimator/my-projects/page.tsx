@@ -598,7 +598,7 @@ export default function EstimatorMyProjectsPage() {
     const pendingOnTrack = Math.max(0, counts.pending - overdueCount);
     return [
       { name: "Pending", value: pendingOnTrack, color: "#D97706" },
-      { name: "Overdue", value: overdueCount, color: "#B8112D" },
+      { name: "Overdue", value: overdueCount, color: "#0F398A" },
       { name: "Takeoff done", value: counts.done, color: "#059669" },
     ].filter((d) => d.value > 0);
   }, [counts.pending, counts.done, overdueCount]);
@@ -609,7 +609,7 @@ export default function EstimatorMyProjectsPage() {
         { name: "All", count: counts.all, fill: "#7C3AED" },
         { name: "Pending", count: counts.pending, fill: "#D97706" },
         { name: "Done", count: counts.done, fill: "#059669" },
-        { name: "Overdue", count: overdueCount, fill: "#B8112D" },
+        { name: "Overdue", count: overdueCount, fill: "#0F398A" },
       ].filter((d) => d.count > 0),
     [counts, overdueCount],
   );

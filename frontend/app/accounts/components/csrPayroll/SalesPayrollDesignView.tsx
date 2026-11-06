@@ -43,7 +43,7 @@ export default function SalesPayrollDesignView() {
             <button type="button" className="h-10 px-4 rounded-xl bg-[#F3EEFF] text-[#7C3AED] text-sm font-semibold inline-flex items-center gap-2 opacity-60 cursor-not-allowed">
               <Upload size={16} /> Upload File
             </button>
-            <button type="button" className="h-10 px-4 rounded-xl bg-[#B8112D] text-white text-sm font-semibold inline-flex items-center gap-2 opacity-60 cursor-not-allowed shadow-md shadow-[#B8112D]/20">
+            <button type="button" className="h-10 px-4 rounded-xl bg-[#0F398A] text-white text-sm font-semibold inline-flex items-center gap-2 opacity-60 cursor-not-allowed shadow-md shadow-[#0F398A]/20">
               <Save size={16} /> Save
             </button>
           </div>
@@ -54,7 +54,7 @@ export default function SalesPayrollDesignView() {
         <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
           <label className="text-xs font-semibold text-crm-text-secondary">
             <span className="inline-flex items-center gap-1 mb-1"><Calendar size={12} /> Payroll Month</span>
-            <input type="month" defaultValue="2026-07" className="mt-1 h-10 w-full sm:w-48 rounded-xl border border-crm-border px-3 text-sm outline-none focus:ring-2 focus:ring-[#B8112D]/20" />
+            <input type="month" defaultValue="2026-07" className="mt-1 h-10 w-full sm:w-48 rounded-xl border border-crm-border px-3 text-sm outline-none focus:ring-2 focus:ring-[#0F398A]/20" />
           </label>
 
           <div className="inline-flex p-1 rounded-2xl bg-[#F4F5F8] border border-crm-border-subtle">
@@ -107,7 +107,7 @@ export default function SalesPayrollDesignView() {
           { label: "Employees", value: String(employees.length), cls: "from-[#ECFDF3] to-white border-emerald-200 text-emerald-700" },
           { label: "Total Net (preview)", value: fmt(totalNet), cls: "from-[#EAF5FF] to-white border-[#0B84F3]/20 text-[#0B84F3]" },
           { label: "New Client Commission", value: "$3,000 / project", cls: "from-[#F3EEFF] to-white border-violet-200 text-violet-700" },
-          { label: tab === "sales" ? "Old Client Commission" : "TL Assign Rate", value: tab === "sales" ? "$1,000 / project" : "$1,000 / rep project", cls: "from-[#FFF1F3] to-white border-[#B8112D]/20 text-[#B8112D]" },
+          { label: tab === "sales" ? "Old Client Commission" : "TL Assign Rate", value: tab === "sales" ? "$1,000 / project" : "$1,000 / rep project", cls: "from-[#EFF6FF] to-white border-[#0F398A]/20 text-[#0F398A]" },
         ].map(c => (
           <div key={c.label} className={`rounded-2xl border bg-gradient-to-br p-4 ${c.cls}`}>
             <p className="text-[10px] font-bold uppercase tracking-wide opacity-70">{c.label}</p>

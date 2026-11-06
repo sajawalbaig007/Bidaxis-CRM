@@ -237,7 +237,7 @@ export default function DashboardSidebar() {
           {/* Logo */}
           <div className="shrink-0 flex items-center max-w-[40%] sm:max-w-none">
           <Link href={BASE} prefetch={false} className="flex items-center gap-2 xl:gap-3 min-w-0">
-            <div className="w-9 h-9 xl:w-11 xl:h-11 rounded-[14px] bg-[#B8112D] flex items-center justify-center shadow-sm overflow-hidden p-1 shrink-0">
+            <div className="w-9 h-9 xl:w-11 xl:h-11 rounded-[14px] bg-[#0F398A] flex items-center justify-center shadow-sm overflow-hidden p-1 shrink-0">
               <Image
                 src="/images/image.png" alt="logo"
                 width={44} height={44}
@@ -248,7 +248,7 @@ export default function DashboardSidebar() {
               <h2 className="text-[18px] 2xl:text-[20px] font-extrabold leading-none text-crm-text tracking-tight">
                 CRM Dashboard
               </h2>
-              <p className="text-[10px] md:text-[11px] font-semibold text-[#B8112D] mt-1 tracking-wide uppercase">
+              <p className="text-[10px] md:text-[11px] font-semibold text-[#0F398A] mt-1 tracking-wide uppercase">
                 CEO Panel
               </p>
             </div>
@@ -256,7 +256,7 @@ export default function DashboardSidebar() {
           </div>
 
           <div className="flex-1 min-w-0 overflow-hidden px-1">
-            <CapsuleChipNav items={navItems} baseHref={BASE} accent="#B8112D" variant="inline" />
+            <CapsuleChipNav items={navItems} baseHref={BASE} accent="#0F398A" variant="inline" />
           </div>
 
           <div className="shrink-0 flex items-center justify-end gap-1.5 sm:gap-2">
@@ -266,12 +266,12 @@ export default function DashboardSidebar() {
           {/* Chat button */}
           <button
             onClick={() => { setChatOpen(v => !v); setBellOpen(false); }}
-            className={`relative w-9 h-9 rounded-[13px] flex items-center justify-center transition-all shrink-0 ${chatOpen ? "bg-[#B8112D] text-white shadow-md" : "bg-crm-nav-pill text-crm-text-muted hover:bg-crm-brand-soft hover:text-[#B8112D]"} ${!chatEnabled ? "opacity-50" : ""}`}
+            className={`relative w-9 h-9 rounded-[13px] flex items-center justify-center transition-all shrink-0 ${chatOpen ? "bg-[#0F398A] text-white shadow-md" : "bg-crm-nav-pill text-crm-text-muted hover:bg-crm-brand-soft hover:text-[#0F398A]"} ${!chatEnabled ? "opacity-50" : ""}`}
             title={chatEnabled ? "Messages" : "Chat disabled by admin"}
           >
             <MessageSquare size={16} />
             {chatEnabled && totalUnread > 0 && (
-              <span className="absolute -top-1 -right-1 min-w-[16px] h-4 bg-[#B8112D] text-white text-[9px] font-bold rounded-full flex items-center justify-center px-0.5 border-2 border-white">
+              <span className="absolute -top-1 -right-1 min-w-[16px] h-4 bg-[#0F398A] text-white text-[9px] font-bold rounded-full flex items-center justify-center px-0.5 border-2 border-white">
                 {totalUnread > 9 ? "9+" : totalUnread}
               </span>
             )}
@@ -282,12 +282,12 @@ export default function DashboardSidebar() {
             <button
               type="button"
               onClick={() => { setBellOpen(v => !v); setProfileOpen(false); }}
-              className="relative w-9 h-9 rounded-[13px] flex items-center justify-center text-crm-text-muted hover:text-[#B8112D] hover:bg-crm-nav-pill transition-colors"
+              className="relative w-9 h-9 rounded-[13px] flex items-center justify-center text-crm-text-muted hover:text-[#0F398A] hover:bg-crm-nav-pill transition-colors"
               title="Scheduled meetings"
             >
               <Bell size={17} />
               {bellCount > 0 && (
-                <span className="absolute -top-1 -right-1 min-w-[16px] h-4 bg-[#B8112D] text-white text-[9px] font-bold rounded-full flex items-center justify-center px-0.5 border-2 border-white">
+                <span className="absolute -top-1 -right-1 min-w-[16px] h-4 bg-[#0F398A] text-white text-[9px] font-bold rounded-full flex items-center justify-center px-0.5 border-2 border-white">
                   {bellCount > 9 ? "9+" : bellCount}
                 </span>
               )}
@@ -297,12 +297,12 @@ export default function DashboardSidebar() {
               <div className="absolute right-0 top-[calc(100%+10px)] w-[300px] sm:w-[340px] bg-crm-surface rounded-2xl border border-crm-border-subtle shadow-2xl z-50 overflow-hidden">
                 <div className="flex items-center justify-between px-4 py-3 border-b border-crm-border-subtle">
                   <div className="flex items-center gap-2">
-                    <Bell size={14} className="text-[#B8112D]" />
+                    <Bell size={14} className="text-[#0F398A]" />
                     <span className="text-[13px] font-bold text-[#0F172A]">Notifications</span>
                   </div>
                   <div className="flex items-center gap-2">
                     {todayCalls.length > 0 && (
-                      <span className="text-[11px] bg-[#FFF1F3] text-[#B8112D] font-bold px-2 py-0.5 rounded-full">
+                      <span className="text-[11px] bg-[#EFF6FF] text-[#0F398A] font-bold px-2 py-0.5 rounded-full">
                         {todayCalls.length} today
                       </span>
                     )}
@@ -315,7 +315,7 @@ export default function DashboardSidebar() {
                       <button
                         type="button"
                         onClick={handleClearNotifications}
-                        className="text-[10px] font-semibold text-gray-400 hover:text-[#B8112D] transition-colors"
+                        className="text-[10px] font-semibold text-gray-400 hover:text-[#0F398A] transition-colors"
                       >
                         Clear
                       </button>
@@ -332,7 +332,7 @@ export default function DashboardSidebar() {
                   {techNotes.map((n) => (
                     <div
                       key={n.id}
-                      className="flex items-start gap-3 px-4 py-3 border-b border-gray-50 bg-[#FFFBF5]"
+                      className="flex items-start gap-3 px-4 py-3 border-b border-gray-50 bg-[#F8FAFF]"
                     >
                       <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 bg-amber-100 text-amber-800">
                         <StickyNote size={14} />
@@ -350,7 +350,7 @@ export default function DashboardSidebar() {
                             dismissOne(n.id);
                             setBellOpen(false);
                           }}
-                          className="inline-block mt-1 text-[11px] font-bold text-[#B8112D] hover:underline"
+                          className="inline-block mt-1 text-[11px] font-bold text-[#0F398A] hover:underline"
                         >
                           Open Project DB
                         </Link>
@@ -358,7 +358,7 @@ export default function DashboardSidebar() {
                       <button
                         type="button"
                         onClick={() => dismissOne(n.id)}
-                        className="w-6 h-6 rounded-lg text-gray-300 hover:text-[#B8112D] hover:bg-[#FFF1F3] flex items-center justify-center shrink-0"
+                        className="w-6 h-6 rounded-lg text-gray-300 hover:text-[#0F398A] hover:bg-[#EFF6FF] flex items-center justify-center shrink-0"
                         title="Dismiss"
                       >
                         <X size={12} />
@@ -389,11 +389,11 @@ export default function DashboardSidebar() {
                         <div
                           key={c.id}
                           className={`flex items-center gap-3 px-4 py-3 border-b border-gray-50 last:border-0 ${
-                            isToday ? "bg-[#FFFBF5]" : ""
+                            isToday ? "bg-[#F8FAFF]" : ""
                           }`}
                         >
                           <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
-                            isToday ? "bg-[#FFF1F3] text-[#B8112D]" : "bg-[#FFF7E6] text-[#B54708]"
+                            isToday ? "bg-[#EFF6FF] text-[#0F398A]" : "bg-[#FFF7E6] text-[#B54708]"
                           }`}>
                             <Phone size={14} />
                           </div>
@@ -412,14 +412,14 @@ export default function DashboardSidebar() {
                             )}
                           </div>
                           <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap ${
-                            isToday ? "bg-[#FFF1F3] text-[#B8112D]" : "bg-[#FFF7E6] text-[#B54708]"
+                            isToday ? "bg-[#EFF6FF] text-[#0F398A]" : "bg-[#FFF7E6] text-[#B54708]"
                           }`}>
                             {label}
                           </span>
                           <button
                             type="button"
                             onClick={() => dismissOne(c.id)}
-                            className="w-6 h-6 rounded-lg text-gray-300 hover:text-[#B8112D] hover:bg-[#FFF1F3] flex items-center justify-center shrink-0"
+                            className="w-6 h-6 rounded-lg text-gray-300 hover:text-[#0F398A] hover:bg-[#EFF6FF] flex items-center justify-center shrink-0"
                             title="Dismiss"
                           >
                             <X size={12} />
@@ -455,7 +455,7 @@ export default function DashboardSidebar() {
 
             {profileOpen && (
               <div className="absolute right-0 top-[calc(100%+10px)] w-[240px] bg-crm-surface rounded-2xl border border-crm-border-subtle shadow-2xl z-50 overflow-hidden">
-                <div className="bg-gradient-to-br from-[#B8112D] to-[#7A0B1E] px-4 py-4 flex items-center gap-3">
+                <div className="bg-gradient-to-br from-[#0F398A] to-[#7A0B1E] px-4 py-4 flex items-center gap-3">
                   <ProfileAvatar user={user} size="md" fallback="AD" />
                   <div className="min-w-0">
                     <p className="text-white text-[14px] font-bold truncate">{user?.name ?? "CEO"}</p>
@@ -466,7 +466,7 @@ export default function DashboardSidebar() {
                 <div className="px-3 pb-3">
                   <button
                     onClick={handleLogout} disabled={loggingOut}
-                    className="w-full h-9 rounded-xl bg-[#FFF1F3] hover:bg-[#ffe4e9] text-[#B8112D] text-[12px] font-semibold flex items-center justify-center gap-2 transition-colors disabled:opacity-60"
+                    className="w-full h-9 rounded-xl bg-[#EFF6FF] hover:bg-[#ffe4e9] text-[#0F398A] text-[12px] font-semibold flex items-center justify-center gap-2 transition-colors disabled:opacity-60"
                   >
                     <LogOut size={13} />
                     {loggingOut ? "Logging out…" : "Logout"}

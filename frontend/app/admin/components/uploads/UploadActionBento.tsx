@@ -204,7 +204,7 @@ export default function UploadActionBento({
               size="lg"
               activeKey={focusId}
               onChange={(key) => select(key)}
-              accent={activeItem?.accent ?? "#B8112D"}
+              accent={activeItem?.accent ?? "#0F398A"}
               className="!max-w-none"
               tabs={items.map((i) => ({
                 key: i.id,
@@ -225,7 +225,7 @@ export default function UploadActionBento({
             ? undefined
             : {
                 background:
-                  "radial-gradient(ellipse at 50% 45%, rgba(184,17,45,0.1), transparent 55%), linear-gradient(145deg, #f1f5f9 0%, #eef2ff 50%, #fdf2f8 100%)",
+                  "radial-gradient(ellipse at 50% 45%, rgba(15,57,138,0.1), transparent 55%), linear-gradient(145deg, #f1f5f9 0%, #eef2ff 50%, #fdf2f8 100%)",
               }
         }
       >

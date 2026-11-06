@@ -433,7 +433,7 @@ export default function CSRPage() {
           <button
             type="button"
             onClick={() => setShowAddLead(true)}
-            className="flex items-center gap-1.5 h-10 sm:h-[42px] px-4 sm:px-5 rounded-xl sm:rounded-2xl bg-[#B8112D] text-white text-xs sm:text-sm font-semibold hover:bg-[#a30f27] shrink-0 shadow-sm"
+            className="flex items-center gap-1.5 h-10 sm:h-[42px] px-4 sm:px-5 rounded-xl sm:rounded-2xl bg-[#0F398A] text-white text-xs sm:text-sm font-semibold hover:bg-[#a30f27] shrink-0 shadow-sm"
           >
             <Plus size={14} /> Add Lead
           </button>
@@ -462,12 +462,12 @@ export default function CSRPage() {
                   placeholder="Search name, company, phone…"
                   className={`h-10 sm:h-[42px] w-full pl-8 pr-8 rounded-xl sm:rounded-2xl border text-xs sm:text-sm outline-none ${
                     searchQuery.trim()
-                      ? "border-[#B8112D] bg-[#FFF1F3] text-[#B8112D]"
+                      ? "border-[#0F398A] bg-[#EFF6FF] text-[#0F398A]"
                       : "border-gray-200 dark:border-crm-border bg-[#FAFAFA] dark:bg-crm-input text-gray-600 dark:text-crm-text"
                   }`}
                 />
                 {searchQuery && (
-                  <button type="button" onClick={() => { setSearchQuery(""); setPage(1); }} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#B8112D]">
+                  <button type="button" onClick={() => { setSearchQuery(""); setPage(1); }} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#0F398A]">
                     <X size={12} />
                   </button>
                 )}
@@ -492,7 +492,7 @@ export default function CSRPage() {
               {
                 label: "Today's queue",
                 tabs: [
-                  { tab:"today",         label:"Today / Pending", short:"Today",    count: pillCount("today", statCounts.pendingCount),       icon:<PhoneCall      size={13}/>, active:"bg-[#B8112D] text-white shadow-md shadow-red-500/25 ring-1 ring-[#B8112D]/40",  inactive:"bg-zinc-200 text-zinc-800 dark:bg-zinc-500/25 dark:text-zinc-100 ring-1 ring-zinc-300/80 dark:ring-zinc-400/30"   },
+                  { tab:"today",         label:"Today / Pending", short:"Today",    count: pillCount("today", statCounts.pendingCount),       icon:<PhoneCall      size={13}/>, active:"bg-[#0F398A] text-white shadow-md shadow-red-500/25 ring-1 ring-[#0F398A]/40",  inactive:"bg-zinc-200 text-zinc-800 dark:bg-zinc-500/25 dark:text-zinc-100 ring-1 ring-zinc-300/80 dark:ring-zinc-400/30"   },
                   { tab:"notpicked",     label:"Not Picked",     short:"Not Pick", count: pillCount("notpicked", statCounts.notPickedCount),     icon:<Clock3         size={13}/>, active:"bg-orange-500 text-white shadow-md shadow-orange-500/30",          inactive:"bg-orange-100 text-orange-700 dark:bg-orange-500/25 dark:text-orange-300 ring-1 ring-orange-300/70 dark:ring-orange-400/35"  },
                   { tab:"notinterested", label:"Not Interested", short:"Not Int.", count: pillCount("notinterested", statCounts.notInterestedCount), icon:<CircleCheckBig size={13}/>, active:"bg-slate-600 text-white shadow-md shadow-slate-500/25",            inactive:"bg-slate-200 text-slate-700 dark:bg-slate-500/30 dark:text-slate-200 ring-1 ring-slate-300/80 dark:ring-slate-400/35"  },
                 ],
@@ -505,9 +505,9 @@ export default function CSRPage() {
                   { tab:"inhouse",      label:"In House",     short:"In House", count: pillCount("inhouse", statCounts.inHouseCount),      icon:<Home         size={13}/>, active:"bg-teal-600 text-white shadow-md shadow-teal-500/30",    inactive:"bg-teal-100 text-teal-800 dark:bg-teal-500/25 dark:text-teal-300 ring-1 ring-teal-300/70 dark:ring-teal-400/35"   },
                   { tab:"important",    label:"Important",    short:"Important",count: pillCount("important", statCounts.importantOnlyCount),icon:<AlertTriangle size={13}/>, active:"bg-rose-600 text-white shadow-md shadow-rose-500/30",   inactive:"bg-rose-100 text-rose-700 dark:bg-rose-500/25 dark:text-rose-300 ring-1 ring-rose-300/70 dark:ring-rose-400/35"   },
                   { tab:"schedule",     label:"Schedule",     short:"Schedule", count: pillCount("schedule", statCounts.scheduledCount),    icon:<CalendarDays size={13}/>, active:"bg-sky-500 text-white shadow-md shadow-sky-500/30",     inactive:"bg-sky-100 text-sky-700 dark:bg-sky-500/25 dark:text-sky-300 ring-1 ring-sky-300/70 dark:ring-sky-400/35"   },
-                  { tab:"interested",   label:"Interested",   short:"Interested",count: pillCount("interested", statCounts.interestedCount),  icon:<Users        size={13}/>, active:"bg-[#B8112D] text-white shadow-md shadow-red-500/30",   inactive:"bg-red-100 text-red-700 dark:bg-red-500/25 dark:text-red-300 ring-1 ring-red-300/70 dark:ring-red-400/35"   },
+                  { tab:"interested",   label:"Interested",   short:"Interested",count: pillCount("interested", statCounts.interestedCount),  icon:<Users        size={13}/>, active:"bg-[#0F398A] text-white shadow-md shadow-red-500/30",   inactive:"bg-red-100 text-red-700 dark:bg-red-500/25 dark:text-red-300 ring-1 ring-red-300/70 dark:ring-red-400/35"   },
                   { tab:"projectwon",   label:"Close Client", short:"Closed",   count: pillCount("projectwon", statCounts.projectWonCount),   icon:<CircleCheckBig size={13}/>, active:"bg-emerald-600 text-white shadow-md shadow-emerald-500/30", inactive:"bg-emerald-100 text-emerald-800 dark:bg-emerald-500/25 dark:text-emerald-300 ring-1 ring-emerald-300/70 dark:ring-emerald-400/35"},
-                  { tab:"dialer",       label:"Dialer Calls", short:"Dialer",   count: dialerCount, icon:<Phone size={13}/>, active:"bg-[#B8112D] text-white shadow-md shadow-red-500/30", inactive:"bg-[#FFF1F3] text-[#B8112D] ring-1 ring-[#F5C5CE]" },
+                  { tab:"dialer",       label:"Dialer Calls", short:"Dialer",   count: dialerCount, icon:<Phone size={13}/>, active:"bg-[#0F398A] text-white shadow-md shadow-red-500/30", inactive:"bg-[#EFF6FF] text-[#0F398A] ring-1 ring-[#F5C5CE]" },
                 ],
               },
             ].map(group => (
@@ -728,7 +728,7 @@ export default function CSRPage() {
                       {(stateFilter || timezoneFilter || phoneFilter || sourceFilter || tradeFilter || searchQuery) && (
                         <button
                           onClick={() => { setStateFilter(""); setTimezoneFilter(""); setPhoneFilter(""); setSourceFilter(""); setTradeFilter(""); setSearchQuery(""); setPage(1); }}
-                          className="mt-3 sm:mt-4 h-9 sm:h-10 px-4 sm:px-5 rounded-xl sm:rounded-2xl bg-[#FFF1F3] text-[#B8112D] text-xs sm:text-sm font-semibold hover:bg-[#fce8ec] transition-colors"
+                          className="mt-3 sm:mt-4 h-9 sm:h-10 px-4 sm:px-5 rounded-xl sm:rounded-2xl bg-[#EFF6FF] text-[#0F398A] text-xs sm:text-sm font-semibold hover:bg-[#fce8ec] transition-colors"
                         >
                           Clear filters
                         </button>

@@ -93,22 +93,22 @@ export default function TradesCell({
   const hiddenCount = Math.max(0, trades.length - 1);
   const badge =
     trades.length === 0 ? (
-      <span className="inline-flex items-center gap-1 text-[#B8112D] text-xs font-semibold whitespace-nowrap">
+      <span className="inline-flex items-center gap-1 text-[#0F398A] text-xs font-semibold whitespace-nowrap">
         <Hammer size={11} />
         {onSave ? "Add trades" : "—"}
       </span>
     ) : (
       <div className={`flex items-center gap-1 min-w-0 ${className}`} title={trades.join(", ")}>
-        <span className="inline-flex items-center gap-1 bg-[#FFF1F3] text-[#B8112D] font-semibold px-2 py-0.5 rounded-lg text-[10px] sm:text-xs min-w-0 max-w-full">
+        <span className="inline-flex items-center gap-1 bg-[#EFF6FF] text-[#0F398A] font-semibold px-2 py-0.5 rounded-lg text-[10px] sm:text-xs min-w-0 max-w-full">
           <Hammer size={9} className="shrink-0" />
           <span className="truncate">{trades[0]}</span>
         </span>
         {hiddenCount > 0 && (
-          <span className="bg-[#B8112D] text-white text-[9px] font-bold px-1.5 py-0.5 rounded-md shrink-0">
+          <span className="bg-[#0F398A] text-white text-[9px] font-bold px-1.5 py-0.5 rounded-md shrink-0">
             +{hiddenCount}
           </span>
         )}
-        {onSave && <Pencil size={10} className="shrink-0 text-[#B8112D] opacity-70" />}
+        {onSave && <Pencil size={10} className="shrink-0 text-[#0F398A] opacity-70" />}
       </div>
     );
 
@@ -136,7 +136,7 @@ export default function TradesCell({
                 value={tradeSearch}
                 onChange={e => setTradeSearch(e.target.value)}
                 placeholder="Search trades…"
-                className="w-full h-8 rounded-lg border border-gray-200 pl-8 pr-2 text-[11px] outline-none focus:border-[#B8112D]"
+                className="w-full h-8 rounded-lg border border-gray-200 pl-8 pr-2 text-[11px] outline-none focus:border-[#0F398A]"
               />
             </div>
             <div className="max-h-[140px] overflow-y-auto space-y-0.5 border border-gray-100 rounded-lg p-1.5">
@@ -145,8 +145,8 @@ export default function TradesCell({
               ) : visibleCatalog.map(name => {
                 const on = draftTrades.some(t => t.toLowerCase() === name.toLowerCase());
                 return (
-                  <label key={name} className="flex items-start gap-2 px-1.5 py-1 rounded-md hover:bg-[#FFF1F3] cursor-pointer">
-                    <input type="checkbox" checked={on} onChange={() => toggleTrade(name)} className="mt-0.5 accent-[#B8112D]" />
+                  <label key={name} className="flex items-start gap-2 px-1.5 py-1 rounded-md hover:bg-[#EFF6FF] cursor-pointer">
+                    <input type="checkbox" checked={on} onChange={() => toggleTrade(name)} className="mt-0.5 accent-[#0F398A]" />
                     <span className="text-[11px] text-gray-700 leading-snug">{name}</span>
                   </label>
                 );
@@ -172,9 +172,9 @@ export default function TradesCell({
                 onChange={e => setSubInput(e.target.value)}
                 onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addSub(); } }}
                 placeholder="Add subtrade"
-                className="flex-1 h-8 rounded-lg border border-gray-200 px-2 text-[11px] outline-none focus:border-[#B8112D]"
+                className="flex-1 h-8 rounded-lg border border-gray-200 px-2 text-[11px] outline-none focus:border-[#0F398A]"
               />
-              <button type="button" onClick={addSub} className="h-8 w-8 rounded-lg bg-[#FFF1F3] text-[#B8112D] flex items-center justify-center">
+              <button type="button" onClick={addSub} className="h-8 w-8 rounded-lg bg-[#EFF6FF] text-[#0F398A] flex items-center justify-center">
                 <Plus size={13} />
               </button>
             </div>
@@ -186,7 +186,7 @@ export default function TradesCell({
               <button
                 type="button"
                 onClick={() => setDraftNotes(prev => [...prev, ""])}
-                className="text-[10px] font-bold text-[#B8112D] inline-flex items-center gap-0.5"
+                className="text-[10px] font-bold text-[#0F398A] inline-flex items-center gap-0.5"
               >
                 <Plus size={10} /> Add
               </button>
@@ -198,7 +198,7 @@ export default function TradesCell({
                     value={note}
                     onChange={e => setDraftNotes(prev => prev.map((n, idx) => (idx === i ? e.target.value : n)))}
                     placeholder="e.g. Commercial HVAC, residential plumbing…"
-                    className="flex-1 h-8 rounded-lg border border-gray-200 px-2 text-[11px] outline-none focus:border-[#B8112D]"
+                    className="flex-1 h-8 rounded-lg border border-gray-200 px-2 text-[11px] outline-none focus:border-[#0F398A]"
                   />
                   <button
                     type="button"
@@ -221,7 +221,7 @@ export default function TradesCell({
               type="button"
               onClick={() => void handleSave()}
               disabled={saving}
-              className="w-full h-8 rounded-lg bg-[#B8112D] text-white text-[12px] font-semibold inline-flex items-center justify-center gap-1 disabled:opacity-50"
+              className="w-full h-8 rounded-lg bg-[#0F398A] text-white text-[12px] font-semibold inline-flex items-center justify-center gap-1 disabled:opacity-50"
             >
               <Check size={12} />
               {saving ? "Saving…" : "Save trades"}

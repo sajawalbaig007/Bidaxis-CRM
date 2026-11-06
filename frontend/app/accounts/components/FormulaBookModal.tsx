@@ -130,7 +130,7 @@ export default function FormulaBookModal({ open, onClose, value, onChange, liveN
           value={draft.title}
           onChange={e => setDraft(d => ({ ...d, title: e.target.value }))}
           placeholder="Formula title"
-          className="w-full h-9 rounded-lg border border-crm-border px-2.5 text-xs font-semibold outline-none focus:border-[#B8112D]"
+          className="w-full h-9 rounded-lg border border-crm-border px-2.5 text-xs font-semibold outline-none focus:border-[#0F398A]"
         />
       )}
       <textarea
@@ -138,14 +138,14 @@ export default function FormulaBookModal({ open, onClose, value, onChange, liveN
         onChange={e => setDraft(d => ({ ...d, expression: e.target.value }))}
         rows={2}
         placeholder="Formula…"
-        className="w-full rounded-lg border border-crm-border px-2.5 py-2 text-xs font-mono outline-none resize-none focus:border-[#B8112D]"
+        className="w-full rounded-lg border border-crm-border px-2.5 py-2 text-xs font-mono outline-none resize-none focus:border-[#0F398A]"
       />
       {showTitle && (
         <input
           value={draft.appliesTo}
           onChange={e => setDraft(d => ({ ...d, appliesTo: e.target.value }))}
           placeholder="Where it applies (e.g. Income Statement → Team Salaries)"
-          className="w-full h-9 rounded-lg border border-crm-border px-2.5 text-xs outline-none focus:border-[#B8112D]"
+          className="w-full h-9 rounded-lg border border-crm-border px-2.5 text-xs outline-none focus:border-[#0F398A]"
         />
       )}
       <textarea
@@ -153,7 +153,7 @@ export default function FormulaBookModal({ open, onClose, value, onChange, liveN
         onChange={e => setDraft(d => ({ ...d, note: e.target.value }))}
         rows={1}
         placeholder="Note (optional)…"
-        className="w-full rounded-lg border border-crm-border px-2.5 py-2 text-xs outline-none resize-none focus:border-[#B8112D]"
+        className="w-full rounded-lg border border-crm-border px-2.5 py-2 text-xs outline-none resize-none focus:border-[#0F398A]"
       />
       <div className="flex justify-end gap-2">
         <button type="button" onClick={() => setEditingId(null)} className="h-8 px-3 rounded-lg text-[11px] font-bold text-crm-text-muted hover:bg-crm-muted">
@@ -174,7 +174,7 @@ export default function FormulaBookModal({ open, onClose, value, onChange, liveN
       >
         <div className="px-4 py-3 border-b bg-[#F8FAFC] flex items-center justify-between gap-2">
           <div className="flex items-center gap-2.5 min-w-0">
-            <span className="w-9 h-9 rounded-xl bg-[#B8112D] text-white inline-flex items-center justify-center shrink-0">
+            <span className="w-9 h-9 rounded-xl bg-[#0F398A] text-white inline-flex items-center justify-center shrink-0">
               <Sigma size={16} />
             </span>
             <div className="min-w-0">
@@ -268,7 +268,7 @@ export default function FormulaBookModal({ open, onClose, value, onChange, liveN
             return (
               <div key={section}>
                 <div className="flex items-center gap-2 mb-2">
-                  <span className="w-1 h-5 rounded-full bg-[#B8112D] shrink-0" />
+                  <span className="w-1 h-5 rounded-full bg-[#0F398A] shrink-0" />
                   <h4 className="text-xs font-extrabold text-crm-text tracking-tight">{section}</h4>
                   <span className="text-[10px] text-crm-text-faint font-semibold">{builtins.length + customs.length} formula(s)</span>
                 </div>
@@ -380,7 +380,7 @@ export default function FormulaBookModal({ open, onClose, value, onChange, liveN
           <p className="text-[10px] text-crm-text-faint">
             Built-in formulas run from code — edits here only override text/documentation. Values (rates, %) stay editable in their own editors.
           </p>
-          <button type="button" onClick={onClose} className="h-9 px-4 rounded-xl text-xs font-bold bg-[#B8112D] text-white hover:bg-[#9a0e26] shrink-0 ml-3">
+          <button type="button" onClick={onClose} className="h-9 px-4 rounded-xl text-xs font-bold bg-[#0F398A] text-white hover:bg-[#9a0e26] shrink-0 ml-3">
             Done
           </button>
         </div>

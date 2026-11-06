@@ -88,7 +88,7 @@ const HISTORY_CATEGORIES: { key: UploadCategoryKey; label: string; color: string
   { key: "new-client",      label: "New Client",      color: "text-[#15803D]" },
   { key: "old-client",      label: "Old Client",      color: "text-[#B45309]" },
   { key: "interested",      label: "Interested",      color: "text-[#D97706]" },
-  { key: "important",       label: "Important",       color: "text-[#B8112D]" },
+  { key: "important",       label: "Important",       color: "text-[#0F398A]" },
   { key: "active-projects", label: "Active Projects", color: "text-indigo-600" },
 ];
 
@@ -176,7 +176,7 @@ const getFileIcon = (type: string) => {
     return <FileImage size={22} className="text-blue-600" />;
   if (type.includes("zip") || type.includes("rar"))
     return <FileArchive size={22} className="text-yellow-600" />;
-  return <FileBadge size={22} className="text-[#B8112D]" />;
+  return <FileBadge size={22} className="text-[#0F398A]" />;
 };
 
 export default function UploadPage() {
@@ -935,7 +935,7 @@ export default function UploadPage() {
   const selectedSourceBreakdown = selectedSourceStats ? [
     { label: "Pending",      value: selectedSourceStats.pending,      color: "#0B84F3" },
     { label: "Interested",   value: selectedSourceStats.interested,   color: "#D97706" },
-    { label: "Important",    value: selectedSourceStats.important,    color: "#B8112D" },
+    { label: "Important",    value: selectedSourceStats.important,    color: "#0F398A" },
     { label: "Not Picked",   value: selectedSourceStats.notPicked,    color: "#B54708" },
     { label: "Project Won",  value: selectedSourceStats.projectWon, color: "#065F46" },
     { label: "Not Interested", value: selectedSourceStats.notInterested, color: "#94A3B8" },
@@ -1297,10 +1297,10 @@ export default function UploadPage() {
                       return (
                         <div key={step} className="flex items-center flex-1 last:flex-none">
                           <div className={`flex items-center gap-1 sm:gap-1.5 text-[10px] sm:text-xs font-semibold whitespace-nowrap ${
-                            active ? "text-[#B8112D]" : done ? "text-[#027A48]" : "text-gray-400"
+                            active ? "text-[#0F398A]" : done ? "text-[#027A48]" : "text-gray-400"
                           }`}>
                             <span className={`w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center text-[10px] sm:text-[11px] font-bold shrink-0 ${
-                              active ? "bg-[#B8112D] text-white" : done ? "bg-[#ECFDF3] text-[#027A48]" : "bg-gray-100 text-gray-400"
+                              active ? "bg-[#0F398A] text-white" : done ? "bg-[#ECFDF3] text-[#027A48]" : "bg-gray-100 text-gray-400"
                             }`}>
                               {done ? "✓" : i + 1}
                             </span>
@@ -1409,7 +1409,7 @@ export default function UploadPage() {
                         setModalStep("reset");
                       }
                     }}
-                    className="w-full h-10 sm:h-12 rounded-xl sm:rounded-2xl bg-[#B8112D] text-white font-semibold text-sm hover:bg-[#a30f27] transition-all"
+                    className="w-full h-10 sm:h-12 rounded-xl sm:rounded-2xl bg-[#0F398A] text-white font-semibold text-sm hover:bg-[#a30f27] transition-all"
                   >
                     Next — {selectedPane === "lead" ? "Select Source" : "Select Data Mode"}
                   </button>
@@ -1437,8 +1437,8 @@ export default function UploadPage() {
                         Icon: RefreshCw,
                         label: "Reset Data",
                         sub: "Old call data deleted, new links added",
-                        activeBorder: "border-[#B8112D]", activeBg: "bg-[#FFF1F3]",
-                        activeIcon: "bg-[#B8112D]", activeText: "text-[#B8112D]",
+                        activeBorder: "border-[#0F398A]", activeBg: "bg-[#EFF6FF]",
+                        activeIcon: "bg-[#0F398A]", activeText: "text-[#0F398A]",
                       },
                     ].map(opt => {
                       const sel = resetMode === opt.value;
@@ -1487,7 +1487,7 @@ export default function UploadPage() {
                       onClick={() => { if (!resetMode) { toast.error("Please select an option"); return; } setModalStep("company"); }}
                       disabled={!resetMode}
                       className={`flex-1 h-10 sm:h-12 rounded-xl sm:rounded-2xl font-semibold text-sm transition-all ${
-                        resetMode ? "bg-[#B8112D] text-white hover:bg-[#a30f27]" : "bg-gray-100 text-gray-400 cursor-not-allowed"
+                        resetMode ? "bg-[#0F398A] text-white hover:bg-[#a30f27]" : "bg-gray-100 text-gray-400 cursor-not-allowed"
                       }`}
                     >
                       Next — Select Company
@@ -1507,15 +1507,15 @@ export default function UploadPage() {
                           key={company}
                           onClick={() => setSelectedCompany(company)}
                           className={`p-3 sm:p-4 rounded-2xl border-2 flex flex-col items-center gap-2 sm:gap-3 transition-all ${
-                            sel ? "border-[#B8112D] bg-[#FFF1F3]" : "border-gray-100 bg-[#FAFAFA] hover:border-gray-300"
+                            sel ? "border-[#0F398A] bg-[#EFF6FF]" : "border-gray-100 bg-[#FAFAFA] hover:border-gray-300"
                           }`}
                         >
                           <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-2xl flex items-center justify-center ${
-                            sel ? "bg-[#B8112D] text-white" : "bg-white shadow-sm text-gray-500"
+                            sel ? "bg-[#0F398A] text-white" : "bg-white shadow-sm text-gray-500"
                           }`}>
                             <Building2 size={18} className="sm:w-[22px] sm:h-[22px]" />
                           </div>
-                          <span className={`font-semibold text-xs sm:text-sm text-center ${sel ? "text-[#B8112D]" : "text-gray-700"}`}>
+                          <span className={`font-semibold text-xs sm:text-sm text-center ${sel ? "text-[#0F398A]" : "text-gray-700"}`}>
                             {company}
                           </span>
                         </button>
@@ -1531,7 +1531,7 @@ export default function UploadPage() {
                         value={customCompany}
                         onChange={e => setCustomCompany(e.target.value)}
                         placeholder="Enter company name..."
-                        className="w-full h-10 sm:h-12 rounded-xl sm:rounded-2xl border border-gray-200 px-3 sm:px-4 outline-none focus:border-[#B8112D] text-sm"
+                        className="w-full h-10 sm:h-12 rounded-xl sm:rounded-2xl border border-gray-200 px-3 sm:px-4 outline-none focus:border-[#0F398A] text-sm"
                       />
                     </div>
                   )}
@@ -1563,7 +1563,7 @@ export default function UploadPage() {
                       disabled={!selectedCompany || (selectedCompany === "Other" && !customCompany.trim())}
                       className={`flex-1 h-10 sm:h-12 rounded-xl sm:rounded-2xl font-semibold text-sm transition-all ${
                         selectedCompany && (selectedCompany !== "Other" || customCompany.trim())
-                          ? "bg-[#B8112D] text-white hover:bg-[#a30f27]"
+                          ? "bg-[#0F398A] text-white hover:bg-[#a30f27]"
                           : "bg-gray-100 text-gray-400 cursor-not-allowed"
                       }`}
                     >
@@ -1592,12 +1592,12 @@ export default function UploadPage() {
                             key={src.id}
                             onClick={() => setSelectedSourceId(src.id)}
                             className={`p-3 rounded-xl border-2 text-left transition-all ${
-                              sel ? "border-[#B8112D] bg-[#FFF1F3]" : "border-gray-100 bg-[#FAFAFA] hover:border-gray-300"
+                              sel ? "border-[#0F398A] bg-[#EFF6FF]" : "border-gray-100 bg-[#FAFAFA] hover:border-gray-300"
                             }`}
                           >
                             <div className="flex items-center gap-2 mb-1">
-                              <Globe size={14} className={sel ? "text-[#B8112D]" : "text-gray-400"} />
-                              <p className={`font-bold text-xs sm:text-sm truncate ${sel ? "text-[#B8112D]" : "text-gray-800"}`}>
+                              <Globe size={14} className={sel ? "text-[#0F398A]" : "text-gray-400"} />
+                              <p className={`font-bold text-xs sm:text-sm truncate ${sel ? "text-[#0F398A]" : "text-gray-800"}`}>
                                 {src.name}
                               </p>
                             </div>
@@ -1618,7 +1618,7 @@ export default function UploadPage() {
                       value={newSourceName}
                       onChange={e => setNewSourceName(e.target.value)}
                       placeholder="Source name (admin only)..."
-                      className="w-full h-10 rounded-xl border border-gray-200 px-3 text-sm outline-none focus:border-[#B8112D]"
+                      className="w-full h-10 rounded-xl border border-gray-200 px-3 text-sm outline-none focus:border-[#0F398A]"
                       onKeyDown={e => { if (e.key === "Enter") void addNewSource(); }}
                     />
                     <div className="flex gap-2">
@@ -1627,7 +1627,7 @@ export default function UploadPage() {
                         value={newSourceSudoName}
                         onChange={e => setNewSourceSudoName(e.target.value)}
                         placeholder="Sudo name (shown to CSRs)..."
-                        className="flex-1 h-10 rounded-xl border border-gray-200 px-3 text-sm outline-none focus:border-[#B8112D]"
+                        className="flex-1 h-10 rounded-xl border border-gray-200 px-3 text-sm outline-none focus:border-[#0F398A]"
                         onKeyDown={e => { if (e.key === "Enter") void addNewSource(); }}
                       />
                       <button
@@ -1667,7 +1667,7 @@ export default function UploadPage() {
                         }}
                         disabled={!selectedSourceId}
                         className={`flex-1 h-10 sm:h-12 rounded-xl sm:rounded-2xl font-semibold text-sm transition-all ${
-                          selectedSourceId ? "bg-[#B8112D] text-white hover:bg-[#a30f27]" : "bg-gray-100 text-gray-400 cursor-not-allowed"
+                          selectedSourceId ? "bg-[#0F398A] text-white hover:bg-[#a30f27]" : "bg-gray-100 text-gray-400 cursor-not-allowed"
                         }`}
                       >
                         Next — Select CSRs
@@ -1683,7 +1683,7 @@ export default function UploadPage() {
               {/* STEP 2 — Pane */}
               {modalStep === "pane" && (
                 <div className="space-y-3 sm:space-y-4">
-                  <div className="flex items-center gap-2 bg-[#FFF1F3] text-[#B8112D] px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl w-fit text-xs sm:text-sm font-semibold">
+                  <div className="flex items-center gap-2 bg-[#EFF6FF] text-[#0F398A] px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl w-fit text-xs sm:text-sm font-semibold">
                     <Building2 size={13} className="sm:w-[15px] sm:h-[15px]" />{finalCompany}
                   </div>
 
@@ -1756,7 +1756,7 @@ export default function UploadPage() {
                     </button>
                     <button
                       onClick={goToCsrStep}
-                      className="flex-1 h-10 sm:h-12 rounded-xl sm:rounded-2xl bg-[#B8112D] text-white font-semibold text-sm hover:bg-[#a30f27] transition-all"
+                      className="flex-1 h-10 sm:h-12 rounded-xl sm:rounded-2xl bg-[#0F398A] text-white font-semibold text-sm hover:bg-[#a30f27] transition-all"
                     >
                       Next — CSRs
                       <ChevronDown size={14} className="inline ml-1 rotate-[-90deg] sm:w-4 sm:h-4" />
@@ -1770,7 +1770,7 @@ export default function UploadPage() {
                 <div className="space-y-3 sm:space-y-4">
                   <div className="flex flex-wrap items-center gap-2">
                     {finalCompany && (
-                      <div className="flex items-center gap-1.5 sm:gap-2 bg-[#FFF1F3] text-[#B8112D] px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-semibold">
+                      <div className="flex items-center gap-1.5 sm:gap-2 bg-[#EFF6FF] text-[#0F398A] px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-semibold">
                         <Building2 size={12} className="sm:w-[15px] sm:h-[15px]" />{finalCompany}
                       </div>
                     )}
@@ -1818,7 +1818,7 @@ export default function UploadPage() {
                       value={csrSearchQuery}
                       onChange={e => setCsrSearchQuery(e.target.value)}
                       placeholder="Search CSR by name, code, or email..."
-                      className="w-full h-10 sm:h-11 pl-9 pr-9 rounded-xl border border-gray-200 bg-[#FAFAFA] text-sm text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#B8112D]/20 focus:border-[#B8112D]/40"
+                      className="w-full h-10 sm:h-11 pl-9 pr-9 rounded-xl border border-gray-200 bg-[#FAFAFA] text-sm text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0F398A]/20 focus:border-[#0F398A]/40"
                     />
                     {csrSearchQuery && (
                       <button
@@ -1858,7 +1858,7 @@ export default function UploadPage() {
                             }
                           }}
                           disabled={filteredActiveCSRs.length === 0}
-                          className="text-[11px] sm:text-xs font-semibold text-[#B8112D] hover:underline disabled:text-gray-300 disabled:no-underline disabled:cursor-not-allowed"
+                          className="text-[11px] sm:text-xs font-semibold text-[#0F398A] hover:underline disabled:text-gray-300 disabled:no-underline disabled:cursor-not-allowed"
                         >
                           {allFilteredSelected ? "Deselect All" : csrSearchQuery.trim() ? "Select Shown" : "Select All"}
                         </button>
@@ -1882,7 +1882,7 @@ export default function UploadPage() {
                           className={`border rounded-xl sm:rounded-2xl p-3 sm:p-4 flex items-center justify-between transition-all select-none ${
                             csr.isActive ? "cursor-pointer hover:border-gray-300" : "cursor-not-allowed opacity-60"
                           } ${
-                            checked ? "border-[#B8112D] bg-[#FFF6F8]" : "border-gray-200"
+                            checked ? "border-[#0F398A] bg-[#FFF6F8]" : "border-gray-200"
                           }`}
                         >
                           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
@@ -1894,7 +1894,7 @@ export default function UploadPage() {
                             <div className="min-w-0">
                               <div className="flex items-center gap-1.5">
                                 {csr.csrCode && (
-                                  <span className="bg-[#B8112D]/10 text-[#B8112D] text-[10px] font-bold px-1.5 py-0.5 rounded-md shrink-0">{csr.csrCode}</span>
+                                  <span className="bg-[#0F398A]/10 text-[#0F398A] text-[10px] font-bold px-1.5 py-0.5 rounded-md shrink-0">{csr.csrCode}</span>
                                 )}
                                 <h3 className="font-semibold text-gray-800 text-xs sm:text-sm truncate">{csr.name}</h3>
                               </div>
@@ -1909,7 +1909,7 @@ export default function UploadPage() {
                             </span>
                             <div className={`w-4 h-4 sm:w-5 sm:h-5 rounded border-2 flex items-center justify-center shrink-0 transition-all ${
                               checked
-                                ? "bg-[#B8112D] border-[#B8112D]"
+                                ? "bg-[#0F398A] border-[#0F398A]"
                                 : "border-gray-300 bg-white"
                             }`}>
                               {checked && (
@@ -1939,7 +1939,7 @@ export default function UploadPage() {
                       disabled={selectedCSRs.length === 0}
                       className={`flex-1 h-10 sm:h-12 rounded-xl sm:rounded-2xl font-semibold text-xs sm:text-sm transition-all ${
                         selectedCSRs.length > 0
-                          ? "bg-[#B8112D] text-white hover:bg-[#a30f27]"
+                          ? "bg-[#0F398A] text-white hover:bg-[#a30f27]"
                           : "bg-gray-100 text-gray-400 cursor-not-allowed"
                       }`}
                     >
@@ -1960,7 +1960,7 @@ export default function UploadPage() {
             <div className="flex items-start justify-between px-4 sm:px-6 pt-4 sm:pt-6 pb-3 border-b border-gray-100 shrink-0">
               <div>
                 <h2 className="text-lg sm:text-2xl font-semibold text-gray-800 flex items-center gap-2">
-                  <History size={20} className="text-[#B8112D]" /> Upload History
+                  <History size={20} className="text-[#0F398A]" /> Upload History
                 </h2>
                 <p className="text-xs sm:text-sm text-gray-400 mt-1">
                   Files grouped by type. Delete removes contacts from DB and CSR dashboards.
@@ -1985,7 +1985,7 @@ export default function UploadPage() {
                       onClick={() => switchHistoryCategory(cat.key)}
                       className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-[11px] sm:text-xs font-semibold transition-all ${
                         active
-                          ? "bg-[#B8112D] text-white"
+                          ? "bg-[#0F398A] text-white"
                           : "bg-gray-100 text-gray-600 hover:bg-gray-200"
                       }`}
                     >
@@ -2016,8 +2016,8 @@ export default function UploadPage() {
                     <div key={u.id} className="flex flex-col gap-3 p-3 sm:p-4 rounded-2xl border border-gray-100 bg-[#FAFAFA] hover:bg-white transition-all">
                       <div className="flex flex-col sm:flex-row sm:items-center gap-3">
                         <div className="flex items-center gap-3 min-w-0 flex-1">
-                          <div className="w-10 h-10 rounded-xl bg-[#FFF1F3] flex items-center justify-center shrink-0">
-                            <FileSpreadsheet size={18} className="text-[#B8112D]" />
+                          <div className="w-10 h-10 rounded-xl bg-[#EFF6FF] flex items-center justify-center shrink-0">
+                            <FileSpreadsheet size={18} className="text-[#0F398A]" />
                           </div>
                           <div className="min-w-0">
                             <p className="font-semibold text-sm text-gray-800 truncate">{u.fileName}</p>
@@ -2028,7 +2028,7 @@ export default function UploadPage() {
                                 </span>
                               )}
                               {u.source ? (
-                                <span className="text-[#B8112D] font-medium">{sourceAdminLabel(u.source)}</span>
+                                <span className="text-[#0F398A] font-medium">{sourceAdminLabel(u.source)}</span>
                               ) : (
                                 <span className="text-amber-600 font-medium">No source</span>
                               )}
@@ -2042,7 +2042,7 @@ export default function UploadPage() {
                           {assigningUploadId !== u.id && (
                             <button
                               onClick={() => openAssignSource(u.id)}
-                              className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-[#FFF1F3] text-[#B8112D] hover:bg-[#FFE4E8] text-xs font-semibold transition-all"
+                              className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-[#EFF6FF] text-[#0F398A] hover:bg-[#DBEAFE] text-xs font-semibold transition-all"
                             >
                               {u.source ? "Change Source" : "Assign Source"}
                             </button>
@@ -2062,7 +2062,7 @@ export default function UploadPage() {
                       </div>
 
                       {assigningUploadId === u.id && (
-                        <div className="border border-[#B8112D]/20 bg-[#FFF6F8] rounded-xl p-3 sm:p-4 space-y-3">
+                        <div className="border border-[#0F398A]/20 bg-[#FFF6F8] rounded-xl p-3 sm:p-4 space-y-3">
                           <p className="text-xs font-semibold text-gray-600">
                             {u.source ? "Change source for this upload" : "Assign a source to this upload"}
                           </p>
@@ -2078,7 +2078,7 @@ export default function UploadPage() {
                                   }}
                                   className={`px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition-all ${
                                     assignSourceId === src.id
-                                      ? "bg-[#B8112D] text-white"
+                                      ? "bg-[#0F398A] text-white"
                                       : "bg-white border border-gray-200 text-gray-600 hover:border-gray-300"
                                   }`}
                                 >
@@ -2096,14 +2096,14 @@ export default function UploadPage() {
                                 setAssignSourceId("");
                               }}
                               placeholder="Or new source name (admin)..."
-                              className="h-9 rounded-xl border border-gray-200 px-3 text-xs outline-none focus:border-[#B8112D]"
+                              className="h-9 rounded-xl border border-gray-200 px-3 text-xs outline-none focus:border-[#0F398A]"
                             />
                             <input
                               type="text"
                               value={assignNewSourceSudoName}
                               onChange={e => setAssignNewSourceSudoName(e.target.value)}
                               placeholder="Sudo name (CSR)..."
-                              className="h-9 rounded-xl border border-gray-200 px-3 text-xs outline-none focus:border-[#B8112D]"
+                              className="h-9 rounded-xl border border-gray-200 px-3 text-xs outline-none focus:border-[#0F398A]"
                             />
                           </div>
                           <div className="flex gap-2">
@@ -2116,7 +2116,7 @@ export default function UploadPage() {
                             <button
                               onClick={() => void saveAssignSource(u.id)}
                               disabled={savingAssignId === u.id || (!assignSourceId && !assignNewSourceName.trim())}
-                              className="flex-1 h-9 rounded-xl bg-[#B8112D] text-white text-xs font-semibold hover:bg-[#a30f27] disabled:opacity-40 flex items-center justify-center gap-1.5"
+                              className="flex-1 h-9 rounded-xl bg-[#0F398A] text-white text-xs font-semibold hover:bg-[#a30f27] disabled:opacity-40 flex items-center justify-center gap-1.5"
                             >
                               {savingAssignId === u.id ? <Loader2 size={14} className="animate-spin" /> : null}
                               Save
@@ -2141,7 +2141,7 @@ export default function UploadPage() {
         {/* ── HEADER ── */}
         <div className="mb-5 sm:mb-7 flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
           <div>
-            <p className="text-[11px] font-bold uppercase tracking-wider text-[#B8112D]/80 mb-1">Admin · Data Hub</p>
+            <p className="text-[11px] font-bold uppercase tracking-wider text-[#0F398A]/80 mb-1">Admin · Data Hub</p>
             <h1 className="text-2xl sm:text-3xl font-bold text-[#0F172A] tracking-tight">
               Data Hub
             </h1>
@@ -2151,7 +2151,7 @@ export default function UploadPage() {
           </div>
           <button
             onClick={openHistoryModal}
-            className="inline-flex items-center justify-center gap-2 h-11 px-5 rounded-2xl bg-[#B8112D] text-white font-semibold text-sm shadow-md shadow-[#B8112D]/25 hover:bg-[#a30f27] transition-all shrink-0"
+            className="inline-flex items-center justify-center gap-2 h-11 px-5 rounded-2xl bg-[#0F398A] text-white font-semibold text-sm shadow-md shadow-[#0F398A]/25 hover:bg-[#a30f27] transition-all shrink-0"
           >
             <History size={16} />
             Upload History
@@ -2161,7 +2161,7 @@ export default function UploadPage() {
         {/* ── STAT CARDS ── */}
         <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4 mb-5 sm:mb-7">
           {[
-            { label: "Uploaded Files",    value: files.length,                                    tint: "from-[#FFF1F3] to-white", ring: "border-[#F3C6CE]",  color: "text-[#B8112D]",  icon: <FileText size={20} /> },
+            { label: "Uploaded Files",    value: files.length,                                    tint: "from-[#EFF6FF] to-white", ring: "border-[#F3C6CE]",  color: "text-[#0F398A]",  icon: <FileText size={20} /> },
             { label: "Distributed",       value: files.filter(f => f.status === "Distributed").length, tint: "from-emerald-50 to-white", ring: "border-emerald-100", color: "text-emerald-600",  icon: <CheckCircle2 size={20} /> },
             { label: "Total Leads",       value: latestTotalLeads,                                tint: "from-sky-50 to-white", ring: "border-sky-100", color: "text-sky-600",   icon: <Database size={20} /> },
             { label: "Active CSRs",       value: latestDistribution.length,                      tint: "from-amber-50 to-white", ring: "border-amber-100", color: "text-amber-600", icon: <Users size={20} /> },
@@ -2199,28 +2199,28 @@ export default function UploadPage() {
                 id: "leads",
                 label: "New Leads",
                 shortLabel: "Leads",
-                accent: "#B8112D",
+                accent: "#0F398A",
                 span: "hero",
                 content: (
-                  <div className="p-4 sm:p-5 h-full flex flex-col bg-gradient-to-br from-[#FFF1F3] via-white to-white">
+                  <div className="p-4 sm:p-5 h-full flex flex-col bg-gradient-to-br from-[#EFF6FF] via-white to-white">
                     <div
                       onClick={(e) => { e.stopPropagation(); inputRef.current?.click(); }}
                       onDragOver={e => { e.preventDefault(); e.stopPropagation(); setDragging(true); }}
                       onDragLeave={() => setDragging(false)}
                       onDrop={e => { e.preventDefault(); e.stopPropagation(); setDragging(false); openCSRModal(e.dataTransfer.files); }}
                       className={`flex-1 border-2 border-dashed rounded-2xl p-4 sm:p-5 transition-all cursor-pointer group flex flex-col justify-center ${
-                        dragging ? "border-[#B8112D] bg-white" : "border-[#F3C6CE]/80 hover:border-[#B8112D] bg-white/70"
+                        dragging ? "border-[#0F398A] bg-white" : "border-[#F3C6CE]/80 hover:border-[#0F398A] bg-white/70"
                       }`}
                     >
                       <div className="flex flex-col items-center justify-center text-center px-1">
-                        <div className="w-14 h-14 rounded-2xl bg-[#FFF1F3] flex items-center justify-center mb-3 group-hover:scale-105 transition-transform">
-                          <UploadCloud size={28} className="text-[#B8112D]" />
+                        <div className="w-14 h-14 rounded-2xl bg-[#EFF6FF] flex items-center justify-center mb-3 group-hover:scale-105 transition-transform">
+                          <UploadCloud size={28} className="text-[#0F398A]" />
                         </div>
                         <h3 className="text-base sm:text-lg font-bold text-[#0F172A] leading-snug">Upload New Leads</h3>
                         <p className="text-sm text-gray-500 mt-2 max-w-[280px] leading-snug">
                           Call Data (today) or Clients (New / Old). Download the matching template first.
                         </p>
-                        <span className="mt-4 inline-flex bg-[#B8112D] text-white px-5 py-2.5 rounded-xl text-sm font-bold shadow-sm shadow-[#B8112D]/25">
+                        <span className="mt-4 inline-flex bg-[#0F398A] text-white px-5 py-2.5 rounded-xl text-sm font-bold shadow-sm shadow-[#0F398A]/25">
                           Browse Files
                         </span>
                       </div>
@@ -2428,7 +2428,7 @@ export default function UploadPage() {
           >
             <div>
               <h3 className="text-base sm:text-xl font-semibold text-gray-800 flex items-center gap-2">
-                <Globe size={18} className="text-[#B8112D]" /> Source History & Analytics
+                <Globe size={18} className="text-[#0F398A]" /> Source History & Analytics
               </h3>
               <p className="text-xs sm:text-sm text-gray-400 mt-0.5">
                 Track performance by data source. Hidden from all CSR views.
@@ -2449,7 +2449,7 @@ export default function UploadPage() {
                 setSourceDetail(null);
               }}
               className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
-                historySourceId === "all" ? "bg-[#B8112D] text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                historySourceId === "all" ? "bg-[#0F398A] text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
               }`}
             >
               All Sources
@@ -2462,7 +2462,7 @@ export default function UploadPage() {
                   void fetchSourceDetail(s.id);
                 }}
                 className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
-                  historySourceId === s.id ? "bg-[#B8112D] text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                  historySourceId === s.id ? "bg-[#0F398A] text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
                 }`}
               >
                 {sourceAdminLabel(s)} ({s.stats.total})
@@ -2483,7 +2483,7 @@ export default function UploadPage() {
                   <Legend wrapperStyle={{ fontSize: 11 }} />
                   <Bar dataKey="Pending"    fill="#0B84F3" radius={[4, 4, 0, 0]} />
                   <Bar dataKey="Interested" fill="#D97706" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="Important"  fill="#B8112D" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="Important"  fill="#0F398A" radius={[4, 4, 0, 0]} />
                   <Bar dataKey="Not Picked" fill="#B54708" radius={[4, 4, 0, 0]} />
                   <Bar dataKey="Won"        fill="#065F46" radius={[4, 4, 0, 0]} />
                 </BarChart>
@@ -2538,14 +2538,14 @@ export default function UploadPage() {
                             value={editSourceName}
                             onChange={e => setEditSourceName(e.target.value)}
                             placeholder="Source name (admin)..."
-                            className="h-9 rounded-lg border border-gray-200 px-3 text-xs outline-none focus:border-[#B8112D]"
+                            className="h-9 rounded-lg border border-gray-200 px-3 text-xs outline-none focus:border-[#0F398A]"
                           />
                           <input
                             type="text"
                             value={editSourceSudoName}
                             onChange={e => setEditSourceSudoName(e.target.value)}
                             placeholder="Sudo name (CSR)..."
-                            className="h-9 rounded-lg border border-gray-200 px-3 text-xs outline-none focus:border-[#B8112D]"
+                            className="h-9 rounded-lg border border-gray-200 px-3 text-xs outline-none focus:border-[#0F398A]"
                           />
                         </div>
                         <div className="flex gap-2">
@@ -2558,7 +2558,7 @@ export default function UploadPage() {
                           <button
                             onClick={() => void saveEditSource(src.id)}
                             disabled={savingSourceId === src.id || !editSourceName.trim()}
-                            className="flex-1 h-8 rounded-lg bg-[#B8112D] text-white text-xs font-semibold hover:bg-[#a30f27] disabled:opacity-40 flex items-center justify-center gap-1"
+                            className="flex-1 h-8 rounded-lg bg-[#0F398A] text-white text-xs font-semibold hover:bg-[#a30f27] disabled:opacity-40 flex items-center justify-center gap-1"
                           >
                             {savingSourceId === src.id ? <Loader2 size={12} className="animate-spin" /> : null}
                             Save
@@ -2632,7 +2632,7 @@ export default function UploadPage() {
                       value={newTradeName}
                       onChange={e => setNewTradeName(e.target.value)}
                       placeholder="Add trade (e.g. General Contractor)..."
-                      className="flex-1 h-9 rounded-lg border border-gray-200 px-3 text-xs outline-none focus:border-[#B8112D]"
+                      className="flex-1 h-9 rounded-lg border border-gray-200 px-3 text-xs outline-none focus:border-[#0F398A]"
                       onKeyDown={e => { if (e.key === "Enter") void addNewTrade(); }}
                     />
                     <button
@@ -2672,7 +2672,7 @@ export default function UploadPage() {
               <div key={i} className="bg-[#F8F9FC] border border-gray-100 rounded-xl sm:rounded-2xl p-3 sm:p-4">
                 <p className="text-xs sm:text-sm font-semibold text-gray-700 truncate">{csr.name}</p>
                 <p className="text-[10px] sm:text-xs text-gray-400 mt-0.5 sm:mt-1">Assigned Leads</p>
-                <h4 className="text-xl sm:text-2xl font-bold text-[#B8112D] mt-1 sm:mt-2">{csr.leads}</h4>
+                <h4 className="text-xl sm:text-2xl font-bold text-[#0F398A] mt-1 sm:mt-2">{csr.leads}</h4>
               </div>
             ))}
           </div>
@@ -2687,7 +2687,7 @@ export default function UploadPage() {
 
           {files.length === 0 && (
             <div className="p-10 sm:p-12 lg:p-14 text-center">
-              <UploadCloud size={36} className="mx-auto text-[#B8112D] lg:w-[42px] lg:h-[42px]" />
+              <UploadCloud size={36} className="mx-auto text-[#0F398A] lg:w-[42px] lg:h-[42px]" />
               <p className="mt-3 sm:mt-4 text-gray-500 text-sm">No files uploaded yet</p>
             </div>
           )}
@@ -2705,7 +2705,7 @@ export default function UploadPage() {
                     <div className="min-w-0">
                       <h4 className="font-semibold text-gray-800 text-sm truncate">{file.name}</h4>
                       {file.companyName && (
-                        <span className="inline-flex items-center gap-1 bg-[#FFF1F3] text-[#B8112D] px-2 sm:px-2.5 py-0.5 rounded-lg text-[10px] sm:text-[11px] font-semibold mt-0.5 sm:mt-1">
+                        <span className="inline-flex items-center gap-1 bg-[#EFF6FF] text-[#0F398A] px-2 sm:px-2.5 py-0.5 rounded-lg text-[10px] sm:text-[11px] font-semibold mt-0.5 sm:mt-1">
                           <Building2 size={9} className="sm:w-[11px] sm:h-[11px]" />{file.companyName}
                         </span>
                       )}
@@ -2745,7 +2745,7 @@ export default function UploadPage() {
                   </div>
                   <div className="w-full h-1.5 sm:h-2 rounded-full bg-gray-100 overflow-hidden">
                     <div
-                      className="h-full rounded-full bg-[#B8112D] transition-all duration-300"
+                      className="h-full rounded-full bg-[#0F398A] transition-all duration-300"
                       style={{ width: `${file.progress}%` }}
                     />
                   </div>
@@ -2771,7 +2771,7 @@ export default function UploadPage() {
                   <div className="min-w-0">
                     <h3 className="text-base sm:text-lg font-semibold text-gray-800 flex items-center gap-2">
                       {previewLive ? "Uploading" : "Upload Results"} — {lastUploadName}
-                      {previewLoading && <Loader2 size={16} className="animate-spin text-[#B8112D]" />}
+                      {previewLoading && <Loader2 size={16} className="animate-spin text-[#0F398A]" />}
                     </h3>
                     <p className="text-xs sm:text-sm text-gray-400 mt-0.5">
                       {previewLoading
@@ -2802,7 +2802,7 @@ export default function UploadPage() {
                                 setFilterDropdownOpen(false);
                               }}
                               className={`w-full text-left px-3 py-2 text-xs font-semibold hover:bg-gray-50 ${
-                                resultsFilter === opt.key ? "text-[#B8112D]" : "text-gray-600"
+                                resultsFilter === opt.key ? "text-[#0F398A]" : "text-gray-600"
                               }`}
                             >
                               {opt.label} ({filterCount(opt.key)})

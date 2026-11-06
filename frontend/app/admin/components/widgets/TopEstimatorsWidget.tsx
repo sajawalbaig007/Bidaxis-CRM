@@ -60,7 +60,7 @@ export default function TopEstimatorsWidget() {
         </div>
         <Link
           href="/technical/kpi"
-          className="text-xs font-semibold text-[#B8112D] hover:underline shrink-0"
+          className="text-xs font-semibold text-[#0F398A] hover:underline shrink-0"
         >
           KPI
         </Link>

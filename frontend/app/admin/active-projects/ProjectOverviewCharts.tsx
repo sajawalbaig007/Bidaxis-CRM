@@ -14,7 +14,7 @@ const PHASE_META: Record<string, { label: string; color: string }> = {
   delivery_phase:    { label: "Delivery Phase",       color: "#10B981" },
 };
 
-const FALLBACK_COLORS = ["#B8112D", "#0B84F3", "#0F172A", "#14B8A6", "#E11D48"];
+const FALLBACK_COLORS = ["#0F398A", "#0B84F3", "#0F172A", "#14B8A6", "#E11D48"];
 
 function titleCaseKey(key: string) {
   return key.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
@@ -54,7 +54,7 @@ export default function ProjectOverviewCharts({
       value: stats.total,
       hint: "All CSR projects in the DB",
       icon: FolderKanban,
-      wrap: "from-[#B8112D] to-[#8c0d22]",
+      wrap: "from-[#0F398A] to-[#8c0d22]",
       iconBg: "bg-white/10",
       iconColor: "text-white",
       valueCls: "text-white",
@@ -103,7 +103,7 @@ export default function ProjectOverviewCharts({
               <div
                 key={s.label}
                 className={`relative overflow-hidden rounded-2xl bg-gradient-to-br ${s.wrap} p-3.5 sm:p-4 h-full ${
-                  s.wrap.includes("[#B8112D]") ? "border border-[#B8112D]/30" : "border border-slate-200/70"
+                  s.wrap.includes("[#0F398A]") ? "border border-[#0F398A]/30" : "border border-slate-200/70"
                 }`}
               >
                 <div className="flex items-start gap-3 w-full">
@@ -190,7 +190,7 @@ export default function ProjectOverviewCharts({
                     </PieChart>
                   </ResponsiveContainer>
                   <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                    <p className="text-2xl font-extrabold text-[#B8112D] tabular-nums leading-none">{phaseTotal}</p>
+                    <p className="text-2xl font-extrabold text-[#0F398A] tabular-nums leading-none">{phaseTotal}</p>
                     <p className="text-[9px] font-bold uppercase tracking-[0.16em] text-slate-400 mt-1">Phases</p>
                   </div>
                 </>

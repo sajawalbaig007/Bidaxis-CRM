@@ -27,7 +27,7 @@ export default function PhoneAreaCodeFilterInput({
         title="Search by phone area code (e.g. 214, 416)"
         className={`h-10 sm:h-[42px] pl-8 pr-8 rounded-xl sm:rounded-2xl border text-xs sm:text-sm outline-none w-full min-w-0 ${fullWidth ? "" : "sm:w-[150px]"} ${
           value
-            ? "border-[#B8112D] bg-[#FFF1F3] text-[#B8112D]"
+            ? "border-[#0F398A] bg-[#EFF6FF] text-[#0F398A]"
             : "border-gray-200 dark:border-crm-border bg-[#FAFAFA] dark:bg-crm-input text-gray-600 dark:text-crm-text-secondary"
         }`}
       />
@@ -35,7 +35,7 @@ export default function PhoneAreaCodeFilterInput({
         <button
           type="button"
           onClick={() => onChange("")}
-          className="absolute right-3 top-1/2 -translate-y-1/2 text-[#B8112D]"
+          className="absolute right-3 top-1/2 -translate-y-1/2 text-[#0F398A]"
           aria-label="Clear area code filter"
         >
           <X size={12} />
