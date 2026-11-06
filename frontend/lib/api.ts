@@ -111,6 +111,7 @@ API.interceptors.response.use(
     const path = typeof window !== "undefined" ? window.location.pathname : "";
     const isProtected =
       path.startsWith("/admin") ||
+      path.startsWith("/email") ||
       path.startsWith("/csr") ||
       path.startsWith("/manager") ||
       path.startsWith("/technical") ||

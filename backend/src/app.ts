@@ -16,6 +16,7 @@ import accountsRoutes from "./routes/accounts.routes";
 import estimatorRoutes from "./routes/estimator.routes";
 import staffEmployeesRoutes from "./routes/staffEmployees.routes";
 import mailRoutes from "./routes/mail.routes";
+import mailCampaignRoutes from "./routes/mailCampaign.routes";
 import assistantRoutes from "./routes/assistant.routes";
 import attendanceRoutes from "./routes/attendance.routes";
 import zoomDialerRoutes from "./routes/zoomDialer.routes";
@@ -37,6 +38,7 @@ const allowedOrigins = [
   "http://127.0.0.1:3001",
   "https://crm-blond-theta.vercel.app",
   "https://dashboard.bemsolutions.io",
+  "https://dashboard.bidaxis.co",
   process.env.FRONTEND_URL?.replace(/\/$/, ""),
 ].filter(Boolean) as string[];
 
@@ -87,6 +89,7 @@ app.use("/api/accounts", accountsRoutes);
 app.use("/api/estimator", estimatorRoutes);
 app.use("/api/admin/staff-employees", staffEmployeesRoutes);
 app.use("/api/mail", mailRoutes);
+app.use("/api/mail-campaign", mailCampaignRoutes);
 app.use("/api/assistant", assistantRoutes);
 app.use("/api/attendance", attendanceRoutes);
 app.use("/api/dialer", zoomDialerRoutes);

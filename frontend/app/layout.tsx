@@ -33,9 +33,9 @@ export const metadata: Metadata =
     description:
       "BidAxis CRM System",
     icons: {
-      icon: "/images/bidaxis-logo.png",
-      shortcut: "/images/bidaxis-logo.png",
-      apple: "/images/bidaxis-logo.png",
+      icon: [{ url: "/favicon-96x96.png", sizes: "96x96", type: "image/png" }],
+      shortcut: "/favicon.ico",
+      apple: "/apple-touch-icon.png",
     },
   };
 

@@ -66,6 +66,7 @@ export function proxy(request: NextRequest) {
 
   const protectedPath =
     pathname.startsWith("/admin") ||
+    pathname.startsWith("/email") ||
     pathname.startsWith("/csr") ||
     pathname.startsWith("/manager") ||
     pathname.startsWith("/technical") ||
@@ -105,7 +106,7 @@ export function proxy(request: NextRequest) {
 
   if (!ok || !role) return redirectHomeClearCookie(request);
 
-  if (pathname.startsWith("/admin") && role !== "admin") {
+  if ((pathname.startsWith("/admin") || pathname.startsWith("/email")) && role !== "admin") {
     return withClientHints(NextResponse.redirect(new URL(homeForRole(role), request.url)));
   }
   if (pathname.startsWith("/csr") && role !== "csr") {
@@ -140,6 +141,7 @@ export const config = {
     "/",
     "/login/:path*",
     "/admin/:path*",
+    "/email/:path*",
     "/csr/:path*",
     "/manager/:path*",
     "/technical/:path*",

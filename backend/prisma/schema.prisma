@@ -816,3 +816,46 @@ model ManualDial {
   @@index([createdAt])
   @@map("manual_dials")
 }
+
+/** A client sheet uploaded on the /email page. */
+model MailListFile {
+  id        String   @id @default(cuid()) @map("_id")
+  fileName  String
+  count     Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@map("mail_list_files")
+}
+
+/** One client on the /email page. A null status means pending; send fields are optional so older rows still load. */
+model MailListRow {
+  id           String    @id @default(cuid()) @map("_id")
+  fileId       String    @default("")
+  name         String    @default("")
+  email        String
+  company      String    @default("")
+  phones       String    @default("")
+  contactKey   String    @default("")
+  manual       Boolean   @default(false)
+  status       String?
+  sentAt       DateTime?
+  sentFrom     String?
+  lastError    String?
+  doNotContact Boolean?
+  createdAt    DateTime  @default(now())
+
+  @@index([fileId])
+  @@index([email])
+  @@map("mail_list_rows")
+}
+
+/** The one saved template on the /email page. */
+model MailCampaignTemplate {
+  id        String   @id @default("default") @map("_id")
+  subject   String
+  body      String
+  fromEmail String   @default("info@bidaxis.co")
+  updatedAt DateTime @updatedAt
+
+  @@map("mail_campaign_templates")
+}

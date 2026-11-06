@@ -7,7 +7,7 @@ import toast from "react-hot-toast";
 import {
   LayoutDashboard, Users, FileText, BarChart3,
   FolderKanban, Upload, Trash2, Settings,
-  LogOut, ChevronDown, MessageSquare, Bell, Phone, Clock, X, StickyNote, Wallet,
+  LogOut, ChevronDown, MessageSquare, Bell, Phone, Clock, X, StickyNote, Wallet, Mail,
 } from "lucide-react";
 import API from "@/lib/api";
 import { estNowYmd, formatEstScheduleLabel } from "@/lib/estTime";
@@ -38,6 +38,7 @@ const navItems = [
   { title: "Project DB", shortTitle: "Project DB", href: `${BASE}/active-projects`, icon: FolderKanban    },
   { title: "Payments",   shortTitle: "Payments",   href: `${BASE}/payments`,       icon: Wallet          },
   { title: "Data Hub",   shortTitle: "Data Hub",   href: `${BASE}/uploads`,         icon: Upload          },
+  { title: "Email",      shortTitle: "Email",      href: "/email",                  icon: Mail            },
   { title: "Bin",        shortTitle: "Bin",        href: `${BASE}/bin`,             icon: Trash2          },
   { title: "Settings",   shortTitle: "Settings",   href: `${BASE}/settings`,        icon: Settings        },
 ];

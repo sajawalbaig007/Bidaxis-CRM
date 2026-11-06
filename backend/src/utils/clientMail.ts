@@ -1,4 +1,3 @@
-import nodemailer from "nodemailer";
 import {
   getMailSignature,
   resolveMailBrand,
@@ -6,6 +5,7 @@ import {
   stripMailSignOff,
   type MailSignature,
 } from "./mailSignatures";
+import { createGmailTransport, createSmtpTransport } from "./smtpIpv4";
 
 export type MailSenderPublic = {
   id: string;
@@ -38,6 +38,46 @@ function emailDomain(email: string): string {
 
 function isGmailAddress(email: string): boolean {
   return GMAIL_DOMAINS.has(emailDomain(email));
+}
+
+async function sendViaGmail(opts: {
+  user: string;
+  pass: string;
+  mail: {
+    from: string;
+    to: string;
+    subject: string;
+    text: string;
+    html: string;
+    replyTo?: string;
+    envelope?: { from: string; to: string };
+    attachments?: MailSignature["attachments"];
+  };
+}): Promise<void> {
+  const user = opts.user.trim();
+  const pass = opts.pass.replace(/\s/g, "");
+  if (!user || !pass) {
+    throw new Error(`Gmail app password is missing for ${user || "this mailbox"}.`);
+  }
+  const ports: Array<465 | 587> = [465, 587];
+  let lastErr: unknown;
+  for (const port of ports) {
+    try {
+      const transporter = await createGmailTransport({ user, pass }, port);
+      await transporter.sendMail(opts.mail);
+      return;
+    } catch (err) {
+      lastErr = err;
+      const code = (err as { code?: string }).code ?? "";
+      if (code === "EAUTH" || /invalid login|username and password/i.test(err instanceof Error ? err.message : "")) {
+        throw new Error(
+          `Gmail rejected login for ${user}. Use a 16-character App Password (Google Account → Security → App passwords).`,
+        );
+      }
+    }
+  }
+  const detail = lastErr instanceof Error ? lastErr.message : String(lastErr ?? "timeout");
+  throw new Error(`Gmail SMTP timed out for ${user}. ${detail.slice(0, 140)}`);
 }
 
 function readOptionalPort(raw: string): number | undefined {
@@ -157,12 +197,33 @@ export async function sendClientMail(opts: {
   };
   if (signature?.attachments.length) mail.attachments = signature.attachments;
 
-  if (isGmailAddress(opts.sender.email) && !opts.sender.host) {
-    const transporter = nodemailer.createTransport({
-      service: "gmail",
-      auth: { user: opts.sender.email, pass: opts.sender.pass.replace(/\s/g, "") },
+  // GoDaddy Titan times out from Render, so bidaxis.co mail goes through the Gmail account in SMTP_USER.
+  if (emailDomain(opts.sender.email) === "bidaxis.co") {
+    const relayUser = (process.env.SMTP_USER ?? "").trim();
+    const relayPass = (process.env.SMTP_PASS ?? "").replace(/\s/g, "");
+    if (!relayUser || !relayPass || !isGmailAddress(relayUser)) {
+      throw new Error(
+        "GoDaddy Titan cannot send from this server (SMTP times out). Set SMTP_USER / SMTP_PASS to a real Gmail app password, or move bidaxis.co mail to Google Workspace.",
+      );
+    }
+    const aliasFrom = `"${opts.sender.name.replace(/"/g, "")}" <${opts.sender.email}>`;
+    await sendViaGmail({
+      user: relayUser,
+      pass: relayPass,
+      mail: {
+        ...mail,
+        from: aliasFrom,
+        replyTo: aliasFrom,
+        envelope: { from: relayUser, to: opts.to.trim() },
+      },
     });
-    await transporter.sendMail(mail);
+    console.info(`[mail/send] smtp=gmail-alias from=${opts.sender.email} via=${relayUser}`);
+    return;
+  }
+
+  if (isGmailAddress(opts.sender.email)) {
+    await sendViaGmail({ user: opts.sender.email, pass: opts.sender.pass, mail });
+    console.info(`[mail/send] smtp=gmail from=${opts.sender.email}`);
     return;
   }
 
@@ -175,16 +236,16 @@ export async function sendClientMail(opts: {
     for (const host of hosts) {
       for (const port of ports) {
         try {
-          const transporter = nodemailer.createTransport({
+          const transporter = createSmtpTransport({
             host,
             port: port.port,
             secure: port.secure,
             requireTLS: port.requireTLS,
             auth: { user: opts.sender.email, pass },
             authMethod: "LOGIN",
-            connectionTimeout: 12_000,
-            greetingTimeout: 12_000,
-            socketTimeout: 20_000,
+            connectionTimeout: 8_000,
+            greetingTimeout: 8_000,
+            socketTimeout: 15_000,
             tls: { minVersion: "TLSv1.2" },
           });
           await transporter.sendMail(mail);
