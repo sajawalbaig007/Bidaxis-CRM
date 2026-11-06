@@ -1,11 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
-import { ArrowLeft, ArrowRight, Eye, EyeOff, Shield } from "lucide-react";
+import { ArrowLeft, ArrowRight, Eye, EyeOff, Lock, Shield } from "lucide-react";
 import toast from "react-hot-toast";
 import API, { apiErrorMessage } from "@/lib/api";
-import { PORTAL_LOGIN_COPY } from "@/lib/loginRole";
 import {
   COMPANY_META,
   COMPANY_PORTAL_ROLES,
@@ -16,13 +16,8 @@ import {
 } from "@/lib/companyGate";
 import { LANDING_PORTALS } from "@/lib/landingPortals";
 import DevToolsGuard from "@/app/components/DevToolsGuard";
-import BrandLogo from "@/app/components/BrandLogo";
-import BemWordmark from "@/app/components/BemWordmark";
 import CompanyPortalChrome from "@/app/components/CompanyPortalChrome";
 import LoginPeekCharacter from "@/app/components/LoginPeekCharacter";
-
-const SLIDE_MS = 5200;
-const CHIPS_PER_ROW = 2;
 
 export default function CompanyAccessPage({ company }: { company: PortalCompany }) {
   const meta = COMPANY_META[company];
@@ -38,59 +33,6 @@ export default function CompanyAccessPage({ company }: { company: PortalCompany 
   const [showPassword, setShowPassword] = useState(false);
   const [focusedField, setFocusedField] = useState<"username" | "password" | null>(null);
   const [loading, setLoading] = useState(false);
-
-  const [index, setIndex] = useState(0);
-  const [paused, setPaused] = useState(false);
-  const active = portals[index] ?? portals[0];
-  const chipTrackRef = useRef<HTMLDivElement>(null);
-  const chipBtnRefs = useRef<(HTMLButtonElement | null)[]>([]);
-  const [capsule, setCapsule] = useState({
-    left: 0,
-    top: 0,
-    width: 0,
-    height: 0,
-    ready: false,
-  });
-
-  const go = useCallback((next: number) => {
-    if (portals.length === 0) return;
-    setIndex(((next % portals.length) + portals.length) % portals.length);
-  }, [portals.length]);
-
-  const measureCapsule = useCallback(() => {
-    const btn = chipBtnRefs.current[index];
-    if (!btn) return;
-    setCapsule({
-      left: btn.offsetLeft,
-      top: btn.offsetTop,
-      width: btn.offsetWidth,
-      height: btn.offsetHeight,
-      ready: true,
-    });
-  }, [index]);
-
-  useLayoutEffect(() => {
-    measureCapsule();
-  }, [measureCapsule, unlocked]);
-
-  useEffect(() => {
-    const track = chipTrackRef.current;
-    if (!track) return;
-    const onResize = () => measureCapsule();
-    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(onResize) : null;
-    ro?.observe(track);
-    window.addEventListener("resize", onResize);
-    return () => {
-      ro?.disconnect();
-      window.removeEventListener("resize", onResize);
-    };
-  }, [measureCapsule, unlocked]);
-
-  useEffect(() => {
-    if (!unlocked || paused || portals.length < 2) return;
-    const t = setInterval(() => go(index + 1), SLIDE_MS);
-    return () => clearInterval(t);
-  }, [index, paused, go, unlocked, portals.length]);
 
   useEffect(() => {
     let cancelled = false;
@@ -136,7 +78,6 @@ export default function CompanyAccessPage({ company }: { company: PortalCompany 
       }
       setCompanyGate(company, token);
       setUnlocked(true);
-      setIndex(0);
       toast.success(`${meta.name} unlocked`);
     } catch (err) {
       toast.error(apiErrorMessage(err, "Invalid company username or password."));
@@ -155,26 +96,33 @@ export default function CompanyAccessPage({ company }: { company: PortalCompany 
     <>
       <DevToolsGuard />
       <CompanyPortalChrome company={company}>
-        <div className="text-center mb-4 sm:mb-6 animate-[fadeUp_0.6s_ease-out] shrink-0">
-          <div className="inline-flex items-center justify-center gap-3 sm:gap-4 mb-2.5">
-            <BrandLogo size="md" className="shrink-0" priority />
-            <BemWordmark className="text-[20px] sm:text-[24px] md:text-[28px]" onDark />
+        <div className="text-center mb-5 sm:mb-7 animate-[fadeUp_0.6s_ease-out] shrink-0">
+          <div className="inline-flex items-center justify-center rounded-2xl bg-white px-6 py-3.5 sm:px-8 sm:py-4 shadow-[0_16px_48px_-12px_rgba(0,0,0,0.55)]">
+            <Image
+              src="/images/bidaxis-logo-wide.png"
+              alt="BidAxis"
+              width={526}
+              height={93}
+              priority
+              className="block h-8 sm:h-10 w-auto"
+            />
           </div>
-          <p className="text-white/50 text-[10px] sm:text-[11px] font-bold uppercase tracking-[0.2em] mb-1">
-            {unlocked ? "Company portals" : "Company access"}
-          </p>
-          <p className="text-white/85 text-[12px] sm:text-[13px] max-w-sm mx-auto px-2 leading-relaxed">
+          <p className="mt-4 text-white/85 text-[13px] sm:text-sm max-w-md mx-auto px-2 leading-relaxed">
             {unlocked
-              ? `Pick a ${meta.name} dashboard and sign in.`
+              ? "Choose your dashboard to sign in."
               : `Enter the shared ${meta.name} username and password.`}
           </p>
         </div>
 
-        <div className="w-full max-w-[1080px] mx-auto">
+        <div className="w-full max-w-[1080px] mx-auto min-h-0">
           {checking ? (
-            <div className="grid grid-cols-1 md:grid-cols-12 gap-3 sm:gap-4">
-              <div className="md:col-span-5 rounded-[1.75rem] border border-white/20 bg-white/[0.09] backdrop-blur-xl h-52 animate-pulse" />
-              <div className="md:col-span-7 rounded-[1.75rem] border border-white/20 bg-white/[0.09] backdrop-blur-xl h-52 animate-pulse" />
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+              {portals.map(portal => (
+                <div
+                  key={portal.value}
+                  className="rounded-2xl border border-white/15 bg-white/[0.07] h-36 animate-pulse"
+                />
+              ))}
             </div>
           ) : !unlocked ? (
             <div className="grid grid-cols-1 md:grid-cols-12 gap-3 sm:gap-4 items-stretch">
@@ -239,6 +187,7 @@ export default function CompanyAccessPage({ company }: { company: PortalCompany 
                       />
                       <button
                         type="button"
+                        aria-label={showPassword ? "Hide password" : "Show password"}
                         onMouseDown={e => e.preventDefault()}
                         onClick={() => setShowPassword(v => !v)}
                         className="absolute right-3 top-1/2 -translate-y-1/2 text-white/50 hover:text-white"
@@ -264,137 +213,52 @@ export default function CompanyAccessPage({ company }: { company: PortalCompany 
               </div>
             </div>
           ) : (
-            <div
-              className="rounded-[1.35rem] sm:rounded-[1.75rem] border border-white/20 bg-white/[0.09] backdrop-blur-xl shadow-[0_24px_80px_-12px_rgba(0,0,0,0.5)] overflow-hidden flex-1 min-h-0 flex flex-col"
-              onMouseEnter={() => setPaused(true)}
-              onMouseLeave={() => setPaused(false)}
-              onFocusCapture={() => setPaused(true)}
-              onBlurCapture={() => setPaused(false)}
-            >
-              <div className="relative p-4 sm:p-6 md:p-7 flex-1">
-                <div className="flex items-center justify-between gap-2 mb-4 sm:mb-5">
-                  <div className="inline-flex items-center gap-2">
-                    <Shield size={13} className="text-white/70" />
-                    <p className="text-[10px] sm:text-[11px] font-bold uppercase tracking-[0.14em] text-white/70">
-                      Dashboard preview
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <button
-                      type="button"
-                      onClick={lockCompany}
-                      className="text-[11px] font-semibold text-white/55 hover:text-white"
+            <div className="animate-[fadeUp_0.5s_ease-out]">
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+                {portals.map(portal => {
+                  const PortalIcon = portal.icon;
+                  return (
+                    <Link
+                      key={portal.value}
+                      href={`/login/${portal.value}`}
+                      className="group flex flex-col rounded-2xl border border-white/15 bg-white/[0.08] p-4 sm:p-5 transition-all duration-200 hover:-translate-y-0.5 hover:border-white/35 hover:bg-white/[0.14] hover:shadow-[0_16px_40px_-12px_rgba(0,0,0,0.6)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
                     >
-                      Lock
-                    </button>
-                    <Link href="/" className="inline-flex items-center gap-1 text-[11px] font-semibold text-white/55 hover:text-white">
-                      <ArrowLeft size={13} /> Companies
-                    </Link>
-                  </div>
-                </div>
-
-                <div className="relative overflow-hidden">
-                  {portals.map((portal, i) => {
-                    const PIcon = portal.icon;
-                    const visible = i === index;
-                    return (
-                      <div
-                        key={portal.value}
-                        className={`transition-all duration-500 ease-out ${
-                          visible
-                            ? "relative opacity-100 translate-x-0"
-                            : "absolute inset-0 opacity-0 translate-x-6 pointer-events-none"
-                        }`}
-                        aria-hidden={!visible}
-                      >
-                        <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-5">
-                          <div
-                            className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl flex items-center justify-center text-white shadow-lg shrink-0 transition-transform duration-500 overflow-hidden"
-                            style={{
-                              background: `linear-gradient(145deg, ${portal.accent}, ${portal.accent}cc)`,
-                              boxShadow: `0 12px 32px ${portal.accent}55`,
-                              transform: visible ? "scale(1)" : "scale(0.92)",
-                            }}
-                          >
-                            <PIcon size={32} />
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <p className="text-[10px] font-bold uppercase tracking-[0.16em] mb-1.5 drop-shadow-sm">
-                              <span style={{ color: portal.accent }}>{PORTAL_LOGIN_COPY[portal.value].eyebrow}</span>
-                            </p>
-                            <h2 className="text-white text-xl sm:text-2xl md:text-[1.75rem] font-black tracking-tight leading-tight drop-shadow-sm">
-                              {PORTAL_LOGIN_COPY[portal.value].slides[0]?.title ?? `${portal.label} Dashboard`}
-                            </h2>
-                            <p className="text-white/80 text-[12px] sm:text-[13px] mt-1.5 leading-relaxed max-w-md">
-                              {portal.hint}
-                            </p>
-                          </div>
-                        </div>
-
-                        <div className="mt-5 sm:mt-6 flex flex-col sm:flex-row sm:items-center gap-2.5 sm:gap-3">
-                          <Link
-                            href={`/login/${portal.value}`}
-                            className="inline-flex items-center justify-center gap-2 h-11 sm:h-12 px-5 rounded-xl text-white text-sm font-bold transition-all hover:brightness-110 active:scale-[0.98]"
-                            style={{
-                              background: `linear-gradient(135deg, ${portal.accent}, ${portal.accent}dd)`,
-                              boxShadow: `0 8px 24px ${portal.accent}55`,
-                            }}
-                          >
-                            Continue to {portal.label}
-                            <ArrowRight size={16} />
-                          </Link>
-                          <p className="text-[11px] text-white/65 sm:ml-1">
-                            Staff sign-in · separate portal credentials
-                          </p>
-                        </div>
+                      <div className="flex items-center justify-between">
+                        <span
+                          className="flex h-11 w-11 items-center justify-center rounded-xl text-white ring-1 ring-white/20"
+                          style={{ background: portal.accent }}
+                        >
+                          <PortalIcon size={20} />
+                        </span>
+                        <ArrowRight
+                          size={16}
+                          className="text-white/40 transition-all duration-200 group-hover:translate-x-0.5 group-hover:text-white"
+                        />
                       </div>
-                    );
-                  })}
-                </div>
+                      <h2 className="mt-4 text-white text-[15px] sm:text-base font-bold leading-tight">
+                        {portal.label}
+                      </h2>
+                      <p className="mt-1.5 text-white/70 text-xs leading-relaxed">{portal.hint}</p>
+                    </Link>
+                  );
+                })}
               </div>
 
-              {active && (
-                <div className="border-t border-white/10 bg-black/25 px-2.5 sm:px-3 py-2 sm:py-2.5 shrink-0">
-                  <div
-                    ref={chipTrackRef}
-                    className="relative grid gap-1 sm:gap-1.5"
-                    style={{ gridTemplateColumns: `repeat(${Math.min(CHIPS_PER_ROW, portals.length)}, minmax(0, 1fr))` }}
-                  >
-                    <span
-                      aria-hidden
-                      className="pointer-events-none absolute rounded-full border border-white/25 backdrop-blur-md transition-[transform,width,height,background-color,box-shadow] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] will-change-[transform,width,height]"
-                      style={{
-                        width: capsule.width,
-                        height: capsule.height,
-                        transform: `translate(${capsule.left}px, ${capsule.top}px)`,
-                        opacity: capsule.ready ? 1 : 0,
-                        background: `linear-gradient(135deg, ${active.accent}ee, ${active.accent}99)`,
-                        boxShadow: `0 4px 18px ${active.accent}55, inset 0 1px 0 rgba(255,255,255,0.25)`,
-                      }}
-                    />
-                    {portals.map((portal, i) => {
-                      const ChipIcon = portal.icon;
-                      const on = i === index;
-                      return (
-                        <button
-                          key={portal.value}
-                          type="button"
-                          ref={el => {
-                            chipBtnRefs.current[i] = el;
-                          }}
-                          onClick={() => go(i)}
-                          className={`relative z-[1] inline-flex w-full items-center justify-center gap-1 sm:gap-1.5 h-9 px-1.5 sm:px-2 rounded-full text-[10px] sm:text-xs font-bold whitespace-nowrap transition-colors duration-300 min-w-0 ${
-                            on ? "text-white" : "text-white/60 hover:text-white/95"
-                          }`}
-                        >
-                          <ChipIcon size={13} className="shrink-0" />
-                          <span className="truncate">{portal.label}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
+              <div className="mt-4 sm:mt-5 flex items-center justify-center gap-5">
+                <button
+                  type="button"
+                  onClick={lockCompany}
+                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-white/65 hover:text-white"
+                >
+                  <Lock size={13} /> Lock
+                </button>
+                <Link
+                  href="/"
+                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-white/65 hover:text-white"
+                >
+                  <ArrowLeft size={13} /> Companies
+                </Link>
+              </div>
             </div>
           )}
         </div>

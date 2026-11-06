@@ -37,9 +37,9 @@ export default function CompanyPortalChrome({ company = "both", children }: Prop
         </>
       ) : (
         <div
-          className="absolute inset-0 bg-cover bg-center scale-110"
+          className="absolute inset-0"
           style={{
-            backgroundImage: `linear-gradient(165deg, rgba(15,23,42,0.9) 0%, ${accent}99 48%, rgba(15,23,42,0.78) 100%), url('${single!.logoSrc}')`,
+            backgroundImage: `linear-gradient(165deg, #0B1324 0%, ${accent} 55%, #0B1324 100%)`,
           }}
         />
       )}
