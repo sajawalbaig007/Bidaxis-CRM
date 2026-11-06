@@ -18,7 +18,7 @@ function hasTextSelection(): boolean {
 }
 
 type DevToolsGuardProps = {
-  /** CSR: mouse select + Ctrl/Cmd+C/V/X; login stays fully locked down. */
+  /** CSR: mouse select, right-click menu + Ctrl/Cmd+C/V/X; login stays fully locked down. */
   allowSelection?: boolean;
 };
 
@@ -49,7 +49,7 @@ export default function DevToolsGuard({ allowSelection = false }: DevToolsGuardP
     const blockClipboard = (e: ClipboardEvent) => {
       if (keyboardClipboard) return;
       if (allowSelection) {
-        if ((e.type === "copy" || e.type === "cut") && hasTextSelection()) return;
+        if ((e.type === "copy" || e.type === "cut") && (hasTextSelection() || isEditableTarget(e.target))) return;
         if (e.type === "paste" && isEditableTarget(e.target)) return;
       }
       e.preventDefault();
@@ -87,8 +87,8 @@ export default function DevToolsGuard({ allowSelection = false }: DevToolsGuardP
       }
     };
 
-    document.addEventListener("contextmenu", blockContext);
     if (!allowSelection) {
+      document.addEventListener("contextmenu", blockContext);
       document.addEventListener("selectstart", blockSelectStart);
       document.addEventListener("dragstart", blockDrag);
     }
@@ -100,8 +100,8 @@ export default function DevToolsGuard({ allowSelection = false }: DevToolsGuardP
     return () => {
       document.body.classList.remove(allowSelection ? BODY_CLASS_CSR : BODY_CLASS_STRICT);
       if (clipboardTimer) clearTimeout(clipboardTimer);
-      document.removeEventListener("contextmenu", blockContext);
       if (!allowSelection) {
+        document.removeEventListener("contextmenu", blockContext);
         document.removeEventListener("selectstart", blockSelectStart);
         document.removeEventListener("dragstart", blockDrag);
       }
