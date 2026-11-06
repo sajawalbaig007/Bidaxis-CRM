@@ -98,26 +98,10 @@ function readSlot(n: 1 | 2 | 3 | 4): MailSender | null {
   return { id: String(n), email, name, pass, host, port, secure };
 }
 
-function passwordVariants(pass: string): string[] {
-  const spaced = pass.trim();
-  const compact = spaced.replace(/\s/g, "");
-  const swapped =
-    compact.startsWith("I") ? `l${compact.slice(1)}`
-    : compact.startsWith("l") ? `I${compact.slice(1)}`
-    : "";
-  const seeds = [compact, compact.toLowerCase(), swapped, swapped.toLowerCase(), spaced];
-  const out: string[] = [];
-  for (const s of seeds) {
-    if (!s) continue;
-    out.push(s, s.replace(/-/g, ""));
-  }
-  return [...new Set(out)];
-}
-
-
-function smtpHosts(sender: MailSender): string[] {
-  const envHost = (process.env.CRM_SMTP_HOST ?? "").trim();
-  return [...new Set([sender.host, envHost, "smtp.hostinger.com"].filter((h): h is string => !!h))];
+function smtpHost(sender: MailSender): string {
+  // bidaxis.co mailboxes are hosted by GoDaddy: smtp.titan.email rejects their login, and only this host is in the domain's SPF.
+  if (emailDomain(sender.email) === "bidaxis.co") return "smtpout.secureserver.net";
+  return sender.host || (process.env.CRM_SMTP_HOST ?? "").trim() || "smtp.hostinger.com";
 }
 
 function smtpPorts(sender: MailSender): Array<{ port: number; secure: boolean; requireTLS?: boolean }> {
@@ -173,12 +157,12 @@ export async function sendClientMail(opts: {
   body: string;
 }): Promise<void> {
   const signature = getMailSignature(opts.sender.email, opts.sender.name);
-  const bodyText = signature ? stripMailSignOff(opts.body) : opts.body;
+  const bodyText = signature ? `${stripMailSignOff(opts.body)}\n\nBest regards,` : opts.body;
   const htmlBody = escapeHtml(bodyText).replace(/\r\n|\n|\r/g, "<br>");
   const html = [
     `<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.6;color:#111">${htmlBody}</div>`,
     signature
-      ? `<div style="margin-top:22px;padding-top:8px">${signature.html}</div>`
+      ? `<div style="margin-top:12px">${signature.html}</div>`
       : "",
   ].join("");
   const mail: {
@@ -192,34 +176,10 @@ export async function sendClientMail(opts: {
     from: `"${opts.sender.name.replace(/"/g, "")}" <${opts.sender.email}>`,
     to: opts.to.trim(),
     subject: opts.subject.trim(),
-    text: bodyText,
+    text: signature ? `${bodyText}\n${opts.sender.name}\n${opts.sender.email}` : bodyText,
     html,
   };
   if (signature?.attachments.length) mail.attachments = signature.attachments;
-
-  // GoDaddy Titan times out from Render, so bidaxis.co mail goes through the Gmail account in SMTP_USER.
-  if (emailDomain(opts.sender.email) === "bidaxis.co") {
-    const relayUser = (process.env.SMTP_USER ?? "").trim();
-    const relayPass = (process.env.SMTP_PASS ?? "").replace(/\s/g, "");
-    if (!relayUser || !relayPass || !isGmailAddress(relayUser)) {
-      throw new Error(
-        "GoDaddy Titan cannot send from this server (SMTP times out). Set SMTP_USER / SMTP_PASS to a real Gmail app password, or move bidaxis.co mail to Google Workspace.",
-      );
-    }
-    const aliasFrom = `"${opts.sender.name.replace(/"/g, "")}" <${opts.sender.email}>`;
-    await sendViaGmail({
-      user: relayUser,
-      pass: relayPass,
-      mail: {
-        ...mail,
-        from: aliasFrom,
-        replyTo: aliasFrom,
-        envelope: { from: relayUser, to: opts.to.trim() },
-      },
-    });
-    console.info(`[mail/send] smtp=gmail-alias from=${opts.sender.email} via=${relayUser}`);
-    return;
-  }
 
   if (isGmailAddress(opts.sender.email)) {
     await sendViaGmail({ user: opts.sender.email, pass: opts.sender.pass, mail });
@@ -228,39 +188,32 @@ export async function sendClientMail(opts: {
   }
 
   let lastErr: unknown;
-  const passwords = passwordVariants(opts.sender.pass);
-  const hosts = smtpHosts(opts.sender);
-  const ports = smtpPorts(opts.sender);
+  const host = smtpHost(opts.sender);
 
-  passLoop: for (const pass of passwords) {
-    for (const host of hosts) {
-      for (const port of ports) {
-        try {
-          const transporter = createSmtpTransport({
-            host,
-            port: port.port,
-            secure: port.secure,
-            requireTLS: port.requireTLS,
-            auth: { user: opts.sender.email, pass },
-            authMethod: "LOGIN",
-            connectionTimeout: 8_000,
-            greetingTimeout: 8_000,
-            socketTimeout: 15_000,
-            tls: { minVersion: "TLSv1.2" },
-          });
-          await transporter.sendMail(mail);
-          console.info(`[mail/send] smtp=${host}:${port.port} from=${opts.sender.email}`);
-          return;
-        } catch (err) {
-          lastErr = err;
-          const code = (err as { code?: string }).code ?? "";
-          if (code === "EAUTH") {
-            continue passLoop;
-          }
-          if (code !== "ESOCKET" && code !== "ETIMEDOUT" && code !== "ECONNECTION") {
-            throw err;
-          }
-        }
+  for (const port of smtpPorts(opts.sender)) {
+    try {
+      const transporter = createSmtpTransport({
+        host,
+        port: port.port,
+        secure: port.secure,
+        requireTLS: port.requireTLS,
+        auth: { user: opts.sender.email, pass: opts.sender.pass },
+        connectionTimeout: 8_000,
+        greetingTimeout: 8_000,
+        socketTimeout: 15_000,
+        tls: { minVersion: "TLSv1.2" },
+      });
+      await transporter.sendMail(mail);
+      console.info(`[mail/send] smtp=${host}:${port.port} from=${opts.sender.email}`);
+      return;
+    } catch (err) {
+      lastErr = err;
+      const code = (err as { code?: string }).code ?? "";
+      if (code === "EAUTH") {
+        throw new Error(`The mail server rejected the password for ${opts.sender.email}. Update its password in the server settings.`);
+      }
+      if (code !== "ESOCKET" && code !== "ETIMEDOUT" && code !== "ECONNECTION") {
+        throw err;
       }
     }
   }

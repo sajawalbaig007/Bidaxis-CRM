@@ -1,7 +1,7 @@
 import fs from "fs";
 import path from "path";
 
-export type MailSignatureBrand = "bidaxis-daniel" | "bidaxis-emma" | "bds" | "ps" | "devcon";
+export type MailSignatureBrand = "bidaxis-daniel" | "bidaxis-emma" | "bidaxis-anna" | "bds" | "ps" | "devcon";
 
 export type MailSignature = {
   brand: MailSignatureBrand;
@@ -13,6 +13,7 @@ export type MailSignature = {
 const BRAND_LABEL: Record<MailSignatureBrand, string> = {
   "bidaxis-daniel": "Daniel Parker | BidAxis",
   "bidaxis-emma": "Emma Collins | BidAxis",
+  "bidaxis-anna": "Anna Sterling | BidAxis",
   bds: "BEM Design Studio (BDS)",
   ps: "Pacific Sunshine Estimating",
   devcon: "Devcon Estimating",
@@ -33,6 +34,10 @@ export function resolveMailBrand(email?: string | null, name?: string | null): M
     hay.includes("emma collins") ||
     hay.includes("sales@bidaxis.co")
   ) return "bidaxis-emma";
+  if (
+    hay.includes("anna sterling") ||
+    hay.includes("annasterling")
+  ) return "bidaxis-anna";
   if (
     hay.includes("bimdesignstudio") ||
     hay.includes("bemdesignstudio") ||
@@ -80,6 +85,10 @@ export function getMailSignature(email?: string | null, name?: string | null): M
       const logo = pngAttachment("bidaxis-emma.png", "bidaxis-emma");
       if (logo) attachments.push(logo);
     }
+    if (brand === "bidaxis-anna") {
+      const logo = pngAttachment("bidaxis-anna.png", "bidaxis-anna");
+      if (logo) attachments.push(logo);
+    }
     if (brand === "bds") {
       const logo = pngAttachment("bds-logo.png", "bds-logo");
       if (logo) attachments.push(logo);
@@ -109,7 +118,8 @@ export function signatureLabel(email?: string | null, name?: string | null): str
   return brand ? BRAND_LABEL[brand] : null;
 }
 
-const SIGN_OFF_RE = /\n*(?:Thanks|Thank you|Best regards|Kind regards|Warm regards|Regards),?\s*\n[\s\S]*$/i;
+/** A sign-off on its own line, with or without a name below it. */
+const SIGN_OFF_RE = /(?:^|\n)[ \t]*(?:Thanks|Thank you|Best regards|Kind regards|Warm regards|Regards),?[ \t]*(?:\n[\s\S]*)?$/i;
 
 export function stripMailSignOff(body: string): string {
   return body.replace(SIGN_OFF_RE, "").trimEnd();
