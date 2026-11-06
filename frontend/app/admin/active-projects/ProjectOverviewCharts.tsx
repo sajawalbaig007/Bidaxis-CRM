@@ -13,7 +13,7 @@ const PHASE_META: Record<string, { label: string; color: string }> = {
   qa_phase:          { label: "QA Phase",             color: "#8B5CF6" },
   delivery_phase:    { label: "Delivery Phase",       color: "#10B981" },
 };
-// Fallback colors for phases not in the PHASE_META mapping
+
 const FALLBACK_COLORS = ["#0F398A", "#0B84F3", "#0F172A", "#14B8A6", "#E11D48"];
 
 function titleCaseKey(key: string) {
