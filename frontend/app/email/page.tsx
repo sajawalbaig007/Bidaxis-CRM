@@ -2,13 +2,14 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import toast, { Toaster } from "react-hot-toast";
-import { Ban, Mail, Plus, Send, Sparkles, Trash2, Upload } from "lucide-react";
+import { Ban, Check, Download, Mail, Plus, Send, Sparkles, Trash2, Upload } from "lucide-react";
 import { StaffSidebar } from "@/app/hooks/useStaffSidebar";
 import DashboardNavbar from "@/app/admin/components/layout/Navbar";
 import API, { apiErrorMessage } from "@/lib/api";
 
 type Sender = { id: string; email: string; name: string };
-type MailFile = { id: string; fileName: string; createdAt: string; count: number };
+type MailFile = { id: string; fileName: string; createdAt: string; count: number; source: string };
+type SourceTab = "all" | "manual" | "unsourced" | string;
 type Client = {
   id: string;
   fileId: string;
@@ -57,6 +58,11 @@ export default function EmailPage() {
   const [files, setFiles] = useState<MailFile[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [filter, setFilter] = useState<Filter>("all");
+  const [sourceTab, setSourceTab] = useState<SourceTab>("all");
+  const [sourceDraftId, setSourceDraftId] = useState("");
+  const [sourceDraft, setSourceDraft] = useState("");
+  const [savingSourceId, setSavingSourceId] = useState("");
+  const [downloadingId, setDownloadingId] = useState("");
   const [previewId, setPreviewId] = useState("");
   const [manualName, setManualName] = useState("");
   const [manualEmail, setManualEmail] = useState("");
@@ -67,7 +73,14 @@ export default function EmailPage() {
   const templateReady = useRef(false);
 
   function applyLibrary(data: Library | undefined) {
-    if (Array.isArray(data?.files)) setFiles(data.files);
+    if (Array.isArray(data?.files)) {
+      setFiles(
+        data.files.map((file) => ({
+          ...file,
+          source: String((file as MailFile).source ?? "").trim(),
+        })),
+      );
+    }
     if (Array.isArray(data?.recipients)) setClients(data.recipients);
   }
 
@@ -102,19 +115,71 @@ export default function EmailPage() {
     return () => clearTimeout(timer);
   }, [subject, body, fromEmail]);
 
+  const sourceTabs = useMemo(() => {
+    const seen = new Map<string, string>();
+    for (const file of files) {
+      const name = file.source.trim();
+      if (!name) continue;
+      const key = name.toLowerCase();
+      if (!seen.has(key)) seen.set(key, name);
+    }
+    return [...seen.values()].sort((a, b) => a.localeCompare(b));
+  }, [files]);
+
+  useEffect(() => {
+    if (sourceTab === "all" || sourceTab === "manual" || sourceTab === "unsourced") return;
+    if (!sourceTabs.some((name) => name.toLowerCase() === sourceTab.toLowerCase())) {
+      setSourceTab("all");
+    }
+  }, [sourceTabs, sourceTab]);
+
+  const sourcedClients = useMemo(() => {
+    if (sourceTab === "all") return clients;
+    if (sourceTab === "manual") return clients.filter((client) => client.manual || !client.fileId);
+    const match = new Set(
+      files
+        .filter((file) =>
+          sourceTab === "unsourced" ? !file.source.trim() : file.source.trim().toLowerCase() === sourceTab.toLowerCase(),
+        )
+        .map((file) => file.id),
+    );
+    return clients.filter((client) => !client.manual && client.fileId && match.has(client.fileId));
+  }, [clients, files, sourceTab]);
+
   const counts = useMemo(() => {
-    const out: Record<Filter, number> = { all: clients.length, pending: 0, sent: 0, failed: 0 };
-    for (const client of clients) {
+    const out: Record<Filter, number> = { all: sourcedClients.length, pending: 0, sent: 0, failed: 0 };
+    for (const client of sourcedClients) {
       if (client.status === "sent" || client.status === "failed" || client.status === "pending") {
         out[client.status] += 1;
       }
     }
     return out;
-  }, [clients]);
+  }, [sourcedClients]);
+
+  const sourceCounts = useMemo(() => {
+    const bySource = new Map<string, number>();
+    const fileById = new Map(files.map((file) => [file.id, file]));
+    let manual = 0;
+    let unsourced = 0;
+    for (const client of clients) {
+      if (client.manual || !client.fileId) {
+        manual += 1;
+        continue;
+      }
+      const source = fileById.get(client.fileId)?.source.trim() ?? "";
+      if (!source) {
+        unsourced += 1;
+        continue;
+      }
+      const key = source.toLowerCase();
+      bySource.set(key, (bySource.get(key) ?? 0) + 1);
+    }
+    return { manual, unsourced, bySource };
+  }, [clients, files]);
 
   const visible = useMemo(
-    () => (filter === "all" ? clients : clients.filter((client) => client.status === filter)),
-    [clients, filter],
+    () => (filter === "all" ? sourcedClients : sourcedClients.filter((client) => client.status === filter)),
+    [sourcedClients, filter],
   );
 
   const previewClient = clients.find((client) => client.id === previewId) ?? visible[0] ?? clients[0];
@@ -167,11 +232,87 @@ export default function EmailPage() {
       if (res.data?.skippedNoEmail) notes.push(`${res.data.skippedNoEmail} skipped (no email)`);
       if (res.data?.skippedDuplicate) notes.push(`${res.data.skippedDuplicate} skipped (duplicate)`);
       if (res.data?.leftOut) notes.push(`${res.data.leftOut} left out after 400`);
-      toast.success(`${notes.join(". ")}.`);
+      toast.success(`${notes.join(". ")}. Write the source for this list.`);
+      const uploadedId = String(res.data?.fileId ?? "");
+      const newest = (Array.isArray(res.data?.files) ? res.data.files : []).find(
+        (item: MailFile) => item.id === uploadedId,
+      ) ?? (Array.isArray(res.data?.files) ? res.data.files[0] : null);
+      if (newest?.id) {
+        setSourceDraftId(newest.id);
+        setSourceDraft("");
+        setSourceTab("unsourced");
+      }
     } catch (err) {
       toast.error(apiErrorMessage(err, "Could not upload that file."));
     } finally {
       setUploading(false);
+    }
+  }
+
+  async function saveSource(file: MailFile, source: string) {
+    const next = source.replace(/\s+/g, " ").trim();
+    if (savingSourceId) return;
+    setSavingSourceId(file.id);
+    try {
+      const res = await API.patch(`/mail-campaign/files/${encodeURIComponent(file.id)}/source`, { source: next });
+      applyLibrary(res.data);
+      setSourceDraftId("");
+      setSourceDraft("");
+      if (next) setSourceTab(next);
+      toast.success(next ? `Saved under ${next}.` : "Source cleared.");
+    } catch (err) {
+      toast.error(apiErrorMessage(err, "Could not save that source."));
+    } finally {
+      setSavingSourceId("");
+    }
+  }
+
+  function filenameFromDisposition(header: string, fallback: string): string {
+    const star = header.match(/filename\*=UTF-8''([^;]+)/i);
+    if (star?.[1]) {
+      try {
+        return decodeURIComponent(star[1]);
+      } catch {
+        return star[1];
+      }
+    }
+    const plain = header.match(/filename="?([^";]+)"?/i);
+    return plain?.[1] ?? fallback;
+  }
+
+  async function downloadFile(file: MailFile) {
+    if (downloadingId) return;
+    setDownloadingId(file.id);
+    try {
+      const res = await API.get(`/mail-campaign/files/${encodeURIComponent(file.id)}/download`, {
+        responseType: "arraybuffer",
+        timeout: 60_000,
+      });
+      const contentType =
+        String(res.headers?.["content-type"] ?? "") ||
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+      if (contentType.includes("application/json")) {
+        toast.error("Download failed — server returned an error");
+        return;
+      }
+      const blob = new Blob([res.data], { type: contentType });
+      if (blob.size < 40) {
+        toast.error("Download failed — empty file");
+        return;
+      }
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filenameFromDisposition(String(res.headers?.["content-disposition"] ?? ""), file.fileName);
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      toast.success(`Downloaded ${file.fileName}`);
+    } catch (err) {
+      toast.error(apiErrorMessage(err, "Could not download that file."));
+    } finally {
+      setDownloadingId("");
     }
   }
 
@@ -180,6 +321,10 @@ export default function EmailPage() {
     try {
       const res = await API.delete(`/mail-campaign/files/${encodeURIComponent(file.id)}`);
       applyLibrary(res.data);
+      if (sourceDraftId === file.id) {
+        setSourceDraftId("");
+        setSourceDraft("");
+      }
       toast.success("File and its clients removed.");
     } catch (err) {
       toast.error(apiErrorMessage(err, "Could not delete that file."));
@@ -367,23 +512,86 @@ export default function EmailPage() {
 
             {!!files.length && (
               <ul className="mb-4 rounded-2xl border border-gray-100">
-                {files.map((file) => (
-                  <li key={file.id} className="flex items-center justify-between gap-3 px-3 py-2 text-sm border-t border-gray-50 first:border-t-0">
-                    <span className="min-w-0 truncate text-gray-800">
-                      {file.fileName}
-                      <span className="text-xs text-gray-400"> · {file.count} clients · {new Date(file.createdAt).toLocaleString()}</span>
-                    </span>
-                    <button
-                      type="button"
-                      aria-label={`Delete ${file.fileName}`}
-                      disabled={busy}
-                      onClick={() => void deleteFile(file)}
-                      className="shrink-0 text-gray-400 hover:text-red-600 disabled:opacity-40"
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </li>
-                ))}
+                <li className="px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+                  Upload history
+                </li>
+                {files.map((file) => {
+                  const editing = sourceDraftId === file.id;
+                  return (
+                    <li key={file.id} className="flex flex-col gap-2 px-3 py-2 text-sm border-t border-gray-50 first:border-t-0">
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="min-w-0 truncate text-gray-800">
+                          {file.fileName}
+                          <span className="text-xs text-gray-400"> · {file.count} clients · {new Date(file.createdAt).toLocaleString()}</span>
+                          {file.source ? (
+                            <span className="text-xs text-[#0F398A] font-medium"> · {file.source}</span>
+                          ) : (
+                            <span className="text-xs text-amber-600"> · add source</span>
+                          )}
+                        </span>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <button
+                            type="button"
+                            title="Download file"
+                            aria-label={`Download ${file.fileName}`}
+                            disabled={busy || downloadingId === file.id}
+                            onClick={() => void downloadFile(file)}
+                            className="text-gray-400 hover:text-[#0F398A] disabled:opacity-40"
+                          >
+                            <Download size={14} />
+                          </button>
+                          <button
+                            type="button"
+                            aria-label={`Delete ${file.fileName}`}
+                            disabled={busy}
+                            onClick={() => void deleteFile(file)}
+                            className="text-gray-400 hover:text-red-600 disabled:opacity-40"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </div>
+                      {editing ? (
+                        <div className="flex flex-wrap items-center gap-2">
+                          <input
+                            autoFocus
+                            value={sourceDraft}
+                            onChange={(e) => setSourceDraft(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") void saveSource(file, sourceDraft);
+                              if (e.key === "Escape") {
+                                setSourceDraftId("");
+                                setSourceDraft("");
+                              }
+                            }}
+                            placeholder="Write source, e.g. ZoomInfo"
+                            className={`${inputClass} !w-56`}
+                          />
+                          <button
+                            type="button"
+                            disabled={savingSourceId === file.id}
+                            onClick={() => void saveSource(file, sourceDraft)}
+                            className={pillClass}
+                          >
+                            <Check size={14} /> {savingSourceId === file.id ? "Saving…" : "Save source"}
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() => {
+                            setSourceDraftId(file.id);
+                            setSourceDraft(file.source);
+                          }}
+                          className="self-start text-[11px] font-medium text-[#0F398A] hover:underline disabled:opacity-40"
+                        >
+                          {file.source ? "Change source" : "Write source"}
+                        </button>
+                      )}
+                    </li>
+                  );
+                })}
               </ul>
             )}
 
@@ -403,6 +611,54 @@ export default function EmailPage() {
             </div>
 
             <div className="flex flex-wrap gap-2 mb-3">
+              <span className="w-full text-[11px] font-semibold uppercase tracking-wide text-gray-400">Source</span>
+              <button
+                type="button"
+                onClick={() => setSourceTab("all")}
+                className={`rounded-full px-3 py-1.5 text-xs font-medium ${
+                  sourceTab === "all" ? "bg-[#0F398A] text-white" : "bg-gray-100 text-gray-600"
+                }`}
+              >
+                All sources ({clients.length})
+              </button>
+              {sourceTabs.map((name) => (
+                <button
+                  key={name}
+                  type="button"
+                  onClick={() => setSourceTab(name)}
+                  className={`rounded-full px-3 py-1.5 text-xs font-medium ${
+                    sourceTab.toLowerCase() === name.toLowerCase() ? "bg-[#0F398A] text-white" : "bg-gray-100 text-gray-600"
+                  }`}
+                >
+                  {name} ({sourceCounts.bySource.get(name.toLowerCase()) ?? 0})
+                </button>
+              ))}
+              {sourceCounts.unsourced > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setSourceTab("unsourced")}
+                  className={`rounded-full px-3 py-1.5 text-xs font-medium ${
+                    sourceTab === "unsourced" ? "bg-[#0F398A] text-white" : "bg-gray-100 text-gray-600"
+                  }`}
+                >
+                  No source ({sourceCounts.unsourced})
+                </button>
+              )}
+              {sourceCounts.manual > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setSourceTab("manual")}
+                  className={`rounded-full px-3 py-1.5 text-xs font-medium ${
+                    sourceTab === "manual" ? "bg-[#0F398A] text-white" : "bg-gray-100 text-gray-600"
+                  }`}
+                >
+                  Manual ({sourceCounts.manual})
+                </button>
+              )}
+            </div>
+
+            <div className="flex flex-wrap gap-2 mb-3">
+              <span className="w-full text-[11px] font-semibold uppercase tracking-wide text-gray-400">Status</span>
               {FILTERS.map(({ key, label }) => (
                 <button
                   key={key}
@@ -492,7 +748,11 @@ export default function EmailPage() {
                   {!visible.length && (
                     <tr>
                       <td colSpan={5} className="p-6 text-center text-gray-400">
-                        {clients.length ? "No clients with this status." : "Upload a sheet or add a client."}
+                        {clients.length
+                          ? sourceTab !== "all"
+                            ? "No clients in this source with this status."
+                            : "No clients with this status."
+                          : "Upload a sheet or add a client."}
                       </td>
                     </tr>
                   )}

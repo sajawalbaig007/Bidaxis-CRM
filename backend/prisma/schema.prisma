@@ -819,11 +819,14 @@ model ManualDial {
 
 /** A client sheet uploaded on the /email page. */
 model MailListFile {
-  id        String   @id @default(cuid()) @map("_id")
-  fileName  String
-  count     Int      @default(0)
-  createdAt DateTime @default(now())
+  id            String   @id @default(cuid()) @map("_id")
+  fileName      String
+  count         Int      @default(0)
+  source        String?
+  cloudinaryUrl String?
+  createdAt     DateTime @default(now())
 
+  @@index([source])
   @@map("mail_list_files")
 }
 

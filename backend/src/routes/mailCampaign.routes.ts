@@ -1,10 +1,12 @@
 import express from "express";
 import multer from "multer";
 import rateLimit from "express-rate-limit";
+import XLSX from "xlsx";
 import { verifyToken, type AuthRequest } from "../middleware/auth.middleware";
 import { allowRoles } from "../middleware/role.middleware";
 import { findSender, isValidEmail, publicSenders, sendClientMail } from "../utils/clientMail";
 import { mailSheetRejectReason, parseClientMailSheet } from "../utils/mailListParse";
+import cloudinary from "../config/cloudinary";
 import prisma from "../config/db";
 
 const uploadMailList = multer({
@@ -32,6 +34,65 @@ function safeFileName(raw: string): string {
   return base.slice(0, 180);
 }
 
+function cleanSource(raw: unknown): string {
+  return String(raw ?? "").replace(/\s+/g, " ").trim().slice(0, 80);
+}
+
+function downloadFileName(raw: string): string {
+  const base = safeFileName(raw).replace(/[/\\?%*:|"<>]/g, "_");
+  if (/\.(xlsx|xls|csv)$/i.test(base)) return base;
+  return `${base}.xlsx`;
+}
+
+function contentTypeForName(fileName: string): string {
+  const lower = fileName.toLowerCase();
+  if (lower.endsWith(".csv")) return "text/csv; charset=utf-8";
+  if (lower.endsWith(".xls")) return "application/vnd.ms-excel";
+  return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+}
+
+function sendFileDownload(res: express.Response, fileName: string, buffer: Buffer) {
+  const name = downloadFileName(fileName);
+  const asciiName = name.replace(/[^\x20-\x7E]/g, "_");
+  res.setHeader("Content-Type", contentTypeForName(name));
+  res.setHeader(
+    "Content-Disposition",
+    `attachment; filename="${asciiName}"; filename*=UTF-8''${encodeURIComponent(name)}`,
+  );
+  res.setHeader("Content-Length", String(buffer.length));
+  res.setHeader("Cache-Control", "no-store");
+  return res.status(200).end(buffer);
+}
+
+function archiveMailSheet(buffer: Buffer): Promise<string> {
+  return new Promise((resolve, reject) => {
+    cloudinary.uploader
+      .upload_stream(
+        { resource_type: "raw", folder: "crm_uploads/mail-campaign" },
+        (error, result) => {
+          if (error || !result) reject(error);
+          else resolve(result.secure_url);
+        },
+      )
+      .end(buffer);
+  });
+}
+
+function excelFromMailRows(
+  rows: Array<{ name: string; company: string; email: string; phones: string }>,
+): Buffer {
+  const data = rows.map((row) => ({
+    Name: row.name,
+    Company: row.company,
+    Email: row.email,
+    Phone: row.phones,
+  }));
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.json_to_sheet(data.length ? data : [{ Name: "", Company: "", Email: "", Phone: "" }]);
+  XLSX.utils.book_append_sheet(wb, ws, "Clients");
+  return XLSX.write(wb, { type: "buffer", bookType: "xlsx" }) as Buffer;
+}
+
 function fillTemplate(template: string, client: { name: string; company: string }): string {
   const full = client.name.trim() || "there";
   const first = full.split(/\s+/)[0] || full;
@@ -52,6 +113,7 @@ async function mailLibrary() {
       fileName: file.fileName,
       createdAt: file.createdAt,
       count: file.count,
+      source: file.source?.trim() ?? "",
     })),
     recipients: rows.map((row) => ({
       id: row.id,
@@ -126,8 +188,9 @@ router.post("/files", uploadMailList.single("file"), async (req: AuthRequest, re
       return res.status(400).json({ success: false, message: why });
     }
 
+    const source = cleanSource(req.body?.source);
     const file = await prisma.mailListFile.create({
-      data: { fileName, count: parsed.recipients.length },
+      data: { fileName, count: parsed.recipients.length, source, cloudinaryUrl: "" },
     });
     await prisma.mailListRow.createMany({
       data: parsed.recipients.map((row) => ({
@@ -140,6 +203,17 @@ router.post("/files", uploadMailList.single("file"), async (req: AuthRequest, re
         manual: false,
       })),
     });
+    const cloudPromise = archiveMailSheet(req.file.buffer).then(
+      (url) => url,
+      (cloudErr: unknown) => {
+        console.info("[mail-campaign] Cloudinary archive failed (download will rebuild the sheet)", cloudErr);
+        return "";
+      },
+    );
+    const cloudinaryUrl = await cloudPromise;
+    if (cloudinaryUrl) {
+      await prisma.mailListFile.update({ where: { id: file.id }, data: { cloudinaryUrl } });
+    }
     console.info(`[mail-campaign] file saved by=${req.user?.id} rows=${parsed.recipients.length}`);
     return res.json({
       success: true,
@@ -147,11 +221,59 @@ router.post("/files", uploadMailList.single("file"), async (req: AuthRequest, re
       skippedNoEmail: parsed.skippedNoEmail,
       skippedDuplicate: parsed.skippedDuplicate,
       leftOut: parsed.leftOut,
+      fileId: file.id,
       ...(await mailLibrary()),
     });
   } catch (err) {
     console.error("[mail-campaign] upload failed", err);
     return res.status(500).json({ success: false, message: "Could not save that file." });
+  }
+});
+
+router.get("/files/:id/download", async (req, res) => {
+  try {
+    const id = String(req.params.id ?? "");
+    const file = await prisma.mailListFile.findUnique({ where: { id } });
+    if (!file) return res.status(404).json({ success: false, message: "File not found." });
+
+    if (file.cloudinaryUrl) {
+      try {
+        const remote = await fetch(file.cloudinaryUrl);
+        if (remote.ok) {
+          const buffer = Buffer.from(await remote.arrayBuffer());
+          if (buffer.length > 0) return sendFileDownload(res, file.fileName, buffer);
+        }
+      } catch (cloudErr) {
+        console.info("[mail-campaign] original file fetch failed, rebuilding sheet", cloudErr);
+      }
+    }
+
+    const rows = await prisma.mailListRow.findMany({
+      where: { fileId: id },
+      orderBy: { createdAt: "asc" },
+      select: { name: true, company: true, email: true, phones: true },
+    });
+    const rebuiltName = downloadFileName(file.fileName).replace(/\.(xls|csv)$/i, ".xlsx");
+    return sendFileDownload(res, rebuiltName, excelFromMailRows(rows));
+  } catch (err) {
+    console.error("[mail-campaign] file download failed", err);
+    return res.status(500).json({ success: false, message: "Could not download that file." });
+  }
+});
+
+router.patch("/files/:id/source", async (req, res) => {
+  try {
+    const id = String(req.params.id ?? "");
+    const existing = await prisma.mailListFile.findUnique({ where: { id } });
+    if (!existing) return res.status(404).json({ success: false, message: "File not found." });
+    await prisma.mailListFile.update({
+      where: { id },
+      data: { source: cleanSource(req.body?.source) },
+    });
+    return res.json({ success: true, ...(await mailLibrary()) });
+  } catch (err) {
+    console.error("[mail-campaign] source save failed", err);
+    return res.status(500).json({ success: false, message: "Could not save that source." });
   }
 });
 
